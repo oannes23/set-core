@@ -1,0 +1,1306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SET · combat sandbox</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=Spline+Sans+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0b0d12;
+    --bg2:#0f1219;
+    --panel:#13161f;
+    --panel2:#171b26;
+    --line:#232838;
+    --line2:#2d3344;
+    --ink:#e8ebf2;
+    --ink-dim:#8b93a7;
+    --ink-faint:#5b6175;
+    --phos:#5eead4;      /* instrument accent */
+    --phos-dim:#2dd4bf;
+    --red:#f0565b;
+    --green:#46c46a;
+    --blue:#5b94f5;
+    --warn:#f5a524;
+    --gold:#f5c542;
+    --shadow:0 20px 50px -20px rgba(0,0,0,.7);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    background:
+      radial-gradient(1200px 700px at 80% -10%, #16203022, transparent),
+      radial-gradient(900px 600px at 0% 110%, #2a161a22, transparent),
+      var(--bg);
+    color:var(--ink);
+    font-family:"Spline Sans Mono",ui-monospace,monospace;
+    min-height:100%;
+    padding:clamp(14px,3vw,34px);
+    -webkit-font-smoothing:antialiased;
+  }
+  body::before{
+    content:"";position:fixed;inset:0;pointer-events:none;z-index:0;opacity:.4;
+    background-image:linear-gradient(var(--line) 1px,transparent 1px),linear-gradient(90deg,var(--line) 1px,transparent 1px);
+    background-size:46px 46px;
+    mask-image:radial-gradient(ellipse 80% 70% at 50% 30%, #000 30%, transparent 80%);
+  }
+  .wrap{position:relative;z-index:1;max-width:none;margin:0 auto}
+
+  header.top{display:flex;align-items:center;justify-content:space-between;gap:18px 28px;flex-wrap:wrap;margin-bottom:16px}
+  .brand{display:flex;flex-direction:column;gap:2px}
+  .brand h1{font-family:"Syne",sans-serif;font-weight:800;font-size:clamp(28px,5vw,46px);letter-spacing:-.02em;line-height:.9}
+  .brand h1 .dot{color:var(--red)}
+  .brand .sub{color:var(--ink-faint);font-size:12px;letter-spacing:.18em;text-transform:uppercase}
+
+  .hud{display:flex;gap:10px;flex-wrap:wrap;align-items:stretch}
+  .stat{
+    background:linear-gradient(180deg,var(--panel),var(--bg2));
+    border:1px solid var(--line);border-radius:12px;padding:10px 14px;min-width:96px;
+    display:flex;flex-direction:column;gap:3px;box-shadow:var(--shadow)
+  }
+  .stat .lab{font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-faint)}
+  .stat .val{font-family:"Syne",sans-serif;font-weight:700;font-size:26px;line-height:1;font-variant-numeric:tabular-nums}
+  .stat.player .val{color:var(--green)}
+  .stat.enemy .val{color:var(--red)}
+  .stat.block .val{color:var(--blue)}
+  .stat.clock .val{color:var(--phos)}
+  .stat.clock.low .val{color:var(--warn)}
+  .stat.clock.crit .val{color:var(--red);animation:pulse .8s steps(2) infinite}
+  @keyframes pulse{50%{opacity:.4}}
+  .stat.hp{min-width:148px}
+  .stat .val small{font-size:13px;color:var(--ink-faint);font-weight:600}
+  .hpbar{height:6px;border-radius:4px;background:#0c0f16;border:1px solid var(--line);overflow:hidden;margin-top:7px}
+  .hpbar .fill{height:100%;border-radius:4px;transition:width .3s ease}
+  .stat.hit .val{animation:flash .4s ease}
+  @keyframes flash{0%,100%{transform:none}40%{transform:scale(1.12)}}
+
+  .layout{display:grid;grid-template-columns:1fr 320px;gap:18px;align-items:start}
+  @media(max-width:880px){.layout{grid-template-columns:1fr}}
+
+  .boardpanel{
+    background:linear-gradient(180deg,var(--panel),var(--bg2));
+    border:1px solid var(--line);border-radius:18px;padding:16px;box-shadow:var(--shadow);position:relative;overflow:hidden
+  }
+  .boardpanel::after{content:"";position:absolute;inset:0;border-radius:18px;pointer-events:none;
+    box-shadow:inset 0 1px 0 #ffffff0a}
+  /* compact cards; column count is set per board size (full 4/5/6-wide rows) via JS */
+  .board{display:grid;gap:10px;justify-content:center;margin:0 auto}
+  @media(max-width:620px){.board{gap:8px}}
+
+  .card{
+    position:relative;aspect-ratio:1/1.45;border-radius:13px;cursor:pointer;
+    background:linear-gradient(170deg,#1c212e,#141821);
+    border:1px solid var(--line2);
+    display:flex;align-items:center;justify-content:center;
+    transition:transform .12s ease, box-shadow .12s ease, border-color .12s ease;
+    user-select:none;
+  }
+  .card:hover{transform:translateY(-3px);border-color:#3d465d}
+  .card svg{width:74%;height:74%}
+  .card.sel{border-color:var(--phos);box-shadow:0 0 0 2px var(--phos),0 0 26px -6px var(--phos-dim);transform:translateY(-3px)}
+  .card.good{border-color:var(--green);box-shadow:0 0 0 2px var(--green),0 0 30px -4px var(--green);animation:pop .32s ease}
+  .card.bad{border-color:var(--red);box-shadow:0 0 0 2px var(--red);animation:shake .34s ease}
+  .card.leaving{animation:leave .3s ease forwards}
+  @keyframes pop{0%{transform:scale(1)}45%{transform:scale(1.07)}100%{transform:scale(1)}}
+  @keyframes shake{0%,100%{transform:translateX(0)}20%{transform:translateX(-7px)}40%{transform:translateX(6px)}60%{transform:translateX(-4px)}80%{transform:translateX(3px)}}
+  @keyframes leave{to{opacity:0;transform:scale(.7) rotate(4deg)}}
+  @keyframes enter{from{opacity:0;transform:scale(.8)}to{opacity:1;transform:scale(1)}}
+  .card.entering{animation:enter .34s ease}
+  .card.hint{border-color:var(--warn);box-shadow:0 0 0 2px var(--warn),0 0 26px -4px var(--warn);animation:hintpulse .6s ease 2}
+  @keyframes hintpulse{0%,100%{box-shadow:0 0 0 2px var(--warn),0 0 8px -4px var(--warn)}50%{box-shadow:0 0 0 3px var(--warn),0 0 34px 0 var(--warn)}}
+
+  .board.idle{filter:saturate(.5) brightness(.5);pointer-events:none}
+  .startgate{position:absolute;inset:16px;border-radius:14px;display:none;flex-direction:column;
+    align-items:center;justify-content:center;gap:14px;cursor:pointer;z-index:5;
+    background:radial-gradient(circle at 50% 40%, rgba(240,86,91,.08), rgba(11,13,18,.55));
+    border:1px dashed var(--line2);backdrop-filter:blur(1px)}
+  .startgate.show{display:flex}
+  .startgate .big{font-family:"Syne",sans-serif;font-weight:800;font-size:clamp(22px,3.4vw,34px);letter-spacing:-.01em}
+  .startgate .small{color:var(--ink-dim);font-size:12.5px;max-width:380px;text-align:center;line-height:1.6}
+  .startgate .cta{background:var(--red);color:#2b0608;font-family:"Syne",sans-serif;font-weight:700;
+    padding:11px 22px;border-radius:11px;font-size:15px;animation:bob 1.6s ease-in-out infinite;box-shadow:0 10px 24px -8px var(--red)}
+  @keyframes bob{50%{transform:translateY(-4px)}}
+
+  .side{display:flex;flex-direction:column;gap:14px}
+  .panel{background:linear-gradient(180deg,var(--panel),var(--bg2));border:1px solid var(--line);border-radius:16px;padding:14px;box-shadow:var(--shadow)}
+  .panel h2{font-family:"Syne",sans-serif;font-weight:700;font-size:13px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-dim);margin-bottom:10px;display:flex;justify-content:space-between;align-items:center}
+  .panel h2 .cnt{color:var(--phos);font-size:12px}
+
+  /* controls */
+  .controls{display:flex;flex-direction:column;gap:12px}
+  #dials{display:flex;flex-direction:column;gap:13px}
+  #dials.locked{opacity:.45;pointer-events:none}
+  .clab{font-size:11px;color:var(--ink-faint);letter-spacing:.12em;text-transform:uppercase;margin-bottom:7px;display:flex;justify-content:space-between;align-items:baseline}
+  .clab .num{font-family:"Syne",sans-serif;font-weight:700;font-size:15px;color:var(--phos);letter-spacing:0;text-transform:none}
+  input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:5px;border-radius:5px;background:var(--line2);outline:none;cursor:pointer}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:17px;height:17px;border-radius:50%;background:var(--phos);cursor:pointer;border:2px solid var(--bg2);box-shadow:0 0 10px -2px var(--phos-dim)}
+  input[type=range]::-moz-range-thumb{width:15px;height:15px;border-radius:50%;background:var(--phos);cursor:pointer;border:2px solid var(--bg2)}
+  input[type=range].enemy::-webkit-slider-thumb{background:var(--red);box-shadow:0 0 10px -2px var(--red)}
+  input[type=range].enemy::-moz-range-thumb{background:var(--red)}
+  input[type=range].player::-webkit-slider-thumb{background:var(--green);box-shadow:0 0 10px -2px var(--green)}
+  input[type=range].player::-moz-range-thumb{background:var(--green)}
+  .ticks{display:flex;justify-content:space-between;font-size:9.5px;color:var(--ink-faint);margin-top:3px;font-variant-numeric:tabular-nums}
+  .capnote{font-size:10px;color:var(--warn);min-height:11px;margin-top:4px;letter-spacing:.02em}
+  .sectlab{font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--phos-dim);border-top:1px solid var(--line);padding-top:11px;margin-top:2px}
+  .durrow{display:flex;gap:6px;flex-wrap:wrap}
+  .chip{flex:1;min-width:48px;text-align:center;background:var(--panel2);border:1px solid var(--line2);color:var(--ink-dim);
+    border-radius:9px;padding:9px 4px;font-size:12.5px;cursor:pointer;transition:.12s;font-variant-numeric:tabular-nums}
+  .chip:hover{border-color:#3d465d;color:var(--ink)}
+  .chip.on{background:var(--phos);border-color:var(--phos);color:#062b27;font-weight:600}
+  .btn{
+    width:100%;border:none;border-radius:11px;padding:13px;cursor:pointer;
+    font-family:"Syne",sans-serif;font-weight:700;font-size:15px;letter-spacing:.04em;
+    background:var(--red);color:#2b0608;transition:.14s;box-shadow:0 8px 20px -8px var(--red)
+  }
+  .btn:hover{filter:brightness(1.08);transform:translateY(-1px)}
+  .btn.ghost{background:transparent;border:1px solid var(--line2);color:var(--ink-dim);box-shadow:none}
+  .btn.ghost:hover{border-color:var(--phos);color:var(--phos)}
+
+  /* combat readout */
+  .readgrid{display:flex;flex-direction:column;gap:12px}
+  .rowstat{display:flex;justify-content:space-between;align-items:baseline;font-size:12.5px;color:var(--ink-dim)}
+  .rowstat b{font-family:"Syne",sans-serif;font-weight:700;color:var(--ink);font-size:16px;font-variant-numeric:tabular-nums}
+  .bar{display:flex;align-items:center;gap:9px;margin-bottom:6px;font-size:12.5px}
+  .bar .nm{min-width:66px;color:var(--ink-dim);display:flex;align-items:center;gap:6px}
+  .bar .track{flex:1;height:9px;background:#0c0f16;border-radius:6px;overflow:hidden;border:1px solid var(--line)}
+  .bar .fill{height:100%;border-radius:6px;transition:width .4s cubic-bezier(.2,.8,.2,1)}
+  .bar .n{min-width:30px;text-align:right;color:var(--ink-dim);font-variant-numeric:tabular-nums}
+  .swatch{width:11px;height:11px;border-radius:3px;flex-shrink:0}
+  .manarow{display:flex;gap:8px;margin-top:2px}
+  .mana{flex:1;text-align:center;border:1px solid var(--line2);border-radius:10px;padding:8px 4px}
+  .mana .mv{font-family:"Syne",sans-serif;font-weight:700;font-size:18px;font-variant-numeric:tabular-nums;line-height:1}
+  .mana .ml{font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-faint);margin-top:4px}
+  .subhdr{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-faint);margin:4px 0 2px}
+
+  /* combat log */
+  .log{max-height:208px;overflow-y:auto;display:grid;grid-template-columns:repeat(auto-fill,minmax(228px,1fr));gap:7px;align-content:start;padding-right:4px}
+  .log .empty{grid-column:1/-1}
+  .log::-webkit-scrollbar{width:8px}.log::-webkit-scrollbar-thumb{background:var(--line2);border-radius:8px}
+  .logitem{display:flex;align-items:center;gap:7px;background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:7px 9px;animation:enter .3s ease;flex-wrap:wrap}
+  .logitem.enemy{border-color:#5a2a2e;background:#1a1216}
+  .logitem .idx{color:var(--ink-faint);font-size:11px;min-width:24px}
+  .acts{display:flex;gap:5px;flex:1;flex-wrap:wrap}
+  .act{border-radius:6px;padding:2px 7px;font-size:11px;border:1px solid var(--line2);white-space:nowrap;font-variant-numeric:tabular-nums}
+  .act.dmg{color:var(--red);border-color:#5a2a2e}
+  .act.blk{color:var(--blue);border-color:#27406a}
+  .act.boot{color:var(--phos);border-color:#1f5a52}
+  .act.mana{color:var(--gold);border-color:#5a4a1e}
+  .log .empty{color:var(--ink-faint);font-size:12px;text-align:center;padding:18px 0}
+
+  /* board analysis row */
+  .analysis{display:flex;align-items:center;gap:18px;margin-top:14px;flex-wrap:wrap}
+  .aitem{display:flex;align-items:baseline;gap:6px}
+  .adot{width:7px;height:7px;border-radius:50%;background:var(--phos);box-shadow:0 0 8px var(--phos);align-self:center}
+  .abig{font-family:"Syne",sans-serif;font-weight:700;font-size:18px;color:var(--ink);font-variant-numeric:tabular-nums}
+  .alab{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-faint)}
+  .kbreak{display:flex;gap:5px;margin-left:auto;flex-wrap:wrap}
+  .kchip{font-size:10.5px;padding:3px 7px;border-radius:6px;border:1px solid var(--line2);color:var(--ink-dim);font-variant-numeric:tabular-nums;white-space:nowrap}
+
+  /* left column = narration panel stacked above the board */
+  .leftcol{display:flex;flex-direction:column;gap:14px;min-width:0}
+  .narrate{padding:0;overflow:hidden;display:flex;flex-direction:column}
+  .narrhd{display:flex;justify-content:space-between;align-items:center;padding:13px 15px;border-bottom:1px solid var(--line)}
+  .narrhd .ttl{font-family:"Syne",sans-serif;font-weight:700;font-size:13px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-dim)}
+  .narrhd .cnt{color:var(--phos);font-size:11px;letter-spacing:.08em}
+  .narrlog{flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:6px;padding:11px 15px;scroll-behavior:smooth}
+  .narrlog::-webkit-scrollbar{width:8px}.narrlog::-webkit-scrollbar-thumb{background:var(--line2);border-radius:8px}
+  .nline{font-size:13px;line-height:1.5;display:flex;gap:8px;align-items:baseline;animation:enter .25s ease}
+  .nline .ic{flex-shrink:0;width:16px;text-align:center}
+  .nline.player{color:#cfe9dd}    .nline.player b{color:var(--phos)}
+  .nline.enemy{color:#f0c2c4}     .nline.enemy b{color:var(--red)}
+  .nline.spell{color:#ecdfc4}     .nline.spell b{color:var(--gold)}
+  .nline.sys{color:var(--ink-faint);font-style:italic}
+  .narrlog .empty{color:var(--ink-faint);font-size:12px;text-align:center;padding:34px 0;font-style:italic}
+
+  /* top duo: spells (1/3) beside dialogue (2/3) */
+  .topduo{display:grid;grid-template-columns:1fr 2fr;gap:14px;align-items:stretch}
+  .spellpanel{display:flex;flex-direction:column}
+  @media(max-width:620px){.topduo{grid-template-columns:1fr}}
+
+  /* thin status strip between the duo and the board */
+  .statusbar{display:grid;grid-template-columns:1.25fr 1.25fr 1fr 1fr;gap:10px}
+  .statusbar .stat{flex-direction:row;align-items:center;gap:10px;padding:8px 13px;min-width:0}
+  .statusbar .sbinfo{display:flex;flex-direction:column;gap:2px;white-space:nowrap}
+  .statusbar .val{font-size:21px}
+  .statusbar .hpbar{flex:1;margin-top:0;min-width:36px}
+  @media(max-width:620px){.statusbar{grid-template-columns:1fr 1fr}}
+
+  /* compact combat-readout info panel in the header */
+  .readout{display:flex;align-items:center;gap:15px;flex-wrap:wrap;
+    background:linear-gradient(180deg,var(--panel),var(--bg2));border:1px solid var(--line);
+    border-radius:12px;padding:9px 17px;box-shadow:var(--shadow)}
+  .rgroup{display:flex;flex-direction:column;gap:3px;justify-content:center}
+  .rlab{font-size:9px;letter-spacing:.15em;text-transform:uppercase;color:var(--ink-faint)}
+  .rbig{font-family:"Syne",sans-serif;font-weight:700;font-size:18px;font-variant-numeric:tabular-nums;color:var(--ink);line-height:1}
+  .rmini{display:flex;gap:10px;font-size:11px;color:var(--ink-dim)}
+  .rmini b,.rmana b{font-family:"Syne",sans-serif;color:var(--ink);font-variant-numeric:tabular-nums;margin-left:3px}
+  .rmana{display:flex;gap:11px;font-size:14px;align-items:center}
+  .rsep{width:1px;align-self:stretch;background:var(--line)}
+  @media(max-width:620px){.rsep{display:none}.readout{gap:11px}}
+  /* emphasized vital gauges (HP / Block / Next attack) embedded in the header readout */
+  .readout .stat{flex-direction:row;align-items:center;gap:9px;padding:6px 12px;min-width:0;border-radius:10px;box-shadow:none}
+  .readout .stat .sbinfo{display:flex;flex-direction:column;gap:1px;white-space:nowrap}
+  .readout .stat .lab{font-size:9px}
+  .readout .stat .val{font-size:21px}
+  .readout .stat .hpbar{flex:0 0 50px;width:50px;margin-top:0}
+
+  /* spell grid (3x3) */
+  .spellgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}
+  .slot{position:relative;height:62px;border:1px solid var(--line2);border-radius:11px;background:var(--panel2);
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;padding:5px;cursor:default;
+    transition:transform .14s ease, box-shadow .14s ease, opacity .14s ease, border-color .14s ease;text-align:center}
+  .slot.empty{opacity:.22;border-style:dashed}
+  .slot.empty .empced{font-size:13px;color:var(--ink-faint)}
+  .slot.spell{opacity:.42;filter:grayscale(.55)}
+  .slot.spell.ready{opacity:1;filter:none;cursor:pointer;border-color:var(--phos);box-shadow:0 0 0 1px var(--phos),0 0 18px -9px var(--phos-dim)}
+  .slot.spell.ready:hover{transform:translateY(-2px);box-shadow:0 0 0 1px var(--phos),0 0 22px -4px var(--phos-dim)}
+  .slot.casting{animation:pop .32s ease}
+  .slot .sicon{font-size:18px;line-height:1}
+  .slot .sname{font-size:10px;font-weight:600;color:var(--ink);letter-spacing:.01em}
+  .slot .scost{display:flex;gap:5px;justify-content:center;flex-wrap:wrap}
+  .slot .pip{display:flex;align-items:center;gap:2px;font-size:9.5px;font-variant-numeric:tabular-nums;color:var(--ink-dim)}
+  .slot .pdot{width:7px;height:7px;border-radius:50%}
+
+  /* full-width main play field + bottom bar (setup | log) */
+  .play{display:flex;flex-direction:column;gap:14px;min-width:0;margin-bottom:14px}
+  .bottombar{display:grid;grid-template-columns:minmax(0,2.3fr) minmax(0,1fr);gap:14px;align-items:start}
+  @media(max-width:880px){.bottombar{grid-template-columns:1fr}}
+
+  /* Encounter setup, wide: dials laid out horizontally */
+  .setupwide #dials{display:grid;grid-template-columns:repeat(auto-fit,minmax(196px,1fr));gap:13px 24px;align-items:end}
+  .setupwide #dials .sectlab{grid-column:1/-1;margin-top:0}
+  .ctrlfoot{display:flex;flex-wrap:wrap;align-items:center;gap:11px 18px;margin-top:6px}
+  .btnrow{display:flex;gap:10px;flex-wrap:wrap}
+  .btnrow .btn{width:auto;padding:11px 22px}
+  .ctrlfoot .legend{margin-top:0}
+  .ctrlfoot .startnote{flex:1 1 300px;margin-top:0}
+
+  /* work area: card board (left) beside a right stack of Vitals / Spells / Narration */
+  .layout2{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:14px;margin-bottom:14px;align-items:stretch}
+  .layout2 .boardpanel{align-self:start}
+  /* right column: absolutely-fill the cell so the BOARD governs height; narration then scrolls internally */
+  .rightcol{position:relative;min-width:0}
+  .rightcol-inner{position:absolute;inset:0;display:flex;flex-direction:column;gap:14px}
+  .rightcol-inner .narrate{flex:1;min-height:0}   /* fills to the board's bottom; log scrolls inside */
+  @media(max-width:880px){
+    .layout2{grid-template-columns:1fr}
+    .rightcol{position:static}
+    .rightcol-inner{position:static;height:auto}
+    .rightcol-inner .narrate{flex:initial;min-height:240px}
+  }
+
+  /* mana readout living in the Spells header */
+  .manabar{display:flex;gap:11px;font-size:13px;letter-spacing:0;text-transform:none;align-items:center}
+  .manabar b{font-family:"Syne",sans-serif;color:var(--ink);font-variant-numeric:tabular-nums;margin-left:3px}
+
+  /* Vitals — tight HP / HP / Block / Enemy-attack panel, glanceable 2x2 */
+  .vitals .vgrid{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+  .vitals .stat{min-width:0;padding:9px 11px;gap:3px}
+  .vitals .stat .lab{font-size:9.5px}
+  .vitals .stat .val{font-size:21px}
+  .vitals .hpbar{margin-top:6px}
+
+  /* floaters over board */
+  .floatlayer{position:absolute;inset:0;pointer-events:none;z-index:6;overflow:hidden}
+  .floater{position:absolute;font-family:"Syne",sans-serif;font-weight:800;font-size:22px;opacity:0}
+  .floater.go{animation:rise 1s ease forwards}
+  @keyframes rise{0%{opacity:0;transform:translateY(8px)}18%{opacity:1}100%{opacity:0;transform:translateY(-34px)}}
+
+  /* end overlay */
+  .overlay{position:fixed;inset:0;z-index:50;background:rgba(6,8,12,.78);backdrop-filter:blur(7px);
+    display:none;align-items:center;justify-content:center;padding:20px;animation:fade .3s ease}
+  .overlay.show{display:flex}
+  @keyframes fade{from{opacity:0}}
+  .modal{width:min(680px,100%);max-height:90vh;overflow-y:auto;background:linear-gradient(180deg,var(--panel),var(--bg2));
+    border:1px solid var(--line2);border-radius:20px;padding:26px;box-shadow:var(--shadow)}
+  .modal h2{font-family:"Syne",sans-serif;font-weight:800;font-size:30px;letter-spacing:-.01em;margin-bottom:4px}
+  .modal h2.win{color:var(--green)} .modal h2.lose{color:var(--red)}
+  .modal .tagline{color:var(--ink-faint);font-size:12px;letter-spacing:.14em;text-transform:uppercase;margin-bottom:20px}
+  .summary{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:22px}
+  @media(max-width:560px){.summary{grid-template-columns:repeat(2,1fr)}}
+  .sumcell{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:12px}
+  .sumcell .l{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-faint)}
+  .sumcell .v{font-family:"Syne",sans-serif;font-weight:700;font-size:26px;line-height:1.1;font-variant-numeric:tabular-nums}
+  .sumcell .v small{font-size:13px;color:var(--ink-dim)}
+  .featgrid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-bottom:22px}
+  @media(max-width:560px){.featgrid{grid-template-columns:1fr}}
+  .feat{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:12px 13px}
+  .feat .ft{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-dim);margin-bottom:9px}
+  .modal .foot{display:flex;gap:10px}
+  .hint{color:var(--ink-faint);font-size:12px;line-height:1.6;margin-top:6px}
+  .startnote{color:var(--ink-faint);font-size:11.5px;line-height:1.65;margin-top:4px}
+  .legend{display:flex;gap:10px;flex-wrap:wrap;margin-top:2px}
+  .legitem{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--ink-dim)}
+  .legitem svg{width:20px;height:20px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="brand">
+      <h1>SET<span class="dot">.</span>combat</h1>
+      <div class="sub" id="sub">action-resolution sandbox · f=3 · color / shape / number</div>
+    </div>
+    <div class="readout" id="readout">
+      <div class="stat hp player" id="s-php"><div class="sbinfo"><div class="lab">Your HP</div><div class="val"><span id="v-php">30</span><small id="v-phpmax">/30</small></div></div><div class="hpbar"><span class="fill" id="bar-php" style="background:var(--green);width:100%"></span></div></div>
+      <div class="stat hp enemy" id="s-ehp"><div class="sbinfo"><div class="lab">Enemy HP</div><div class="val"><span id="v-ehp">30</span><small id="v-ehpmax">/30</small></div></div><div class="hpbar"><span class="fill" id="bar-ehp" style="background:var(--red);width:100%"></span></div></div>
+      <div class="stat block"><div class="sbinfo"><div class="lab">Block</div><div class="val" id="v-block">0</div></div></div>
+      <div class="stat clock" id="s-clock"><div class="sbinfo"><div class="lab">Next attack</div><div class="val" id="v-clock">—</div></div></div>
+      <div class="rsep"></div>
+      <div class="rgroup">
+        <div class="rlab">Damage dealt</div>
+        <div class="rbig" id="dmg-total">0 total</div>
+        <div class="rmini">
+          <span style="color:#7fd1a0">light <b id="n-light">0</b></span>
+          <span style="color:var(--warn)">med <b id="n-med">0</b></span>
+          <span style="color:var(--red)">heavy <b id="n-heavy">0</b></span>
+        </div>
+      </div>
+      <div class="rsep"></div>
+      <div class="rgroup">
+        <div class="rlab">Tempo · defense</div>
+        <div class="rmini">
+          <span>👢<b id="t-boot">0</b>s</span>
+          <span>🛡<b id="t-block">0</b></span>
+          <span>absorb <b id="t-absorb">0</b></span>
+          <span>taken <b id="t-taken">0</b></span>
+        </div>
+      </div>
+      <div class="rsep"></div>
+      <div class="rgroup">
+        <div class="rlab">Sets · miss</div>
+        <div class="rbig"><span id="t-sets">0</span> <span style="color:var(--ink-faint)">·</span> <span id="t-miss" style="color:var(--ink-faint)">0</span></div>
+      </div>
+    </div>
+  </header>
+
+  <div class="layout2">
+    <div class="boardpanel">
+      <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs id="defs"></defs></svg>
+      <div class="board idle" id="board"></div>
+      <div class="floatlayer" id="floatlayer"></div>
+      <div class="startgate show" id="startgate">
+        <div class="big">Ready to fight</div>
+        <div class="small" id="gate-rules">Find three cards where color, shape and number are each all-same or all-different. Every card in the set fires its own action at once — swords strike, shields guard, boots stall the enemy clock.</div>
+        <div class="cta">▶ Begin combat</div>
+      </div>
+      <div class="analysis" id="analysis">
+        <div class="aitem"><span class="adot"></span><span class="abig" id="a-count">—</span><span class="alab">sets on board</span></div>
+        <div class="aitem"><span class="abig" id="a-easy">—</span><span class="alab">easiest k</span></div>
+        <div class="kbreak" id="a-kbreak"></div>
+      </div>
+    </div>
+    <div class="rightcol">
+      <div class="rightcol-inner">
+      <div class="panel spellpanel">
+        <h2>Abilities <span class="manabar"><span style="color:var(--red)">🔥<b id="m-red">0</b></span><span style="color:var(--green)">🌿<b id="m-green">0</b></span><span style="color:var(--blue)">❄<b id="m-blue">0</b></span></span></h2>
+        <div class="spellgrid" id="spellgrid"></div>
+      </div>
+      <div class="panel narrate">
+        <div class="narrhd"><span class="ttl">Combat narration</span><span class="cnt" id="narr-cnt"></span></div>
+        <div class="narrlog" id="narrlog"><div class="empty">The arena is quiet. Set your encounter and begin combat.</div></div>
+      </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="bottombar">
+    <div class="panel setupwide">
+        <h2>Encounter setup</h2>
+        <div class="controls" id="controls">
+          <div id="dials">
+            <div class="sectlab">Combatants</div>
+            <div>
+              <div class="clab">Your HP <span class="num" id="php-out">30</span></div>
+              <input type="range" class="player" id="php" min="10" max="100" step="5" value="30">
+            </div>
+            <div>
+              <div class="clab">Enemy HP <span class="num" id="ehp-out">30</span></div>
+              <input type="range" class="enemy" id="ehp" min="10" max="100" step="5" value="30">
+            </div>
+            <div>
+              <div class="clab">Enemy damage / attack <span style="text-transform:none;letter-spacing:0;color:var(--ink-faint)">(max roll)</span> <span class="num" id="edmg-out">8</span></div>
+              <input type="range" class="enemy" id="edmg" min="1" max="15" step="1" value="8">
+            </div>
+            <div>
+              <div class="clab">Enemy cadence <span class="num" id="ecad-out">every 8s</span></div>
+              <input type="range" class="enemy" id="ecad" min="4" max="16" step="1" value="8">
+              <div class="ticks"><span>fast · 4s</span><span>10s</span><span>slow · 16s</span></div>
+            </div>
+
+            <div class="sectlab">Board difficulty (findability)</div>
+            <div>
+              <div class="clab">Board size <span class="num" id="n-out">18 · 3×6</span></div>
+              <input type="range" id="nslider" min="0" max="5" step="1" value="3">
+              <div class="ticks"><span>12</span><span>15</span><span>16</span><span>18</span><span>20</span><span>24</span></div>
+            </div>
+            <div>
+              <div class="clab">Camouflage depth <span class="num" id="depth-out">k1 · gimme</span></div>
+              <input type="range" id="depthslider" min="1" max="3" step="1" value="1">
+              <div class="ticks" id="depth-ticks"></div>
+              <div class="capnote" id="depth-cap"></div>
+            </div>
+            <div>
+              <div class="clab">Escape routes <span class="num" id="routes-out">6 · many</span></div>
+              <input type="range" id="routesslider" min="1" max="6" step="1" value="6">
+              <div class="ticks"><span>scarce</span><span>some</span><span>many</span></div>
+              <div class="capnote" id="routes-cap"></div>
+            </div>
+          </div>
+          <div class="ctrlfoot">
+            <div class="btnrow">
+              <button class="btn" id="btn-start">Begin combat</button>
+              <button class="btn ghost" id="btn-hint" style="display:none">Hint</button>
+              <button class="btn ghost" id="btn-end" style="display:none">Forfeit</button>
+            </div>
+            <div class="legend" id="legend"></div>
+            <div class="startnote" id="startnote">Each found set resolves <b>per card</b>: ⚔ sword attacks, 🛡 shield blocks, 👢 boot delays the enemy clock. Number is magnitude (light/med/heavy); colour routes mana. Block persists between enemy attacks. Attack damage is <b>rolled</b> — weighted high toward its value, but the odd weak hit slips through.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel logwide">
+        <h2>Combat log <span class="cnt" id="log-cnt">0</span></h2>
+        <div class="log" id="log"><div class="empty">No actions yet.</div></div>
+      </div>
+  </div>
+</div>
+
+<div class="overlay" id="overlay">
+  <div class="modal">
+    <h2 id="m-title">Victory</h2>
+    <div class="tagline" id="m-tagline">combat sandbox · after-action report</div>
+    <div class="summary" id="m-summary"></div>
+    <div style="font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-dim);margin-bottom:11px">How you spent your matching time — the four routings of one scarce resource.</div>
+    <div class="featgrid" id="m-feats"></div>
+    <div class="foot">
+      <button class="btn" id="m-again">Fight again</button>
+      <button class="btn ghost" id="m-close">Close</button>
+    </div>
+    <div class="hint">No abilities yet — mana just accumulates. Next layer: mixed-cost class abilities fired outside the match, and tier-specific armor on the enemy.</div>
+  </div>
+</div>
+
+<script>
+"use strict";
+/* ============================================================
+   CORE  —  Set over (Z/3)^DIM .  Validated generation logic.
+   (Ported VERBATIM from set-proto.html — trusted, do not retune.)
+   Card = [color, shape, shading, number], each in {0,1,2}.
+   Active axes are randomized + meaningful; the dropped axis
+   (shading) is pinned constant so it is trivially all-same and
+   never affects set validity.  f is FIXED at 3 for combat.
+   ============================================================ */
+const DIM = 4, V = 3, FLOOR = 1;
+
+// Feature taxonomy. Shape = action verb, Color = damage type/mana, Number = magnitude tier.
+// Shading is the DROPPED axis (pinned) — carries zero combat meaning by design.
+const FEATURES = [
+  { name:"Color",   values:["Red","Green","Blue"] },        // 0  -> Fire / Nature / Frost
+  { name:"Shape",   values:["Sword","Shield","Boot"] },     // 1  -> attack / block / tempo
+  { name:"Shading", values:["Solid","Striped","Open"] },    // 2  -> DROPPED, pinned solid
+  { name:"Number",  values:["One","Two","Three"] },         // 3  -> light / medium / heavy
+];
+const SHAPE_SWORD=0, SHAPE_SHIELD=1, SHAPE_BOOT=2;
+const PIN = [0,0,0,0];                 // dropped axes pinned here (shading -> solid)
+const DROP_IDX = 2;                    // shading is always the dropped axis in combat
+
+const CARD_COLORS_HEX = ["#f0565b","#46c46a","#5b94f5"];  // Red(Fire) Green(Nature) Blue(Frost)
+const MANA_LABELS = ["Fire","Nature","Frost"];
+
+let CFG = {};
+// Board sizes are restricted to values that tile into full 4-, 5-, or 6-wide rows.
+const N_OPTIONS=[12,15,16,18,20,24];
+const N_COLS={12:4, 15:5, 16:4, 18:6, 20:5, 24:6};   // value -> row width (wide full rectangles)
+function colsForN(n){ return N_COLS[n] || 5; }
+function rebuildCFG(){
+  const N=state.N;
+  const active=[0,1,2,3].filter(i=>i!==DROP_IDX);   // color, shape, number
+  CFG = { F:3, N, active, cols:colsForN(N), drop:FEATURES[DROP_IDX].name };
+}
+
+const keyOf = c => c[0]*27 + c[1]*9 + c[2]*3 + c[3];
+const eq = (a,b) => a[0]===b[0]&&a[1]===b[1]&&a[2]===b[2]&&a[3]===b[3];
+function r3(){ return Math.floor(Math.random()*3); }
+// random card: active axes vary uniformly, inactive (shading) pinned. No encounter colour bias here.
+function randCard(){
+  const c=PIN.slice();
+  for(const i of CFG.active) c[i]=r3();
+  return c;
+}
+
+// k = how many ACTIVE axes are all-different in a set (1=gimme .. F=camouflage)
+function kOfSet(cards){
+  let k=0;
+  for(const i of CFG.active){ if(!(cards[0][i]===cards[1][i] && cards[1][i]===cards[2][i])) k++; }
+  return k;
+}
+function boardKInfo(board){
+  const sets=findSets(board);
+  const hist={}; let minK=99;
+  for(const [i,j,l] of sets){
+    const k=kOfSet([board[i],board[j],board[l]]);
+    hist[k]=(hist[k]||0)+1; if(k<minK) minK=k;
+  }
+  return { count:sets.length, minK:sets.length?minK:0, hist };
+}
+// findability target: hit camoDepth (easiest-k), then tune escapeRoutes (count at that k)
+function boardFindDist(board){
+  const {minK,hist,count}=boardKInfo(board);
+  if(!count) return Infinity;
+  const kErr=Math.abs(minK-state.camoDepth);
+  const routes=hist[minK]||0;
+  const rErr=Math.abs(routes-state.escapeRoutes);
+  return kErr*100 + rErr;
+}
+
+function isSet(a,b,c){
+  for(let i=0;i<DIM;i++) if((a[i]+b[i]+c[i])%3!==0) return false;
+  return true;
+}
+function third(a,b){
+  const t=new Array(DIM);
+  for(let i=0;i<DIM;i++) t[i]=(3-((a[i]+b[i])%3))%3;
+  return t;
+}
+function findSets(board){
+  const idxByKey=new Map();
+  board.forEach((c,i)=>{ if(c) idxByKey.set(keyOf(c),i); });
+  const out=[];
+  for(let i=0;i<board.length;i++){ if(!board[i]) continue;
+    for(let j=i+1;j<board.length;j++){ if(!board[j]) continue;
+      const t=third(board[i],board[j]);
+      const k=idxByKey.get(keyOf(t));
+      if(k!==undefined && k>j) out.push([i,j,k]);
+    }
+  }
+  return out;
+}
+const countSets = b => findSets(b).length;
+
+function distinctRandomBoard(n){
+  const seen=new Set(), out=[];
+  while(out.length<n){ const c=randCard(),k=keyOf(c); if(!seen.has(k)){seen.add(k);out.push(c);} }
+  return out;
+}
+function genOnce(){
+  for(let t=0;t<5000;t++){ const b=distinctRandomBoard(CFG.N); if(countSets(b)>=FLOOR) return b; }
+  return distinctRandomBoard(CFG.N);
+}
+function genInitial(){
+  const samples=140;
+  let best=null,bestDist=Infinity;
+  for(let s=0;s<samples;s++){
+    const b=genOnce(); const d=boardFindDist(b);
+    if(d<bestDist){ bestDist=d; best=b; }
+    if(bestDist===0) break;
+  }
+  return best||genOnce();
+}
+function patchOnce(board, slots){
+  const present=new Set();
+  board.forEach(c=>{ if(c) present.add(keyOf(c)); });
+  for(let attempt=0;attempt<400;attempt++){
+    const nb=board.slice();
+    const seen=new Set(present);
+    let ok=true;
+    for(const s of slots){
+      let c,g=0; do{ c=randCard(); g++; if(g>200){ok=false;break;} }while(seen.has(keyOf(c)));
+      if(!ok) break; seen.add(keyOf(c)); nb[s]=c;
+    }
+    if(ok && countSets(nb)>=FLOOR) return nb;
+  }
+  const nb=board.slice(); const seen=new Set(present);
+  for(const s of slots){ let c; do{c=randCard();}while(seen.has(keyOf(c))); seen.add(keyOf(c)); nb[s]=c; }
+  let guard=0;
+  while(countSets(nb)<FLOOR && guard<60){
+    const cards=nb.map((c,i)=>[c,i]).filter(x=>x[0]); let planted=false;
+    for(let i=0;i<cards.length&&!planted;i++) for(let j=i+1;j<cards.length&&!planted;j++){
+      const t=third(cards[i][0],cards[j][0]);
+      if(!seen.has(keyOf(t))){ const s=slots[guard%slots.length];
+        seen.delete(keyOf(nb[s])); nb[s]=t; seen.add(keyOf(t)); planted=true; }
+    }
+    if(!planted) break; guard++;
+  }
+  return nb;
+}
+function patch(board, slots){
+  const samples=80;
+  let best=null,bestDist=Infinity;
+  for(let s=0;s<samples;s++){
+    const b=patchOnce(board,slots); const d=boardFindDist(b);
+    if(d<bestDist){ bestDist=d; best=b; }
+    if(bestDist===0) break;
+  }
+  return best||patchOnce(board,slots);
+}
+
+/* ============================================================
+   COMBAT  —  per-card action resolution
+   Each card in a found set fires its own shape-action, scaled
+   by its own number, typed by its own colour. Same/diff
+   structure does the routing tradeoff for free.
+   ============================================================ */
+// Triangular-weighted damage roll: value v in [1,max] drawn with P(v) ∝ v.
+// Implicit array [1, 2,2, 3,3,3, 4,4,4,4, …] — heavily weighted toward max, but weak hits remain possible.
+function weightedRoll(max){
+  max=Math.max(1,Math.round(max));
+  const total=max*(max+1)/2;
+  let r=Math.floor(Math.random()*total)+1, v=0, acc=0;
+  while(acc<r){ v++; acc+=v; }
+  return v;
+}
+// Resolve a found set into combat effects. Damage per sword is rolled (weightedRoll), so it is NOT pure.
+function resolveSet(cards){
+  let dmgLight=0,dmgMed=0,dmgHeavy=0, block=0, boot=0;
+  for(const c of cards){
+    const shape=c[1], mag=c[3]+1;              // mag 1/2/3 = light/med/heavy
+    if(shape===SHAPE_SWORD){
+      const roll=weightedRoll(mag);            // weighted toward mag, min 1
+      if(mag===1) dmgLight+=roll; else if(mag===2) dmgMed+=roll; else dmgHeavy+=roll;
+    } else if(shape===SHAPE_SHIELD){
+      block+=mag;                              // 1 block per pip
+    } else {                                   // boot
+      boot+=mag;                               // +mag seconds to enemy clock
+    }
+  }
+  const damage=dmgLight+dmgMed+dmgHeavy;
+  // mana routed by COLOUR signature: all-same -> 3 in one pool, all-different -> 1 of each
+  const cv=[cards[0][0],cards[1][0],cards[2][0]];
+  const allSameColor = cv[0]===cv[1] && cv[1]===cv[2];
+  const mana=[0,0,0];
+  if(allSameColor) mana[cv[0]]=3; else { mana[0]=1; mana[1]=1; mana[2]=1; }
+  return { damage,dmgLight,dmgMed,dmgHeavy, block, boot, mana, allSameColor };
+}
+
+/* ============================================================
+   RENDER  —  SVG Sword / Shield / Boot symbols
+   symbolPath returns an ARRAY of element defs (compound shapes).
+   ============================================================ */
+function buildDefs(){
+  const defs=document.getElementById("defs");
+  CARD_COLORS_HEX.forEach((hex,i)=>{
+    const p=document.createElementNS("http://www.w3.org/2000/svg","pattern");
+    p.id="stripe"+i; p.setAttribute("patternUnits","userSpaceOnUse");
+    p.setAttribute("width","5"); p.setAttribute("height","5");
+    const l=document.createElementNS("http://www.w3.org/2000/svg","line");
+    l.setAttribute("x1","0");l.setAttribute("y1","2.5");l.setAttribute("x2","5");l.setAttribute("y2","2.5");
+    l.setAttribute("stroke",hex);l.setAttribute("stroke-width","1.5");
+    p.appendChild(l); defs.appendChild(p);
+  });
+}
+// Each symbol is drawn inside roughly a 100 x 44 box (x 4..96, centred y=22).
+// Shapes are deliberately distinct silhouettes: horizontal sword, downward shield, right-facing boot.
+function symbolPath(shape){
+  if(shape===SHAPE_SWORD) return [
+    {tag:"polygon",attr:{points:"34,15 82,15 96,22 82,29 34,29"}},        // blade (pointing right)
+    {tag:"rect",attr:{x:26,y:7,width:6,height:30,rx:2}},                  // crossguard
+    {tag:"rect",attr:{x:14,y:19,width:13,height:6,rx:2}},                 // grip
+    {tag:"circle",attr:{cx:9,cy:22,r:5}},                                 // pommel
+  ];
+  if(shape===SHAPE_SHIELD) return [
+    {tag:"path",attr:{d:"M30,7 L70,7 L70,21 C70,33 57,40 50,42 C43,40 30,33 30,21 Z"}},
+  ];
+  // boot (heel left, toe right)
+  return [
+    {tag:"path",attr:{d:"M38,5 L54,5 L55,24 L84,26 Q90,26 90,32 L90,40 L38,40 Z"}},
+  ];
+}
+function applyFill(el,shading,colorHex,color){
+  if(shading===0) el.setAttribute("fill",colorHex);
+  else if(shading===1) el.setAttribute("fill",`url(#stripe${color})`);
+  else el.setAttribute("fill","none");
+}
+function cardSVG(card){
+  const [color,shape,shading,number]=card;
+  const n=number+1;
+  const ns="http://www.w3.org/2000/svg";
+  const svg=document.createElementNS(ns,"svg");
+  svg.setAttribute("viewBox","0 0 120 160"); svg.setAttribute("preserveAspectRatio","xMidYMid meet");
+  const gap=46, startY=80-(n*gap)/2+gap/2;
+  for(let s=0;s<n;s++){
+    const g=document.createElementNS(ns,"g");
+    g.setAttribute("transform",`translate(10,${startY+s*gap-22})`);
+    symbolPath(shape).forEach(def=>{
+      const el=document.createElementNS(ns,def.tag);
+      for(const k in def.attr) el.setAttribute(k,def.attr[k]);
+      el.setAttribute("stroke",CARD_COLORS_HEX[color]);
+      el.setAttribute("stroke-width","2.6");
+      el.setAttribute("stroke-linejoin","round");
+      applyFill(el,shading,CARD_COLORS_HEX[color],color);
+      g.appendChild(el);
+    });
+    svg.appendChild(g);
+  }
+  return svg;
+}
+// small inline icon for the legend
+function iconSVG(shape,colorHex){
+  const ns="http://www.w3.org/2000/svg";
+  const svg=document.createElementNS(ns,"svg");
+  svg.setAttribute("viewBox","0 0 100 44");
+  symbolPath(shape).forEach(def=>{
+    const el=document.createElementNS(ns,def.tag);
+    for(const k in def.attr) el.setAttribute(k,def.attr[k]);
+    el.setAttribute("stroke",colorHex); el.setAttribute("stroke-width","3");
+    el.setAttribute("stroke-linejoin","round"); el.setAttribute("fill",colorHex);
+    svg.appendChild(el);
+  });
+  return svg;
+}
+
+/* ============================================================
+   GAME STATE
+   ============================================================ */
+const state={
+  board:[], sel:[], running:false, lock:false, raf:0,
+  N:18, camoDepth:1, escapeRoutes:6,            // board difficulty dials
+  // combatants (configurable)
+  playerMax:30, enemyMax:30, enemyDamage:8, cadence:8,
+  // live combat values
+  playerHP:30, enemyHP:30, block:0, mana:[0,0,0],
+  nextAttackAt:0, lastNow:0,
+  // tallies for the HUD / after-action report
+  tally:null, log:[], startStamp:0,
+};
+function freshTally(){
+  return { dmgLight:0,dmgMed:0,dmgHeavy:0, spellDmg:0, block:0, boot:0, mana:[0,0,0],
+           absorbed:0, taken:0, attacks:0, sets:0, miss:0, attempts:0 };
+}
+const $=id=>document.getElementById(id);
+const boardEl=$("board");
+
+function render(){
+  boardEl.innerHTML="";
+  boardEl.style.gridTemplateColumns=`repeat(${CFG.cols},minmax(0,124px))`;
+  state.board.forEach((card,i)=>{
+    const el=document.createElement("div");
+    el.className="card"+(state.sel.includes(i)?" sel":"");
+    el.dataset.i=i;
+    if(card){ el.appendChild(cardSVG(card)); }
+    el.addEventListener("click",()=>onPick(i));
+    boardEl.appendChild(el);
+  });
+  boardEl.classList.toggle("idle",!state.running);
+  updateBoardAnalysis();
+}
+function updateBoardAnalysis(){
+  const info=boardKInfo(state.board);
+  $("a-count").textContent=info.count;
+  $("a-easy").textContent=info.count?info.minK:"—";
+  const kb=$("a-kbreak"); kb.innerHTML="";
+  for(let k=1;k<=CFG.F;k++){
+    const num=info.hist[k]||0;
+    const ch=document.createElement("span"); ch.className="kchip";
+    const label = k===1?"k1 gimme":k===CFG.F?("k"+k+" camo"):("k"+k);
+    ch.textContent=`${label}: ${num}`;
+    if(num>0 && k===info.minK){ ch.style.borderColor="var(--phos)"; ch.style.color="var(--phos)"; }
+    kb.appendChild(ch);
+  }
+}
+function cardEl(i){ return boardEl.querySelector(`.card[data-i="${i}"]`); }
+
+function onPick(i){
+  if(!state.running||state.lock||!state.board[i]) return;
+  const at=state.sel.indexOf(i);
+  if(at>=0){ state.sel.splice(at,1); cardEl(i).classList.remove("sel"); return; }
+  if(state.sel.length>=3) return;
+  state.sel.push(i); cardEl(i).classList.add("sel");
+  if(state.sel.length===3) evaluate();
+}
+
+function hintNow(){
+  if(!state.running||state.lock) return;
+  const sets=findSets(state.board);
+  if(!sets.length) return;
+  const pick=sets[Math.floor(Math.random()*sets.length)];
+  pick.forEach(idx=>{ const e=cardEl(idx); if(e){ e.classList.remove("hint"); void e.offsetWidth; e.classList.add("hint"); } });
+  setTimeout(()=>pick.forEach(idx=>{ const e=cardEl(idx); if(e) e.classList.remove("hint"); }),1300);
+}
+
+function evaluate(){
+  state.lock=true; state.tally.attempts++;
+  const [a,b,c]=state.sel;
+  const cards=[state.board[a],state.board[b],state.board[c]];
+  const ok=isSet(cards[0],cards[1],cards[2]);
+  if(ok){
+    const res=resolveSet(cards);
+    applyResolution(res);
+    state.sel.forEach(idx=>{ const e=cardEl(idx); e.classList.remove("sel"); e.classList.add("good"); });
+    setTimeout(()=>{
+      state.sel.forEach(idx=>{ const e=cardEl(idx); e.classList.remove("good"); e.classList.add("leaving"); });
+      setTimeout(()=>{
+        if(!state.running) return;               // combat may have ended mid-animation
+        const slots=state.sel.slice();
+        slots.forEach(idx=>state.board[idx]=null);
+        state.board=patch(state.board,slots);
+        state.sel=[];
+        render();
+        slots.forEach(idx=>{ const e=cardEl(idx); if(e) e.classList.add("entering"); });
+        state.lock=false;
+      },300);
+    },340);
+  } else {
+    state.tally.miss++;
+    // misread punish: the enemy lurches 5s closer — may trigger an instant attack next frame
+    state.nextAttackAt-=5000;
+    narrate(`A misread! The enemy lurches <b>5s</b> closer.`,"enemy");
+    floatOverBoard("-5s", "var(--red)", true);
+    state.sel.forEach(idx=>{ const e=cardEl(idx); e.classList.remove("sel"); e.classList.add("bad"); });
+    setTimeout(()=>{
+      state.sel.forEach(idx=>{ const e=cardEl(idx); if(e) e.classList.remove("bad"); });
+      state.sel=[]; state.lock=false;
+    },360);
+  }
+  updateHUD();
+}
+
+// mutate combat state from a resolved set, animate, check for win
+function applyResolution(res){
+  const t=state.tally;
+  // damage to enemy
+  if(res.damage>0){
+    state.enemyHP=Math.max(0,state.enemyHP-res.damage);
+    t.dmgLight+=res.dmgLight; t.dmgMed+=res.dmgMed; t.dmgHeavy+=res.dmgHeavy;
+    floatOverBoard(`-${res.damage}`, "var(--red)");
+    flashStat("s-ehp");
+  }
+  // block accrues (persistent pool)
+  if(res.block>0){ state.block+=res.block; t.block+=res.block; flashStat("s-php"); }
+  // boots push the enemy's next attack later
+  if(res.boot>0){ state.nextAttackAt+=res.boot*1000; t.boot+=res.boot; floatOverBoard(`+${res.boot}s`, "var(--phos)"); }
+  // mana
+  for(let i=0;i<3;i++){ state.mana[i]+=res.mana[i]; t.mana[i]+=res.mana[i]; }
+  t.sets++;
+  narrateSet(res);
+  logAction(res);
+  updateHUD();
+  if(state.enemyHP<=0){ endCombat("win"); }
+}
+
+// enemy strikes: block absorbs first (remainder persists), the rest hits HP
+function enemyAttack(){
+  const t=state.tally; t.attacks++;
+  const raw=weightedRoll(state.enemyDamage);   // enemy's slider value is the MAX of the roll
+  let dmg=raw;
+  const absorbed=Math.min(state.block,dmg);
+  state.block-=absorbed; dmg-=absorbed;
+  t.absorbed+=absorbed; t.taken+=dmg;
+  if(dmg>0){ state.playerHP=Math.max(0,state.playerHP-dmg); flashStat("s-php"); floatOverBoard(`-${dmg}`, "var(--warn)", true); }
+  else { floatOverBoard("blocked", "var(--blue)", true); }
+  narrateEnemy(raw,absorbed,dmg);
+  logEnemy(raw,absorbed,dmg);
+  updateHUD();
+  if(state.playerHP<=0){ endCombat("lose"); return; }
+  state.nextAttackAt=performance.now()+state.cadence*1000;   // reset clock
+}
+
+function floatOverBoard(text,color,left){
+  const layer=$("floatlayer");
+  const el=document.createElement("div");
+  el.className="floater"; el.textContent=text; el.style.color=color;
+  el.style.left=left ? "16%" : (30+Math.random()*40)+"%";
+  el.style.top=(28+Math.random()*30)+"%";
+  layer.appendChild(el);
+  void el.offsetWidth; el.classList.add("go");
+  setTimeout(()=>el.remove(),1050);
+}
+function flashStat(id){ const e=$(id); e.classList.remove("hit"); void e.offsetWidth; e.classList.add("hit"); }
+
+function logAction(res){
+  const acts=[];
+  if(res.damage>0){
+    const tiers=[];
+    if(res.dmgLight) tiers.push("L"); if(res.dmgMed) tiers.push("M"); if(res.dmgHeavy) tiers.push("H");
+    acts.push({cls:"dmg",txt:`⚔ ${res.damage}`+(tiers.length?` (${tiers.join("/")})`:"")});
+  }
+  if(res.block>0) acts.push({cls:"blk",txt:`🛡 +${res.block}`});
+  if(res.boot>0) acts.push({cls:"boot",txt:`👢 +${res.boot}s`});
+  const manaTxt=res.allSameColor
+    ? `+3 ${MANA_LABELS[res.mana.findIndex(x=>x===3)]}`
+    : `+1 each`;
+  acts.push({cls:"mana",txt:`✦ ${manaTxt}`});
+  state.log.unshift({type:"set",n:state.tally.sets,acts});
+  renderLog();
+}
+function logEnemy(raw,absorbed,taken){
+  state.log.unshift({type:"enemy",raw,absorbed,taken});
+  renderLog();
+}
+function renderLog(){
+  const el=$("log");
+  $("log-cnt").textContent=state.log.length;
+  if(!state.log.length){ el.innerHTML='<div class="empty">No actions yet.</div>'; return; }
+  el.innerHTML="";
+  state.log.slice(0,40).forEach(item=>{
+    const row=document.createElement("div");
+    if(item.type==="enemy"){
+      row.className="logitem enemy";
+      const txt = item.absorbed>0
+        ? `🗡 Enemy hits ${item.raw} — ${item.absorbed} blocked, ${item.taken} to HP`
+        : `🗡 Enemy hits ${item.raw} to HP`;
+      row.innerHTML=`<div class="idx">✦</div><div class="acts"><span class="act dmg">${txt}</span></div>`;
+    } else {
+      row.className="logitem";
+      const idx=document.createElement("div"); idx.className="idx"; idx.textContent="#"+item.n;
+      const acts=document.createElement("div"); acts.className="acts";
+      item.acts.forEach(a=>{ const s=document.createElement("span"); s.className="act "+a.cls; s.textContent=a.txt; acts.appendChild(s); });
+      row.appendChild(idx); row.appendChild(acts);
+    }
+    el.appendChild(row);
+  });
+}
+
+function pct(v,max){ return Math.max(0,Math.min(100, 100*v/max)); }
+function updateHUD(){
+  const t=state.tally||freshTally();
+  // top bar
+  $("v-php").textContent=state.playerHP; $("v-phpmax").textContent="/"+state.playerMax;
+  $("v-ehp").textContent=state.enemyHP; $("v-ehpmax").textContent="/"+state.enemyMax;
+  $("bar-php").style.width=pct(state.playerHP,state.playerMax)+"%";
+  $("bar-ehp").style.width=pct(state.enemyHP,state.enemyMax)+"%";
+  $("v-block").textContent=state.block;
+  // damage breakdown — total folds in spell damage; tier counts shown in the header readout
+  const total=t.dmgLight+t.dmgMed+t.dmgHeavy+t.spellDmg;
+  $("dmg-total").textContent=total+" total";
+  $("n-light").textContent=t.dmgLight;
+  $("n-med").textContent=t.dmgMed;
+  $("n-heavy").textContent=t.dmgHeavy;
+  // mana
+  $("m-red").textContent=state.mana[0]; $("m-green").textContent=state.mana[1]; $("m-blue").textContent=state.mana[2];
+  // tempo & defense
+  $("t-boot").textContent=t.boot;
+  $("t-block").textContent=t.block;
+  $("t-absorb").textContent=t.absorbed;
+  $("t-taken").textContent=t.taken;
+  $("t-sets").textContent=t.sets;
+  $("t-miss").textContent=t.miss;
+  updateSpells();
+}
+
+/* enemy clock — real-time countdown via rAF delta */
+function tick(){
+  if(!state.running) return;
+  const now=performance.now();
+  const remain=Math.max(0,(state.nextAttackAt-now)/1000);
+  const shown=Math.ceil(remain);
+  $("v-clock").textContent=shown+"s";
+  const sc=$("s-clock");
+  sc.classList.toggle("low",remain<=4 && remain>2);
+  sc.classList.toggle("crit",remain<=2);
+  if(remain<=0 && !state.lock_attack){ enemyAttack(); }
+  state.raf=requestAnimationFrame(tick);
+}
+
+function startCombat(){
+  rebuildCFG();
+  state.running=true; state.lock=false;
+  lockControls(true);
+  // seed combatants from the sliders
+  state.playerHP=state.playerMax; state.enemyHP=state.enemyMax;
+  state.block=0; state.mana=[0,0,0];
+  state.sel=[]; state.log=[]; state.tally=freshTally();
+  state.board=genInitial();
+  state.startStamp=performance.now();
+  state.nextAttackAt=performance.now()+state.cadence*1000;
+  $("btn-start").style.display="none"; $("btn-end").style.display="block"; $("btn-hint").style.display="block";
+  $("startgate").classList.remove("show");
+  $("overlay").classList.remove("show");
+  $("narrlog").innerHTML="";
+  narrate(`A foe steps forward — <b>${state.enemyMax} HP</b>, striking for ${state.enemyDamage} every ${state.cadence}s. Find sets to act; spend mana on spells.`,"sys");
+  render(); updateHUD(); renderLog();
+  $("v-clock").textContent=state.cadence+"s";
+  cancelAnimationFrame(state.raf); state.raf=requestAnimationFrame(tick);
+}
+
+function endCombat(result){
+  if(!state.running) return;
+  state.running=false; state.lock=true;
+  cancelAnimationFrame(state.raf);
+  lockControls(false);
+  if(result==="win") narrate(`The enemy collapses. <b>Victory!</b>`,"sys");
+  else if(result==="lose") narrate(`You fall in battle. <b>Defeat.</b>`,"sys");
+  else narrate(`You withdraw from the fight.`,"sys");
+  boardEl.classList.add("idle");
+  $("s-clock").classList.remove("low","crit");
+  $("btn-start").style.display="block"; $("btn-end").style.display="none"; $("btn-hint").style.display="none";
+  $("btn-start").textContent="Fight again";
+  const gate=$("startgate");
+  gate.querySelector(".big").textContent = result==="win" ? "Enemy defeated" : result==="lose" ? "You fell" : "Forfeited";
+  gate.querySelector(".cta").textContent="▶ Fight again";
+  gate.classList.add("show");
+  showReport(result);
+}
+
+function showReport(result){
+  const t=state.tally;
+  const elapsed=(performance.now()-state.startStamp)/1000;
+  const title=$("m-title");
+  title.className = result==="win" ? "win" : "lose";
+  title.textContent = result==="win" ? "Victory" : result==="lose" ? "Defeated" : "Forfeited";
+  $("m-tagline").textContent=`combat sandbox · ${elapsed.toFixed(0)}s · enemy ${state.enemyMax}hp / ${state.enemyDamage}dmg every ${state.cadence}s`;
+  const total=t.dmgLight+t.dmgMed+t.dmgHeavy+t.spellDmg;
+  const sum=$("m-summary"); sum.innerHTML="";
+  const cells=[
+    ["Damage dealt",total,""],
+    ["Damage taken",t.taken,""],
+    ["Sets found",t.sets,""],
+    ["Accuracy", t.attempts?Math.round(100*t.sets/t.attempts):0,"%"],
+  ];
+  cells.forEach(([l,v,u])=>{
+    const d=document.createElement("div"); d.className="sumcell";
+    d.innerHTML=`<div class="l">${l}</div><div class="v">${v}<small>${u}</small></div>`;
+    sum.appendChild(d);
+  });
+  // four routings breakdown
+  const fg=$("m-feats"); fg.innerHTML="";
+  const blocks=[
+    {ft:"⚔ Attack (by tier)", rows:[["Light",t.dmgLight,"#7fd1a0"],["Medium",t.dmgMed,"var(--warn)"],["Heavy",t.dmgHeavy,"var(--red)"]]},
+    {ft:"✦ Mana (by colour)", rows:[["Fire",t.mana[0],"var(--red)"],["Nature",t.mana[1],"var(--green)"],["Frost",t.mana[2],"var(--blue)"]]},
+    {ft:"🛡 Defense", rows:[["Block raised",t.block,"var(--blue)"],["Absorbed",t.absorbed,"var(--blue)"],["Taken",t.taken,"var(--red)"]]},
+    {ft:"👢 Tempo", rows:[["Boots (sec)",t.boot,"var(--phos)"],["Enemy hits",t.attacks,"var(--ink-dim)"],["Misses",t.miss,"var(--ink-dim)"]]},
+  ];
+  blocks.forEach(b=>{
+    const max=Math.max(1,...b.rows.map(r=>r[1]));
+    const box=document.createElement("div"); box.className="feat";
+    let html=`<div class="ft">${b.ft}</div>`;
+    b.rows.forEach(([nm,val,col])=>{
+      const w=Math.round(100*val/max);
+      html+=`<div class="bar"><span class="nm"><span class="swatch" style="background:${col}"></span>${nm}</span>
+        <span class="track"><span class="fill" style="width:${w}%;background:${col}"></span></span>
+        <span class="n">${val}</span></div>`;
+    });
+    box.innerHTML=html; fg.appendChild(box);
+  });
+  $("overlay").classList.add("show");
+}
+
+/* ============================================================
+   FINDABILITY DIALS — achievability-aware caps (ported)
+   ============================================================ */
+function depthWord(k,F){
+  if(k<=1) return "gimme";
+  if(k>=F) return "camo";
+  if(k===2) return "subtle";
+  return "hidden";
+}
+function routesWord(r){ return r<=2 ? "scarce" : r<=4 ? "some" : "many"; }
+
+let oddsCache={sig:null,data:null};
+function computeOdds(){
+  const sig=`${state.N}`;
+  if(oddsCache.sig===sig) return oddsCache.data;
+  const M=400, minKFreq={}; let setSum=0;
+  for(let s=0;s<M;s++){ const info=boardKInfo(genOnce()); minKFreq[info.minK]=(minKFreq[info.minK]||0)+1; setSum+=info.count; }
+  const data={M,minKFreq,avgSets:setSum/M};
+  oddsCache={sig,data};
+  return data;
+}
+function reachableDepth(o){
+  let reach=1;
+  for(let k=1;k<=CFG.F;k++) if((o.minKFreq[k]||0)>=2) reach=k;
+  return reach;
+}
+let floorCache={};
+function routesFloor(depth){
+  const sig=`${state.N}|${depth}`;
+  if(floorCache.sig===sig) return floorCache.val;
+  const WINDOWS=8, DRAWS=120, mins=[];
+  for(let w=0;w<WINDOWS;w++){
+    let mn=Infinity;
+    for(let d=0;d<DRAWS;d++){ const info=boardKInfo(genOnce()); if(info.minK===depth){ const r=info.hist[depth]||0; if(r<mn) mn=r; } }
+    if(mn!==Infinity) mins.push(mn);
+  }
+  mins.sort((a,b)=>a-b);
+  const val=mins.length ? Math.max(1,mins[Math.floor(mins.length/2)]) : 1;
+  floorCache={sig,val};
+  return val;
+}
+
+/* ============================================================
+   NARRATION  —  prose dialogue, one line per move (above board)
+   ============================================================ */
+const NARR_ICON = {player:"🗡", enemy:"💀", spell:"✦", sys:"•"};
+function narrate(html, who){
+  const log=$("narrlog");
+  const empty=log.querySelector(".empty"); if(empty) log.innerHTML="";
+  const line=document.createElement("div");
+  line.className="nline "+(who||"sys");
+  line.innerHTML=`<span class="ic">${NARR_ICON[who]||"•"}</span><span>${html}</span>`;
+  log.appendChild(line);
+  while(log.children.length>60) log.removeChild(log.firstChild);
+  log.scrollTop=log.scrollHeight;
+}
+function joinClauses(p){
+  if(p.length===0) return "";
+  if(p.length===1) return p[0];
+  if(p.length===2) return p[0]+" and "+p[1];
+  return p.slice(0,-1).join(", ")+", and "+p[p.length-1];
+}
+function narrateSet(res){
+  const parts=[];
+  if(res.damage>0){
+    const word = res.dmgHeavy ? "a crushing blow" : res.dmgMed ? "a solid strike" : "a glancing hit";
+    parts.push(`land <b>${word}</b> for ${res.damage}`);
+  }
+  if(res.block>0) parts.push(`raise <b>${res.block} guard</b>`);
+  if(res.boot>0) parts.push(`steal <b>${res.boot}s</b> of tempo`);
+  if(res.allSameColor){ const i=res.mana.findIndex(x=>x===3); parts.push(`channel <b>3 ${MANA_LABELS[i]}</b>`); }
+  else parts.push(`gather <b>1 of each</b> essence`);
+  narrate("You "+joinClauses(parts)+".","player");
+}
+function narrateEnemy(raw,absorbed,taken){
+  let msg;
+  if(taken>0 && absorbed>0) msg=`The enemy lashes out for ${raw} — your guard soaks ${absorbed}, you take <b>${taken}</b>.`;
+  else if(taken>0) msg=`The enemy lands a clean hit for <b>${raw}</b>.`;
+  else msg=`The enemy strikes for ${raw} — your guard holds, <b>no damage</b>.`;
+  narrate(msg,"enemy");
+}
+
+/* ============================================================
+   SPELLS  —  on-demand layer, fired OUTSIDE match actions.
+   cost = [red(Fire), green(Nature), blue(Frost)] mana.
+   ============================================================ */
+function dealSpellDamage(max){
+  const dmg=weightedRoll(max);                    // spell damage rolls like every other hit
+  state.enemyHP=Math.max(0,state.enemyHP-dmg);
+  state.tally.spellDmg+=dmg;
+  floatOverBoard(`-${dmg}`, "var(--gold)");
+  flashStat("s-ehp");
+  return dmg;
+}
+const SPELLS=[
+  { id:"firebolt", name:"Firebolt", icon:"🔥", cost:[5,0,0], desc:"15 dmg max",
+    cast(){ const d=dealSpellDamage(15); narrate(`You hurl a <b>Firebolt</b> — ${d} fire damage sears the enemy.`,"spell"); } },
+  { id:"frostbolt", name:"Frostbolt", icon:"❄️", cost:[0,0,5], desc:"8 dmg max · 5 slow",
+    cast(){ const d=dealSpellDamage(8); state.nextAttackAt+=5000; state.tally.boot+=5;
+            narrate(`You loose a <b>Frostbolt</b> — ${d} frost damage and the enemy is slowed 5s.`,"spell"); } },
+  { id:"heal", name:"Heal", icon:"💚", cost:[0,5,0], desc:"15 HP max",
+    cast(){ const h=weightedRoll(15); state.playerHP=Math.min(state.playerMax,state.playerHP+h); flashStat("s-php");
+            narrate(`You weave a <b>Heal</b> — ${h} HP restored.`,"spell"); } },
+  { id:"block", name:"Block", icon:"🛡️", cost:[2,2,2], desc:"+10 block",
+    cast(){ state.block+=10; state.tally.block+=10; flashStat("s-php");
+            narrate(`You brace a <b>Block</b> — +10 block springs up.`,"spell"); } },
+  null,null,null,null,null,
+];
+function canAfford(sp){ return sp.cost.every((c,i)=>state.mana[i]>=c); }
+function castSpell(i){
+  if(!state.running||state.lock) return;
+  const sp=SPELLS[i]; if(!sp || !canAfford(sp)) return;
+  for(let c=0;c<3;c++) state.mana[c]-=sp.cost[c];
+  const el=document.querySelector(`.slot[data-spell="${i}"]`);
+  if(el){ el.classList.remove("casting"); void el.offsetWidth; el.classList.add("casting"); }
+  sp.cast();
+  updateHUD();
+  if(state.enemyHP<=0){ endCombat("win"); }
+}
+function buildSpells(){
+  const g=$("spellgrid"); g.innerHTML="";
+  SPELLS.forEach((sp,i)=>{
+    const d=document.createElement("div");
+    if(!sp){ d.className="slot empty"; d.innerHTML=`<span class="empced">+</span>`; g.appendChild(d); return; }
+    d.className="slot spell"; d.dataset.spell=i;
+    const cost=sp.cost.map((c,ci)=> c>0
+      ? `<span class="pip"><span class="pdot" style="background:${CARD_COLORS_HEX[ci]}"></span>${c}</span>` : "").join("");
+    d.innerHTML=`<span class="sicon">${sp.icon}</span><span class="sname">${sp.name}</span>`+
+                `<span class="scost">${cost}</span>`;
+    d.title=`${sp.name} — ${sp.desc}`;
+    d.addEventListener("click",()=>castSpell(i));
+    g.appendChild(d);
+  });
+}
+function updateSpells(){
+  SPELLS.forEach((sp,i)=>{
+    if(!sp) return;
+    const el=document.querySelector(`.slot[data-spell="${i}"]`); if(!el) return;
+    el.classList.toggle("ready", state.running && canAfford(sp));
+  });
+}
+
+/* ============================================================
+   WIRING
+   ============================================================ */
+buildDefs();
+
+function buildLegend(){
+  const L=$("legend");
+  const items=[[SHAPE_SWORD,"#cbd2e2","Sword · attack"],[SHAPE_SHIELD,"#cbd2e2","Shield · block"],[SHAPE_BOOT,"#cbd2e2","Boot · tempo"]];
+  L.innerHTML="";
+  items.forEach(([sh,col,lab])=>{
+    const d=document.createElement("div"); d.className="legitem";
+    d.appendChild(iconSVG(sh,col));
+    const sp=document.createElement("span"); sp.textContent=lab; d.appendChild(sp);
+    L.appendChild(d);
+  });
+}
+buildLegend();
+buildSpells();
+
+// reflect dials into the UI + regenerate the idle preview board
+function syncUI(regen){
+  rebuildCFG();
+  boardEl.dataset.cols=CFG.cols;
+  // combatant readouts
+  $("php-out").textContent=state.playerMax;
+  $("ehp-out").textContent=state.enemyMax;
+  $("edmg-out").textContent=state.enemyDamage;
+  $("ecad-out").textContent="every "+state.cadence+"s";
+  $("php").value=state.playerMax; $("ehp").value=state.enemyMax;
+  $("edmg").value=state.enemyDamage; $("ecad").value=state.cadence;
+  // board size
+  $("nslider").value=N_OPTIONS.indexOf(state.N); $("n-out").textContent=`${state.N} · ${state.N/CFG.cols}×${CFG.cols}`;
+  // findability caps
+  const o=computeOdds();
+  const reach=reachableDepth(o);
+  if(state.camoDepth>reach) state.camoDepth=reach;
+  const ds=$("depthslider"); ds.max=reach; ds.value=state.camoDepth;
+  $("depth-out").textContent=`k${state.camoDepth} · ${depthWord(state.camoDepth,CFG.F)}`;
+  $("depth-cap").textContent = reach<CFG.F ? `caps at k${reach} here — k${CFG.F} needs a smaller board` : "";
+  const dt=$("depth-ticks"); dt.innerHTML="";
+  for(let k=1;k<=reach;k++){ const sp=document.createElement("span"); sp.textContent=depthWord(k,CFG.F); dt.appendChild(sp); }
+  const routeFloor=routesFloor(state.camoDepth);
+  const routeCap=Math.max(routeFloor,Math.min(6,Math.round(o.avgSets)));
+  if(state.escapeRoutes<routeFloor) state.escapeRoutes=routeFloor;
+  if(state.escapeRoutes>routeCap) state.escapeRoutes=routeCap;
+  const rs=$("routesslider"); rs.min=routeFloor; rs.max=routeCap; rs.value=state.escapeRoutes;
+  $("routes-out").textContent=`${state.escapeRoutes} · ${routesWord(state.escapeRoutes)}`;
+  let rcap="";
+  if(routeFloor>1) rcap=`floor ${routeFloor} at k${state.camoDepth} — fewer outs needs a smaller board`;
+  if(routeCap<6) rcap=(rcap?rcap+" · ":"")+`max ${routeCap} (~${o.avgSets.toFixed(0)} sets here)`;
+  $("routes-cap").textContent=rcap;
+  // top bar idle preview
+  if(!state.running){
+    $("v-php").textContent=state.playerMax; $("v-phpmax").textContent="/"+state.playerMax;
+    $("v-ehp").textContent=state.enemyMax; $("v-ehpmax").textContent="/"+state.enemyMax;
+    $("bar-php").style.width="100%"; $("bar-ehp").style.width="100%";
+    $("v-block").textContent="0"; $("v-clock").textContent=state.cadence+"s";
+  }
+  if(regen && !state.running){ state.board=genInitial(); render(); }
+}
+
+function lockControls(on){ $("dials").classList.toggle("locked",on); }
+
+// slider wiring (all live-disabled during combat)
+$("php").addEventListener("input",e=>{ if(state.running){e.target.value=state.playerMax;return;} state.playerMax=+e.target.value; syncUI(false); });
+$("ehp").addEventListener("input",e=>{ if(state.running){e.target.value=state.enemyMax;return;} state.enemyMax=+e.target.value; syncUI(false); });
+$("edmg").addEventListener("input",e=>{ if(state.running){e.target.value=state.enemyDamage;return;} state.enemyDamage=+e.target.value; syncUI(false); });
+$("ecad").addEventListener("input",e=>{ if(state.running){e.target.value=state.cadence;return;} state.cadence=+e.target.value; syncUI(false); });
+$("nslider").addEventListener("input",e=>{ if(state.running){e.target.value=N_OPTIONS.indexOf(state.N);return;} state.N=N_OPTIONS[+e.target.value]; syncUI(true); });
+$("depthslider").addEventListener("input",e=>{ if(state.running){e.target.value=state.camoDepth;return;} state.camoDepth=+e.target.value; syncUI(true); });
+$("routesslider").addEventListener("input",e=>{ if(state.running){e.target.value=state.escapeRoutes;return;} state.escapeRoutes=+e.target.value; syncUI(true); });
+
+$("btn-start").addEventListener("click",startCombat);
+$("btn-end").addEventListener("click",()=>endCombat("forfeit"));
+$("btn-hint").addEventListener("click",hintNow);
+$("startgate").addEventListener("click",startCombat);
+$("m-again").addEventListener("click",startCombat);
+$("m-close").addEventListener("click",()=>$("overlay").classList.remove("show"));
+
+// init
+syncUI(true);
+$("v-clock").textContent=state.cadence+"s";
+</script>
+</body>
+</html>
