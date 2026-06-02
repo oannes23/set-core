@@ -203,6 +203,19 @@
   kbd{background:var(--panel2);border:1px solid var(--line2);border-radius:4px;padding:1px 5px;font-size:11px;color:var(--ink-dim)}
   /* findability cap notes + odds panel */
   .capnote{font-size:10px;color:var(--warn);min-height:11px;margin-top:4px;letter-spacing:.02em}
+  .biasrow{margin-bottom:10px}
+  .biasrow.off{opacity:.4}
+  .bhead{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:5px}
+  .bnm{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-dim)}
+  .bval{font-size:11px;color:var(--phos);font-variant-numeric:tabular-nums}
+  .bval.neutral{color:var(--ink-faint)}
+  .bchips{display:flex;gap:5px;margin-bottom:6px}
+  .bchip{flex:1;display:flex;align-items:center;justify-content:center;gap:5px;font-size:10.5px;color:var(--ink-dim);
+    background:var(--panel2);border:1px solid var(--line2);border-radius:7px;padding:5px 4px;cursor:pointer;user-select:none;
+    transition:border-color .12s ease,color .12s ease}
+  .bchip:hover{border-color:var(--ink-faint)}
+  .bchip.on{border-color:var(--phos);color:var(--ink)}
+  .bsw{width:9px;height:9px;border-radius:2px;flex:none}
   .oddline{display:flex;justify-content:space-between;align-items:baseline;font-size:12px;color:var(--ink-dim);margin-bottom:9px}
   .oddline b{font-family:"Syne",sans-serif;color:var(--ink);font-size:17px}
   .oddcap{font-size:9.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--ink-faint);margin:0 0 8px}
@@ -301,6 +314,11 @@
             <div class="encprofile" id="encprofile"></div>
           </div>
           <div>
+            <div class="clab">Feature bias <span style="text-transform:none;letter-spacing:0;color:var(--ink-faint)">(deal odds)</span></div>
+            <div id="biaswrap"></div>
+            <div class="capnote" id="bias-cap"></div>
+          </div>
+          <div>
             <div class="clab">Round length</div>
             <div class="durrow" id="dur">
               <div class="chip on" data-d="30">30s</div>
@@ -390,18 +408,40 @@ const ENCOUNTERS = {
 
 const keyOf = c => c[0]*27 + c[1]*9 + c[2]*3 + c[3];
 const eq = (a,b) => a[0]===b[0]&&a[1]===b[1]&&a[2]===b[2]&&a[3]===b[3];
-function r3(){ return Math.floor(Math.random()*3); }
-// color dealt with a soft bias toward the encounter's valued color (50% uniform + 50% weighted)
-function dealColor(){
-  const w=ENCOUNTERS[state.encounter].w, s=w[0]+w[1]+w[2];
-  const r=Math.random(); let acc=0;
-  for(let i=0;i<3;i++){ acc += 0.5*(1/3) + 0.5*(w[i]/s); if(r<acc) return i; }
+// Axes that expose a manual deal-bias dial (shading omitted; it's usually the dropped axis).
+const BIAS_AXES = [0,1,3];
+// Cache-signature fragment so odds/reachability recompute when a bias changes the deal.
+function biasSig(){ return BIAS_AXES.map(i=>{const b=state.bias[i]; return b&&b.t>0?`${i}.${b.v}.${b.t}`:"";}).join("-"); }
+
+// Per-axis DEAL distribution: encounter color-preference × manual feature bias, then blended
+// 50/50 with uniform. The uniform half is a fairness FLOOR — a single bias can lift a value's
+// marginal to ~0.67 but never to 1.0, so an axis can be nudged but never silently collapsed
+// (full collapse would behave like dropping the axis → lower effective F). t=0 => neutral;
+// t=1 => full lean onto the favored value v. Combining a manual bias with an encounter color
+// weight is multiplicative (manual at max overrides the encounter pull).
+function dealDist(axis){
+  let enc=[1,1,1];
+  if(axis===0) enc=ENCOUNTERS[state.encounter].w;
+  const eS=enc[0]+enc[1]+enc[2];
+  let pref=[enc[0]/eS,enc[1]/eS,enc[2]/eS];
+  const b=state.bias[axis];
+  if(b && b.t>0){
+    const man=[0,1,2].map(i=>(1-b.t)*(1/3)+b.t*(i===b.v?1:0));
+    let comb=[0,1,2].map(i=>pref[i]*man[i]); let s=comb[0]+comb[1]+comb[2];
+    if(s<=0){ comb=pref.slice(); s=1; }            // guard: never zero out the whole axis
+    pref=comb.map(x=>x/s);
+  }
+  return pref.map(p=>0.5*(1/3)+0.5*p);
+}
+function dealValue(axis){
+  const d=dealDist(axis); const r=Math.random(); let acc=0;
+  for(let i=0;i<3;i++){ acc+=d[i]; if(r<acc) return i; }
   return 2;
 }
-// random card: active axes vary (color via encounter bias), inactive axes pinned
+// random card: active axes vary (each via its deal distribution), inactive axes pinned
 function randCard(){
   const c=PIN.slice();
-  for(const i of CFG.active) c[i] = (i===0) ? dealColor() : r3();
+  for(const i of CFG.active) c[i] = dealValue(i);
   return c;
 }
 
@@ -584,6 +624,7 @@ const state={
   F:3, N:12, dropIdx:2,           // dials: feature count, board size, axis dropped (f=3)
   camoDepth:2, escapeRoutes:3,    // findability knobs: target easiest-k, and how many sets sit at it
   encounter:"balanced",           // dial: encounter scoring profile
+  bias:{ 0:{v:0,t:0}, 1:{v:0,t:0}, 3:{v:0,t:0} }, // per-feature deal bias: favored value v, intensity t (0..1)
   sets:0, score:0, miss:0, attempts:0, tEnd:0, raf:0, lock:false,
   log:[], stats:null, startStamp:0,
 };
@@ -861,7 +902,7 @@ function routesWord(r){ return r<=2 ? "scarce" : r<=4 ? "some" : "many"; }
 // raw deal) stays instant.
 let oddsCache={sig:null,data:null};
 function computeOdds(){
-  const sig=`${state.F}|${state.N}|${state.dropIdx}|${state.encounter}`;
+  const sig=`${state.F}|${state.N}|${state.dropIdx}|${state.encounter}|${biasSig()}`;
   if(oddsCache.sig===sig) return oddsCache.data;
   const M=500, minKFreq={}; let setSum=0;
   for(let s=0;s<M;s++){ const info=boardKInfo(genOnce()); minKFreq[info.minK]=(minKFreq[info.minK]||0)+1; setSum+=info.count; }
@@ -882,7 +923,7 @@ function reachableDepth(o){
 // Depends on depth (not just F,N), so it's cached by config signature + depth.
 let floorCache={};
 function routesFloor(depth){
-  const sig=`${state.F}|${state.N}|${state.dropIdx}|${state.encounter}|${depth}`;
+  const sig=`${state.F}|${state.N}|${state.dropIdx}|${state.encounter}|${biasSig()}|${depth}`;
   if(floorCache.sig===sig) return floorCache.val;
   const WINDOWS=8, DRAWS=140, mins=[];
   for(let w=0;w<WINDOWS;w++){
@@ -911,6 +952,55 @@ function renderOdds(){
   $("odds-sig").textContent=`f${CFG.F}·n${state.N}`;
 }
 
+// Build the per-feature bias rows once (value picker + intensity slider per axis).
+function buildBias(){
+  const wrap=$("biaswrap"); wrap.innerHTML="";
+  for(const ax of BIAS_AXES){
+    const f=FEATURES[ax];
+    const chips=f.values.map((v,i)=>{
+      const sw = ax===0 ? `<span class="bsw" style="background:${CARD_COLORS_HEX[i]}"></span>` : "";
+      return `<div class="bchip" data-v="${i}">${sw}${v}</div>`;
+    }).join("");
+    const row=document.createElement("div");
+    row.className="biasrow"; row.dataset.axis=ax;
+    row.innerHTML=`<div class="bhead"><span class="bnm">${f.name}</span><span class="bval neutral" id="bias-out-${ax}">neutral</span></div>
+      <div class="bchips" id="bias-chips-${ax}">${chips}</div>
+      <input type="range" id="bias-slider-${ax}" class="biasslider" min="0" max="100" step="5" value="0">`;
+    wrap.appendChild(row);
+  }
+  wrap.addEventListener("click",e=>{
+    const c=e.target.closest(".bchip"); if(!c||state.running) return;
+    const ax=+c.closest(".biasrow").dataset.axis;
+    state.bias[ax].v=+c.dataset.v;
+    if(state.bias[ax].t===0) state.bias[ax].t=0.5;   // picking a value turns a neutral bias on
+    syncUI(true);
+  });
+  wrap.addEventListener("input",e=>{
+    if(!e.target.classList.contains("biasslider")) return;
+    const ax=+e.target.closest(".biasrow").dataset.axis;
+    if(state.running){ e.target.value=Math.round(state.bias[ax].t*100); return; }
+    state.bias[ax].t=+e.target.value/100; syncUI(true);
+  });
+}
+// reflect the bias dials into their rows + a consequence note
+function syncBias(){
+  for(const ax of BIAS_AXES){
+    const b=state.bias[ax], active=CFG.active.includes(ax);
+    document.querySelector(`.biasrow[data-axis="${ax}"]`).classList.toggle("off",!active);
+    document.querySelectorAll(`#bias-chips-${ax} .bchip`).forEach(c=>c.classList.toggle("on",+c.dataset.v===b.v && b.t>0));
+    $(`bias-slider-${ax}`).value=Math.round(b.t*100);
+    const out=$(`bias-out-${ax}`);
+    if(b.t>0){ out.textContent=`${FEATURES[ax].values[b.v]} ${Math.round(b.t*100)}%`; out.classList.remove("neutral"); }
+    else { out.textContent="neutral"; out.classList.add("neutral"); }
+  }
+  // heads-up: strong bias skews an axis toward all-same → lower k (easier); a bias on a dropped axis is inert.
+  const strong=BIAS_AXES.filter(ax=>CFG.active.includes(ax) && state.bias[ax].t>=0.6);
+  const inert=BIAS_AXES.filter(ax=>!CFG.active.includes(ax) && state.bias[ax].t>0);
+  let note="";
+  if(strong.length) note=`strong bias skews ${strong.map(a=>AXIS_WORDS[a]).join(" & ")} toward all-same → easier, more gimmes`;
+  if(inert.length) note=(note?note+" · ":"")+`${inert.map(a=>AXIS_WORDS[a]).join(" & ")} bias inert (axis dropped)`;
+  $("bias-cap").textContent=note;
+}
 // reflect every dial into the UI + regenerate the idle preview
 function syncUI(regen){
   rebuildCFG();
@@ -956,6 +1046,7 @@ function syncUI(regen){
   $("encprofile").innerHTML = [0,1,2].map(i=>
     `<span class="encstat"><span class="sw" style="background:${CARD_COLORS_HEX[i]}"></span>${STAT_LABELS[i]} ×${w[i]}</span>`
   ).join("") + (colorActive ? "" : `<span class="encstat" style="color:var(--warn)">color is dropped — scoring is flat</span>`);
+  syncBias();
   // copy
   const heldNote = state.F===4 ? "" : ` ${FEATURES[state.dropIdx].name} is held constant.`;
   $("sub").textContent = `skill-component prototype · f=${state.F} · n=${state.N}`;
@@ -1010,6 +1101,7 @@ $("m-again").addEventListener("click",startRound);
 $("m-close").addEventListener("click",()=>$("overlay").classList.remove("show"));
 
 // init: default f=3, N=12, drop shading; idle preview until Start
+buildBias();
 syncUI(true);
 $("v-timer").textContent=state.duration;
 </script>
