@@ -1,0 +1,1017 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SET · skill-core prototype</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=Spline+Sans+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0b0d12;
+    --bg2:#0f1219;
+    --panel:#13161f;
+    --panel2:#171b26;
+    --line:#232838;
+    --line2:#2d3344;
+    --ink:#e8ebf2;
+    --ink-dim:#8b93a7;
+    --ink-faint:#5b6175;
+    --phos:#5eead4;      /* instrument accent */
+    --phos-dim:#2dd4bf;
+    --red:#f0565b;
+    --green:#46c46a;
+    --blue:#5b94f5;
+    --warn:#f5a524;
+    --shadow:0 20px 50px -20px rgba(0,0,0,.7);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    background:
+      radial-gradient(1200px 700px at 80% -10%, #16203022, transparent),
+      radial-gradient(900px 600px at 0% 110%, #1a162a22, transparent),
+      var(--bg);
+    color:var(--ink);
+    font-family:"Spline Sans Mono",ui-monospace,monospace;
+    min-height:100%;
+    padding:clamp(14px,3vw,34px);
+    -webkit-font-smoothing:antialiased;
+  }
+  body::before{
+    content:"";position:fixed;inset:0;pointer-events:none;z-index:0;opacity:.4;
+    background-image:linear-gradient(var(--line) 1px,transparent 1px),linear-gradient(90deg,var(--line) 1px,transparent 1px);
+    background-size:46px 46px;
+    mask-image:radial-gradient(ellipse 80% 70% at 50% 30%, #000 30%, transparent 80%);
+  }
+  .wrap{position:relative;z-index:1;max-width:1180px;margin:0 auto}
+
+  header.top{display:flex;align-items:flex-end;justify-content:space-between;gap:18px;flex-wrap:wrap;margin-bottom:18px}
+  .brand{display:flex;flex-direction:column;gap:2px}
+  .brand h1{font-family:"Syne",sans-serif;font-weight:800;font-size:clamp(28px,5vw,46px);letter-spacing:-.02em;line-height:.9}
+  .brand h1 .dot{color:var(--phos)}
+  .brand .sub{color:var(--ink-faint);font-size:12px;letter-spacing:.18em;text-transform:uppercase}
+
+  .hud{display:flex;gap:10px;flex-wrap:wrap;align-items:stretch}
+  .stat{
+    background:linear-gradient(180deg,var(--panel),var(--bg2));
+    border:1px solid var(--line);border-radius:12px;padding:10px 14px;min-width:92px;
+    display:flex;flex-direction:column;gap:3px;box-shadow:var(--shadow)
+  }
+  .stat .lab{font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-faint)}
+  .stat .val{font-family:"Syne",sans-serif;font-weight:700;font-size:26px;line-height:1;font-variant-numeric:tabular-nums}
+  .stat.timer .val{color:var(--phos)}
+  .stat.timer.low .val{color:var(--warn)}
+  .stat.timer.crit .val{color:var(--red);animation:pulse .8s steps(2) infinite}
+  @keyframes pulse{50%{opacity:.4}}
+
+  .layout{display:grid;grid-template-columns:1fr 300px;gap:18px;align-items:start}
+  @media(max-width:860px){.layout{grid-template-columns:1fr}}
+
+  .boardpanel{
+    background:linear-gradient(180deg,var(--panel),var(--bg2));
+    border:1px solid var(--line);border-radius:18px;padding:16px;box-shadow:var(--shadow);position:relative;overflow:hidden
+  }
+  .boardpanel::after{content:"";position:absolute;inset:0;border-radius:18px;pointer-events:none;
+    box-shadow:inset 0 1px 0 #ffffff0a}
+  .board{display:grid;grid-template-columns:repeat(5,1fr);gap:12px}
+  .board[data-cols="4"]{grid-template-columns:repeat(4,1fr)}
+  .board[data-cols="5"]{grid-template-columns:repeat(5,1fr)}
+  @media(max-width:620px){.board,.board[data-cols="4"],.board[data-cols="5"]{grid-template-columns:repeat(3,1fr);gap:8px}}
+
+  .card{
+    position:relative;aspect-ratio:1/1.45;border-radius:13px;cursor:pointer;
+    background:linear-gradient(170deg,#1c212e,#141821);
+    border:1px solid var(--line2);
+    display:flex;align-items:center;justify-content:center;
+    transition:transform .12s ease, box-shadow .12s ease, border-color .12s ease;
+    user-select:none;
+  }
+  .card:hover{transform:translateY(-3px);border-color:#3d465d}
+  .card svg{width:74%;height:74%}
+  .card.sel{border-color:var(--phos);box-shadow:0 0 0 2px var(--phos),0 0 26px -6px var(--phos-dim);transform:translateY(-3px)}
+  .card.good{border-color:var(--green);box-shadow:0 0 0 2px var(--green),0 0 30px -4px var(--green);animation:pop .32s ease}
+  .card.bad{border-color:var(--red);box-shadow:0 0 0 2px var(--red);animation:shake .34s ease}
+  .card.leaving{animation:leave .3s ease forwards}
+  @keyframes pop{0%{transform:scale(1)}45%{transform:scale(1.07)}100%{transform:scale(1)}}
+  @keyframes shake{0%,100%{transform:translateX(0)}20%{transform:translateX(-7px)}40%{transform:translateX(6px)}60%{transform:translateX(-4px)}80%{transform:translateX(3px)}}
+  @keyframes leave{to{opacity:0;transform:scale(.7) rotate(4deg)}}
+  @keyframes enter{from{opacity:0;transform:scale(.8)}to{opacity:1;transform:scale(1)}}
+  .card.entering{animation:enter .34s ease}
+  .card.hint{border-color:var(--warn);box-shadow:0 0 0 2px var(--warn),0 0 26px -4px var(--warn);animation:hintpulse .6s ease 2}
+  @keyframes hintpulse{0%,100%{box-shadow:0 0 0 2px var(--warn),0 0 8px -4px var(--warn)}50%{box-shadow:0 0 0 3px var(--warn),0 0 34px 0 var(--warn)}}
+
+  /* idle preview overlay so the board is never a dead, real-looking surface */
+  .board.idle{filter:saturate(.5) brightness(.5);pointer-events:none}
+  .startgate{position:absolute;inset:16px;border-radius:14px;display:none;flex-direction:column;
+    align-items:center;justify-content:center;gap:14px;cursor:pointer;z-index:5;
+    background:radial-gradient(circle at 50% 40%, rgba(94,234,212,.08), rgba(11,13,18,.55));
+    border:1px dashed var(--line2);backdrop-filter:blur(1px)}
+  .startgate.show{display:flex}
+  .startgate .big{font-family:"Syne",sans-serif;font-weight:800;font-size:clamp(22px,3.4vw,34px);letter-spacing:-.01em}
+  .startgate .small{color:var(--ink-dim);font-size:12.5px;max-width:360px;text-align:center;line-height:1.6}
+  .startgate .cta{background:var(--phos);color:#062b27;font-family:"Syne",sans-serif;font-weight:700;
+    padding:11px 22px;border-radius:11px;font-size:15px;animation:bob 1.6s ease-in-out infinite;box-shadow:0 10px 24px -8px var(--phos-dim)}
+  @keyframes bob{50%{transform:translateY(-4px)}}
+
+  .side{display:flex;flex-direction:column;gap:14px}
+  .panel{background:linear-gradient(180deg,var(--panel),var(--bg2));border:1px solid var(--line);border-radius:16px;padding:14px;box-shadow:var(--shadow)}
+  .panel h2{font-family:"Syne",sans-serif;font-weight:700;font-size:13px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-dim);margin-bottom:10px;display:flex;justify-content:space-between;align-items:center}
+  .panel h2 .cnt{color:var(--phos);font-size:12px}
+
+  /* controls */
+  .controls{display:flex;flex-direction:column;gap:12px}
+  #dials{display:flex;flex-direction:column;gap:12px}
+  .durrow{display:flex;gap:6px;flex-wrap:wrap}
+  .chip{flex:1;min-width:54px;text-align:center;background:var(--panel2);border:1px solid var(--line2);color:var(--ink-dim);
+    border-radius:9px;padding:9px 4px;font-size:13px;cursor:pointer;transition:.12s;font-variant-numeric:tabular-nums}
+  .chip:hover{border-color:#3d465d;color:var(--ink)}
+  .chip.on{background:var(--phos);border-color:var(--phos);color:#062b27;font-weight:600}
+  .clab{font-size:11px;color:var(--ink-faint);letter-spacing:.12em;text-transform:uppercase;margin-bottom:7px;display:flex;justify-content:space-between;align-items:baseline}
+  .clab .num{font-family:"Syne",sans-serif;font-weight:700;font-size:15px;color:var(--phos);letter-spacing:0;text-transform:none}
+  input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:5px;border-radius:5px;background:var(--line2);outline:none;cursor:pointer}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:17px;height:17px;border-radius:50%;background:var(--phos);cursor:pointer;border:2px solid var(--bg2);box-shadow:0 0 10px -2px var(--phos-dim)}
+  input[type=range]::-moz-range-thumb{width:15px;height:15px;border-radius:50%;background:var(--phos);cursor:pointer;border:2px solid var(--bg2)}
+  .ticks{display:flex;justify-content:space-between;font-size:9.5px;color:var(--ink-faint);margin-top:3px;font-variant-numeric:tabular-nums}
+  #dials.locked{opacity:.45;pointer-events:none}
+  .preset{display:flex;gap:6px}
+  .preset .chip{font-size:12px}
+  .btn{
+    width:100%;border:none;border-radius:11px;padding:13px;cursor:pointer;
+    font-family:"Syne",sans-serif;font-weight:700;font-size:15px;letter-spacing:.04em;
+    background:var(--phos);color:#062b27;transition:.14s;box-shadow:0 8px 20px -8px var(--phos-dim)
+  }
+  .btn:hover{filter:brightness(1.08);transform:translateY(-1px)}
+  .btn.ghost{background:transparent;border:1px solid var(--line2);color:var(--ink-dim);box-shadow:none}
+  .btn.ghost:hover{border-color:var(--phos);color:var(--phos)}
+
+  /* match log */
+  .log{max-height:340px;overflow-y:auto;display:flex;flex-direction:column;gap:7px;padding-right:4px}
+  .log::-webkit-scrollbar{width:8px}.log::-webkit-scrollbar-thumb{background:var(--line2);border-radius:8px}
+  .logitem{display:flex;align-items:center;gap:8px;background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:7px 9px;animation:enter .3s ease}
+  .logitem .idx{color:var(--ink-faint);font-size:11px;min-width:22px}
+  .sig{display:flex;gap:5px;flex:1}
+  .axch{flex:1;border-radius:6px;padding:3px 0;text-align:center;font-size:10px;letter-spacing:.02em;border:1px solid var(--line2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .axch.diff{color:#0b0d12;font-weight:600}
+  .logitem .dt{color:var(--ink-faint);font-size:11px;min-width:62px;text-align:right;white-space:nowrap}
+  .log .empty{color:var(--ink-faint);font-size:12px;text-align:center;padding:18px 0}
+
+  /* end overlay */
+  .overlay{position:fixed;inset:0;z-index:50;background:rgba(6,8,12,.78);backdrop-filter:blur(7px);
+    display:none;align-items:center;justify-content:center;padding:20px;animation:fade .3s ease}
+  .overlay.show{display:flex}
+  @keyframes fade{from{opacity:0}}
+  .modal{width:min(720px,100%);max-height:90vh;overflow-y:auto;background:linear-gradient(180deg,var(--panel),var(--bg2));
+    border:1px solid var(--line2);border-radius:20px;padding:26px;box-shadow:var(--shadow)}
+  .modal h2{font-family:"Syne",sans-serif;font-weight:800;font-size:30px;letter-spacing:-.01em;margin-bottom:4px}
+  .modal .tagline{color:var(--ink-faint);font-size:12px;letter-spacing:.14em;text-transform:uppercase;margin-bottom:20px}
+  .summary{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:22px}
+  @media(max-width:560px){.summary{grid-template-columns:repeat(2,1fr)}}
+  .sumcell{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:12px}
+  .sumcell .l{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-faint)}
+  .sumcell .v{font-family:"Syne",sans-serif;font-weight:700;font-size:28px;line-height:1.1;font-variant-numeric:tabular-nums}
+  .sumcell .v small{font-size:13px;color:var(--ink-dim)}
+
+  .featgrid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-bottom:22px}
+  @media(max-width:560px){.featgrid{grid-template-columns:1fr}}
+  .feat{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:12px 13px}
+  .feat .ft{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-dim);margin-bottom:9px}
+  .bar{display:flex;align-items:center;gap:9px;margin-bottom:6px;font-size:13px}
+  .bar .nm{min-width:74px;color:var(--ink)}
+  .bar .track{flex:1;height:9px;background:#0c0f16;border-radius:6px;overflow:hidden;border:1px solid var(--line)}
+  .bar .fill{height:100%;border-radius:6px;transition:width .6s cubic-bezier(.2,.8,.2,1)}
+  .bar .n{min-width:24px;text-align:right;color:var(--ink-dim);font-variant-numeric:tabular-nums}
+  .swatch{width:11px;height:11px;border-radius:3px;flex-shrink:0}
+
+  .modal .foot{display:flex;gap:10px}
+  .hint{color:var(--ink-faint);font-size:12px;line-height:1.6;margin-top:6px}
+  .analysis{display:flex;align-items:center;gap:18px;margin-top:14px;flex-wrap:wrap}
+  .aitem{display:flex;align-items:baseline;gap:6px}
+  .adot{width:7px;height:7px;border-radius:50%;background:var(--phos);box-shadow:0 0 8px var(--phos);align-self:center}
+  .abig{font-family:"Syne",sans-serif;font-weight:700;font-size:18px;color:var(--ink);font-variant-numeric:tabular-nums}
+  .alab{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-faint)}
+  .kbreak{display:flex;gap:5px;margin-left:auto;flex-wrap:wrap}
+  .kchip{font-size:10.5px;padding:3px 7px;border-radius:6px;border:1px solid var(--line2);color:var(--ink-dim);font-variant-numeric:tabular-nums;white-space:nowrap}
+  .encprofile{display:flex;gap:8px;margin-top:7px;flex-wrap:wrap}
+  .encstat{display:flex;align-items:center;gap:4px;font-size:10.5px;color:var(--ink-dim);font-variant-numeric:tabular-nums}
+  .encstat .sw{width:9px;height:9px;border-radius:2px}
+  .floatpts{position:absolute;top:-2px;right:8px;font-family:"Syne",sans-serif;font-weight:700;font-size:18px;color:var(--phos);opacity:0;pointer-events:none}
+  .floatpts.go{animation:rise .9s ease forwards}
+  @keyframes rise{0%{opacity:0;transform:translateY(6px)}20%{opacity:1}100%{opacity:0;transform:translateY(-20px)}}
+  .startnote{color:var(--ink-faint);font-size:11.5px;line-height:1.65;margin-top:4px}
+  kbd{background:var(--panel2);border:1px solid var(--line2);border-radius:4px;padding:1px 5px;font-size:11px;color:var(--ink-dim)}
+  /* findability cap notes + odds panel */
+  .capnote{font-size:10px;color:var(--warn);min-height:11px;margin-top:4px;letter-spacing:.02em}
+  .oddline{display:flex;justify-content:space-between;align-items:baseline;font-size:12px;color:var(--ink-dim);margin-bottom:9px}
+  .oddline b{font-family:"Syne",sans-serif;color:var(--ink);font-size:17px}
+  .oddcap{font-size:9.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--ink-faint);margin:0 0 8px}
+  #odds .bar{margin-bottom:5px}
+  #odds .bar .nm{min-width:84px;font-size:12px;color:var(--ink-dim)}
+  .atarget{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-faint)}
+  .atarget b{font-family:"Spline Sans Mono";letter-spacing:0}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="brand">
+      <h1>SET<span class="dot">.</span>core</h1>
+      <div class="sub" id="sub">skill-component prototype · f=3 · n=12</div>
+    </div>
+    <div class="hud">
+      <div class="stat timer" id="s-timer"><div class="lab">Time</div><div class="val" id="v-timer">60</div></div>
+      <div class="stat" style="position:relative"><div class="lab">Score</div><div class="val" id="v-score" style="color:var(--phos)">0</div><span class="floatpts" id="floatpts"></span></div>
+      <div class="stat"><div class="lab">Sets</div><div class="val" id="v-sets">0</div></div>
+      <div class="stat"><div class="lab">Misses</div><div class="val" id="v-miss">0</div></div>
+      <div class="stat"><div class="lab">Accuracy</div><div class="val" id="v-acc">—</div></div>
+    </div>
+  </header>
+
+  <div class="layout">
+    <div class="boardpanel">
+      <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs id="defs"></defs></svg>
+      <div class="board idle" id="board"></div>
+      <div class="startgate show" id="startgate">
+        <div class="big">Ready</div>
+        <div class="small" id="gate-rules">Find three cards where every feature — color, shape, count — is all-same or all-different. There are always at least three sets on the board.</div>
+        <div class="cta">▶ Start round</div>
+      </div>
+      <div class="analysis" id="analysis">
+        <div class="aitem"><span class="adot"></span><span class="abig" id="a-count">—</span><span class="alab">on board</span></div>
+        <div class="aitem"><span class="abig" id="a-easy">—</span><span class="alab">easiest k</span></div>
+        <div class="aitem"><span class="atarget">target <b id="a-target">—</b></span></div>
+        <div class="kbreak" id="a-kbreak"></div>
+      </div>
+    </div>
+
+    <div class="side">
+      <div class="panel">
+        <h2>Controls</h2>
+        <div class="controls" id="controls">
+          <div id="dials">
+          <div>
+            <div class="clab">Features</div>
+            <div class="durrow" id="mode">
+              <div class="chip on" data-f="3">3 · fast</div>
+              <div class="chip" data-f="4">4 · classic</div>
+            </div>
+          </div>
+          <div id="drop-wrap">
+            <div class="clab">Drop axis <span style="text-transform:none;letter-spacing:0;color:var(--ink-faint)">(held constant)</span></div>
+            <div class="durrow" id="drop">
+              <div class="chip" data-drop="0">Color</div>
+              <div class="chip" data-drop="1">Shape</div>
+              <div class="chip on" data-drop="2">Shading</div>
+              <div class="chip" data-drop="3">Number</div>
+            </div>
+          </div>
+          <div>
+            <div class="clab">Board size <span class="num" id="n-out">12</span></div>
+            <input type="range" id="nslider" min="8" max="16" step="1" value="12">
+            <div class="ticks"><span>8</span><span>10</span><span>12</span><span>14</span><span>16</span></div>
+          </div>
+          <div>
+            <div class="clab">Quick compare</div>
+            <div class="preset" id="preset">
+              <div class="chip" data-f="3" data-n="10">f=3 · n=10</div>
+              <div class="chip" data-f="4" data-n="15">f=4 · n=15</div>
+            </div>
+          </div>
+          <div>
+            <div class="clab">Camouflage depth <span class="num" id="depth-out">k2 · subtle</span></div>
+            <input type="range" id="depthslider" min="1" max="3" step="1" value="2">
+            <div class="ticks" id="depth-ticks"></div>
+            <div class="capnote" id="depth-cap"></div>
+          </div>
+          <div>
+            <div class="clab">Escape routes <span class="num" id="routes-out">3 · some</span></div>
+            <input type="range" id="routesslider" min="1" max="6" step="1" value="3">
+            <div class="ticks"><span>scarce</span><span>some</span><span>many</span></div>
+            <div class="capnote" id="routes-cap"></div>
+          </div>
+          <div>
+            <div class="clab">Encounter <span style="text-transform:none;letter-spacing:0;color:var(--ink-faint)">(what scores)</span></div>
+            <div class="durrow" id="enc" style="flex-wrap:wrap">
+              <div class="chip on" data-enc="balanced">Balanced</div>
+              <div class="chip" data-enc="power">Power</div>
+              <div class="chip" data-enc="endurance">Endur.</div>
+              <div class="chip" data-enc="speed">Speed</div>
+            </div>
+            <div class="encprofile" id="encprofile"></div>
+          </div>
+          <div>
+            <div class="clab">Round length</div>
+            <div class="durrow" id="dur">
+              <div class="chip on" data-d="30">30s</div>
+              <div class="chip" data-d="60">60s</div>
+              <div class="chip" data-d="90">90s</div>
+              <div class="chip" data-d="120">120s</div>
+            </div>
+          </div>
+          </div>
+          <button class="btn" id="btn-start">Start round</button>
+          <button class="btn ghost" id="btn-hint" style="display:none">Hint — show me a set</button>
+          <button class="btn ghost" id="btn-end" style="display:none">End early</button>
+          <div class="startnote" id="startnote">Find a <b>set</b> of three cards where each feature — color, shape, count — is either all-same or all-different across the three. There's always at least one set on the board. Speed is the only thing in your way.</div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>Board odds <span class="cnt" id="odds-sig"></span></h2>
+        <div id="odds"></div>
+        <div class="oddcap" style="margin:9px 0 0">Raw deal odds at this f·n — what the generator has to work with before the camouflage knobs bend it. Move F or N and watch the spread shift.</div>
+      </div>
+
+      <div class="panel">
+        <h2>Match log <span class="cnt" id="log-cnt">0</span></h2>
+        <div class="log" id="log"><div class="empty">No sets yet.</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="overlay">
+  <div class="modal">
+    <h2 id="m-title">Round complete</h2>
+    <div class="tagline" id="m-tagline">skill-core · session report</div>
+    <div class="summary" id="m-summary"></div>
+    <div style="font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-dim);margin-bottom:11px">Per-feature breakdown — for every set found, was each axis all-<i>same</i> (which value) or all-<i>different</i>?</div>
+    <div class="featgrid" id="m-feats"></div>
+    <div class="foot">
+      <button class="btn" id="m-again">Play again</button>
+      <button class="btn ghost" id="m-close">Close</button>
+    </div>
+    <div class="hint">The all-different ("diff") tallies are your future spell-signature axes — when RPG layers land, these are what map to effects.</div>
+  </div>
+</div>
+
+<script>
+"use strict";
+/* ============================================================
+   CORE  —  Set over (Z/3)^DIM .  Validated generation logic.
+   Card = [color, shape, shading, number], each in {0,1,2}.
+   A "mode" chooses which axes are ACTIVE (randomized + scored);
+   inactive axes are pinned to a constant value, so they are
+   trivially all-same and never affect set validity.
+   ============================================================ */
+const DIM = 4, V = 3, FLOOR = 1; // floor=1: never a dead board, but let density vary faithfully
+
+// Feature taxonomy (index order is fixed; values drive the stats UI)
+const FEATURES = [
+  { name:"Color",   values:["Red","Green","Blue"] },        // 0
+  { name:"Shape",   values:["Oval","Diamond","Squiggle"] }, // 1
+  { name:"Shading", values:["Solid","Striped","Open"] },    // 2
+  { name:"Number",  values:["One","Two","Three"] },         // 3
+];
+const PIN = [0,0,0,0]; // value any inactive (dropped) axis is pinned to
+
+// Live config is rebuilt from independent dials: F (3/4), N (board size), dropIdx (which axis f=3 drops).
+let CFG = {};
+function colsForN(n){ return n<=9 ? 3 : n<=12 ? 4 : 5; }
+function rebuildCFG(){
+  const F=state.F, N=state.N;
+  const active = F===4 ? [0,1,2,3] : [0,1,2,3].filter(i=>i!==state.dropIdx);
+  CFG = { F, N, active, cols:colsForN(N), drop: F===4 ? null : FEATURES[state.dropIdx].name };
+}
+
+const CARD_COLORS = ["var(--red)","var(--green)","var(--blue)"];
+const CARD_COLORS_HEX = ["#f0565b","#46c46a","#5b94f5"];
+
+// Encounter = a value landscape. Color values map to stats: Red=Power, Green=Endurance, Blue=Speed.
+// w = scoring weight per color value; the same weights mildly bias the deal so valued sets stay findable.
+const STAT_LABELS = ["Power","Endurance","Speed"]; // index-aligned to color value 0,1,2
+const ENCOUNTERS = {
+  balanced:  { name:"Balanced",  w:[1,1,1] },
+  power:     { name:"Power",     w:[3,1,1] },
+  endurance: { name:"Endurance", w:[1,3,1] },
+  speed:     { name:"Speed",     w:[1,1,3] },
+};
+
+const keyOf = c => c[0]*27 + c[1]*9 + c[2]*3 + c[3];
+const eq = (a,b) => a[0]===b[0]&&a[1]===b[1]&&a[2]===b[2]&&a[3]===b[3];
+function r3(){ return Math.floor(Math.random()*3); }
+// color dealt with a soft bias toward the encounter's valued color (50% uniform + 50% weighted)
+function dealColor(){
+  const w=ENCOUNTERS[state.encounter].w, s=w[0]+w[1]+w[2];
+  const r=Math.random(); let acc=0;
+  for(let i=0;i<3;i++){ acc += 0.5*(1/3) + 0.5*(w[i]/s); if(r<acc) return i; }
+  return 2;
+}
+// random card: active axes vary (color via encounter bias), inactive axes pinned
+function randCard(){
+  const c=PIN.slice();
+  for(const i of CFG.active) c[i] = (i===0) ? dealColor() : r3();
+  return c;
+}
+
+// k = how many ACTIVE axes are all-different in a set (0 impossible for valid; 1=gimme .. F=camouflage)
+function kOfSet(cards){
+  let k=0;
+  for(const i of CFG.active){ if(!(cards[0][i]===cards[1][i] && cards[1][i]===cards[2][i])) k++; }
+  return k;
+}
+// board findability profile: total sets, min k present, and histogram by k
+function boardKInfo(board){
+  const sets=findSets(board);
+  const hist={}; let minK=99;
+  for(const [i,j,l] of sets){
+    const k=kOfSet([board[i],board[j],board[l]]);
+    hist[k]=(hist[k]||0)+1; if(k<minK) minK=k;
+  }
+  return { count:sets.length, minK:sets.length?minK:0, hist };
+}
+// FINDABILITY TARGET (two knobs):
+//   camoDepth    = target easiest-k. Higher = harder (the best set has no salient cue).
+//   escapeRoutes = target count of sets at that easiest k. Fewer = harder (fewer outs).
+// We select (best-of-N) the board whose (easiest-k, routes-at-easiest-k) is NEAREST the target.
+// Depth dominates; routes is the fine-tune *within* a depth, so it fills the continuum between
+// the integer k-steps (a lone k=2 plays much harder than five k=2 sets at the same depth).
+function boardFindDist(board){
+  const {minK,hist,count}=boardKInfo(board);
+  if(!count) return Infinity;                       // dead board never wins (floor also forbids it)
+  const kErr = Math.abs(minK - state.camoDepth);
+  const routes = hist[minK]||0;
+  const rErr = Math.abs(routes - state.escapeRoutes);
+  return kErr*100 + rErr;                            // hit the depth first, then tune escape routes
+}
+// points for a found set under the active encounter (color-value weighted)
+function setPoints(cards){
+  const w=ENCOUNTERS[state.encounter].w;
+  const cv=[cards[0][0],cards[1][0],cards[2][0]];
+  const allSame = cv[0]===cv[1] && cv[1]===cv[2];
+  if(allSame) return w[cv[0]];                 // all one color -> that stat's full weight
+  return Math.round((w[0]+w[1]+w[2])/3);        // all-different color -> balanced average
+}
+
+function isSet(a,b,c){
+  for(let i=0;i<DIM;i++) if((a[i]+b[i]+c[i])%3!==0) return false;
+  return true;
+}
+function third(a,b){
+  const t=new Array(DIM);
+  for(let i=0;i<DIM;i++) t[i]=(3-((a[i]+b[i])%3))%3;
+  return t;
+}
+// list all sets currently on board (each as [i,j,k] indices), via pair-completion
+function findSets(board){
+  const idxByKey=new Map();
+  board.forEach((c,i)=>{ if(c) idxByKey.set(keyOf(c),i); });
+  const out=[];
+  for(let i=0;i<board.length;i++){ if(!board[i]) continue;
+    for(let j=i+1;j<board.length;j++){ if(!board[j]) continue;
+      const t=third(board[i],board[j]);
+      const k=idxByKey.get(keyOf(t));
+      if(k!==undefined && k>j) out.push([i,j,k]);
+    }
+  }
+  return out;
+}
+const countSets = b => findSets(b).length;
+
+function distinctRandomBoard(n){
+  const seen=new Set(), out=[];
+  while(out.length<n){ const c=randCard(),k=keyOf(c); if(!seen.has(k)){seen.add(k);out.push(c);} }
+  return out;
+}
+// REJECTION + best-of-N target: seed the opening board nearest the findability target (depth × routes)
+function genOnce(){
+  for(let t=0;t<5000;t++){ const b=distinctRandomBoard(CFG.N); if(countSets(b)>=FLOOR) return b; }
+  return distinctRandomBoard(CFG.N);
+}
+function genInitial(){
+  const samples=140;                                  // more headroom: extreme targets are rarer to hit
+  let best=null,bestDist=Infinity;
+  for(let s=0;s<samples;s++){
+    const b=genOnce(); const d=boardFindDist(b);
+    if(d<bestDist){ bestDist=d; best=b; }
+    if(bestDist===0) break;                            // exact target hit; stop early
+  }
+  return best||genOnce();
+}
+// CONSTRUCTIVE PATCH: refill freed slots, hold the floor, keep distinct.
+function patchOnce(board, slots){
+  const present=new Set();
+  board.forEach(c=>{ if(c) present.add(keyOf(c)); });
+  for(let attempt=0;attempt<400;attempt++){
+    const nb=board.slice();
+    const seen=new Set(present);
+    let ok=true;
+    for(const s of slots){
+      let c,g=0; do{ c=randCard(); g++; if(g>200){ok=false;break;} }while(seen.has(keyOf(c)));
+      if(!ok) break; seen.add(keyOf(c)); nb[s]=c;
+    }
+    if(ok && countSets(nb)>=FLOOR) return nb;
+  }
+  // fallback: plant a guaranteed completer
+  const nb=board.slice(); const seen=new Set(present);
+  for(const s of slots){ let c; do{c=randCard();}while(seen.has(keyOf(c))); seen.add(keyOf(c)); nb[s]=c; }
+  let guard=0;
+  while(countSets(nb)<FLOOR && guard<60){
+    const cards=nb.map((c,i)=>[c,i]).filter(x=>x[0]); let planted=false;
+    for(let i=0;i<cards.length&&!planted;i++) for(let j=i+1;j<cards.length&&!planted;j++){
+      const t=third(cards[i][0],cards[j][0]);
+      if(!seen.has(keyOf(t))){ const s=slots[guard%slots.length];
+        seen.delete(keyOf(nb[s])); nb[s]=t; seen.add(keyOf(t)); planted=true; }
+    }
+    if(!planted) break; guard++;
+  }
+  return nb;
+}
+function patch(board, slots){
+  const samples=80;
+  let best=null,bestDist=Infinity;
+  for(let s=0;s<samples;s++){
+    const b=patchOnce(board,slots); const d=boardFindDist(b);
+    if(d<bestDist){ bestDist=d; best=b; }
+    if(bestDist===0) break;
+  }
+  return best||patchOnce(board,slots);
+}
+
+/* ============================================================
+   RENDER  —  SVG Set symbols
+   ============================================================ */
+function buildDefs(){
+  const defs=document.getElementById("defs");
+  // striped patterns, one per color
+  CARD_COLORS_HEX.forEach((hex,i)=>{
+    const p=document.createElementNS("http://www.w3.org/2000/svg","pattern");
+    p.id="stripe"+i; p.setAttribute("patternUnits","userSpaceOnUse");
+    p.setAttribute("width","5"); p.setAttribute("height","5"); p.setAttribute("patternTransform","rotate(0)");
+    const l=document.createElementNS("http://www.w3.org/2000/svg","line");
+    l.setAttribute("x1","0");l.setAttribute("y1","2.5");l.setAttribute("x2","5");l.setAttribute("y2","2.5");
+    l.setAttribute("stroke",hex);l.setAttribute("stroke-width","1.5");
+    p.appendChild(l); defs.appendChild(p);
+  });
+}
+// path for one symbol inside a 100x44 box
+function symbolPath(shape){
+  if(shape===0) return {tag:"ellipse",attr:{cx:50,cy:22,rx:46,ry:19}};
+  if(shape===1) return {tag:"polygon",attr:{points:"50,2 96,22 50,42 4,22"}};
+  // squiggle
+  return {tag:"path",attr:{d:"M14,30 C8,12 30,4 48,12 C62,18 78,8 90,16 C100,23 92,40 74,36 C58,33 42,44 26,40 C16,37 18,38 14,30 Z"}};
+}
+function cardSVG(card){
+  const [color,shape,shading,number]=card;
+  const n=number+1;
+  const ns="http://www.w3.org/2000/svg";
+  const svg=document.createElementNS(ns,"svg");
+  svg.setAttribute("viewBox","0 0 120 160"); svg.setAttribute("preserveAspectRatio","xMidYMid meet");
+  const total=n, gap=46, startY=80-(total*gap)/2+gap/2;
+  for(let s=0;s<n;s++){
+    const g=document.createElementNS(ns,"g");
+    g.setAttribute("transform",`translate(10,${startY+s*gap-22})`);
+    const def=symbolPath(shape);
+    const el=document.createElementNS(ns,def.tag);
+    for(const k in def.attr) el.setAttribute(k,def.attr[k]);
+    el.setAttribute("stroke",CARD_COLORS_HEX[color]);
+    el.setAttribute("stroke-width","3");
+    el.setAttribute("stroke-linejoin","round");
+    if(shading===0) el.setAttribute("fill",CARD_COLORS_HEX[color]);        // solid
+    else if(shading===1) el.setAttribute("fill",`url(#stripe${color})`);   // striped
+    else el.setAttribute("fill","none");                                   // open
+    g.appendChild(el); svg.appendChild(g);
+  }
+  return svg;
+}
+
+/* ============================================================
+   GAME STATE
+   ============================================================ */
+const state={
+  board:[], sel:[], running:false, duration:30, timeLeft:30,
+  F:3, N:12, dropIdx:2,           // dials: feature count, board size, axis dropped (f=3)
+  camoDepth:2, escapeRoutes:3,    // findability knobs: target easiest-k, and how many sets sit at it
+  encounter:"balanced",           // dial: encounter scoring profile
+  sets:0, score:0, miss:0, attempts:0, tEnd:0, raf:0, lock:false,
+  log:[], stats:null, startStamp:0,
+};
+function freshStats(){
+  // per feature: counts for each value (all-same), plus diff (all-different)
+  return FEATURES.map(f=>({ same:f.values.map(()=>0), diff:0 }));
+}
+const $=id=>document.getElementById(id);
+const boardEl=$("board");
+
+function render(){
+  boardEl.innerHTML="";
+  state.board.forEach((card,i)=>{
+    const el=document.createElement("div");
+    el.className="card"+(state.sel.includes(i)?" sel":"");
+    el.dataset.i=i;
+    if(card){ el.appendChild(cardSVG(card)); }
+    el.addEventListener("click",()=>onPick(i));
+    boardEl.appendChild(el);
+  });
+  boardEl.classList.toggle("idle",!state.running);
+  updateOnBoard();
+}
+function updateOnBoard(){
+  const info=boardKInfo(state.board);
+  $("a-count").textContent = info.count;
+  $("a-easy").textContent = info.count ? info.minK : "—";
+  // target vs realized: did this board land on the requested depth?
+  const tgt=$("a-target");
+  tgt.textContent = `k${state.camoDepth}·${state.escapeRoutes}r`;
+  const onTarget = info.count && info.minK===state.camoDepth;
+  tgt.style.color = onTarget ? "var(--phos)" : "var(--warn)";
+  const kb=$("a-kbreak"); kb.innerHTML="";
+  const maxK = CFG.F;
+  for(let k=1;k<=maxK;k++){
+    const n=info.hist[k]||0;
+    const ch=document.createElement("span"); ch.className="kchip";
+    const label = k===1?"k1 gimme":k===maxK?("k"+k+" camo"):("k"+k);
+    ch.textContent=`${label}: ${n}`;
+    if(n>0 && k===info.minK){ ch.style.borderColor="var(--phos)"; ch.style.color="var(--phos)"; }
+    kb.appendChild(ch);
+  }
+}
+function cardEl(i){ return boardEl.querySelector(`.card[data-i="${i}"]`); }
+
+function onPick(i){
+  if(!state.running||state.lock||!state.board[i]) return;
+  const at=state.sel.indexOf(i);
+  if(at>=0){ state.sel.splice(at,1); cardEl(i).classList.remove("sel"); return; }
+  if(state.sel.length>=3) return;
+  state.sel.push(i); cardEl(i).classList.add("sel");
+  if(state.sel.length===3) evaluate();
+}
+
+function hintNow(){
+  if(!state.running||state.lock) return;
+  const sets=findSets(state.board);
+  if(!sets.length) return;
+  const pick=sets[Math.floor(Math.random()*sets.length)];
+  pick.forEach(idx=>{ const e=cardEl(idx); if(e){ e.classList.remove("hint"); void e.offsetWidth; e.classList.add("hint"); } });
+  setTimeout(()=>pick.forEach(idx=>{ const e=cardEl(idx); if(e) e.classList.remove("hint"); }),1300);
+}
+
+function evaluate(){
+  state.lock=true; state.attempts++;
+  const [a,b,c]=state.sel;
+  const cards=[state.board[a],state.board[b],state.board[c]];
+  const ok=isSet(cards[0],cards[1],cards[2]);
+  if(ok){
+    state.sets++;
+    const pts=setPoints(cards);
+    state.score+=pts;
+    recordSet(cards,pts);
+    floatPoints(pts);
+    state.sel.forEach(idx=>{ const e=cardEl(idx); e.classList.remove("sel"); e.classList.add("good"); });
+    setTimeout(()=>{
+      state.sel.forEach(idx=>{ const e=cardEl(idx); e.classList.remove("good"); e.classList.add("leaving"); });
+      setTimeout(()=>{
+        const slots=state.sel.slice();
+        slots.forEach(idx=>state.board[idx]=null);
+        state.board=patch(state.board,slots);
+        state.sel=[];                 // clear BEFORE render: new cards must not inherit the selection glow
+        render();
+        slots.forEach(idx=>{ const e=cardEl(idx); if(e) e.classList.add("entering"); });
+        state.lock=false; updateHUD();
+      },300);
+    },340);
+  } else {
+    state.miss++;
+    state.sel.forEach(idx=>{ const e=cardEl(idx); e.classList.remove("sel"); e.classList.add("bad"); });
+    setTimeout(()=>{
+      state.sel.forEach(idx=>{ const e=cardEl(idx); if(e) e.classList.remove("bad"); });
+      state.sel=[]; state.lock=false;
+    },360);
+  }
+  updateHUD();
+}
+
+function floatPoints(pts){
+  const el=$("floatpts");
+  el.textContent="+"+pts;
+  el.classList.remove("go"); void el.offsetWidth; el.classList.add("go");
+}
+
+function recordSet(cards,pts){
+  const now=performance.now();
+  const dt=(now-state.startStamp)/1000;
+  state.startStamp=now;
+  const sig=[];
+  for(const f of CFG.active){
+    const v=[cards[0][f],cards[1][f],cards[2][f]];
+    const allSame=v[0]===v[1]&&v[1]===v[2];
+    if(allSame){ state.stats[f].same[v[0]]++; sig.push({same:true,val:v[0],feat:f}); }
+    else { state.stats[f].diff++; sig.push({same:false,feat:f}); }
+  }
+  state.log.unshift({n:state.sets,sig,dt,pts});
+  renderLog();
+}
+
+function renderLog(){
+  const el=$("log");
+  $("log-cnt").textContent=state.log.length;
+  if(!state.log.length){ el.innerHTML='<div class="empty">No sets yet.</div>'; return; }
+  el.innerHTML="";
+  state.log.forEach(item=>{
+    const row=document.createElement("div"); row.className="logitem";
+    const idx=document.createElement("div"); idx.className="idx"; idx.textContent="#"+item.n;
+    const sig=document.createElement("div"); sig.className="sig";
+    item.sig.forEach(s=>{
+      const ch=document.createElement("div"); ch.className="axch";
+      if(s.same){
+        ch.textContent=FEATURES[s.feat].values[s.val];
+        if(s.feat===0){ // color: tint by the shared color
+          ch.style.borderColor=CARD_COLORS_HEX[s.val]; ch.style.color=CARD_COLORS_HEX[s.val];
+        } else { ch.style.color="var(--ink-dim)"; }
+      } else {
+        ch.classList.add("diff"); ch.textContent="DIFF";
+        ch.style.background="var(--phos)"; ch.style.borderColor="var(--phos)";
+      }
+      sig.appendChild(ch);
+    });
+    const dt=document.createElement("div"); dt.className="dt";
+    dt.innerHTML = `<span style="color:var(--phos)">+${item.pts}</span> · ${item.dt.toFixed(1)}s`;
+    row.appendChild(idx); row.appendChild(sig); row.appendChild(dt);
+    el.appendChild(row);
+  });
+}
+
+function updateHUD(){
+  $("v-score").textContent=state.score;
+  $("v-sets").textContent=state.sets;
+  $("v-miss").textContent=state.miss;
+  const acc = state.attempts? Math.round(100*state.sets/state.attempts) : null;
+  $("v-acc").textContent= acc===null? "—" : acc+"%";
+}
+
+function tick(){
+  const now=performance.now();
+  state.timeLeft=Math.max(0,(state.tEnd-now)/1000);
+  const shown=Math.ceil(state.timeLeft);
+  $("v-timer").textContent=shown;
+  const st=$("s-timer");
+  st.classList.toggle("low",shown<=15&&shown>5);
+  st.classList.toggle("crit",shown<=5);
+  if(state.timeLeft<=0){ endRound(); return; }
+  state.raf=requestAnimationFrame(tick);
+}
+
+function startRound(){
+  rebuildCFG();
+  state.running=true; state.lock=false;
+  lockControls(true);
+  state.sets=0; state.score=0; state.miss=0; state.attempts=0; state.sel=[]; state.log=[];
+  state.stats=freshStats();
+  state.board=genInitial();
+  state.startStamp=performance.now();
+  state.timeLeft=state.duration; state.tEnd=performance.now()+state.duration*1000;
+  $("v-timer").textContent=state.duration;
+  $("btn-start").style.display="none"; $("btn-end").style.display="block";
+  $("btn-hint").style.display="block";
+  $("startgate").classList.remove("show");
+  $("overlay").classList.remove("show");
+  render(); updateHUD(); renderLog();
+  cancelAnimationFrame(state.raf); state.raf=requestAnimationFrame(tick);
+}
+
+function endRound(){
+  if(!state.running) return;
+  state.running=false; state.lock=true;
+  lockControls(false);
+  cancelAnimationFrame(state.raf);
+  $("v-timer").textContent="0";
+  $("s-timer").classList.remove("low","crit");
+  boardEl.classList.add("idle");
+  $("btn-start").style.display="block"; $("btn-end").style.display="none";
+  $("btn-hint").style.display="none";
+  $("btn-start").textContent="Play again";
+  $("startgate").querySelector(".big").textContent="Round over";
+  $("startgate").querySelector(".cta").textContent="▶ Play again";
+  $("startgate").classList.add("show");
+  showReport();
+}
+
+function showReport(){
+  const acc = state.attempts? Math.round(100*state.sets/state.attempts):0;
+  const spm = (state.sets/(state.duration/60));
+  const avg = state.sets? (state.duration/state.sets):0;
+  // headline
+  let title="Round complete";
+  if(state.sets===0) title="No sets — yet";
+  else if(spm>=18) title="Blistering";
+  else if(spm>=11) title="Sharp eyes";
+  else if(spm>=6) title="Solid round";
+  $("m-title").textContent=title;
+  const enc=ENCOUNTERS[state.encounter];
+  $("m-tagline").textContent=`skill-core · ${state.duration}s · f=${CFG.F} n=${CFG.N} · ${enc.name} encounter`;
+  // summary cells
+  const sum=$("m-summary"); sum.innerHTML="";
+  const cells=[
+    ["Score",state.score,""],
+    ["Sets found",state.sets,""],
+    ["Accuracy",acc,"%"],
+    ["Sets / min",spm.toFixed(1),""],
+  ];
+  cells.forEach(([l,v,u])=>{
+    const d=document.createElement("div"); d.className="sumcell";
+    d.innerHTML=`<div class="l">${l}</div><div class="v">${v}<small>${u}</small></div>`;
+    sum.appendChild(d);
+  });
+  // per-feature breakdown (active axes only)
+  const fg=$("m-feats"); fg.innerHTML="";
+  CFG.active.forEach(fi=>{
+    const f=FEATURES[fi];
+    const st=state.stats[fi];
+    const max=Math.max(1,...st.same,st.diff);
+    const box=document.createElement("div"); box.className="feat";
+    let html=`<div class="ft">${f.name}</div>`;
+    f.values.forEach((vn,vi)=>{
+      const val=st.same[vi]; const w=Math.round(100*val/max);
+      const swatch = fi===0
+        ? `<span class="swatch" style="background:${CARD_COLORS_HEX[vi]}"></span>`
+        : `<span class="swatch" style="background:var(--line2)"></span>`;
+      const fill = fi===0?CARD_COLORS_HEX[vi]:"var(--ink-dim)";
+      html+=`<div class="bar"><span class="nm">${swatch}${vn}</span>
+        <span class="track"><span class="fill" style="width:${w}%;background:${fill}"></span></span>
+        <span class="n">${val}</span></div>`;
+    });
+    // diff row
+    const w=Math.round(100*st.diff/max);
+    html+=`<div class="bar"><span class="nm"><span class="swatch" style="background:var(--phos)"></span>All-diff</span>
+      <span class="track"><span class="fill" style="width:${w}%;background:var(--phos)"></span></span>
+      <span class="n">${st.diff}</span></div>`;
+    box.innerHTML=html; fg.appendChild(box);
+  });
+  $("overlay").classList.add("show");
+}
+
+/* wiring */
+buildDefs();
+
+const AXIS_WORDS = ["color","shape","shading","count"]; // index-aligned to FEATURES
+
+// findability labels for the two knobs
+function depthWord(k,F){
+  if(k<=1) return "gimme";        // shares a salient feature -> pops out
+  if(k>=F) return "camo";         // no shared cue -> serial verification only
+  if(k===2) return "subtle";
+  return "hidden";                // k=3 at f=4
+}
+function routesWord(r){ return r<=2 ? "scarce" : r<=4 ? "some" : "many"; }
+
+// Raw-deal odds for the current F,N,drop,encounter — sampled (no camouflage selection),
+// so the player can SEE what the generator has to work with before the knobs bend it.
+// Cached by config signature so dragging the depth/routes sliders (which don't change the
+// raw deal) stays instant.
+let oddsCache={sig:null,data:null};
+function computeOdds(){
+  const sig=`${state.F}|${state.N}|${state.dropIdx}|${state.encounter}`;
+  if(oddsCache.sig===sig) return oddsCache.data;
+  const M=500, minKFreq={}; let setSum=0;
+  for(let s=0;s<M;s++){ const info=boardKInfo(genOnce()); minKFreq[info.minK]=(minKFreq[info.minK]||0)+1; setSum+=info.count; }
+  const data={M,minKFreq,avgSets:setSum/M};
+  oddsCache={sig,data};
+  return data;
+}
+// deepest camo depth actually reachable here: highest easiest-k that shows up in the raw deal.
+// (If a depth never occurs naturally, best-of-N can't conjure it either — matches the sim.)
+function reachableDepth(o){
+  let reach=1;
+  for(let k=1;k<=CFG.F;k++) if((o.minKFreq[k]||0)>=2) reach=k;
+  return reach;
+}
+// Escape-routes FLOOR for a given depth: the fewest sets-at-easiest-k the generator can
+// actually deliver here. Measured faithfully — emulate what best-of-N does (the MIN routes
+// found within a real selection window of DRAWS), median over a few windows for stability.
+// Depends on depth (not just F,N), so it's cached by config signature + depth.
+let floorCache={};
+function routesFloor(depth){
+  const sig=`${state.F}|${state.N}|${state.dropIdx}|${state.encounter}|${depth}`;
+  if(floorCache.sig===sig) return floorCache.val;
+  const WINDOWS=8, DRAWS=140, mins=[];
+  for(let w=0;w<WINDOWS;w++){
+    let mn=Infinity;
+    for(let d=0;d<DRAWS;d++){ const info=boardKInfo(genOnce()); if(info.minK===depth){ const r=info.hist[depth]||0; if(r<mn) mn=r; } }
+    if(mn!==Infinity) mins.push(mn);
+  }
+  mins.sort((a,b)=>a-b);
+  const val = mins.length ? Math.max(1,mins[Math.floor(mins.length/2)]) : 1;
+  floorCache={sig,val};
+  return val;
+}
+function renderOdds(){
+  const o=computeOdds(), el=$("odds"), maxK=CFG.F;
+  let html=`<div class="oddline"><span>Avg sets / board</span><b>${o.avgSets.toFixed(1)}</b></div>`;
+  html+=`<div class="oddcap">P(easiest set = k)</div>`;
+  for(let k=1;k<=maxK;k++){
+    const p=Math.round(100*((o.minKFreq[k]||0)/o.M));
+    const reachable=(o.minKFreq[k]||0)>=2;
+    const col=reachable?"var(--phos)":"var(--line2)";
+    html+=`<div class="bar"><span class="nm">k${k} ${depthWord(k,maxK)}</span>
+      <span class="track"><span class="fill" style="width:${p}%;background:${col}"></span></span>
+      <span class="n">${reachable?p+"%":"—"}</span></div>`;
+  }
+  el.innerHTML=html;
+  $("odds-sig").textContent=`f${CFG.F}·n${state.N}`;
+}
+
+// reflect every dial into the UI + regenerate the idle preview
+function syncUI(regen){
+  rebuildCFG();
+  const words = CFG.active.map(i=>AXIS_WORDS[i]).join(", ");
+  boardEl.dataset.cols = CFG.cols;
+  // feature chips
+  document.querySelectorAll("#mode .chip").forEach(x=>x.classList.toggle("on",+x.dataset.f===state.F));
+  // drop-axis picker only meaningful at f=3
+  $("drop-wrap").style.display = state.F===4 ? "none" : "";
+  document.querySelectorAll("#drop .chip").forEach(x=>x.classList.toggle("on",+x.dataset.drop===state.dropIdx));
+  // slider + presets
+  $("nslider").value = state.N; $("n-out").textContent = state.N;
+  document.querySelectorAll("#preset .chip").forEach(x=>x.classList.toggle("on",+x.dataset.f===state.F && +x.dataset.n===state.N));
+  // findability two-knob, ACHIEVABILITY-AWARE: cap each slider at what's actually reachable
+  // for this F,N so the dials can't promise a board the generator can't deliver.
+  const o=computeOdds();
+  const reach=reachableDepth(o);                              // deepest camo depth reachable here
+  if(state.camoDepth>reach) state.camoDepth=reach;
+  const ds=$("depthslider"); ds.max=reach; ds.value=state.camoDepth;
+  $("depth-out").textContent=`k${state.camoDepth} · ${depthWord(state.camoDepth,CFG.F)}`;
+  $("depth-cap").textContent = reach<CFG.F ? `caps at k${reach} here — k${CFG.F} needs a smaller board` : "";
+  const dt=$("depth-ticks"); dt.innerHTML="";
+  for(let k=1;k<=reach;k++){ const s=document.createElement("span"); s.textContent=depthWord(k,CFG.F); dt.appendChild(s); }
+  // escape-routes is bounded BOTH ways and the bounds depend on the chosen depth:
+  //   floor = fewest sets-at-easiest-k the generator can hit (can't get a lone set on a busy board)
+  //   ceil  = can't ask for more easy sets than the board tends to hold
+  const routeFloor=routesFloor(state.camoDepth);
+  const routeCap=Math.max(routeFloor,Math.min(6,Math.round(o.avgSets)));
+  if(state.escapeRoutes<routeFloor) state.escapeRoutes=routeFloor;
+  if(state.escapeRoutes>routeCap) state.escapeRoutes=routeCap;
+  const rs=$("routesslider"); rs.min=routeFloor; rs.max=routeCap; rs.value=state.escapeRoutes;
+  $("routes-out").textContent=`${state.escapeRoutes} · ${routesWord(state.escapeRoutes)}`;
+  let rcap="";
+  if(routeFloor>1) rcap=`floor ${routeFloor} at k${state.camoDepth} — fewer outs needs a smaller board`;
+  if(routeCap<6) rcap=(rcap?rcap+" · ":"")+`max ${routeCap} (~${o.avgSets.toFixed(0)} sets here)`;
+  $("routes-cap").textContent=rcap;
+  renderOdds();
+  // encounter chips
+  document.querySelectorAll("#enc .chip").forEach(x=>x.classList.toggle("on",x.dataset.enc===state.encounter));
+  // encounter profile readout (color value -> stat -> weight)
+  const w=ENCOUNTERS[state.encounter].w;
+  const colorActive = CFG.active.includes(0);
+  $("encprofile").innerHTML = [0,1,2].map(i=>
+    `<span class="encstat"><span class="sw" style="background:${CARD_COLORS_HEX[i]}"></span>${STAT_LABELS[i]} ×${w[i]}</span>`
+  ).join("") + (colorActive ? "" : `<span class="encstat" style="color:var(--warn)">color is dropped — scoring is flat</span>`);
+  // copy
+  const heldNote = state.F===4 ? "" : ` ${FEATURES[state.dropIdx].name} is held constant.`;
+  $("sub").textContent = `skill-component prototype · f=${state.F} · n=${state.N}`;
+  $("gate-rules").textContent = `Find three cards where every feature — ${words} — is all-same or all-different. There's always at least one set on the board.`;
+  $("startnote").innerHTML = `Find a <b>set</b> of three cards where each feature — ${words} — is either all-same or all-different.${heldNote} Speed is the only thing in your way.`;
+  if(regen && !state.running){ state.board=genInitial(); render(); }
+}
+
+function lockControls(on){ $("dials").classList.toggle("locked",on); }
+
+$("mode").addEventListener("click",e=>{
+  const c=e.target.closest(".chip"); if(!c||state.running) return;
+  state.F=+c.dataset.f; syncUI(true);
+});
+$("drop").addEventListener("click",e=>{
+  const c=e.target.closest(".chip"); if(!c||state.running) return;
+  state.dropIdx=+c.dataset.drop; syncUI(true);
+});
+$("nslider").addEventListener("input",e=>{
+  if(state.running){ e.target.value=state.N; return; }
+  state.N=+e.target.value; syncUI(true);
+});
+$("preset").addEventListener("click",e=>{
+  const c=e.target.closest(".chip"); if(!c||state.running) return;
+  state.F=+c.dataset.f; state.N=+c.dataset.n;
+  if(state.F===3) state.dropIdx=2; // presets use the drop-shading f=3 variant
+  syncUI(true);
+});
+$("depthslider").addEventListener("input",e=>{
+  if(state.running){ e.target.value=state.camoDepth; return; }
+  state.camoDepth=+e.target.value; syncUI(true);
+});
+$("routesslider").addEventListener("input",e=>{
+  if(state.running){ e.target.value=state.escapeRoutes; return; }
+  state.escapeRoutes=+e.target.value; syncUI(true);
+});
+$("enc").addEventListener("click",e=>{
+  const c=e.target.closest(".chip"); if(!c||state.running) return;
+  state.encounter=c.dataset.enc; syncUI(true);
+});
+$("dur").addEventListener("click",e=>{
+  const c=e.target.closest(".chip"); if(!c) return;
+  document.querySelectorAll("#dur .chip").forEach(x=>x.classList.remove("on"));
+  c.classList.add("on"); state.duration=+c.dataset.d;
+  if(!state.running) $("v-timer").textContent=state.duration;
+});
+$("btn-start").addEventListener("click",startRound);
+$("btn-end").addEventListener("click",endRound);
+$("btn-hint").addEventListener("click",hintNow);
+$("startgate").addEventListener("click",startRound);
+$("m-again").addEventListener("click",startRound);
+$("m-close").addEventListener("click",()=>$("overlay").classList.remove("show"));
+
+// init: default f=3, N=12, drop shading; idle preview until Start
+syncUI(true);
+$("v-timer").textContent=state.duration;
+</script>
+</body>
+</html>
