@@ -31,6 +31,14 @@ f=3/N=15 grid; only the skin changes.
 - **Feedback juice.** Damage = blood/torch red vignette flash (the §4 timed-hole
   damage mechanic). Timer could become a guttering candle or draining hourglass
   (optional; keep legibility).
+- **Health gems + playfield tint.** Gems set into the background art recolor with the
+  player's HP band, and at the low bands the whole playfield takes a vignette tint
+  that deepens toward death — a glanceable, ambient health read (no need to watch a
+  number). Bands: **Blue >90% · Green 70–90% · Yellow 35–70% · Red 1–35%**; the tint
+  engages at Yellow and intensifies through Red, and the gems pulse (faster at Red).
+  Gem placement: one in each of the four corners of every panel, plus a center-top
+  jewel on the card board. *Prototyped in `set-combat.html`* (corner gems on all
+  panels + radial tint vignette on the playfield).
 
 > Principle: reskin is cosmetic only. No generation/mechanic change rides along with
 > the palette swap — that's a separate, later step.
