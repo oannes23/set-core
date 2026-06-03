@@ -248,6 +248,16 @@
 
   /* spell grid (3x3) */
   .spellgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}
+  .fleebox{margin-top:9px;display:flex;flex-direction:column;gap:7px}
+  .btn.flee{width:100%}
+  .btn.flee.on{background:var(--phos);color:#062b27;border-color:var(--phos)}
+  .btn.flee:disabled{opacity:.4;cursor:not-allowed}
+  .fleemeter{display:none}
+  .fleemeter.show{display:block}
+  .flab{display:flex;justify-content:space-between;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-faint);margin-bottom:4px}
+  .fbar{height:8px;border-radius:6px;background:var(--line2);overflow:hidden}
+  .ffill{display:block;height:100%;background:var(--phos);width:0;transition:width .2s ease}
+  .fleenote{font-size:10px;color:var(--ink-faint);min-height:11px;letter-spacing:.02em}
   .slot{position:relative;height:62px;border:1px solid var(--line2);border-radius:11px;background:var(--panel2);
     display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;padding:5px;cursor:default;
     transition:transform .14s ease, box-shadow .14s ease, opacity .14s ease, border-color .14s ease;text-align:center}
@@ -397,6 +407,14 @@
       <div class="panel spellpanel">
         <h2>Abilities <span class="manabar"><span style="color:var(--red)">🔥<b id="m-red">0</b></span><span style="color:var(--green)">🌿<b id="m-green">0</b></span><span style="color:var(--blue)">❄<b id="m-blue">0</b></span></span></h2>
         <div class="spellgrid" id="spellgrid"></div>
+        <div class="fleebox">
+          <button class="btn flee" id="btn-flee" disabled>🏃 Flee</button>
+          <div class="fleemeter" id="fleemeter">
+            <div class="flab"><span>Fleeing</span><span id="flee-out">0 / 10</span></div>
+            <div class="fbar"><span class="ffill" id="flee-fill" style="width:0%"></span></div>
+          </div>
+          <div class="fleenote" id="fleenote"></div>
+        </div>
       </div>
       <div class="panel narrate">
         <div class="narrhd"><span class="ttl">Combat narration</span><span class="cnt" id="narr-cnt"></span></div>
@@ -510,6 +528,15 @@ const DROP_IDX = 2;                    // shading is always the dropped axis in 
 const CARD_COLORS_HEX = ["#f0565b","#46c46a","#5b94f5"];  // Red(Fire) Green(Nature) Blue(Frost)
 const MANA_LABELS = ["Fire","Nature","Frost"];
 
+// FLEE: build the meter to FLEE_GOAL to retreat. While fleeing, gen biases shape toward Boot
+// (and away from Sword), and Boots feed the meter (rolled) instead of stalling the enemy clock.
+// Toggling flee OFF doesn't snap the meter to 0 — it decays FLEE_DECAY_PER_LEVEL seconds per
+// level, and flee can't re-arm until it's empty (the price of using flee as a Boot generator).
+const FLEE_GOAL=10;
+const FLEE_DECAY_PER_LEVEL=3;
+const FLEE_SHAPE_W=[1,4,16];           // deal weights when fleeing: sword / shield / boot
+const CLOCK_CAP=20;                    // boots can't push the enemy's next attack more than 20s out
+
 let CFG = {};
 // Board sizes are restricted to values that tile into full 4-, 5-, or 6-wide rows.
 const N_OPTIONS=[12,15,16,18,20,24];
@@ -524,10 +551,29 @@ function rebuildCFG(){
 const keyOf = c => c[0]*27 + c[1]*9 + c[2]*3 + c[3];
 const eq = (a,b) => a[0]===b[0]&&a[1]===b[1]&&a[2]===b[2]&&a[3]===b[3];
 function r3(){ return Math.floor(Math.random()*3); }
-// random card: active axes vary uniformly, inactive (shading) pinned. No encounter colour bias here.
+function pickWeighted(w){
+  const s=w[0]+w[1]+w[2]; let r=Math.random()*s, acc=0;
+  for(let i=0;i<3;i++){ acc+=w[i]; if(r<acc) return i; }
+  return 2;
+}
+// is the enemy's next attack already pushed to the cap? (boots beyond it are wasted)
+function clockCapped(){ return (state.nextAttackAt - performance.now()) >= CLOCK_CAP*1000 - 500; }
+function blockCapped(){ return state.playerMax>0 && state.block >= state.playerMax; }
+// SHAPE deal logic:
+//  - fleeing  -> heavy toward Boot (fuel escape), scarce Sword
+//  - a capped resource (Block at HP, or clock at 20s) makes Shield/Boot wasteful -> steer to Sword
+//  - otherwise uniform.
+// Distinctness on a large board still forces variety in (the saturation cap from PROJECT.md §3).
+function dealShape(){
+  if(state.fleeing) return pickWeighted(FLEE_SHAPE_W);
+  const bc=blockCapped(), cc=clockCapped();
+  if(!bc && !cc) return r3();
+  return pickWeighted([2, bc?0.15:1, cc?0.15:1]);   // sword / shield / boot
+}
+// random card: active axes vary (shape via dealShape), shading pinned.
 function randCard(){
   const c=PIN.slice();
-  for(const i of CFG.active) c[i]=r3();
+  for(const i of CFG.active) c[i] = (i===1) ? dealShape() : r3();
   return c;
 }
 
@@ -654,7 +700,7 @@ function weightedRoll(max){
 }
 // Resolve a found set into combat effects. Damage per sword is rolled (weightedRoll), so it is NOT pure.
 function resolveSet(cards){
-  let dmgLight=0,dmgMed=0,dmgHeavy=0, block=0, boot=0;
+  let dmgLight=0,dmgMed=0,dmgHeavy=0, block=0, boot=0, flee=0;
   for(const c of cards){
     const shape=c[1], mag=c[3]+1;              // mag 1/2/3 = light/med/heavy
     if(shape===SHAPE_SWORD){
@@ -663,7 +709,8 @@ function resolveSet(cards){
     } else if(shape===SHAPE_SHIELD){
       block+=mag;                              // 1 block per pip
     } else {                                   // boot
-      boot+=mag;                               // +mag seconds to enemy clock
+      if(state.fleeing) flee+=weightedRoll(mag);  // fleeing: boots fuel escape (rolled, triangular)
+      else boot+=mag;                             // otherwise: +mag seconds to enemy clock
     }
   }
   const damage=dmgLight+dmgMed+dmgHeavy;
@@ -672,7 +719,7 @@ function resolveSet(cards){
   const allSameColor = cv[0]===cv[1] && cv[1]===cv[2];
   const mana=[0,0,0];
   if(allSameColor) mana[cv[0]]=3; else { mana[0]=1; mana[1]=1; mana[2]=1; }
-  return { damage,dmgLight,dmgMed,dmgHeavy, block, boot, mana, allSameColor };
+  return { damage,dmgLight,dmgMed,dmgHeavy, block, boot, flee, mana, allSameColor };
 }
 
 /* ============================================================
@@ -761,12 +808,13 @@ const state={
   playerMax:30, enemyMax:30, enemyDamage:8, cadence:8,
   // live combat values
   playerHP:30, enemyHP:30, block:0, mana:[0,0,0],
-  nextAttackAt:0, lastNow:0,
+  nextAttackAt:0, lastNow:0, lastTick:0,
+  fleeing:false, fleeMeter:0,                    // Flee mode toggle + escape meter (0..FLEE_GOAL)
   // tallies for the HUD / after-action report
   tally:null, log:[], startStamp:0,
 };
 function freshTally(){
-  return { dmgLight:0,dmgMed:0,dmgHeavy:0, spellDmg:0, block:0, boot:0, mana:[0,0,0],
+  return { dmgLight:0,dmgMed:0,dmgHeavy:0, spellDmg:0, block:0, boot:0, flee:0, mana:[0,0,0],
            absorbed:0, taken:0, attacks:0, sets:0, miss:0, attempts:0 };
 }
 const $=id=>document.getElementById(id);
@@ -867,17 +915,33 @@ function applyResolution(res){
     floatOverBoard(`-${res.damage}`, "var(--red)");
     flashStat("s-ehp");
   }
-  // block accrues (persistent pool)
-  if(res.block>0){ state.block+=res.block; t.block+=res.block; flashStat("s-php"); }
-  // boots push the enemy's next attack later
-  if(res.boot>0){ state.nextAttackAt+=res.boot*1000; t.boot+=res.boot; floatOverBoard(`+${res.boot}s`, "var(--phos)"); }
+  // block accrues into a persistent barrier, capped at max HP (excess is lost)
+  if(res.block>0){
+    const before=state.block;
+    state.block=Math.min(state.playerMax, state.block+res.block);
+    const gained=state.block-before; t.block+=gained; flashStat("s-php");
+    if(gained<res.block) floatOverBoard("block full", "var(--blue)");
+  }
+  // boots push the enemy's next attack later, capped at CLOCK_CAP seconds out (excess wasted)
+  if(res.boot>0){
+    const before=state.nextAttackAt;
+    state.nextAttackAt=Math.min(performance.now()+CLOCK_CAP*1000, state.nextAttackAt+res.boot*1000);
+    const applied=Math.round((state.nextAttackAt-before)/1000); t.boot+=Math.max(0,applied);
+    floatOverBoard(applied>0?`+${applied}s`:"clock maxed", "var(--phos)");
+  }
+  // fleeing: boots fill the escape meter instead
+  if(res.flee>0){
+    state.fleeMeter=Math.min(FLEE_GOAL,state.fleeMeter+res.flee); t.flee+=res.flee;
+    floatOverBoard(`+${res.flee} flee`, "var(--phos)"); updateFleeUI();
+  }
   // mana
   for(let i=0;i<3;i++){ state.mana[i]+=res.mana[i]; t.mana[i]+=res.mana[i]; }
   t.sets++;
   narrateSet(res);
   logAction(res);
   updateHUD();
-  if(state.enemyHP<=0){ endCombat("win"); }
+  if(state.enemyHP<=0){ endCombat("win"); return; }
+  if(state.fleeMeter>=FLEE_GOAL){ endCombat("flee"); }
 }
 
 // enemy strikes: block absorbs first (remainder persists), the rest hits HP
@@ -918,6 +982,7 @@ function logAction(res){
   }
   if(res.block>0) acts.push({cls:"blk",txt:`🛡 +${res.block}`});
   if(res.boot>0) acts.push({cls:"boot",txt:`👢 +${res.boot}s`});
+  if(res.flee>0) acts.push({cls:"boot",txt:`🏃 +${res.flee} flee`});
   const manaTxt=res.allSameColor
     ? `+3 ${MANA_LABELS[res.mana.findIndex(x=>x===3)]}`
     : `+1 each`;
@@ -984,6 +1049,12 @@ function updateHUD(){
 function tick(){
   if(!state.running) return;
   const now=performance.now();
+  const dt=state.lastTick?(now-state.lastTick)/1000:0; state.lastTick=now;
+  // flee meter decays when NOT fleeing (FLEE_DECAY_PER_LEVEL seconds per level); locked out until empty
+  if(!state.fleeing && state.fleeMeter>0){
+    state.fleeMeter=Math.max(0,state.fleeMeter-dt/FLEE_DECAY_PER_LEVEL);
+    updateFleeUI();
+  }
   const remain=Math.max(0,(state.nextAttackAt-now)/1000);
   const shown=Math.ceil(remain);
   $("v-clock").textContent=shown+"s";
@@ -1002,6 +1073,7 @@ function startCombat(){
   state.playerHP=state.playerMax; state.enemyHP=state.enemyMax;
   state.block=0; state.mana=[0,0,0];
   state.sel=[]; state.log=[]; state.tally=freshTally();
+  state.fleeing=false; state.fleeMeter=0; state.lastTick=0;
   state.board=genInitial();
   state.startStamp=performance.now();
   state.nextAttackAt=performance.now()+state.cadence*1000;
@@ -1010,7 +1082,7 @@ function startCombat(){
   $("overlay").classList.remove("show");
   $("narrlog").innerHTML="";
   narrate(`A foe steps forward — <b>${state.enemyMax} HP</b>, striking for ${state.enemyDamage} every ${state.cadence}s. Find sets to act; spend mana on spells.`,"sys");
-  render(); updateHUD(); renderLog();
+  render(); updateHUD(); renderLog(); updateFleeUI();
   $("v-clock").textContent=state.cadence+"s";
   cancelAnimationFrame(state.raf); state.raf=requestAnimationFrame(tick);
 }
@@ -1019,16 +1091,18 @@ function endCombat(result){
   if(!state.running) return;
   state.running=false; state.lock=true;
   cancelAnimationFrame(state.raf);
+  state.fleeing=false; updateFleeUI();
   lockControls(false);
   if(result==="win") narrate(`The enemy collapses. <b>Victory!</b>`,"sys");
   else if(result==="lose") narrate(`You fall in battle. <b>Defeat.</b>`,"sys");
+  else if(result==="flee") narrate(`You slip away into the dark — <b>retreated to town.</b>`,"sys");
   else narrate(`You withdraw from the fight.`,"sys");
   boardEl.classList.add("idle");
   $("s-clock").classList.remove("low","crit");
   $("btn-start").style.display="block"; $("btn-end").style.display="none"; $("btn-hint").style.display="none";
   $("btn-start").textContent="Fight again";
   const gate=$("startgate");
-  gate.querySelector(".big").textContent = result==="win" ? "Enemy defeated" : result==="lose" ? "You fell" : "Forfeited";
+  gate.querySelector(".big").textContent = result==="win" ? "Enemy defeated" : result==="lose" ? "You fell" : result==="flee" ? "Retreated to town" : "Forfeited";
   gate.querySelector(".cta").textContent="▶ Fight again";
   gate.classList.add("show");
   showReport(result);
@@ -1039,7 +1113,7 @@ function showReport(result){
   const elapsed=(performance.now()-state.startStamp)/1000;
   const title=$("m-title");
   title.className = result==="win" ? "win" : "lose";
-  title.textContent = result==="win" ? "Victory" : result==="lose" ? "Defeated" : "Forfeited";
+  title.textContent = result==="win" ? "Victory" : result==="lose" ? "Defeated" : result==="flee" ? "Retreated" : "Forfeited";
   $("m-tagline").textContent=`combat sandbox · ${elapsed.toFixed(0)}s · enemy ${state.enemyMax}hp / ${state.enemyDamage}dmg every ${state.cadence}s`;
   const total=t.dmgLight+t.dmgMed+t.dmgHeavy+t.spellDmg;
   const sum=$("m-summary"); sum.innerHTML="";
@@ -1147,6 +1221,7 @@ function narrateSet(res){
   }
   if(res.block>0) parts.push(`raise <b>${res.block} guard</b>`);
   if(res.boot>0) parts.push(`steal <b>${res.boot}s</b> of tempo`);
+  if(res.flee>0) parts.push(`gain <b>${res.flee}</b> toward escape`);
   if(res.allSameColor){ const i=res.mana.findIndex(x=>x===3); parts.push(`channel <b>3 ${MANA_LABELS[i]}</b>`); }
   else parts.push(`gather <b>1 of each</b> essence`);
   narrate("You "+joinClauses(parts)+".","player");
@@ -1217,6 +1292,35 @@ function updateSpells(){
     const el=document.querySelector(`.slot[data-spell="${i}"]`); if(!el) return;
     el.classList.toggle("ready", state.running && canAfford(sp));
   });
+}
+
+/* FLEE — toggle Fleeing mode; build the meter to escape */
+function toggleFlee(){
+  if(!state.running||state.lock) return;
+  if(state.fleeing){
+    state.fleeing=false;                                  // begin decay; locked until empty
+    narrate(`You steady yourself — the urge to run <b>fades</b>.`,"sys");
+  } else {
+    if(state.fleeMeter>0) return;                          // can't re-arm until the meter cools to empty
+    state.fleeing=true;
+    narrate(`You break for the exit — <b>fleeing!</b> Boots now fuel your escape.`,"sys");
+  }
+  // board re-biases toward Boot on the next patch (after each match) — not retroactively
+  updateFleeUI();
+}
+function updateFleeUI(){
+  const btn=$("btn-flee");
+  const lockedOut = !state.fleeing && state.fleeMeter>0;
+  btn.disabled = !state.running || state.lock || lockedOut;
+  btn.classList.toggle("on",state.fleeing);
+  btn.textContent = state.fleeing ? "🏃 Stop fleeing" : "🏃 Flee";
+  const show = state.fleeing || state.fleeMeter>0;
+  $("fleemeter").classList.toggle("show",show);
+  $("flee-fill").style.width=Math.min(100,state.fleeMeter/FLEE_GOAL*100)+"%";
+  const shown=Math.round(state.fleeMeter*10)/10;
+  $("flee-out").textContent=`${shown} / ${FLEE_GOAL}`;
+  $("fleenote").textContent = state.fleeing ? "Boots fuel escape — reach 10 to retreat to town"
+    : lockedOut ? "cooling down — can't flee again until empty" : "";
 }
 
 /* ============================================================
@@ -1294,12 +1398,14 @@ $("routesslider").addEventListener("input",e=>{ if(state.running){e.target.value
 $("btn-start").addEventListener("click",startCombat);
 $("btn-end").addEventListener("click",()=>endCombat("forfeit"));
 $("btn-hint").addEventListener("click",hintNow);
+$("btn-flee").addEventListener("click",toggleFlee);
 $("startgate").addEventListener("click",startCombat);
 $("m-again").addEventListener("click",startCombat);
 $("m-close").addEventListener("click",()=>$("overlay").classList.remove("show"));
 
 // init
 syncUI(true);
+updateFleeUI();
 $("v-clock").textContent=state.cadence+"s";
 </script>
 </body>
