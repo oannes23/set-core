@@ -20,9 +20,15 @@ f=3/N=15 grid; only the skin changes.
 
 - **Card stock = parchment.** Aged vellum texture, subtle stains/foxing, slightly
   irregular deckled edges, an inked border. Replaces the dark instrument cards.
-- **Iconography = inked dungeon glyphs.** The shape axis reskins to concrete crawler
-  objects (see §4 axis theming): **sword / shield / boot**, drawn woodcut/engraving
-  style. Number renders as pips or repeated glyphs (magnitude 1–3).
+- **Iconography = inked action glyphs.** The shape axis is **Attack / Defend / Move**
+  (§4 axis theming), so the card glyph depicts the *verb*, not the gear object: a
+  strike / a guard / a stride (e.g. crossed-blades, shield-guard, footprints), drawn
+  woodcut/engraving style — kept visually distinct from the Sword/Shield/Boots *gear*
+  nouns. Number renders as pips or repeated glyphs (magnitude 1–3).
+  *Icon sourcing:* **set.crawl** draws from **game-icons.net** (CC BY 3.0 — carry an
+  attribution credit), which matches the woodcut aesthetic; the **set.combat** sandbox
+  uses **Lucide/Tabler** (MIT) placeholders. Working glyph picks: Attack = crossed
+  swords, Defend = shield, Move = footprints.
 - **Color = aged inks, not neon.** Muted tints (vermilion / verdigris / woad) rather
   than the current bright RGB, themed as elements/mana.
 - **UI chrome = stone, torch, wood, iron.** Torch-lit vignette, wood/iron panel
@@ -92,7 +98,7 @@ f=3/N=15 grid; only the skin changes.
 - **XP** per enemy → **levels**. Each level grants **+HP** and (periodically) **+1
   ability slot**. (Curve TBD.)
 - **Classes** start with **~4 abilities + 1 signature set-passive** (the class
-  identity trigger, e.g. Rogue's boots→sword bias). Ability slots cap how many
+  identity trigger, e.g. Rogue's Move→Attack bias). Ability slots cap how many
   abilities you can equip at once; leveling widens the loadout.
 - **Spellbooks** are the cross-class vector: **consume** one to *instantly learn* its
   ability (even outside your class — Firebolt is on Wizard, Sorcerer, *and*
@@ -119,11 +125,18 @@ content authorable without touching engine code and makes the whole game moddabl
 | Axis | Values | Theme |
 |---|---|---|
 | **color** | red / green / blue | element → **mana** (3 colors) |
-| **shape** | sword / shield / boot | offense / defense / mobility glyphs |
+| **shape** | Attack / Defend / Move | offense / defense / mobility verbs (gear nouns Sword/Shield/Boots stay free) |
 | **number** | 1 / 2 / 3 | **magnitude** |
 
-Resource model: color matches → colored **mana** (clear). Shape/number → other
-resources (energy? combo?) — still open (§6), but now anchored to flavor.
+Resource model: **color → mana is the one spendable economy, and it's universal** —
+every class uses all three mana types; only the *theming* differs per class. **Color
+carries a valence:** red = aggressive abilities, blue = defensive, green = utility.
+This runs parallel to the **shape** valence (Attack = offense, Defend = defense, Move =
+mobility/utility), giving a 2-D identity lattice (**color-theme × shape-action**) that
+build archetypes cut diagonals through (pure aggro = all-red-Attack; hybrids play
+off-diagonal). **Shape stays immediate** (per-card → damage / Block / tempo, never a
+banked resource); **number stays a scalar** (magnitude 1–3 multiplies output). Weapon
+color-affinity (§7) feeds the color half of the lattice.
 
 ### The spine: one trigger schema, used everywhere
 Abilities' reactive parts, class passives, item affixes, and enemy traps are **all
@@ -180,11 +193,11 @@ do:                  # one or more effects
   starting_abilities: [quick_strike, backstab, smoke_bomb, dash]
   signature:               # the class set-passive (a trigger)
     on: match
-    when: { axis: shape, mode: all_same, value: boot }
+    when: { axis: shape, mode: all_same, value: move }
     do:
       - effect: set_bias
         scope: next_regen
-        bias: { axis: shape, value: sword, intensity: 1.0 }
+        bias: { axis: shape, value: attack, intensity: 1.0 }
 ```
 
 ```yaml
@@ -216,8 +229,9 @@ do:                  # one or more effects
 - id: ember_dagger         # items.yaml
   name: Ember Dagger
   slot: weapon
+  base_type: dagger        # martial weapon → base math-mod = +Attack-card damage (§7)
   rarity: uncommon
-  base: { attack: 3 }
+  base: { attack_damage: 3 } # flat per-card add to each Attack card in a match
   affix_slots: 2
 - id: of_embers            # affixes.yaml (rolled onto items)
   name: of Embers
@@ -299,60 +313,191 @@ tuning defaults.
 
 **Per-card resolution.** Each card in a found set fires its own shape-action, scaled
 by its number (magnitude 1–3), typed by its color:
-- **Sword → damage** (rolled — `weightedRoll`, triangular, weighted high toward
+- **Attack → damage** (rolled — `weightedRoll`, triangular, weighted high toward
   magnitude but the odd weak hit slips through; *not* pure).
-- **Shield → Block** (a persistent barrier).
-- **Boot → tempo** (pushes the enemy's next-attack clock later).
+- **Defend → Block** (a persistent barrier).
+- **Move → tempo** (pushes the enemy's next-attack clock later).
 - **Color → mana** by signature: all-same color → 3 of that mana; all-different → 1
   of each. (The speed-vs-value routing tradeoff falls out for free.)
 
 **Resource caps (and the adaptive deal).**
 - **Block ≤ max HP.** The barrier can hold up to your HP; excess is lost.
-- **Enemy clock ≤ 20s.** Boots can't push the next attack more than 20s out; excess
+- **Enemy clock ≤ 20s.** Move can't push the next attack more than 20s out; excess
   is wasted.
-- **Capped → bias toward Sword.** When a resource is capped its action is wasteful, so
-  generation steers the shape axis toward Sword — *targeted*: a full Block cuts
-  Shields but keeps Boots (still useful), a maxed clock cuts Boots but keeps Shields,
-  both capped → heavy Sword. Distinctness caps the realized skew (~50% one-shape at
+- **Capped → bias toward Attack.** When a resource is capped its action is wasteful, so
+  generation steers the shape axis toward Attack — *targeted*: a full Block cuts
+  Defends but keeps Moves (still useful), a maxed clock cuts Moves but keeps Defends,
+  both capped → heavy Attack. Distinctness caps the realized skew (~50% one-shape at
   N=18 — the §3-style saturation governor), so the board never goes mono.
 
 **Flee — the retreat mechanic** (resolves the §6 loss-condition retreat path):
 - A **Flee** button under the abilities toggles **Fleeing mode**.
-- While fleeing: the deal biases **toward Boot, away from Sword**; Boots no longer
+- While fleeing: the deal biases **toward Move, away from Attack**; Move cards no longer
   stall the clock — each rolls (triangular, like damage) into a **Flee meter → 10**.
-  Swords/Shields/mana still resolve normally.
+  Attacks/Defends/mana still resolve normally.
 - Meter hits 10 → **retreat to town** (in the sandbox: a flee-success end screen).
 - **Toggling off doesn't snap to 0** — the meter **decays 3s per level**, and Flee is
   **locked out until empty**. Overshoot and you actually retreat (lose progress).
-- **The intended tech:** classes with Boot-triggers (e.g. Rogue's boots→sword passive)
-  enter Fleeing to farm Boots, then bail before 10 to reset — the lockout + decay +
+- **The intended tech:** classes with Move-triggers (e.g. Rogue's Move→Attack passive)
+  enter Fleeing to farm Moves, then bail before 10 to reset — the lockout + decay +
   triangular overshoot risk is the price. Build-expressive, self-balancing.
 - Prototyped constants: `FLEE_GOAL=10`, `FLEE_DECAY_PER_LEVEL=3s`, fleeing shape
-  weights `sword:shield:boot = 1:4:16`, `CLOCK_CAP=20s`.
+  weights `attack:defend:move = 1:4:16`, `CLOCK_CAP=20s`.
 
 ---
 
 ## 6. Open questions
 
+- ⭐ **TOP PRIORITY NEXT SESSION — rework Move's core.** Playtest finding: the enemy
+  clock is **nearly impossible to push to its cap** (it resets to `now+cadence` on every
+  hit; Move adds only 1–3s/card vs. real-time drain — only stacked Frostbolts off a
+  fresh reset reach it). Deeper issue: **Defend and Move are both "don't-die" tools and
+  Move/tempo is the weak, fiddly one.** Move needs a distinct, usable core before the
+  Move affixes (§7 Windstep/Stalker's) can hang on it. Directions under consideration
+  (no decision yet): **(a) banked, spendable tempo** — flexible green=utility resource;
+  *concern: risks becoming another bolted-on fiddly resource to manage*; **(b)
+  evasion/dodge** — Move negates the next hit (distinct from Block's partial absorb),
+  liked for being flexible/utility-oriented. Also on the table: offensive-enabler/combo,
+  or just rebalance tempo numbers. **Resolve this first next session.**
 - **Loss condition** — death = permadeath/run-over? The *retreat* path is now defined
   (the Flee mechanic, §5.5); still open is the **penalty** for fleeing and what death
   itself costs (roguelike vs. roguelite framing).
 - **Boss room** — does the boss *replace* the room's normal enemy or *append* a room?
-- **Resource mapping** for shape & number axes (color→mana is settled).
+- ~~**Resource mapping** for shape & number axes~~ — **working resolution: single
+  spendable economy.** color→mana is the only banked resource (universal, valence-themed
+  — §4); shape stays immediate (per-card damage/Block/tempo), number stays a scalar.
+  Revisit only if martial builds feel resource-thin in play.
 - **Trap condition default** — `contains` vs `all_same` (carried over from
   `GAME-DESIGN.md`; `all_same` proposed so traps are dodgeable).
 - **Ability slots vs. known abilities** — do you *learn* a growing library but only
   *equip* slot-many? (Implies a loadout screen in town.)
 - **Cooldowns vs. resource-only** gating for actives.
 - **Level/XP curve, HP curve, gold economy balance.**
-- **Mana persistence** — does mana carry between rooms / reset per encounter / reset
-  per dungeon?
+- ~~**Mana persistence**~~ — **resolved: per-room, fresh start every room** (mana
+  resets to zero on entering each room; no carry-over). Caster builds must rebuild
+  their pool every encounter — bounds caster snowballing and keeps each room a clean
+  tactical reset.
 - **Inventory limits**, gear comparison UX.
 
 ---
 
-## 7. Deferred (next session)
+## 7. Gear taxonomy
 
-- **Gear taxonomy** — what the different kinds of gear *do* (slots, stat mods, which
-  affixes roll where, set bonuses, math-modifying vs. trigger-granting gear). Explicit
-  next topic per the design conversation.
+> Resolves the §7-deferred topic. Decisions locked: **flat per-card** payoff scaling;
+> **slot-personality framework** — Weapon · Armor · Relic(offhand) · Trinket ×2
+> (**Feet dropped**, Boots → Trinket); martial/caster school per slot; **set bonuses
+> deferred**. ⚠ The **Move-core rework** (§6, top priority) reshapes the Move affixes.
+
+### Two effect classes (the whole taxonomy)
+Every piece of gear touches the game in one or both of exactly two ways — nothing else:
+
+1. **Math-mod (always-on).** A flat, passive bend to either
+   - the **deal odds** — a persistent contribution to the setup-bias channel. Still
+     governed by the saturation cap + distinctness floor, so deal-bias gear is
+     *structurally fair by construction*: even a "+heavy red" item can't make a
+     degenerate board (it shifts a distribution, never plants a card). — or
+   - the **payoff** — the per-card resolution. **Scaling is flat per-card add:** `+N`
+     to each qualifying card's contribution. Magnitude (1–3) still does the
+     multiplicative work; gear nudges the floor.
+2. **Trigger-granting (affixes).** Adds `event→condition→effect` rules to the same
+   trigger bus (§4 / `GAME-DESIGN.md` §3) the enemies and classes use. No new machinery.
+
+**An item = a base math-mod (from its base-type) + N rolled affix slots (mostly
+trigger-granting).** Exactly the `ember_dagger` + `of_embers` shape from §4, with the
+base layer now named.
+
+### Slot personalities — each slot owns a *kind* of mechanic, not just a stat
+The structural decision: a slot isn't "+stat for a verb" — it owns a characteristic
+**mechanic-type**, and its base-types are flavors within that (mirrors how the trigger
+bus unifies everything). The **martial / caster school** split still runs through each
+slot (martial engages the shape/combat side; caster pumps the color→mana economy), but
+*how* a slot engages is now slot-specific.
+
+| Slot | Mechanic personality | Martial base-types | Caster base-type |
+|---|---|---|---|
+| **Weapon** | **Direct payoff** (per-card) | Sword / Axe / Hammer → +Attack damage (+ color-affinity) | Wand / Staff → +mana per matched [color] card |
+| **Armor** | **Reactive defense** — triggers on `damage` / signatures | Plate, Aegis (↓) | Runed Robe → Defend match also grants mana |
+| **Relic (offhand)** | **Augments / alternate verbs** | Shield, Crossbow, Oil, Dagger (↓) | Focus / Wand / Tome → +mana / spell power / −ability cost / +1 slot |
+| **Trinket ×2** | **Flex economy / triggers** | rings · amulets · **Boots** (the Move-flavored trinket) → economy, deal-bias, Move/Flee affixes | same |
+
+**No tie binds a slot to a shape any more** — the rename dissolved it; the one kept
+convention is **Weapon↔Attack** (intuitive + the color-affinity hook). The old **Feet
+slot is dropped**: with Move a standalone verb a dedicated Move slot was
+over-investment, so **Boots became a Trinket base-type** and the Feet mechanics demoted
+to affixes (↓ *Move affixes*).
+
+Caster gear is naturally **color-typed** (an Ember Wand pumps *red* mana), so caster
+pieces reinforce a color combo-line the same way martial pieces reinforce a shape-line.
+*"+1 red mana per red card in the match"* mirrors *"+2 damage per Attack card."*
+
+### Armor — reactive defense (base-types)
+- **Plate** — `on:damage`: after a hit lands, gain Block (being hit makes you tankier).
+- **Aegis / Spiked** — when Block absorbs a hit, **reflect** a % as damage (thorns —
+  defense→offense).
+- *(further flavors parked: **Warded** = passive flat % damage reduction beneath Block;
+  **Sentinel** = all-same matches → bonus Block.)*
+
+### Relic (offhand / augment) — base-types
+The martial-offhand + augment slot (also home to the caster Focus). Each *changes how a
+verb behaves* rather than pumping a stat:
+- **Shield** — passive defense: Block at room start / first-hit negation / +Block cap.
+- **Crossbow / Sling** — **Move matches also deal damage** (reposition-and-shoot:
+  tempo→offense).
+- **Weapon Oil / Poison** — a **rider on Attacks**: poison DoT (`on:tick`) or
+  bonus / off-color damage.
+- **Offhand Dagger** — **bonus extra hit** on all-different-shape matches (dual-wield).
+- *(caster)* **Focus / Wand / Tome** — +mana / spell power / −ability cost / +1 ability slot.
+
+### Move affixes (on Boots-trinkets, etc.) — ⚠ pending the Move-core rework (§6)
+The two liked Feet mechanics survive as affixes, but both currently hinge on the enemy
+clock reaching its **cap — a state the playtest showed is nearly unreachable** (clock
+resets to `now+cadence` every hit; Move adds only 1–3s/card vs. real-time drain). They
+must be re-anchored on reachable conditions once Move's core is settled:
+- **Windstep** (overcap→Block) → re-anchor: a *fraction* of every Move's tempo grants
+  Block, not just the unreachable overcap.
+- **Stalker's** (clock-far-out → +Attack damage) → re-anchor: a combo trigger ("first
+  Attack after a Move match") or continuous "+dmg scaled by banked tempo."
+
+### Weapon color-affinity (martial weapons)
+Each martial weapon base-type carries a **color affinity** granting a **flat per-card
+damage bonus**: `+N damage per [affinity-color] Attack card in any match`. Because only
+Attack cards deal damage, this rewards **colored Attacks** specifically — a per-card
+conjunction that fits the locked flat-per-card model (fires often & small, not
+rare & big), and can stack on a smaller flat-all-Attacks base.
+
+- **Weapons only.** Armor/relic/trinkets get no color bonus — keeps it to *one*
+  color-gauge to read under the timer; they carry other mechanics/affixes.
+- **Affinity is free, not valence-locked.** Any weapon base-type may key to any color
+  (even a defensive-feeling weapon can reward red Attacks). Players gravitate to the
+  weapon whose color matches their mana plan, but off-valence picks are the hybrid
+  texture, not a mistake.
+- **Naming is now clean.** The card shapes are verbs (**Attack / Defend / Move**, §4),
+  so the object nouns **Sword / Shield / Boots are free as gear names** — a *Sword*
+  weapon, a *Shield* relic (offhand), *Boots* as a Trinket are all unambiguous against
+  the Attack / Defend / Move cards they modify.
+- **Fairness:** pure category-③ payoff math — reads the match, adds damage, touches no
+  generator input. The player feeds it by biasing color→[affinity] and shape→Attack
+  through play and deal-bias gear (the existing fair channels).
+
+*Example — **Axe (affinity red)**: red Attack cards deal +2 each. Pairs with red mana
+(aggressive abilities) into a coherent red-aggro package, all from one weapon pick.*
+
+### Rarity → affix count, loot-tier → affix power
+`common (0 affix) → magic (1) → rare (2) → epic (3) → legendary (named: fixed unique affix)`.
+Affix **slot-legality + weight** come from `affixes.yaml` (`slots:` / `weight:`); affix
+**tier** (the numbers) scales with loot quality (enemy lvl + dungeon lvl) per §2–§3.
+
+### Data-model refinement
+An item carries `slot`, **`base_type`** (→ intrinsic math-mod school + stat), `rarity`
+(→ affix count), and `affixes[]`. So `items.yaml` gains a `base_type` dimension; affixes
+stay one slot-gated pool in `affixes.yaml`.
+
+### Deferred
+- **Set bonuses** — the parallel cross-build vector to spellbooks (themed families with
+  2/4/6-pc escalating trigger/math bonuses). Deliberately out of the v1 gear spec;
+  revisit once base gear + affixes prove out in play.
+
+## 8. Deferred (next session)
+
+- *(open — pick the next thread from §6's remaining open questions, or start coding
+  the §5 build sequence)*

@@ -389,7 +389,7 @@
       <div class="rgroup">
         <div class="rlab">Tempo · defense</div>
         <div class="rmini">
-          <span>👢<b id="t-boot">0</b>s</span>
+          <span>👣<b id="t-boot">0</b>s</span>
           <span>🛡<b id="t-block">0</b></span>
           <span>absorb <b id="t-absorb">0</b></span>
           <span>taken <b id="t-taken">0</b></span>
@@ -411,7 +411,7 @@
       <div class="floatlayer" id="floatlayer"></div>
       <div class="startgate show" id="startgate">
         <div class="big">Ready to fight</div>
-        <div class="small" id="gate-rules">Find three cards where color, shape and number are each all-same or all-different. Every card in the set fires its own action at once — swords strike, shields guard, boots stall the enemy clock.</div>
+        <div class="small" id="gate-rules">Find three cards where color, shape and number are each all-same or all-different. Every card in the set fires its own action at once — Attacks strike, Defends guard, Moves stall the enemy clock.</div>
         <div class="cta">▶ Begin combat</div>
       </div>
       <div class="analysis" id="analysis">
@@ -492,7 +492,7 @@
               <button class="btn ghost" id="btn-end" style="display:none">Forfeit</button>
             </div>
             <div class="legend" id="legend"></div>
-            <div class="startnote" id="startnote">Each found set resolves <b>per card</b>: ⚔ sword attacks, 🛡 shield blocks, 👢 boot delays the enemy clock. Number is magnitude (light/med/heavy); colour routes mana. Block persists between enemy attacks. Attack damage is <b>rolled</b> — weighted high toward its value, but the odd weak hit slips through.</div>
+            <div class="startnote" id="startnote">Each found set resolves <b>per card</b>: ⚔ Attack strikes, 🛡 Defend blocks, 👣 Move delays the enemy clock. Number is magnitude (light/med/heavy); colour routes mana. Block persists between enemy attacks. Attack damage is <b>rolled</b> — weighted high toward its value, but the odd weak hit slips through.</div>
           </div>
         </div>
       </div>
@@ -535,25 +535,25 @@ const DIM = 4, V = 3, FLOOR = 1;
 // Shading is the DROPPED axis (pinned) — carries zero combat meaning by design.
 const FEATURES = [
   { name:"Color",   values:["Red","Green","Blue"] },        // 0  -> Fire / Nature / Frost
-  { name:"Shape",   values:["Sword","Shield","Boot"] },     // 1  -> attack / block / tempo
+  { name:"Shape",   values:["Attack","Defend","Move"] },    // 1  -> damage / block / tempo
   { name:"Shading", values:["Solid","Striped","Open"] },    // 2  -> DROPPED, pinned solid
   { name:"Number",  values:["One","Two","Three"] },         // 3  -> light / medium / heavy
 ];
-const SHAPE_SWORD=0, SHAPE_SHIELD=1, SHAPE_BOOT=2;
+const SHAPE_ATTACK=0, SHAPE_DEFEND=1, SHAPE_MOVE=2;
 const PIN = [0,0,0,0];                 // dropped axes pinned here (shading -> solid)
 const DROP_IDX = 2;                    // shading is always the dropped axis in combat
 
 const CARD_COLORS_HEX = ["#f0565b","#46c46a","#5b94f5"];  // Red(Fire) Green(Nature) Blue(Frost)
 const MANA_LABELS = ["Fire","Nature","Frost"];
 
-// FLEE: build the meter to FLEE_GOAL to retreat. While fleeing, gen biases shape toward Boot
-// (and away from Sword), and Boots feed the meter (rolled) instead of stalling the enemy clock.
+// FLEE: build the meter to FLEE_GOAL to retreat. While fleeing, gen biases shape toward Move
+// (and away from Attack), and Move cards feed the meter (rolled) instead of stalling the enemy clock.
 // Toggling flee OFF doesn't snap the meter to 0 — it decays FLEE_DECAY_PER_LEVEL seconds per
-// level, and flee can't re-arm until it's empty (the price of using flee as a Boot generator).
+// level, and flee can't re-arm until it's empty (the price of using flee as a Move generator).
 const FLEE_GOAL=10;
 const FLEE_DECAY_PER_LEVEL=3;
-const FLEE_SHAPE_W=[1,4,16];           // deal weights when fleeing: sword / shield / boot
-const CLOCK_CAP=20;                    // boots can't push the enemy's next attack more than 20s out
+const FLEE_SHAPE_W=[1,4,16];           // deal weights when fleeing: attack / defend / move
+const CLOCK_CAP=20;                    // Move can't push the enemy's next attack more than 20s out
 
 let CFG = {};
 // Board sizes are restricted to values that tile into full 4-, 5-, or 6-wide rows.
@@ -578,15 +578,15 @@ function pickWeighted(w){
 function clockCapped(){ return (state.nextAttackAt - performance.now()) >= CLOCK_CAP*1000 - 500; }
 function blockCapped(){ return state.playerMax>0 && state.block >= state.playerMax; }
 // SHAPE deal logic:
-//  - fleeing  -> heavy toward Boot (fuel escape), scarce Sword
-//  - a capped resource (Block at HP, or clock at 20s) makes Shield/Boot wasteful -> steer to Sword
+//  - fleeing  -> heavy toward Move (fuel escape), scarce Attack
+//  - a capped resource (Block at HP, or clock at 20s) makes Defend/Move wasteful -> steer to Attack
 //  - otherwise uniform.
 // Distinctness on a large board still forces variety in (the saturation cap from PROJECT.md §3).
 function dealShape(){
   if(state.fleeing) return pickWeighted(FLEE_SHAPE_W);
   const bc=blockCapped(), cc=clockCapped();
   if(!bc && !cc) return r3();
-  return pickWeighted([2, bc?0.15:1, cc?0.15:1]);   // sword / shield / boot
+  return pickWeighted([2, bc?0.15:1, cc?0.15:1]);   // attack / defend / move
 }
 // random card: active axes vary (shape via dealShape), shading pinned.
 function randCard(){
@@ -716,18 +716,18 @@ function weightedRoll(max){
   while(acc<r){ v++; acc+=v; }
   return v;
 }
-// Resolve a found set into combat effects. Damage per sword is rolled (weightedRoll), so it is NOT pure.
+// Resolve a found set into combat effects. Damage per Attack card is rolled (weightedRoll), so it is NOT pure.
 function resolveSet(cards){
   let dmgLight=0,dmgMed=0,dmgHeavy=0, block=0, boot=0, flee=0;
   for(const c of cards){
     const shape=c[1], mag=c[3]+1;              // mag 1/2/3 = light/med/heavy
-    if(shape===SHAPE_SWORD){
+    if(shape===SHAPE_ATTACK){
       const roll=weightedRoll(mag);            // weighted toward mag, min 1
       if(mag===1) dmgLight+=roll; else if(mag===2) dmgMed+=roll; else dmgHeavy+=roll;
-    } else if(shape===SHAPE_SHIELD){
+    } else if(shape===SHAPE_DEFEND){
       block+=mag;                              // 1 block per pip
-    } else {                                   // boot
-      if(state.fleeing) flee+=weightedRoll(mag);  // fleeing: boots fuel escape (rolled, triangular)
+    } else {                                   // move
+      if(state.fleeing) flee+=weightedRoll(mag);  // fleeing: Move cards fuel escape (rolled, triangular)
       else boot+=mag;                             // otherwise: +mag seconds to enemy clock
     }
   }
@@ -741,7 +741,7 @@ function resolveSet(cards){
 }
 
 /* ============================================================
-   RENDER  —  SVG Sword / Shield / Boot symbols
+   RENDER  —  SVG Attack / Defend / Move glyphs (Lucide line icons, MIT)
    symbolPath returns an ARRAY of element defs (compound shapes).
    ============================================================ */
 function buildDefs(){
@@ -756,21 +756,31 @@ function buildDefs(){
     p.appendChild(l); defs.appendChild(p);
   });
 }
-// Each symbol is drawn inside roughly a 100 x 44 box (x 4..96, centred y=22).
-// Shapes are deliberately distinct silhouettes: horizontal sword, downward shield, right-facing boot.
+// Glyphs are Lucide line icons (MIT): Attack = "swords", Defend = "shield",
+// Move = "footprints". Native 24x24; GLYPH_SCALE/glyphTransform() fit + centre them
+// in the legacy 100x44 box (native centre 12,12 → box centre 50,22). Rendered stroke-
+// only (fill:none), recoloured per card colour. (set.crawl will use game-icons.net.)
+const GLYPH_SCALE=1.85;
+function glyphTransform(){ const k=GLYPH_SCALE; return `translate(${50-12*k},${22-12*k}) scale(${k})`; }
 function symbolPath(shape){
-  if(shape===SHAPE_SWORD) return [
-    {tag:"polygon",attr:{points:"34,15 82,15 96,22 82,29 34,29"}},        // blade (pointing right)
-    {tag:"rect",attr:{x:26,y:7,width:6,height:30,rx:2}},                  // crossguard
-    {tag:"rect",attr:{x:14,y:19,width:13,height:6,rx:2}},                 // grip
-    {tag:"circle",attr:{cx:9,cy:22,r:5}},                                 // pommel
+  if(shape===SHAPE_ATTACK) return [    // Lucide "swords"
+    {tag:"polyline",attr:{points:"14.5 17.5 3 6 3 3 6 3 17.5 14.5"}},
+    {tag:"line",attr:{x1:13,x2:19,y1:19,y2:13}},
+    {tag:"line",attr:{x1:16,x2:20,y1:16,y2:20}},
+    {tag:"line",attr:{x1:19,x2:21,y1:21,y2:19}},
+    {tag:"polyline",attr:{points:"14.5 6.5 18 3 21 3 21 6 17.5 9.5"}},
+    {tag:"line",attr:{x1:5,x2:9,y1:14,y2:18}},
+    {tag:"line",attr:{x1:7,x2:4,y1:17,y2:20}},
+    {tag:"line",attr:{x1:3,x2:5,y1:19,y2:21}},
   ];
-  if(shape===SHAPE_SHIELD) return [
-    {tag:"path",attr:{d:"M30,7 L70,7 L70,21 C70,33 57,40 50,42 C43,40 30,33 30,21 Z"}},
+  if(shape===SHAPE_DEFEND) return [    // Lucide "shield" (closed path → filled solid)
+    {tag:"path",fill:true,attr:{d:"M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"}},
   ];
-  // boot (heel left, toe right)
-  return [
-    {tag:"path",attr:{d:"M38,5 L54,5 L55,24 L84,26 Q90,26 90,32 L90,40 L38,40 Z"}},
+  return [                             // Lucide "footprints" (Move) — feet filled, toe-marks stroked
+    {tag:"path",fill:true,attr:{d:"M4 16v-2.38C4 11.5 2.97 10.5 3 8c.03-2.72 1.49-6 4.5-6C9.37 2 10 3.8 10 5.5c0 3.11-2 5.66-2 8.68V16a2 2 0 1 1-4 0Z"}},
+    {tag:"path",fill:true,attr:{d:"M20 20v-2.38c0-2.12 1.03-3.12 1-5.62-.03-2.72-1.49-6-4.5-6C14.63 6 14 7.8 14 9.5c0 3.11 2 5.66 2 8.68V20a2 2 0 1 0 4 0Z"}},
+    {tag:"path",attr:{d:"M16 17h4"}},
+    {tag:"path",attr:{d:"M4 13h4"}},
   ];
 }
 function applyFill(el,shading,colorHex,color){
@@ -784,19 +794,26 @@ function cardSVG(card){
   const ns="http://www.w3.org/2000/svg";
   const svg=document.createElementNS(ns,"svg");
   svg.setAttribute("viewBox","0 0 120 160"); svg.setAttribute("preserveAspectRatio","xMidYMid meet");
-  const gap=46, startY=80-(n*gap)/2+gap/2;
+  const gap=52, startY=80-(n*gap)/2+gap/2;
   for(let s=0;s<n;s++){
     const g=document.createElementNS(ns,"g");
     g.setAttribute("transform",`translate(10,${startY+s*gap-22})`);
+    const inner=document.createElementNS(ns,"g");
+    inner.setAttribute("transform",glyphTransform());
     symbolPath(shape).forEach(def=>{
       const el=document.createElementNS(ns,def.tag);
       for(const k in def.attr) el.setAttribute(k,def.attr[k]);
-      el.setAttribute("stroke",CARD_COLORS_HEX[color]);
-      el.setAttribute("stroke-width","2.6");
-      el.setAttribute("stroke-linejoin","round");
-      applyFill(el,shading,CARD_COLORS_HEX[color],color);
-      g.appendChild(el);
+      if(def.fill){ el.setAttribute("fill",CARD_COLORS_HEX[color]); }
+      else {
+        el.setAttribute("fill","none");
+        el.setAttribute("stroke",CARD_COLORS_HEX[color]);
+        el.setAttribute("stroke-width","2");
+        el.setAttribute("stroke-linecap","round");
+        el.setAttribute("stroke-linejoin","round");
+      }
+      inner.appendChild(el);
     });
+    g.appendChild(inner);
     svg.appendChild(g);
   }
   return svg;
@@ -806,13 +823,20 @@ function iconSVG(shape,colorHex){
   const ns="http://www.w3.org/2000/svg";
   const svg=document.createElementNS(ns,"svg");
   svg.setAttribute("viewBox","0 0 100 44");
+  const inner=document.createElementNS(ns,"g");
+  inner.setAttribute("transform",glyphTransform());
   symbolPath(shape).forEach(def=>{
     const el=document.createElementNS(ns,def.tag);
     for(const k in def.attr) el.setAttribute(k,def.attr[k]);
-    el.setAttribute("stroke",colorHex); el.setAttribute("stroke-width","3");
-    el.setAttribute("stroke-linejoin","round"); el.setAttribute("fill",colorHex);
-    svg.appendChild(el);
+    if(def.fill){ el.setAttribute("fill",colorHex); }
+    else {
+      el.setAttribute("fill","none");
+      el.setAttribute("stroke",colorHex); el.setAttribute("stroke-width","2");
+      el.setAttribute("stroke-linecap","round"); el.setAttribute("stroke-linejoin","round");
+    }
+    inner.appendChild(el);
   });
+  svg.appendChild(inner);
   return svg;
 }
 
@@ -999,7 +1023,7 @@ function logAction(res){
     acts.push({cls:"dmg",txt:`⚔ ${res.damage}`+(tiers.length?` (${tiers.join("/")})`:"")});
   }
   if(res.block>0) acts.push({cls:"blk",txt:`🛡 +${res.block}`});
-  if(res.boot>0) acts.push({cls:"boot",txt:`👢 +${res.boot}s`});
+  if(res.boot>0) acts.push({cls:"boot",txt:`👣 +${res.boot}s`});
   if(res.flee>0) acts.push({cls:"boot",txt:`🏃 +${res.flee} flee`});
   const manaTxt=res.allSameColor
     ? `+3 ${MANA_LABELS[res.mana.findIndex(x=>x===3)]}`
@@ -1175,7 +1199,7 @@ function showReport(result){
     {ft:"⚔ Attack (by tier)", rows:[["Light",t.dmgLight,"#7fd1a0"],["Medium",t.dmgMed,"var(--warn)"],["Heavy",t.dmgHeavy,"var(--red)"]]},
     {ft:"✦ Mana (by colour)", rows:[["Fire",t.mana[0],"var(--red)"],["Nature",t.mana[1],"var(--green)"],["Frost",t.mana[2],"var(--blue)"]]},
     {ft:"🛡 Defense", rows:[["Block raised",t.block,"var(--blue)"],["Absorbed",t.absorbed,"var(--blue)"],["Taken",t.taken,"var(--red)"]]},
-    {ft:"👢 Tempo", rows:[["Boots (sec)",t.boot,"var(--phos)"],["Enemy hits",t.attacks,"var(--ink-dim)"],["Misses",t.miss,"var(--ink-dim)"]]},
+    {ft:"👣 Tempo", rows:[["Move (sec)",t.boot,"var(--phos)"],["Enemy hits",t.attacks,"var(--ink-dim)"],["Misses",t.miss,"var(--ink-dim)"]]},
   ];
   blocks.forEach(b=>{
     const max=Math.max(1,...b.rows.map(r=>r[1]));
@@ -1344,9 +1368,9 @@ function toggleFlee(){
   } else {
     if(state.fleeMeter>0) return;                          // can't re-arm until the meter cools to empty
     state.fleeing=true;
-    narrate(`You break for the exit — <b>fleeing!</b> Boots now fuel your escape.`,"sys");
+    narrate(`You break for the exit — <b>fleeing!</b> Move cards now fuel your escape.`,"sys");
   }
-  // board re-biases toward Boot on the next patch (after each match) — not retroactively
+  // board re-biases toward Move on the next patch (after each match) — not retroactively
   updateFleeUI();
 }
 function updateFleeUI(){
@@ -1360,7 +1384,7 @@ function updateFleeUI(){
   $("flee-fill").style.width=Math.min(100,state.fleeMeter/FLEE_GOAL*100)+"%";
   const shown=Math.round(state.fleeMeter*10)/10;
   $("flee-out").textContent=`${shown} / ${FLEE_GOAL}`;
-  $("fleenote").textContent = state.fleeing ? "Boots fuel escape — reach 10 to retreat to town"
+  $("fleenote").textContent = state.fleeing ? "Move cards fuel escape — reach 10 to retreat to town"
     : lockedOut ? "cooling down — can't flee again until empty" : "";
 }
 
@@ -1371,7 +1395,7 @@ buildDefs();
 
 function buildLegend(){
   const L=$("legend");
-  const items=[[SHAPE_SWORD,"#cbd2e2","Sword · attack"],[SHAPE_SHIELD,"#cbd2e2","Shield · block"],[SHAPE_BOOT,"#cbd2e2","Boot · tempo"]];
+  const items=[[SHAPE_ATTACK,"#cbd2e2","Attack · damage"],[SHAPE_DEFEND,"#cbd2e2","Defend · block"],[SHAPE_MOVE,"#cbd2e2","Move · tempo"]];
   L.innerHTML="";
   items.forEach(([sh,col,lab])=>{
     const d=document.createElement("div"); d.className="legitem";

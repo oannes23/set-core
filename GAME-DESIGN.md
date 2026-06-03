@@ -94,7 +94,7 @@ given three owners.
 
 **Condition** = a predicate over the event. For `match`, the useful granularities:
 - **all-same of value V on axis A** ("an all-red match", "an all-1-magnitude match")
-- **contains value V on axis A** ("the match includes any sword")
+- **contains value V on axis A** ("the match includes any Attack")
 - **signature shape** ("a fully camouflaged k=3 match", "all-same everything")
 
 > Open knob: *contains-a-value* vs *all-same-value* conditions play very
@@ -108,8 +108,8 @@ bias, transmute the board, deal damage, gain energy, etc.
 
 | Source | Valence | Example |
 |---|---|---|
-| **Character innate** | build identity | Rogue: `match all-same Boots → set regen bias toward Sword` |
-| **Equipment** | stackable buildcraft | `match (contains Sword) → +1 red mana`; math-mod gear that shifts deal odds |
+| **Character innate** | build identity | Rogue: `match all-same Move → set regen bias toward Attack` |
+| **Equipment** | stackable buildcraft | `match (contains Attack) → +1 red mana`; math-mod gear that shifts deal odds |
 | **Enemy signature** | the threat / "lines you don't cross" | Goblin Patrol "Swarm": `match (contains magnitude-1) → enemy attack timer −1s`. Dragon "Fire Breathing": `match all-same red → 25% chance enemy attacks immediately` |
 
 **The tension this creates:** the enemy's trap conditions turn certain matches
@@ -139,8 +139,8 @@ which holds distinctness + the floor and reads the bias channel.
 - **Call Flames** (Pyromancer): destroy `color ≠ red`, regen `bias→red`, objective
   maximize-red. Cost: off-color mana dump (e.g. 5 blue + 5 green). Floods red, which
   the player combos into red matches → red mana engine.
-- **Berserk** (Warrior): destroy `shape = shield`, regen `bias→sword`.
-- **Quick Strike** (Rogue): deal damage, destroy `shape = sword`, regen `bias→boot`.
+- **Berserk** (Warrior): destroy `shape = defend`, regen `bias→attack`.
+- **Quick Strike** (Rogue): deal damage, destroy `shape = attack`, regen `bias→move`.
 - **Fireball** (upgraded Firebolt): spatial — destroy targeted card + neighbors,
   regen `bias→red`. Needs a click-to-target mode + grid-neighbor function.
 
@@ -189,15 +189,15 @@ genuine 2s gap — either pick a non-floor-critical card or accept the gap as th
 
 ## 6. Worked example — the Rogue (build × gear × counter)
 
-- **Innate trigger:** `match all-same Boots → regen bias toward Sword`.
-- **Quick Strike verb:** deal damage, destroy all Swords, regen `bias→Boots`.
-- **The loop:** match Boots → swords get biased in → swords appear → Quick Strike
-  consumes them (damage) and regens Boots → match Boots again → … a thematic,
+- **Innate trigger:** `match all-same Move → regen bias toward Attack`.
+- **Quick Strike verb:** deal damage, destroy all Attacks, regen `bias→Move`.
+- **The loop:** match Move → Attacks get biased in → Attacks appear → Quick Strike
+  consumes them (damage) and regens Move → match Move again → … a thematic,
   self-feeding tempo engine.
-- **Gear scales it:** "+1 damage per sword consumed by Quick Strike", "match Boots →
-  +1 energy", math-mod gear that deepens the sword/boot bias.
-- **Counter-foe:** an enemy whose trap punishes Boots- or Sword-matching breaks the
-  loop — e.g. "match (contains Boots) → enemy gains armor" forces the Rogue off their
+- **Gear scales it:** "+1 damage per Attack consumed by Quick Strike", "match Move →
+  +1 energy", math-mod gear that deepens the attack/move bias.
+- **Counter-foe:** an enemy whose trap punishes Move- or Attack-matching breaks the
+  loop — e.g. "match (contains Move) → enemy gains armor" forces the Rogue off their
   best line. Build-vs-counter, emergent.
 
 ---
