@@ -94,9 +94,17 @@
     background:linear-gradient(170deg,#1c212e,#141821);
     border:1px solid var(--line2);
     display:flex;align-items:center;justify-content:center;
-    transition:transform .12s ease, box-shadow .12s ease, border-color .12s ease;
+    transition:transform .12s ease, box-shadow .12s ease, border-color .12s ease, filter .5s ease;
     user-select:none;
   }
+  /* set-mate glow is selection-relative: teal halos (set inline in updateSelectionGlow) light up the
+     cards that form a set with what you've picked — slight for 1 selected, dim mates + a bright completer for 2. */
+  /* hover-a-spell preview: cards it WILL hit get a solid red ring; cards it MIGHT hit (random ties) pulse. */
+  .card.tgtsure{border-color:var(--red)!important;box-shadow:0 0 0 2px var(--red),0 0 22px -4px var(--red)!important}
+  .card.tgtmaybe{animation:tgtpulse 1.05s ease-in-out infinite}
+  @keyframes tgtpulse{
+    0%,100%{box-shadow:0 0 0 1px rgba(240,86,91,.18),0 0 7px -3px rgba(240,86,91,.22);border-color:var(--line2)}
+    50%{box-shadow:0 0 0 2px var(--red),0 0 20px -3px var(--red);border-color:var(--red)}}
   .card:hover{transform:translateY(-3px);border-color:#3d465d}
   .card svg{width:74%;height:74%}
   .card.sel{border-color:var(--phos);box-shadow:0 0 0 2px var(--phos),0 0 26px -6px var(--phos-dim);transform:translateY(-3px)}
@@ -110,6 +118,22 @@
   .card.entering{animation:enter .34s ease}
   .card.hint{border-color:var(--warn);box-shadow:0 0 0 2px var(--warn),0 0 26px -4px var(--warn);animation:hintpulse .6s ease 2}
   @keyframes hintpulse{0%,100%{box-shadow:0 0 0 2px var(--warn),0 0 8px -4px var(--warn)}50%{box-shadow:0 0 0 3px var(--warn),0 0 34px 0 var(--warn)}}
+  /* a card blown up by enemy damage or a targeted spell */
+  .card.boom{animation:boom .38s ease forwards;pointer-events:none;z-index:7}
+  @keyframes boom{0%{transform:scale(1);filter:brightness(1)}
+    28%{transform:scale(1.16);filter:brightness(2.4) saturate(1.5)}
+    100%{opacity:0;transform:scale(.5) rotate(7deg);filter:brightness(3)}}
+  /* empty slot left behind while a destroyed card reforms */
+  .card.gap{opacity:.32;border-style:dashed;cursor:default;
+    background:linear-gradient(170deg,#161a24,#10131b)}
+  .card.gap:hover{transform:none;border-color:var(--line2);box-shadow:none}
+  /* click-to-target mode for Firebolt / Frostbolt */
+  .board.targeting .card:not(.gap){cursor:crosshair}
+  .board.targeting .card:not(.gap):hover{border-color:var(--warn);
+    box-shadow:0 0 0 2px var(--warn),0 0 22px -6px var(--warn);transform:translateY(-3px)}
+  .slot.spell.arming{border-color:var(--warn)!important;
+    box-shadow:0 0 0 1px var(--warn),0 0 18px -6px var(--warn)!important;animation:armpulse .9s ease-in-out infinite}
+  @keyframes armpulse{50%{box-shadow:0 0 0 2px var(--warn),0 0 26px -2px var(--warn)!important}}
 
   .board.idle{filter:saturate(.5) brightness(.5);pointer-events:none}
   .startgate{position:absolute;inset:16px;border-radius:14px;display:none;flex-direction:column;
@@ -461,28 +485,9 @@
               <input type="range" class="enemy" id="edmg" min="1" max="15" step="1" value="8">
             </div>
             <div>
-              <div class="clab">Enemy cadence <span class="num" id="ecad-out">every 8s</span></div>
-              <input type="range" class="enemy" id="ecad" min="4" max="16" step="1" value="8">
-              <div class="ticks"><span>fast · 4s</span><span>10s</span><span>slow · 16s</span></div>
-            </div>
-
-            <div class="sectlab">Board difficulty (findability)</div>
-            <div>
-              <div class="clab">Board size <span class="num" id="n-out">18 · 3×6</span></div>
-              <input type="range" id="nslider" min="0" max="5" step="1" value="3">
-              <div class="ticks"><span>12</span><span>15</span><span>16</span><span>18</span><span>20</span><span>24</span></div>
-            </div>
-            <div>
-              <div class="clab">Camouflage depth <span class="num" id="depth-out">k1 · gimme</span></div>
-              <input type="range" id="depthslider" min="1" max="3" step="1" value="1">
-              <div class="ticks" id="depth-ticks"></div>
-              <div class="capnote" id="depth-cap"></div>
-            </div>
-            <div>
-              <div class="clab">Escape routes <span class="num" id="routes-out">6 · many</span></div>
-              <input type="range" id="routesslider" min="1" max="6" step="1" value="6">
-              <div class="ticks"><span>scarce</span><span>some</span><span>many</span></div>
-              <div class="capnote" id="routes-cap"></div>
+              <div class="clab">Enemy cadence <span class="num" id="ecad-out">every 10s</span></div>
+              <input type="range" class="enemy" id="ecad" min="4" max="20" step="1" value="10">
+              <div class="ticks"><span>fast · 4s</span><span>12s</span><span>slow · 20s</span></div>
             </div>
           </div>
           <div class="ctrlfoot">
@@ -540,6 +545,7 @@ const FEATURES = [
   { name:"Number",  values:["One","Two","Three"] },         // 3  -> light / medium / heavy
 ];
 const SHAPE_ATTACK=0, SHAPE_DEFEND=1, SHAPE_MOVE=2;
+const COLOR_RED=0, COLOR_GREEN=1, COLOR_BLUE=2;     // Fire / Nature / Frost
 const PIN = [0,0,0,0];                 // dropped axes pinned here (shading -> solid)
 const DROP_IDX = 2;                    // shading is always the dropped axis in combat
 
@@ -554,6 +560,8 @@ const FLEE_GOAL=10;
 const FLEE_DECAY_PER_LEVEL=3;
 const FLEE_SHAPE_W=[1,4,16];           // deal weights when fleeing: attack / defend / move
 const CLOCK_CAP=20;                    // Move can't push the enemy's next attack more than 20s out
+const DMG_REGEN_MS=10000;              // a card shattered by enemy damage stays "wounded" (empty) 10s, then reforms (Heal can close it early)
+const BIAS_W=8;                        // transmute regen: weight toward the spell's favored color/shape
 
 let CFG = {};
 // Board sizes are restricted to values that tile into full 4-, 5-, or 6-wide rows.
@@ -588,10 +596,24 @@ function dealShape(){
   if(!bc && !cc) return r3();
   return pickWeighted([2, bc?0.15:1, cc?0.15:1]);   // attack / defend / move
 }
+// TRANSIENT regen bias (GAME-DESIGN §4): an ability fires mid-round and wants the
+// freed slots to lean toward a value on any active axis. Set right before a patch()
+// call, cleared right after — never mutates the locked setup bias. null = neutral.
+// Shape: {color, colorW} · {shape, shapeW} · {mag, magW} — any axis omitted is neutral.
+let regenBias=null;
+function biasedAxis(target, weight){   // value in {0,1,2}, weighted `weight`× toward target
+  const w=[1,1,1]; w[target]=weight; return pickWeighted(w);
+}
 // random card: active axes vary (shape via dealShape), shading pinned.
+// While regenBias is active, color/shape/number lean toward the favored values instead.
 function randCard(){
   const c=PIN.slice();
-  for(const i of CFG.active) c[i] = (i===1) ? dealShape() : r3();
+  for(const i of CFG.active){
+    if(i===1)      c[i] = (regenBias && regenBias.shape!=null) ? biasedAxis(regenBias.shape, regenBias.shapeW) : dealShape();
+    else if(i===0) c[i] = (regenBias && regenBias.color!=null) ? biasedAxis(regenBias.color, regenBias.colorW) : r3();
+    else if(i===3) c[i] = (regenBias && regenBias.mag!=null)   ? biasedAxis(regenBias.mag,   regenBias.magW)   : r3();
+    else           c[i] = r3();
+  }
   return c;
 }
 
@@ -697,6 +719,27 @@ function patch(board, slots){
     const b=patchOnce(board,slots); const d=boardFindDist(b);
     if(d<bestDist){ bestDist=d; best=b; }
     if(bestDist===0) break;
+  }
+  return best||patchOnce(board,slots);
+}
+// Bias-objective patch (GAME-DESIGN §4): for ability-driven transmutes the regen optimizes
+// MAXIMIZE-FAVORED-VALUE (color/shape) instead of hit-camo-depth, tie-broken by findability.
+// patchOnce still guarantees distinctness + FLOOR; regenBias must be set by the caller.
+function patchFavor(board, slots, bias){
+  const axes=(bias.color!=null?1:0)+(bias.shape!=null?1:0)+(bias.mag!=null?1:0);
+  const samples=80, want=slots.length*axes;
+  let best=null,bestScore=-1,bestDist=Infinity;
+  for(let s=0;s<samples;s++){
+    const b=patchOnce(board,slots);
+    let score=0;
+    for(const sl of slots){ const c=b[sl]; if(!c) continue;
+      if(bias.color!=null && c[0]===bias.color) score++;
+      if(bias.shape!=null && c[1]===bias.shape) score++;
+      if(bias.mag!=null   && c[3]===bias.mag)   score++;
+    }
+    const d=boardFindDist(b);
+    if(score>bestScore || (score===bestScore && d<bestDist)){ bestScore=score; bestDist=d; best=b; }
+    if(bestScore>=want && bestDist===0) break;
   }
   return best||patchOnce(board,slots);
 }
@@ -845,9 +888,11 @@ function iconSVG(shape,colorHex){
    ============================================================ */
 const state={
   board:[], sel:[], running:false, lock:false, raf:0,
-  N:18, camoDepth:1, escapeRoutes:6,            // board difficulty dials
+  pending:new Set(),                            // slots mid-destroy (empty, reforming) — skip for targeting/destroy
+  targeting:null, combatId:0,                   // active click-to-target spell index; combat generation guard
+  N:15, camoDepth:1, escapeRoutes:6,            // board difficulty — LOCKED (no UI): n=15, k1, 6 escape routes
   // combatants (configurable)
-  playerMax:30, enemyMax:30, enemyDamage:8, cadence:8,
+  playerMax:30, enemyMax:30, enemyDamage:8, cadence:10,
   // live combat values
   playerHP:30, enemyHP:30, block:0, mana:[0,0,0],
   nextAttackAt:0, lastNow:0, lastTick:0,
@@ -869,12 +914,89 @@ function render(){
     const el=document.createElement("div");
     el.className="card"+(state.sel.includes(i)?" sel":"");
     el.dataset.i=i;
-    if(card){ el.appendChild(cardSVG(card)); }
+    if(card){ el.appendChild(cardSVG(card)); } else { el.classList.add("gap"); }
     el.addEventListener("click",()=>onPick(i));
     boardEl.appendChild(el);
   });
   boardEl.classList.toggle("idle",!state.running);
   updateBoardAnalysis();
+  updateSelectionGlow();
+}
+// per-card "match-mate" count: how many on-board sets each slot belongs to (used by bolt auto-targeting).
+function comboCounts(){
+  const counts=new Array(state.board.length).fill(0);
+  for(const [i,j,k] of findSets(state.board)){ counts[i]++; counts[j]++; counts[k]++; }
+  return counts;
+}
+// the cards that form an on-board set with `idx` (its set-mates), from a precomputed set list.
+function mateSet(sets, idx){
+  const m=new Set();
+  for(const s of sets) if(s.includes(idx)) for(const j of s) if(j!==idx) m.add(j);
+  return m;
+}
+function setGlow(j, level){
+  const el=cardEl(j); if(!el) return;
+  el.style.filter = level==="bright"
+      ? "drop-shadow(0 0 8px rgba(94,234,212,.95)) drop-shadow(0 0 20px rgba(94,234,212,.6))"   // the completing third
+    : level==="slight"
+      ? "drop-shadow(0 0 9px rgba(94,234,212,.5))"                                                // 1 selected: set-mates
+      : "drop-shadow(0 0 7px rgba(94,234,212,.26))";                                              // 2 selected: other mates, dim
+}
+// SELECTION-RELATIVE glow: show set-mates of what you've picked.
+//  1 selected -> every set-mate lights up slightly.
+//  2 selected -> all set-mates of either card glow dim; the card that COMPLETES the pair glows brightest.
+// The hint is a TIME COST: it stays dark for GLOW_DELAY after each pick, then the .5s filter transition
+// fades it to full (full at ~1s). Any selection change resets the timer and clears the glow at once.
+const GLOW_DELAY=500;
+let glowTimer=0;
+function clearAllGlow(){ for(let i=0;i<state.board.length;i++){ const el=cardEl(i); if(el) el.style.filter=""; } }
+function paintSelectionGlow(){
+  clearAllGlow();
+  if(!state.running) return;
+  const sel=state.sel;
+  if(sel.length!==1 && sel.length!==2) return;
+  const sets=findSets(state.board);
+  if(sel.length===1){
+    mateSet(sets, sel[0]).forEach(j=>setGlow(j,"slight"));
+  } else {
+    const [a,b]=sel;
+    const mates=new Set([...mateSet(sets,a), ...mateSet(sets,b)]);
+    let bright=-1;
+    for(const s of sets) if(s.includes(a) && s.includes(b)){ bright=s.find(j=>j!==a && j!==b); break; }
+    mates.forEach(j=>{ if(j!==a && j!==b && j!==bright) setGlow(j,"dim"); });
+    if(bright>=0) setGlow(bright,"bright");
+  }
+}
+function updateSelectionGlow(){
+  clearTimeout(glowTimer); glowTimer=0;
+  clearAllGlow();                                   // drop the old glow the instant the selection changes
+  if(!state.running) return;
+  if(state.sel.length===1 || state.sel.length===2)  // reveal the hint only after the delay
+    glowTimer=setTimeout(paintSelectionGlow, GLOW_DELAY);
+}
+// hovering a spell highlights the cards it would hit (via the spell's preview()):
+// `sure` cards get a solid red ring, `maybe` cards pulse to signal "could be this one".
+let previewIdxs=null;
+function previewSpellTargets(i){
+  clearSpellPreview();
+  const sp=SPELLS[i];
+  if(!sp || !sp.preview || !state.running || state.lock) return;
+  clearTimeout(glowTimer);   // suppress a pending set-mate glow so it can't paint under the preview
+  const pv=sp.preview()||{};
+  const sure=(pv.sure||[]).filter(j=>state.board[j]);
+  const sureSet=new Set(sure);
+  const maybe=(pv.maybe||[]).filter(j=>state.board[j] && !sureSet.has(j));
+  if(!sure.length && !maybe.length) return;
+  previewIdxs=[...sure, ...maybe];
+  previewIdxs.forEach(j=>{ const el=cardEl(j); if(el) el.style.filter=""; });   // drop the teal glow while previewing
+  sure.forEach(j=>{ const el=cardEl(j); if(el) el.classList.add("tgtsure"); });
+  maybe.forEach(j=>{ const el=cardEl(j); if(el) el.classList.add("tgtmaybe"); });
+}
+function clearSpellPreview(){
+  if(!previewIdxs) return;
+  previewIdxs.forEach(j=>{ const el=cardEl(j); if(el) el.classList.remove("tgtsure","tgtmaybe"); });
+  previewIdxs=null;
+  updateSelectionGlow();   // restore the selection set-mate halos
 }
 function updateBoardAnalysis(){
   const info=boardKInfo(state.board);
@@ -893,11 +1015,19 @@ function updateBoardAnalysis(){
 function cardEl(i){ return boardEl.querySelector(`.card[data-i="${i}"]`); }
 
 function onPick(i){
-  if(!state.running||state.lock||!state.board[i]) return;
+  if(!state.running||state.lock) return;
+  // targeting mode: the click chooses a card to blast instead of selecting for a set
+  if(state.targeting!=null){
+    if(!state.board[i] || state.pending.has(i)) return;   // can't target an empty/reforming slot
+    resolveTargetedSpell(i);
+    return;
+  }
+  if(!state.board[i] || state.pending.has(i)) return;
   const at=state.sel.indexOf(i);
-  if(at>=0){ state.sel.splice(at,1); cardEl(i).classList.remove("sel"); return; }
+  if(at>=0){ state.sel.splice(at,1); cardEl(i).classList.remove("sel"); updateSelectionGlow(); return; }
   if(state.sel.length>=3) return;
   state.sel.push(i); cardEl(i).classList.add("sel");
+  updateSelectionGlow();              // light up set-mates of the current selection
   if(state.sel.length===3) evaluate();
 }
 
@@ -986,6 +1116,145 @@ function applyResolution(res){
   if(state.fleeMeter>=FLEE_GOAL){ endCombat("flee"); }
 }
 
+/* ============================================================
+   TARGETING TOOLKIT  —  the reusable substrate for board-altering
+   effects (GAME-DESIGN §4: transmute(selector, biasSpec, objective)).
+   Spells COMPOSE these three layers:
+     1. SELECTORS  pick which live slots to hit (predicate + preference)
+     2. transmute  destroy those slots, regenerate them (optionally biased)
+     3. BIAS/OBJECTIVE  steer the regen draw + which axis the fill maximizes
+   New spells should reach for these primitives, not hand-roll loops.
+   ============================================================ */
+// --- card field accessors (active axes; shading is dropped) ---
+const cardColor = c => c[0];          // COLOR_RED / GREEN / BLUE
+const cardShape = c => c[1];          // SHAPE_ATTACK / DEFEND / MOVE
+const cardMag   = c => c[3];          // 0 light · 1 med · 2 heavy
+
+// --- N-ary weighted pick (pickWeighted is fixed-3; this takes any length) ---
+function weightedIndex(weights){
+  const s=weights.reduce((a,b)=>a+b,0);
+  if(s<=0) return Math.floor(Math.random()*weights.length);
+  let r=Math.random()*s, acc=0;
+  for(let i=0;i<weights.length;i++){ acc+=weights[i]; if(r<acc) return i; }
+  return weights.length-1;
+}
+
+// --- SELECTORS: return arrays of board indices to target ---
+// live, settled (not mid-reform), unselected slots — optionally filtered by predicate.
+function liveSlots(pred){
+  const out=[];
+  state.board.forEach((c,i)=>{ if(c && !state.pending.has(i) && !state.sel.includes(i) && (!pred||pred(c))) out.push(i); });
+  return out;
+}
+// up to n slots from a pool, uniformly at random, without replacement (capped by availability).
+function pickRandom(pool, n){
+  const a=pool.slice(), out=[];
+  while(out.length<n && a.length){ const k=Math.floor(Math.random()*a.length); out.push(a[k]); a.splice(k,1); }
+  return out;
+}
+// up to n slots, greedily weighted by prefFn(card, alreadyPickedCards) -> weight, without replacement.
+function pickPreferred(pool, n, prefFn){
+  const a=pool.slice(), out=[];
+  while(out.length<n && a.length){
+    const picked=out.map(i=>state.board[i]);
+    const k=weightedIndex(a.map(i=>Math.max(1e-6, prefFn(state.board[i], picked))));
+    out.push(a[k]); a.splice(k,1);
+  }
+  return out;
+}
+// --- composable preference weights (multiply via prefAll) ---
+const prefLowMag  = card => 3 - cardMag(card);                                // 3/2/1 toward lighter
+const prefHighMag = card => cardMag(card) + 1;                                // 1/2/3 toward heavier
+const prefColorDiverse = (card,picked) =>                                      // toward an unused color
+  picked.some(p=>cardColor(p)===cardColor(card)) ? 1 : 3;
+function prefAll(...fns){ return (card,picked)=> fns.reduce((w,f)=>w*f(card,picked), 1); }
+
+// --- SPATIAL selector: map a slot + a list of [dRow,dCol] offsets to valid board indices ---
+// The board tiles into CFG.cols-wide rows; edge-aware (clips, never wraps horizontally/vertically).
+function offsetSlots(idx, deltas){
+  const cols=CFG.cols, n=state.board.length, row=(idx/cols)|0, col=idx%cols, out=[];
+  for(const [dr,dc] of deltas){
+    const r=row+dr, c=col+dc;
+    if(r<0||c<0||c>=cols) continue;
+    const j=r*cols+c; if(j>=0 && j<n) out.push(j);
+  }
+  return out;
+}
+const ORTHO4=[[-1,0],[1,0],[0,-1],[0,1]];
+function neighborSlots(idx){ return offsetSlots(idx, ORTHO4); }
+// Fireball blast: 13 tiles — center, the plus-arms out to distance 2, and the 4 immediate diagonals.
+const FIREBALL_BLAST=[
+  [0,0],
+  [-1,0],[1,0],[0,-1],[0,1],          // orthogonal +1
+  [-2,0],[2,0],[0,-2],[0,2],          // orthogonal +2
+  [-1,-1],[-1,1],[1,-1],[1,1],        // diagonals
+];
+// --- ALL lowest-cost live slots (the tie set). The cast picks one at random; the hover
+//     preview pulses the whole set to show every card that could be chosen. ---
+function pickAllLowest(pool, costFn){
+  let best=[], bestCost=Infinity;
+  for(const i of pool){
+    const c=costFn(state.board[i], i);
+    if(c<bestCost){ bestCost=c; best=[i]; }
+    else if(c===bestCost) best.push(i);
+  }
+  return best;
+}
+function randOf(arr){ return arr.length ? arr[Math.floor(Math.random()*arr.length)] : null; }
+
+// --- WOUNDS: empty slots still on cooldown (damage shattered them, not yet reformed) ---
+function woundedSlots(){
+  const out=[]; state.board.forEach((c,i)=>{ if(c==null && state.pending.has(i)) out.push(i); });
+  return out;
+}
+// --- regenerate genuinely-empty slots IN PLACE (no destroy/boom) ---
+// Backs both the delayed reform of a transmute and Heal closing wounds early. Only fills slots
+// that are still empty (so a wound healed early won't be double-filled when its old timer fires),
+// clears them from `pending`, and draws via patch (bias -> maximize favored axis) + entry animation.
+function regenSlots(slots, bias){
+  const fill=slots.filter(i=>state.board[i]==null);
+  fill.forEach(i=>state.pending.delete(i));
+  if(fill.length){
+    regenBias=bias||null;
+    state.board = bias ? patchFavor(state.board, fill, bias) : patch(state.board, fill);
+    regenBias=null;
+  }
+  render();
+  fill.forEach(i=>{ const e=cardEl(i); if(e) e.classList.add("entering"); });
+}
+
+// --- transmute VERB: destroy `indices`, leave them empty `gap`ms, then regenerate ---
+// opts.bias  {color,colorW,shape,shapeW} (any axis null = neutral) steers the regen draw;
+//            when present the fill MAXIMIZES the favored axes (patchFavor), else hits camo depth.
+// opts.gap   ms to hold the empty slot before reforming (damage uses 3s; spells reform instantly).
+// Cards leave the data model IMMEDIATELY (can't be matched mid-blast); the visual lingers for the boom.
+function transmute(indices, opts){
+  opts=opts||{};
+  const bias=opts.bias||null, gap=(opts.gap!=null?opts.gap:0);
+  const slots=[...new Set(indices)].filter(i=>i!=null && state.board[i] && !state.pending.has(i));
+  if(!slots.length) return;
+  const myGen=state.combatId;
+  const stale=()=>!state.running || state.combatId!==myGen;
+  slots.forEach(idx=>{
+    state.pending.add(idx);
+    const at=state.sel.indexOf(idx); if(at>=0) state.sel.splice(at,1);
+    const el=cardEl(idx);
+    state.board[idx]=null;                                // out of play at once — no double-use
+    if(el){ el.classList.remove("sel","entering","good"); void el.offsetWidth; el.classList.add("boom"); }
+  });
+  updateBoardAnalysis();
+  const regen=()=>{
+    if(stale()){ slots.forEach(i=>state.pending.delete(i)); return; }
+    regenSlots(slots, bias);                               // skips any slot already healed early
+    updateHUD();
+  };
+  setTimeout(()=>{
+    if(stale()){ slots.forEach(i=>state.pending.delete(i)); return; }
+    if(gap>0){ render(); setTimeout(regen, gap); }        // hold the empty slots, then reform
+    else regen();                                          // instant reform (spell-driven)
+  }, 380);                                                  // boom animation duration
+}
+
 // enemy strikes: block absorbs first (remainder persists), the rest hits HP
 function enemyAttack(){
   const t=state.tally; t.attacks++;
@@ -1001,6 +1270,14 @@ function enemyAttack(){
   updateHUD();
   if(state.playerHP<=0){ endCombat("lose"); return; }
   state.nextAttackAt=performance.now()+state.cadence*1000;   // reset clock
+  // taking a hit shatters one card from the board — it stays empty 3s, then reforms (GAME-DESIGN §4)
+  if(dmg>0){
+    const victims=pickRandom(liveSlots(), 1);
+    if(victims.length){
+      narrate(`The blow <b>shatters a rune</b> from your board — a wound that reforms in ${DMG_REGEN_MS/1000}s (or sooner if healed).`,"enemy");
+      transmute(victims,{gap:DMG_REGEN_MS});
+    }
+  }
 }
 
 function floatOverBoard(text,color,left){
@@ -1139,6 +1416,8 @@ function startCombat(){
   state.block=0; state.mana=[0,0,0];
   state.sel=[]; state.log=[]; state.tally=freshTally();
   state.fleeing=false; state.fleeMeter=0; state.lastTick=0;
+  state.pending=new Set(); state.combatId++; exitTargeting();   // invalidate any stale reform timers
+  regenBias=null;
   state.board=genInitial();
   state.startStamp=performance.now();
   state.nextAttackAt=performance.now()+state.cadence*1000;
@@ -1156,6 +1435,8 @@ function endCombat(result){
   if(!state.running) return;
   state.running=false; state.lock=true;
   cancelAnimationFrame(state.raf);
+  clearTimeout(glowTimer); clearAllGlow();          // no stale set-mate glow on the end screen
+  exitTargeting(); state.pending=new Set();
   state.fleeing=false; updateFleeUI();
   lockControls(false);
   if(result==="win") narrate(`The enemy collapses. <b>Victory!</b>`,"sys");
@@ -1217,48 +1498,6 @@ function showReport(result){
 }
 
 /* ============================================================
-   FINDABILITY DIALS — achievability-aware caps (ported)
-   ============================================================ */
-function depthWord(k,F){
-  if(k<=1) return "gimme";
-  if(k>=F) return "camo";
-  if(k===2) return "subtle";
-  return "hidden";
-}
-function routesWord(r){ return r<=2 ? "scarce" : r<=4 ? "some" : "many"; }
-
-let oddsCache={sig:null,data:null};
-function computeOdds(){
-  const sig=`${state.N}`;
-  if(oddsCache.sig===sig) return oddsCache.data;
-  const M=400, minKFreq={}; let setSum=0;
-  for(let s=0;s<M;s++){ const info=boardKInfo(genOnce()); minKFreq[info.minK]=(minKFreq[info.minK]||0)+1; setSum+=info.count; }
-  const data={M,minKFreq,avgSets:setSum/M};
-  oddsCache={sig,data};
-  return data;
-}
-function reachableDepth(o){
-  let reach=1;
-  for(let k=1;k<=CFG.F;k++) if((o.minKFreq[k]||0)>=2) reach=k;
-  return reach;
-}
-let floorCache={};
-function routesFloor(depth){
-  const sig=`${state.N}|${depth}`;
-  if(floorCache.sig===sig) return floorCache.val;
-  const WINDOWS=8, DRAWS=120, mins=[];
-  for(let w=0;w<WINDOWS;w++){
-    let mn=Infinity;
-    for(let d=0;d<DRAWS;d++){ const info=boardKInfo(genOnce()); if(info.minK===depth){ const r=info.hist[depth]||0; if(r<mn) mn=r; } }
-    if(mn!==Infinity) mins.push(mn);
-  }
-  mins.sort((a,b)=>a-b);
-  const val=mins.length ? Math.max(1,mins[Math.floor(mins.length/2)]) : 1;
-  floorCache={sig,val};
-  return val;
-}
-
-/* ============================================================
    NARRATION  —  prose dialogue, one line per move (above board)
    ============================================================ */
 const NARR_ICON = {player:"🗡", enemy:"💀", spell:"✦", sys:"•"};
@@ -1303,36 +1542,149 @@ function narrateEnemy(raw,absorbed,taken){
    SPELLS  —  on-demand layer, fired OUTSIDE match actions.
    cost = [red(Fire), green(Nature), blue(Frost)] mana.
    ============================================================ */
-function dealSpellDamage(max){
-  const dmg=weightedRoll(max);                    // spell damage rolls like every other hit
+function applySpellDamage(dmg){                    // apply a (pre-rolled) spell hit to the enemy
   state.enemyHP=Math.max(0,state.enemyHP-dmg);
   state.tally.spellDmg+=dmg;
   floatOverBoard(`-${dmg}`, "var(--gold)");
   flashStat("s-ehp");
   return dmg;
 }
+function dealSpellDamage(max){ return applySpellDamage(weightedRoll(max)); }   // single rolled hit
+// The "deadest" cards a bolt could aim at: fewest match-mates, then off its own color, then lowest
+// magnitude. Returns the FULL tie set — the cast hits a random one; the preview pulses them all.
+function deadestCandidates(ownColor){
+  const counts=comboCounts();
+  return pickAllLowest(liveSlots(), (card,i)=> counts[i]*100 + (cardColor(card)===ownColor?10:0) + cardMag(card));
+}
+// split a candidate set into {sure: hit no matter what, maybe: one of several (pulses in the preview)}.
+const oneOf = cand => cand.length<=1 ? {sure:cand.slice(), maybe:[]} : {sure:[], maybe:cand.slice()};
+
+// Every board-affecting spell exposes preview() -> {sure, maybe} for the hover highlight: `sure` cards
+// get a solid red ring, `maybe` cards pulse (random ties / random subsets). The cast resolves its own
+// random pick, so a pulsing card is a genuine "could be this one."
 const SPELLS=[
-  { id:"firebolt", name:"Firebolt", icon:"🔥", cost:[5,0,0], desc:"15 dmg max",
-    cast(){ const d=dealSpellDamage(15); narrate(`You hurl a <b>Firebolt</b> — ${d} fire damage sears the enemy.`,"spell"); } },
-  { id:"frostbolt", name:"Frostbolt", icon:"❄️", cost:[0,0,5], desc:"8 dmg max · 5 slow",
-    cast(){ const d=dealSpellDamage(8); state.nextAttackAt+=5000; state.tally.boot+=5;
-            narrate(`You loose a <b>Frostbolt</b> — ${d} frost damage and the enemy is slowed 5s.`,"spell"); } },
-  { id:"heal", name:"Heal", icon:"💚", cost:[0,5,0], desc:"15 HP max",
+  // AUTO-TARGET bolts: aim at a random deadest off-color card, reforge it toward the spell's color + verb.
+  { id:"firebolt", name:"Firebolt", icon:"🔥", cost:[5,0,0], desc:"15 dmg · burns a deadest off-red card → Fire/Attack",
+    preview(){ return oneOf(deadestCandidates(COLOR_RED)); },
+    cast(){ const d=dealSpellDamage(15); const pick=randOf(deadestCandidates(COLOR_RED));
+            narrate(`You hurl a <b>Firebolt</b> — ${d} fire damage sears the enemy, and the blast reforges a spent card into a flaming <b>Attack</b>.`,"spell");
+            if(pick!=null) transmute([pick],{bias:{color:COLOR_RED, colorW:BIAS_W, shape:SHAPE_ATTACK, shapeW:BIAS_W}}); } },
+  { id:"frostbolt", name:"Frostbolt", icon:"❄️", cost:[0,0,5], desc:"8 dmg · 5 slow · freezes a deadest off-blue card → Frost/Move",
+    preview(){ return oneOf(deadestCandidates(COLOR_BLUE)); },
+    cast(){ const d=dealSpellDamage(8); state.nextAttackAt+=5000; state.tally.boot+=5; const pick=randOf(deadestCandidates(COLOR_BLUE));
+            narrate(`You loose a <b>Frostbolt</b> — ${d} frost damage, the enemy is slowed 5s, and a spent card freezes into a <b>Move</b> of frost.`,"spell");
+            if(pick!=null) transmute([pick],{bias:{color:COLOR_BLUE, colorW:BIAS_W, shape:SHAPE_MOVE, shapeW:BIAS_W}}); } },
+  { id:"heal", name:"Heal", icon:"💚", cost:[0,5,0], desc:"15 HP max · closes wounds + reseeds green",
+    preview(){ return {sure:[], maybe:[...woundedSlots(), ...liveSlots(c=>cardColor(c)===COLOR_GREEN)]}; },   // a random subset of these
     cast(){ const h=weightedRoll(15); state.playerHP=Math.min(state.playerMax,state.playerHP+h); flashStat("s-php");
-            narrate(`You weave a <b>Heal</b> — ${h} HP restored.`,"spell"); } },
-  { id:"block", name:"Block", icon:"🛡️", cost:[2,2,2], desc:"+10 block",
+            const greenBias={color:COLOR_GREEN, colorW:BIAS_W, shape:null};   // keep green, redraw shape/number
+            const roll=Math.floor(Math.random()*6);                          // 0..5 total slots reseeded green
+            const wounds=woundedSlots().slice(0,roll);                       // close your wounds FIRST (immediately)...
+            const greens=pickRandom(liveSlots(c=>cardColor(c)===COLOR_GREEN), roll-wounds.length);  // ...spend the rest on greens
+            if(wounds.length) regenSlots(wounds, greenBias);                 // wounds knit shut now, no cooldown
+            if(greens.length) transmute(greens,{bias:greenBias});           // chosen greens burst + reform green
+            const cl=[];
+            if(wounds.length) cl.push(`<b>${wounds.length}</b> wound${wounds.length>1?"s":""} knit shut`);
+            if(greens.length) cl.push(`<b>${greens.length}</b> green card${greens.length>1?"s":""} reseeded`);
+            narrate(`You weave a <b>Heal</b> — ${h} HP restored`+(cl.length?`, ${joinClauses(cl)}.`:`.`),"spell"); } },
+  { id:"block", name:"Block", icon:"🛡️", cost:[2,2,2], desc:"+10 block · churns up to 3 Defends",
+    preview(){ return {sure:[], maybe:liveSlots(c=>cardShape(c)===SHAPE_DEFEND)}; },   // up to 3 of these Defends
     cast(){ state.block+=10; state.tally.block+=10; flashStat("s-php");
-            narrate(`You brace a <b>Block</b> — +10 block springs up.`,"spell"); } },
-  null,null,null,null,null,
+            // scatter up to 3 spent Defend cards — favor color variety + lighter ones; regen is neutral
+            const picks=pickPreferred(liveSlots(c=>cardShape(c)===SHAPE_DEFEND), 3, prefAll(prefLowMag, prefColorDiverse));
+            narrate(`You brace a <b>Block</b> — +10 block springs up`+(picks.length
+              ? `, scattering <b>${picks.length}</b> spent Defend${picks.length>1?"s":""} into fresh cards.` : `.`),"spell");
+            if(picks.length) transmute(picks,{}); } },
+  // ---- demonstrating three more targeting techniques on the same toolkit ----
+  // SPATIAL AoE that auto-aims like Firebolt: drops on the same deadest card and blasts outward — so it
+  // can catch your good cards as collateral. Damage = total magnitude of everything it razes.
+  { id:"fireball", name:"Fireball", icon:"💥", cost:[8,0,0], desc:"13-tile blast on a deadest card (catches neighbors) → Fire/Attack",
+    // a blast() helper maps a center to its live 13-tile footprint.
+    blast(center){ return center==null?[]:offsetSlots(center, FIREBALL_BLAST).filter(i=>state.board[i] && !state.pending.has(i)); },
+    preview(){
+      const centers=deadestCandidates(COLOR_RED);
+      const foots=centers.map(c=>this.blast(c));
+      if(foots.length<=1) return {sure:foots[0]||[], maybe:[]};
+      const all=[...new Set(foots.flat())];
+      const sure=all.filter(j=>foots.every(f=>f.includes(j)));   // hit by every possible center
+      return {sure, maybe:all.filter(j=>!sure.includes(j))};      // hit by only some -> pulse
+    },
+    cast(){
+      const hits=this.blast(randOf(deadestCandidates(COLOR_RED)));   // one random epicenter, then blow outward
+      if(!hits.length){ narrate(`<b>Fireball</b> finds nothing to burn — it fizzles.`,"spell"); return; }
+      const dmg=hits.reduce((s,i)=>s+cardMag(state.board[i])+1, 0);   // damage = total magnitude of every card razed
+      applySpellDamage(dmg);
+      narrate(`You detonate a <b>Fireball</b> — a 13-tile inferno razes <b>${hits.length}</b> card${hits.length>1?"s":""} for ${dmg} fire damage, leaving smouldering <b>Attacks</b>.`,"spell");
+      transmute(hits,{bias:{color:COLOR_RED, colorW:BIAS_W, shape:SHAPE_ATTACK, shapeW:BIAS_W}});
+    } },
+  // VALUE-FILTER mass select: freeze EVERY Attack on the board; tempo gained scales with how many.
+  { id:"glaciate", name:"Glaciate", icon:"🧊", cost:[0,0,7], desc:"freeze every Attack → Move + big slow",
+    preview(){ return {sure:liveSlots(c=>cardShape(c)===SHAPE_ATTACK), maybe:[]}; },   // all Attacks, definitely
+    cast(){
+      const attacks=liveSlots(c=>cardShape(c)===SHAPE_ATTACK);
+      if(!attacks.length){ narrate(`<b>Glaciate</b> finds no aggression to freeze — it fizzles.`,"spell"); return; }
+      const before=state.nextAttackAt;
+      state.nextAttackAt=Math.min(performance.now()+CLOCK_CAP*1000, state.nextAttackAt+attacks.length*2000);  // +2s per frozen Attack, capped
+      const slowed=Math.round((state.nextAttackAt-before)/1000); state.tally.boot+=Math.max(0,slowed);
+      floatOverBoard(slowed>0?`+${slowed}s`:"clock maxed","var(--phos)");
+      narrate(`You sweep out <b>Glaciate</b> — <b>${attacks.length}</b> Attack${attacks.length>1?"s":""} freeze into drifting <b>Moves</b>, the enemy slowed ${slowed}s.`,"spell");
+      transmute(attacks,{bias:{shape:SHAPE_MOVE, shapeW:BIAS_W}});   // shape-only: up to 9 distinct Moves, stays snappy
+    } },
+  // PREFERENCE by magnitude + value-reading effect + NUMBER-axis bias: reap the heaviest cards for HP, leave light green shoots.
+  { id:"wildgrowth", name:"Wildgrowth", icon:"🌿", cost:[0,6,0], desc:"reap 3 heaviest → heal + light green",
+    preview(){ return {sure:[], maybe:liveSlots().sort((a,b)=>cardMag(state.board[b])-cardMag(state.board[a])).slice(0,5)}; },  // likely the heaviest few
+    cast(){
+      const picks=pickPreferred(liveSlots(), 3, prefHighMag);        // the ripest (heaviest) cards, any color/shape
+      if(!picks.length){ narrate(`<b>Wildgrowth</b> finds nothing to reap — it fizzles.`,"spell"); return; }
+      const ripeness=picks.reduce((s,i)=>s+cardMag(state.board[i])+1, 0);   // sum magnitudes BEFORE they're consumed
+      const heal=ripeness*2;
+      state.playerHP=Math.min(state.playerMax, state.playerHP+heal); flashStat("s-php");
+      narrate(`You channel <b>Wildgrowth</b> — reaping <b>${picks.length}</b> ripe card${picks.length>1?"s":""} for ${heal} HP, leaving fresh green shoots.`,"spell");
+      transmute(picks,{bias:{color:COLOR_GREEN, colorW:BIAS_W, mag:0, magW:BIAS_W, shape:null}});   // green · light · shape redrawn
+    } },
+  null,null,
 ];
 function canAfford(sp){ return sp.cost.every((c,i)=>state.mana[i]>=c); }
-function castSpell(i){
-  if(!state.running||state.lock) return;
-  const sp=SPELLS[i]; if(!sp || !canAfford(sp)) return;
-  for(let c=0;c<3;c++) state.mana[c]-=sp.cost[c];
+function spendMana(sp){ for(let c=0;c<3;c++) state.mana[c]-=sp.cost[c]; }
+function castAnim(i){
   const el=document.querySelector(`.slot[data-spell="${i}"]`);
   if(el){ el.classList.remove("casting"); void el.offsetWidth; el.classList.add("casting"); }
+}
+function castSpell(i){
+  if(!state.running||state.lock) return;
+  clearSpellPreview();
+  const sp=SPELLS[i]; if(!sp || !canAfford(sp)) return;
+  if(sp.target==="card"){                            // arm click-to-target instead of firing now
+    if(state.targeting===i){ exitTargeting(); return; }   // clicking the armed spell cancels
+    enterTargeting(i);
+    return;
+  }
+  if(state.targeting!=null) exitTargeting();         // an instant spell cancels any armed target
+  spendMana(sp); castAnim(i);
   sp.cast();
+  updateHUD();
+  if(state.enemyHP<=0){ endCombat("win"); }
+}
+// click-to-target lifecycle (Firebolt / Frostbolt)
+function enterTargeting(i){
+  if(state.targeting!=null) exitTargeting();
+  state.targeting=i;
+  boardEl.classList.add("targeting");
+  document.querySelector(`.slot[data-spell="${i}"]`)?.classList.add("arming");
+  narrate(`<b>${SPELLS[i].name}</b> — choose a card to blast. (click the spell again or press Esc to cancel)`,"sys");
+}
+function exitTargeting(){
+  if(state.targeting==null) return;
+  document.querySelector(`.slot[data-spell="${state.targeting}"]`)?.classList.remove("arming");
+  state.targeting=null;
+  boardEl.classList.remove("targeting");
+}
+function resolveTargetedSpell(idx){
+  const i=state.targeting; const sp=SPELLS[i];
+  exitTargeting();
+  if(!sp || !canAfford(sp)) return;                  // mana slipped away (shouldn't, but guard)
+  spendMana(sp); castAnim(i);
+  sp.castOn(idx);
   updateHUD();
   if(state.enemyHP<=0){ endCombat("win"); }
 }
@@ -1348,6 +1700,8 @@ function buildSpells(){
                 `<span class="scost">${cost}</span>`;
     d.title=`${sp.name} — ${sp.desc}`;
     d.addEventListener("click",()=>castSpell(i));
+    d.addEventListener("mouseenter",()=>previewSpellTargets(i));   // light up where it would hit
+    d.addEventListener("mouseleave",clearSpellPreview);
     g.appendChild(d);
   });
 }
@@ -1428,27 +1782,7 @@ function syncUI(regen){
   $("ecad-out").textContent="every "+state.cadence+"s";
   $("php").value=state.playerMax; $("ehp").value=state.enemyMax;
   $("edmg").value=state.enemyDamage; $("ecad").value=state.cadence;
-  // board size
-  $("nslider").value=N_OPTIONS.indexOf(state.N); $("n-out").textContent=`${state.N} · ${state.N/CFG.cols}×${CFG.cols}`;
-  // findability caps
-  const o=computeOdds();
-  const reach=reachableDepth(o);
-  if(state.camoDepth>reach) state.camoDepth=reach;
-  const ds=$("depthslider"); ds.max=reach; ds.value=state.camoDepth;
-  $("depth-out").textContent=`k${state.camoDepth} · ${depthWord(state.camoDepth,CFG.F)}`;
-  $("depth-cap").textContent = reach<CFG.F ? `caps at k${reach} here — k${CFG.F} needs a smaller board` : "";
-  const dt=$("depth-ticks"); dt.innerHTML="";
-  for(let k=1;k<=reach;k++){ const sp=document.createElement("span"); sp.textContent=depthWord(k,CFG.F); dt.appendChild(sp); }
-  const routeFloor=routesFloor(state.camoDepth);
-  const routeCap=Math.max(routeFloor,Math.min(6,Math.round(o.avgSets)));
-  if(state.escapeRoutes<routeFloor) state.escapeRoutes=routeFloor;
-  if(state.escapeRoutes>routeCap) state.escapeRoutes=routeCap;
-  const rs=$("routesslider"); rs.min=routeFloor; rs.max=routeCap; rs.value=state.escapeRoutes;
-  $("routes-out").textContent=`${state.escapeRoutes} · ${routesWord(state.escapeRoutes)}`;
-  let rcap="";
-  if(routeFloor>1) rcap=`floor ${routeFloor} at k${state.camoDepth} — fewer outs needs a smaller board`;
-  if(routeCap<6) rcap=(rcap?rcap+" · ":"")+`max ${routeCap} (~${o.avgSets.toFixed(0)} sets here)`;
-  $("routes-cap").textContent=rcap;
+  // board difficulty is locked (n=15 / k1 / 6 routes) — no UI dials
   // top bar idle preview
   if(!state.running){
     $("v-php").textContent=state.playerMax; $("v-phpmax").textContent="/"+state.playerMax;
@@ -1467,15 +1801,13 @@ $("php").addEventListener("input",e=>{ if(state.running){e.target.value=state.pl
 $("ehp").addEventListener("input",e=>{ if(state.running){e.target.value=state.enemyMax;return;} state.enemyMax=+e.target.value; syncUI(false); });
 $("edmg").addEventListener("input",e=>{ if(state.running){e.target.value=state.enemyDamage;return;} state.enemyDamage=+e.target.value; syncUI(false); });
 $("ecad").addEventListener("input",e=>{ if(state.running){e.target.value=state.cadence;return;} state.cadence=+e.target.value; syncUI(false); });
-$("nslider").addEventListener("input",e=>{ if(state.running){e.target.value=N_OPTIONS.indexOf(state.N);return;} state.N=N_OPTIONS[+e.target.value]; syncUI(true); });
-$("depthslider").addEventListener("input",e=>{ if(state.running){e.target.value=state.camoDepth;return;} state.camoDepth=+e.target.value; syncUI(true); });
-$("routesslider").addEventListener("input",e=>{ if(state.running){e.target.value=state.escapeRoutes;return;} state.escapeRoutes=+e.target.value; syncUI(true); });
 
 $("btn-start").addEventListener("click",startCombat);
 $("btn-end").addEventListener("click",()=>endCombat("forfeit"));
 $("btn-hint").addEventListener("click",hintNow);
 $("btn-flee").addEventListener("click",toggleFlee);
 $("startgate").addEventListener("click",startCombat);
+document.addEventListener("keydown",e=>{ if(e.key==="Escape" && state.targeting!=null) exitTargeting(); });
 $("m-again").addEventListener("click",startCombat);
 $("m-close").addEventListener("click",()=>$("overlay").classList.remove("show"));
 
