@@ -759,9 +759,6 @@ function weightedRoll(max){
   while(acc<r){ v++; acc+=v; }
   return v;
 }
-// Mirror: triangular-weighted toward the LOW end, P(v) ∝ (max-v+1). Often rolls well under max
-// (the chaotic Fireball — it can fizzle even when it catches a lot of cards).
-function weightedRollLow(max){ max=Math.max(1,Math.round(max)); return max - weightedRoll(max) + 1; }
 // Resolve a found set into combat effects. Damage per Attack card is rolled (weightedRoll), so it is NOT pure.
 function resolveSet(cards){
   let dmgLight=0,dmgMed=0,dmgHeavy=0, block=0, boot=0, flee=0;
@@ -1616,7 +1613,7 @@ const SPELLS=[
       const hits=this.blast(randOf(deadestCandidates(COLOR_RED)));   // one random epicenter, then blow outward
       if(!hits.length){ narrate(`<b>Fireball</b> finds nothing to burn — it fizzles.`,"spell"); return; }
       const cap=hits.reduce((s,i)=>s+cardMag(state.board[i])+1, 0);   // total magnitude razed = the ceiling
-      const dmg=weightedRollLow(cap);                                  // triangular, low-weighted — often well under cap
+      const dmg=weightedRoll(cap);                                     // triangular, high-weighted — usually near the cap, it's a fireball
       applySpellDamage(dmg);
       narrate(`You detonate a <b>Fireball</b> — a 13-tile inferno razes <b>${hits.length}</b> card${hits.length>1?"s":""} for ${dmg} fire damage (of up to ${cap}), leaving smouldering <b>Attacks</b>.`,"spell");
       transmute(hits,{bias:{color:COLOR_RED, colorW:BIAS_W, shape:SHAPE_ATTACK, shapeW:BIAS_W}});
