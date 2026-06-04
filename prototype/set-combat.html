@@ -137,15 +137,26 @@
 
   .board.idle{filter:saturate(.5) brightness(.5);pointer-events:none}
   .startgate{position:absolute;inset:16px;border-radius:14px;display:none;flex-direction:column;
-    align-items:center;justify-content:center;gap:14px;cursor:pointer;z-index:5;
-    background:radial-gradient(circle at 50% 40%, rgba(240,86,91,.08), rgba(11,13,18,.55));
+    align-items:center;justify-content:center;gap:13px;cursor:default;z-index:5;padding:18px;overflow:auto;
+    background:radial-gradient(circle at 50% 40%, rgba(240,86,91,.08), rgba(11,13,18,.62));
     border:1px dashed var(--line2);backdrop-filter:blur(1px)}
   .startgate.show{display:flex}
-  .startgate .big{font-family:"Syne",sans-serif;font-weight:800;font-size:clamp(22px,3.4vw,34px);letter-spacing:-.01em}
+  .startgate .big{font-family:"Syne",sans-serif;font-weight:800;font-size:clamp(20px,3vw,30px);letter-spacing:-.01em}
   .startgate .small{color:var(--ink-dim);font-size:12.5px;max-width:380px;text-align:center;line-height:1.6}
-  .startgate .cta{background:var(--red);color:#2b0608;font-family:"Syne",sans-serif;font-weight:700;
+  .startgate .cta{background:var(--red);color:#2b0608;font-family:"Syne",sans-serif;font-weight:700;cursor:pointer;
     padding:11px 22px;border-radius:11px;font-size:15px;animation:bob 1.6s ease-in-out infinite;box-shadow:0 10px 24px -8px var(--red)}
   @keyframes bob{50%{transform:translateY(-4px)}}
+  /* class picker (inside the start gate) */
+  .classgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;width:min(540px,94%)}
+  .classcard{display:flex;flex-direction:column;align-items:center;gap:3px;padding:9px 6px;border:1px solid var(--line2);
+    border-radius:11px;background:var(--panel2);cursor:pointer;transition:.13s}
+  .classcard:hover{border-color:var(--phos);transform:translateY(-1px)}
+  .classcard.sel{border-color:var(--phos);background:var(--panel);box-shadow:0 0 0 1px var(--phos),0 0 18px -8px var(--phos)}
+  .classcard .ci{font-size:21px;line-height:1}
+  .classcard .cn{font-size:11px;font-weight:700;letter-spacing:.02em;color:var(--ink)}
+  .classinfo{font-size:12px;color:var(--ink-dim);max-width:520px;text-align:center;line-height:1.6;min-height:38px}
+  .classinfo b{color:var(--ink)}
+  .classinfo .pas{color:var(--gold)}
 
   .side{display:flex;flex-direction:column;gap:14px}
   .panel{background:linear-gradient(180deg,var(--panel),var(--bg2));border:1px solid var(--line);border-radius:16px;padding:14px;box-shadow:var(--shadow)}
@@ -253,7 +264,7 @@
   @media(max-width:620px){.statusbar{grid-template-columns:1fr 1fr}}
 
   /* compact combat-readout info panel in the header */
-  .readout{display:flex;align-items:center;gap:15px;flex-wrap:wrap;
+  .readout{flex:1 1 520px;display:flex;align-items:center;gap:15px;flex-wrap:wrap;
     background:linear-gradient(180deg,var(--panel),var(--bg2));border:1px solid var(--line);
     border-radius:12px;padding:9px 17px;box-shadow:var(--shadow)}
   .rgroup{display:flex;flex-direction:column;gap:3px;justify-content:center}
@@ -271,18 +282,34 @@
   .readout .stat .val{font-size:21px}
   .readout .stat .hpbar{flex:0 0 50px;width:50px;margin-top:0}
 
-  /* spell grid (3x3) */
+  /* TACTICS meter — fills the header bar; arms a row of one-shot tactic buttons */
+  .tactics{flex:1 1 130px;min-width:120px;display:flex;flex-direction:column;justify-content:center;gap:5px}
+  .tlab{display:flex;justify-content:space-between;font-size:9px;letter-spacing:.15em;text-transform:uppercase;color:var(--ink-faint)}
+  .tlab #tac-name{font-weight:700;letter-spacing:.12em}
+  .tbar{height:11px;border-radius:7px;background:var(--line2);overflow:hidden;border:1px solid var(--line)}
+  .tfill{display:block;height:100%;width:0;background:var(--phos);border-radius:7px;transition:width .18s ease, background .25s ease}
+  .tactics.armed .tbar{box-shadow:0 0 0 1px var(--gold), 0 0 14px -2px var(--gold)}
+  .tactics.armed .tlab #tac-name{color:var(--gold)}
+  .tacbtns{display:grid;grid-template-columns:repeat(3,auto);gap:5px}
+  .tbtn{font-family:"Syne",sans-serif;font-weight:700;font-size:11px;letter-spacing:.02em;white-space:nowrap;
+    border:1px solid var(--line2);border-radius:9px;padding:7px 9px;background:var(--panel2);color:var(--ink-dim);
+    cursor:pointer;transition:.13s;box-shadow:none}
+  .tbtn:not(:disabled){border-color:var(--gold);color:var(--gold);box-shadow:0 0 12px -5px var(--gold)}
+  .tbtn:not(:disabled):hover{background:var(--gold);color:#2b1f02;transform:translateY(-1px)}
+  .tbtn.flee:not(:disabled){border-color:var(--phos);color:var(--phos);box-shadow:0 0 12px -5px var(--phos)}
+  .tbtn.flee:not(:disabled):hover{background:var(--phos);color:#062b27}
+  .tbtn:disabled{opacity:.4;cursor:not-allowed}
+
+  /* ability grid (2 rows of 3) + passives below */
   .spellgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}
-  .fleebox{margin-top:9px;display:flex;flex-direction:column;gap:7px}
-  .btn.flee{width:100%}
-  .btn.flee.on{background:var(--phos);color:#062b27;border-color:var(--phos)}
-  .btn.flee:disabled{opacity:.4;cursor:not-allowed}
-  .fleemeter{display:none}
-  .fleemeter.show{display:block}
-  .flab{display:flex;justify-content:space-between;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-faint);margin-bottom:4px}
-  .fbar{height:8px;border-radius:6px;background:var(--line2);overflow:hidden}
-  .ffill{display:block;height:100%;background:var(--phos);width:0;transition:width .2s ease}
-  .fleenote{font-size:10px;color:var(--ink-faint);min-height:11px;letter-spacing:.02em}
+  .passivehd{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-faint);margin:13px 0 8px;display:flex;justify-content:space-between;align-items:center}
+  .passivehd .ssub{font-size:9.5px;color:var(--ink-faint);text-transform:none;letter-spacing:.02em}
+  .passivegrid{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}
+  .slot.passive{opacity:.5;cursor:default;height:auto;min-height:62px;gap:2px}
+  .slot.passive.on{opacity:1;filter:none;border-color:var(--gold);box-shadow:0 0 0 1px var(--gold),0 0 16px -10px var(--gold)}
+  .slot.passive .sname{color:var(--ink)}
+  .slot.passive .pmini{font-size:8.5px;color:var(--ink-faint);line-height:1.2;letter-spacing:.01em}
+  .slot.passive.proc{animation:pop .34s ease}
   .slot{position:relative;height:62px;border:1px solid var(--line2);border-radius:11px;background:var(--panel2);
     display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;padding:5px;cursor:default;
     transition:transform .14s ease, box-shadow .14s ease, opacity .14s ease, border-color .14s ease;text-align:center}
@@ -400,29 +427,17 @@
       <div class="stat block"><div class="sbinfo"><div class="lab">Block</div><div class="val" id="v-block">0</div></div></div>
       <div class="stat clock" id="s-clock"><div class="sbinfo"><div class="lab">Next attack</div><div class="val" id="v-clock">—</div></div></div>
       <div class="rsep"></div>
-      <div class="rgroup">
-        <div class="rlab">Damage dealt</div>
-        <div class="rbig" id="dmg-total">0 total</div>
-        <div class="rmini">
-          <span style="color:#7fd1a0">light <b id="n-light">0</b></span>
-          <span style="color:var(--warn)">med <b id="n-med">0</b></span>
-          <span style="color:var(--red)">heavy <b id="n-heavy">0</b></span>
-        </div>
+      <div class="tactics" id="tacbox">
+        <div class="tlab"><span id="tac-name">Tactics</span><span id="tac-out">0 / 10</span></div>
+        <div class="tbar"><span class="tfill" id="tac-fill"></span></div>
       </div>
-      <div class="rsep"></div>
-      <div class="rgroup">
-        <div class="rlab">Tempo · defense</div>
-        <div class="rmini">
-          <span>👣<b id="t-boot">0</b>s</span>
-          <span>🛡<b id="t-block">0</b></span>
-          <span>absorb <b id="t-absorb">0</b></span>
-          <span>taken <b id="t-taken">0</b></span>
-        </div>
-      </div>
-      <div class="rsep"></div>
-      <div class="rgroup">
-        <div class="rlab">Sets · miss</div>
-        <div class="rbig"><span id="t-sets">0</span> <span style="color:var(--ink-faint)">·</span> <span id="t-miss" style="color:var(--ink-faint)">0</span></div>
+      <div class="tacbtns" id="tacbtns">
+        <button class="tbtn" data-tac="strike" disabled title="Transmute all non-Attacks into heavy Attacks">⚔ Strike!</button>
+        <button class="tbtn" data-tac="dodge" disabled title="Transmute all non-Defends into heavy Defends">🛡 Dodge!</button>
+        <button class="tbtn flee" data-tac="flee" disabled title="Escape combat immediately">🏃 Flee!</button>
+        <button class="tbtn" data-tac="heat" disabled title="Reroll every non-red card, biased to red">🔥 Heat Up!</button>
+        <button class="tbtn" data-tac="chill" disabled title="Reroll every non-blue card, biased to blue">❄ Chill Out!</button>
+        <button class="tbtn" data-tac="wild" disabled title="Reroll every non-green card, biased to green">🌿 Go Wild!</button>
       </div>
     </div>
   </header>
@@ -434,9 +449,10 @@
       <div class="ptint" id="ptint"></div>
       <div class="floatlayer" id="floatlayer"></div>
       <div class="startgate show" id="startgate">
-        <div class="big">Ready to fight</div>
-        <div class="small" id="gate-rules">Find three cards where color, shape and number are each all-same or all-different. Every card in the set fires its own action at once — Attacks strike, Defends guard, Moves stall the enemy clock.</div>
-        <div class="cta">▶ Begin combat</div>
+        <div class="big" id="gate-big">Choose your class</div>
+        <div class="classgrid" id="classgrid"></div>
+        <div class="classinfo" id="classinfo"></div>
+        <div class="cta" id="gate-cta">▶ Begin combat</div>
       </div>
       <div class="analysis" id="analysis">
         <div class="aitem"><span class="adot"></span><span class="abig" id="a-count">—</span><span class="alab">sets on board</span></div>
@@ -447,16 +463,10 @@
     <div class="rightcol">
       <div class="rightcol-inner">
       <div class="panel spellpanel">
-        <h2>Abilities <span class="manabar"><span style="color:var(--red)">🔥<b id="m-red">0</b></span><span style="color:var(--green)">🌿<b id="m-green">0</b></span><span style="color:var(--blue)">❄<b id="m-blue">0</b></span></span></h2>
+        <h2><span id="class-title">Abilities</span> <span class="manabar"><span style="color:var(--red)">🔥<b id="m-red">0</b></span><span style="color:var(--green)">🌿<b id="m-green">0</b></span><span style="color:var(--blue)">❄<b id="m-blue">0</b></span></span></h2>
         <div class="spellgrid" id="spellgrid"></div>
-        <div class="fleebox">
-          <button class="btn flee" id="btn-flee" disabled>🏃 Flee</button>
-          <div class="fleemeter" id="fleemeter">
-            <div class="flab"><span>Fleeing</span><span id="flee-out">0 / 10</span></div>
-            <div class="fbar"><span class="ffill" id="flee-fill" style="width:0%"></span></div>
-          </div>
-          <div class="fleenote" id="fleenote"></div>
-        </div>
+        <div class="passivehd">Passives <span class="ssub">always on · auto-trigger</span></div>
+        <div class="passivegrid" id="passivegrid"></div>
       </div>
       <div class="panel narrate">
         <div class="narrhd"><span class="ttl">Combat narration</span><span class="cnt" id="narr-cnt"></span></div>
@@ -552,13 +562,13 @@ const DROP_IDX = 2;                    // shading is always the dropped axis in 
 const CARD_COLORS_HEX = ["#f0565b","#46c46a","#5b94f5"];  // Red(Fire) Green(Nature) Blue(Frost)
 const MANA_LABELS = ["Fire","Nature","Frost"];
 
-// FLEE: build the meter to FLEE_GOAL to retreat. While fleeing, gen biases shape toward Move
-// (and away from Attack), and Move cards feed the meter (rolled) instead of stalling the enemy clock.
-// Toggling flee OFF doesn't snap the meter to 0 — it decays FLEE_DECAY_PER_LEVEL seconds per
-// level, and flee can't re-arm until it's empty (the price of using flee as a Move generator).
-const FLEE_GOAL=10;
-const FLEE_DECAY_PER_LEVEL=3;
-const FLEE_SHAPE_W=[1,4,16];           // deal weights when fleeing: attack / defend / move
+// TACTICS: Move matches fill a 0..TACTICS_GOAL meter (triangular-rolled on the Move magnitude),
+// ON TOP of still pushing the enemy clock. When the clock is already at its cap the wasted overflow
+// seconds dump straight into Tactics too — so Moves into a maxed clock generate a lot of it. At full
+// the meter ARMS: a row of one-shot tactic buttons activates and the meter drains TACTICS_DRAIN/sec
+// (colour-shifting blue→green→yellow→red). Firing any tactic resets the meter to empty.
+const TACTICS_GOAL=10;
+const TACTICS_DRAIN=1;                  // armed meter empties this many levels per second
 const CLOCK_CAP=20;                    // Move can't push the enemy's next attack more than 20s out
 const DMG_REGEN_MS=10000;              // a card shattered by enemy damage stays "wounded" (empty) 10s, then reforms (Heal can close it early)
 const BIAS_W=8;                        // transmute regen: weight toward the spell's favored color/shape
@@ -586,15 +596,14 @@ function pickWeighted(w){
 function clockCapped(){ return (state.nextAttackAt - performance.now()) >= CLOCK_CAP*1000 - 500; }
 function blockCapped(){ return state.playerMax>0 && state.block >= state.playerMax; }
 // SHAPE deal logic:
-//  - fleeing  -> heavy toward Move (fuel escape), scarce Attack
-//  - a capped resource (Block at HP, or clock at 20s) makes Defend/Move wasteful -> steer to Attack
+//  - a capped Block (at HP) makes Defend wasteful -> steer away from it.
+//  - a capped clock no longer wastes Move (overflow now feeds Tactics), so it stays a fair draw.
 //  - otherwise uniform.
 // Distinctness on a large board still forces variety in (the saturation cap from PROJECT.md §3).
 function dealShape(){
-  if(state.fleeing) return pickWeighted(FLEE_SHAPE_W);
-  const bc=blockCapped(), cc=clockCapped();
-  if(!bc && !cc) return r3();
-  return pickWeighted([2, bc?0.15:1, cc?0.15:1]);   // attack / defend / move
+  const bc=blockCapped();
+  if(!bc) return r3();
+  return pickWeighted([2, 0.15, 1]);   // attack / defend / move — only Defend is throttled (Block full)
 }
 // TRANSIENT regen bias (GAME-DESIGN §4): an ability fires mid-round and wants the
 // freed slots to lean toward a value on any active axis. Set right before a patch()
@@ -761,7 +770,7 @@ function weightedRoll(max){
 }
 // Resolve a found set into combat effects. Damage per Attack card is rolled (weightedRoll), so it is NOT pure.
 function resolveSet(cards){
-  let dmgLight=0,dmgMed=0,dmgHeavy=0, block=0, boot=0, flee=0;
+  let dmgLight=0,dmgMed=0,dmgHeavy=0, block=0, boot=0;
   for(const c of cards){
     const shape=c[1], mag=c[3]+1;              // mag 1/2/3 = light/med/heavy
     if(shape===SHAPE_ATTACK){
@@ -769,9 +778,8 @@ function resolveSet(cards){
       if(mag===1) dmgLight+=roll; else if(mag===2) dmgMed+=roll; else dmgHeavy+=roll;
     } else if(shape===SHAPE_DEFEND){
       block+=mag;                              // 1 block per pip
-    } else {                                   // move
-      if(state.fleeing) flee+=weightedRoll(mag);  // fleeing: Move cards fuel escape (rolled, triangular)
-      else boot+=mag;                             // otherwise: +mag seconds to enemy clock
+    } else {                                   // move: +mag seconds to enemy clock (and fuels Tactics)
+      boot+=mag;
     }
   }
   const damage=dmgLight+dmgMed+dmgHeavy;
@@ -780,7 +788,16 @@ function resolveSet(cards){
   const allSameColor = cv[0]===cv[1] && cv[1]===cv[2];
   const mana=[0,0,0];
   if(allSameColor) mana[cv[0]]=3; else { mana[0]=1; mana[1]=1; mana[2]=1; }
-  return { damage,dmgLight,dmgMed,dmgHeavy, block, boot, flee, mana, allSameColor };
+  return { damage,dmgLight,dmgMed,dmgHeavy, block, boot, mana, allSameColor, desc:matchDescriptor(cards) };
+}
+// Match descriptor (GAME-DESIGN §3): per-axis same/diff + the all-same value (or null) on each axis.
+// Passive/trigger conditions read this — e.g. flameshield tests desc.sameColor===COLOR_RED.
+function matchDescriptor(cards){
+  const col=[cards[0][0],cards[1][0],cards[2][0]];
+  const sh =[cards[0][1],cards[1][1],cards[2][1]];
+  const nu =[cards[0][3],cards[1][3],cards[2][3]];
+  const same=a=>a[0]===a[1]&&a[1]===a[2];
+  return { sameColor: same(col)?col[0]:null, sameShape: same(sh)?sh[0]:null, sameNumber: same(nu)?nu[0]:null };
 }
 
 /* ============================================================
@@ -896,12 +913,14 @@ const state={
   // live combat values
   playerHP:30, enemyHP:30, block:0, mana:[0,0,0],
   nextAttackAt:0, lastNow:0, lastTick:0,
-  fleeing:false, fleeMeter:0,                    // Flee mode toggle + escape meter (0..FLEE_GOAL)
+  tactics:0, tacticsArmed:false,                 // Tactics meter (0..TACTICS_GOAL) + armed/draining flag
+  classId:"pyromancer", passives:[],             // chosen class + its active passive ids
+  pendingRegenBias:null,                         // a passive can bias the slots freed by the current match
   // tallies for the HUD / after-action report
   tally:null, log:[], startStamp:0,
 };
 function freshTally(){
-  return { dmgLight:0,dmgMed:0,dmgHeavy:0, spellDmg:0, block:0, boot:0, flee:0, mana:[0,0,0],
+  return { dmgLight:0,dmgMed:0,dmgHeavy:0, spellDmg:0, block:0, boot:0, mana:[0,0,0],
            absorbed:0, taken:0, attacks:0, sets:0, miss:0, attempts:0 };
 }
 const $=id=>document.getElementById(id);
@@ -1055,7 +1074,9 @@ function evaluate(){
         if(!state.running) return;               // combat may have ended mid-animation
         const slots=state.sel.slice();
         slots.forEach(idx=>state.board[idx]=null);
-        state.board=patch(state.board,slots);
+        const bias=state.pendingRegenBias; state.pendingRegenBias=null;   // a passive may steer this refill (e.g. Momentum)
+        if(bias){ regenBias=bias; state.board=patchFavor(state.board,slots,bias); regenBias=null; }
+        else state.board=patch(state.board,slots);
         state.sel=[];
         render();
         slots.forEach(idx=>{ const e=cardEl(idx); if(e) e.classList.add("entering"); });
@@ -1087,33 +1108,29 @@ function applyResolution(res){
     floatOverBoard(`-${res.damage}`, "var(--red)");
     flashStat("s-ehp");
   }
-  // block accrues into a persistent barrier, capped at max HP (excess is lost)
-  if(res.block>0){
-    const before=state.block;
-    state.block=Math.min(state.playerMax, state.block+res.block);
-    const gained=state.block-before; t.block+=gained; flashStat("s-php");
-    if(gained<res.block) floatOverBoard("block full", "var(--blue)");
-  }
-  // boots push the enemy's next attack later, capped at CLOCK_CAP seconds out (excess wasted)
+  // block accrues into a persistent barrier, capped at max HP (overflow wasted — or, with the
+  // Overflow passive, spilled into the enemy as a weighted attack). All block routes through gainBlock.
+  if(res.block>0) gainBlock(res.block);
+  // boots push the enemy's next attack later (capped at CLOCK_CAP), AND fuel the Tactics meter.
+  // Tactics gains a triangular roll of the Move magnitude; any clock-overflow (seconds lost to the
+  // cap) is dumped on top — so feeding Moves into an already-maxed clock builds Tactics fast.
   if(res.boot>0){
     const before=state.nextAttackAt;
     state.nextAttackAt=Math.min(performance.now()+CLOCK_CAP*1000, state.nextAttackAt+res.boot*1000);
     const applied=Math.round((state.nextAttackAt-before)/1000); t.boot+=Math.max(0,applied);
-    floatOverBoard(applied>0?`+${applied}s`:"clock maxed", "var(--phos)");
-  }
-  // fleeing: boots fill the escape meter instead
-  if(res.flee>0){
-    state.fleeMeter=Math.min(FLEE_GOAL,state.fleeMeter+res.flee); t.flee+=res.flee;
-    floatOverBoard(`+${res.flee} flee`, "var(--phos)"); updateFleeUI();
+    const overflow=Math.max(0,res.boot-applied);
+    const gain=weightedRoll(res.boot)+overflow;       // triangular roll of magnitude, + wasted seconds
+    res.tactics=gain; addTactics(gain);
+    floatOverBoard(applied>0?`+${applied}s · +${gain} tac`:`+${gain} tactics`, "var(--phos)");
   }
   // mana
   for(let i=0;i<3;i++){ state.mana[i]+=res.mana[i]; t.mana[i]+=res.mana[i]; }
   t.sets++;
   narrateSet(res);
   logAction(res);
+  firePassives("match", res.desc);     // character-innate triggers react to this match's signature
   updateHUD();
   if(state.enemyHP<=0){ endCombat("win"); return; }
-  if(state.fleeMeter>=FLEE_GOAL){ endCombat("flee"); }
 }
 
 /* ============================================================
@@ -1301,7 +1318,7 @@ function logAction(res){
   }
   if(res.block>0) acts.push({cls:"blk",txt:`🛡 +${res.block}`});
   if(res.boot>0) acts.push({cls:"boot",txt:`👣 +${res.boot}s`});
-  if(res.flee>0) acts.push({cls:"boot",txt:`🏃 +${res.flee} flee`});
+  if(res.tactics>0) acts.push({cls:"boot",txt:`🎯 +${res.tactics} tac`});
   const manaTxt=res.allSameColor
     ? `+3 ${MANA_LABELS[res.mana.findIndex(x=>x===3)]}`
     : `+1 each`;
@@ -1346,22 +1363,10 @@ function updateHUD(){
   $("bar-php").style.width=pct(state.playerHP,state.playerMax)+"%";
   $("bar-ehp").style.width=pct(state.enemyHP,state.enemyMax)+"%";
   $("v-block").textContent=state.block;
-  // damage breakdown — total folds in spell damage; tier counts shown in the header readout
-  const total=t.dmgLight+t.dmgMed+t.dmgHeavy+t.spellDmg;
-  $("dmg-total").textContent=total+" total";
-  $("n-light").textContent=t.dmgLight;
-  $("n-med").textContent=t.dmgMed;
-  $("n-heavy").textContent=t.dmgHeavy;
-  // mana
+  // mana (the per-tier damage / tempo / sets tallies now live only in the after-action report)
   $("m-red").textContent=state.mana[0]; $("m-green").textContent=state.mana[1]; $("m-blue").textContent=state.mana[2];
-  // tempo & defense
-  $("t-boot").textContent=t.boot;
-  $("t-block").textContent=t.block;
-  $("t-absorb").textContent=t.absorbed;
-  $("t-taken").textContent=t.taken;
-  $("t-sets").textContent=t.sets;
-  $("t-miss").textContent=t.miss;
   updateSpells();
+  updateTacticsUI();
   updateHealthVisuals();
 }
 
@@ -1392,10 +1397,10 @@ function tick(){
   if(!state.running) return;
   const now=performance.now();
   const dt=state.lastTick?(now-state.lastTick)/1000:0; state.lastTick=now;
-  // flee meter decays when NOT fleeing (FLEE_DECAY_PER_LEVEL seconds per level); locked out until empty
-  if(!state.fleeing && state.fleeMeter>0){
-    state.fleeMeter=Math.max(0,state.fleeMeter-dt/FLEE_DECAY_PER_LEVEL);
-    updateFleeUI();
+  // once armed (full), the Tactics meter drains TACTICS_DRAIN/sec; emptying disarms the buttons
+  if(state.tacticsArmed){
+    state.tactics=Math.max(0,state.tactics-TACTICS_DRAIN*dt);
+    if(state.tactics<=0) resetTactics(); else updateTacticsUI();
   }
   const remain=Math.max(0,(state.nextAttackAt-now)/1000);
   const shown=Math.ceil(remain);
@@ -1415,7 +1420,8 @@ function startCombat(){
   state.playerHP=state.playerMax; state.enemyHP=state.enemyMax;
   state.block=0; state.mana=[0,0,0];
   state.sel=[]; state.log=[]; state.tally=freshTally();
-  state.fleeing=false; state.fleeMeter=0; state.lastTick=0;
+  state.tactics=0; state.tacticsArmed=false; state.lastTick=0; state.pendingRegenBias=null;
+  if(!SPELLS.length) selectClass(state.classId);                // ensure a loadout is loaded
   state.pending=new Set(); state.combatId++; exitTargeting();   // invalidate any stale reform timers
   regenBias=null;
   state.board=genInitial();
@@ -1426,7 +1432,7 @@ function startCombat(){
   $("overlay").classList.remove("show");
   $("narrlog").innerHTML="";
   narrate(`A foe steps forward — <b>${state.enemyMax} HP</b>, striking for ${state.enemyDamage} every ${state.cadence}s. Find sets to act; spend mana on spells.`,"sys");
-  render(); updateHUD(); renderLog(); updateFleeUI();
+  render(); updateHUD(); renderLog(); updateTacticsUI(); updatePassivesUI();
   $("v-clock").textContent=state.cadence+"s";
   cancelAnimationFrame(state.raf); state.raf=requestAnimationFrame(tick);
 }
@@ -1437,7 +1443,7 @@ function endCombat(result){
   cancelAnimationFrame(state.raf);
   clearTimeout(glowTimer); clearAllGlow();          // no stale set-mate glow on the end screen
   exitTargeting(); state.pending=new Set();
-  state.fleeing=false; updateFleeUI();
+  resetTactics();
   lockControls(false);
   if(result==="win") narrate(`The enemy collapses. <b>Victory!</b>`,"sys");
   else if(result==="lose") narrate(`You fall in battle. <b>Defeat.</b>`,"sys");
@@ -1451,6 +1457,7 @@ function endCombat(result){
   gate.querySelector(".big").textContent = result==="win" ? "Enemy defeated" : result==="lose" ? "You fell" : result==="flee" ? "Retreated to town" : "Forfeited";
   gate.querySelector(".cta").textContent="▶ Fight again";
   gate.classList.add("show");
+  updatePassivesUI();                                 // dim the passive cards back to idle
   showReport(result);
 }
 
@@ -1525,7 +1532,7 @@ function narrateSet(res){
   }
   if(res.block>0) parts.push(`raise <b>${res.block} guard</b>`);
   if(res.boot>0) parts.push(`steal <b>${res.boot}s</b> of tempo`);
-  if(res.flee>0) parts.push(`gain <b>${res.flee}</b> toward escape`);
+  if(res.tactics>0) parts.push(`bank <b>${res.tactics}</b> tactics`);
   if(res.allSameColor){ const i=res.mana.findIndex(x=>x===3); parts.push(`channel <b>3 ${MANA_LABELS[i]}</b>`); }
   else parts.push(`gather <b>1 of each</b> essence`);
   narrate("You "+joinClauses(parts)+".","player");
@@ -1562,19 +1569,20 @@ const oneOf = cand => cand.length<=1 ? {sure:cand.slice(), maybe:[]} : {sure:[],
 // Every board-affecting spell exposes preview() -> {sure, maybe} for the hover highlight: `sure` cards
 // get a solid red ring, `maybe` cards pulse (random ties / random subsets). The cast resolves its own
 // random pick, so a pulsing card is a genuine "could be this one."
-const SPELLS=[
+// ABILITIES — the full pool, keyed by id. Each class draws 3 of these into its active loadout (state.spells).
+const ABILITIES={
   // AUTO-TARGET bolts: aim at a random deadest off-color card, reforge it toward the spell's color + verb.
-  { id:"firebolt", name:"Firebolt", icon:"🔥", cost:[5,0,0], desc:"15 dmg · burns a deadest off-red card → Fire/Attack",
+  firebolt:{ id:"firebolt", name:"Firebolt", icon:"🔥", cost:[5,0,0], desc:"15 dmg · burns a deadest off-red card → Fire/Attack",
     preview(){ return oneOf(deadestCandidates(COLOR_RED)); },
     cast(){ const d=dealSpellDamage(15); const pick=randOf(deadestCandidates(COLOR_RED));
             narrate(`You hurl a <b>Firebolt</b> — ${d} fire damage sears the enemy, and the blast reforges a spent card into a flaming <b>Attack</b>.`,"spell");
             if(pick!=null) transmute([pick],{bias:{color:COLOR_RED, colorW:BIAS_W, shape:SHAPE_ATTACK, shapeW:BIAS_W}}); } },
-  { id:"frostbolt", name:"Frostbolt", icon:"❄️", cost:[0,0,5], desc:"8 dmg · 5 slow · freezes a deadest off-blue card → Frost/Move",
+  frostbolt:{ id:"frostbolt", name:"Frostbolt", icon:"❄️", cost:[0,0,5], desc:"8 dmg · 5 slow · freezes a deadest off-blue card → Frost/Move",
     preview(){ return oneOf(deadestCandidates(COLOR_BLUE)); },
     cast(){ const d=dealSpellDamage(8); state.nextAttackAt+=5000; state.tally.boot+=5; const pick=randOf(deadestCandidates(COLOR_BLUE));
             narrate(`You loose a <b>Frostbolt</b> — ${d} frost damage, the enemy is slowed 5s, and a spent card freezes into a <b>Move</b> of frost.`,"spell");
             if(pick!=null) transmute([pick],{bias:{color:COLOR_BLUE, colorW:BIAS_W, shape:SHAPE_MOVE, shapeW:BIAS_W}}); } },
-  { id:"heal", name:"Heal", icon:"💚", cost:[0,5,0], desc:"15 HP max · closes wounds + reseeds green",
+  heal:{ id:"heal", name:"Heal", icon:"💚", cost:[0,5,0], desc:"15 HP max · closes wounds + reseeds green",
     preview(){ return {sure:[], maybe:[...woundedSlots(), ...liveSlots(c=>cardColor(c)===COLOR_GREEN)]}; },   // a random subset of these
     cast(){ const h=weightedRoll(15); state.playerHP=Math.min(state.playerMax,state.playerHP+h); flashStat("s-php");
             const greenBias={color:COLOR_GREEN, colorW:BIAS_W, shape:null};   // keep green, redraw shape/number
@@ -1587,9 +1595,9 @@ const SPELLS=[
             if(wounds.length) cl.push(`<b>${wounds.length}</b> wound${wounds.length>1?"s":""} knit shut`);
             if(greens.length) cl.push(`<b>${greens.length}</b> green card${greens.length>1?"s":""} reseeded`);
             narrate(`You weave a <b>Heal</b> — ${h} HP restored`+(cl.length?`, ${joinClauses(cl)}.`:`.`),"spell"); } },
-  { id:"block", name:"Block", icon:"🛡️", cost:[2,2,2], desc:"+10 block · churns up to 3 Defends",
+  block:{ id:"block", name:"Block", icon:"🛡️", cost:[2,2,2], desc:"+10 block · churns up to 3 Defends",
     preview(){ return {sure:[], maybe:liveSlots(c=>cardShape(c)===SHAPE_DEFEND)}; },   // up to 3 of these Defends
-    cast(){ state.block+=10; state.tally.block+=10; flashStat("s-php");
+    cast(){ gainBlock(10);
             // scatter up to 3 spent Defend cards — favor color variety + lighter ones; regen is neutral
             const picks=pickPreferred(liveSlots(c=>cardShape(c)===SHAPE_DEFEND), 3, prefAll(prefLowMag, prefColorDiverse));
             narrate(`You brace a <b>Block</b> — +10 block springs up`+(picks.length
@@ -1598,7 +1606,7 @@ const SPELLS=[
   // ---- demonstrating three more targeting techniques on the same toolkit ----
   // SPATIAL AoE that auto-aims like Firebolt: drops on the same deadest card and blasts outward — so it
   // can catch your good cards as collateral. Damage = total magnitude of everything it razes.
-  { id:"fireball", name:"Fireball", icon:"💥", cost:[8,0,0], desc:"13-tile blast on a deadest card (catches neighbors) → Fire/Attack",
+  fireball:{ id:"fireball", name:"Fireball", icon:"💥", cost:[8,0,0], desc:"13-tile blast on a deadest card (catches neighbors) → Fire/Attack",
     // a blast() helper maps a center to its live 13-tile footprint.
     blast(center){ return center==null?[]:offsetSlots(center, FIREBALL_BLAST).filter(i=>state.board[i] && !state.pending.has(i)); },
     preview(){
@@ -1619,7 +1627,7 @@ const SPELLS=[
       transmute(hits,{bias:{color:COLOR_RED, colorW:BIAS_W, shape:SHAPE_ATTACK, shapeW:BIAS_W}});
     } },
   // VALUE-FILTER mass select: freeze EVERY Attack on the board; tempo gained scales with how many.
-  { id:"glaciate", name:"Glaciate", icon:"🧊", cost:[0,0,7], desc:"freeze every Attack → Move + big slow",
+  glaciate:{ id:"glaciate", name:"Glaciate", icon:"🧊", cost:[0,0,7], desc:"freeze every Attack → Move + big slow",
     preview(){ return {sure:liveSlots(c=>cardShape(c)===SHAPE_ATTACK), maybe:[]}; },   // all Attacks, definitely
     cast(){
       const attacks=liveSlots(c=>cardShape(c)===SHAPE_ATTACK);
@@ -1632,7 +1640,7 @@ const SPELLS=[
       transmute(attacks,{bias:{shape:SHAPE_MOVE, shapeW:BIAS_W}});   // shape-only: up to 9 distinct Moves, stays snappy
     } },
   // PREFERENCE by magnitude + value-reading effect + NUMBER-axis bias: reap the heaviest cards for HP, leave light green shoots.
-  { id:"wildgrowth", name:"Wildgrowth", icon:"🌿", cost:[0,6,0], desc:"reap 3 heaviest → heal + light green",
+  wildgrowth:{ id:"wildgrowth", name:"Wildgrowth", icon:"🌿", cost:[0,6,0], desc:"reap 3 heaviest → heal + light green",
     preview(){ return {sure:[], maybe:liveSlots().sort((a,b)=>cardMag(state.board[b])-cardMag(state.board[a])).slice(0,5)}; },  // likely the heaviest few
     cast(){
       const picks=pickPreferred(liveSlots(), 3, prefHighMag);        // the ripest (heaviest) cards, any color/shape
@@ -1643,8 +1651,159 @@ const SPELLS=[
       narrate(`You channel <b>Wildgrowth</b> — reaping <b>${picks.length}</b> ripe card${picks.length>1?"s":""} for ${heal} HP, leaving fresh green shoots.`,"spell");
       transmute(picks,{bias:{color:COLOR_GREEN, colorW:BIAS_W, mag:0, magW:BIAS_W, shape:null}});   // green · light · shape redrawn
     } },
-  null,null,
+
+  // ---- COLOR FLOODS (Pyromancer/Cryomancer/Druid): off-colour mana dump → reforge the whole board
+  //      to one element at MAX magnitude. The f=3 saturation cap (≤9 distinct of a colour) keeps it honest.
+  callflames:{ id:"callflames", name:"Call Flames", icon:"🔥", cost:[0,5,5], desc:"every non-red card → max-magnitude Fire",
+    preview(){ return {sure:liveSlots(c=>cardColor(c)!==COLOR_RED), maybe:[]}; },
+    cast(){ const p=liveSlots(c=>cardColor(c)!==COLOR_RED);
+            narrate(`You <b>Call Flames</b> — every cold card erupts, reforged into heavy <b>Fire</b>.`,"spell");
+            transmute(p,{bias:{color:COLOR_RED, colorW:BIAS_W, mag:2, magW:BIAS_W}}); } },
+  callfrost:{ id:"callfrost", name:"Call Frost", icon:"❄️", cost:[5,5,0], desc:"every non-blue card → max-magnitude Frost",
+    preview(){ return {sure:liveSlots(c=>cardColor(c)!==COLOR_BLUE), maybe:[]}; },
+    cast(){ const p=liveSlots(c=>cardColor(c)!==COLOR_BLUE);
+            narrate(`You <b>Call Frost</b> — the board rimes over into heavy <b>Frost</b>.`,"spell");
+            transmute(p,{bias:{color:COLOR_BLUE, colorW:BIAS_W, mag:2, magW:BIAS_W}}); } },
+  callwilds:{ id:"callwilds", name:"Call Wilds", icon:"🌿", cost:[5,0,5], desc:"every non-green card → max-magnitude Nature",
+    preview(){ return {sure:liveSlots(c=>cardColor(c)!==COLOR_GREEN), maybe:[]}; },
+    cast(){ const p=liveSlots(c=>cardColor(c)!==COLOR_GREEN);
+            narrate(`You <b>Call the Wilds</b> — the board bursts into heavy <b>Nature</b>.`,"spell");
+            transmute(p,{bias:{color:COLOR_GREEN, colorW:BIAS_W, mag:2, magW:BIAS_W}}); } },
+
+  // ---- SHAPE FLOODS / consumers (Berserker/Sentinel/Rogue): reshape the board along the verb axis.
+  cleave:{ id:"cleave", name:"Cleave", icon:"🪓", cost:[3,0,0], desc:"15 dmg · razes a deadest card → heavy Attack",
+    preview(){ return oneOf(deadestCandidates(COLOR_RED)); },
+    cast(){ const d=dealSpellDamage(15); const pick=randOf(deadestCandidates(COLOR_RED));
+            narrate(`You <b>Cleave</b> for ${d} — a brutal arc that leaves a fresh <b>Attack</b> in its wake.`,"spell");
+            if(pick!=null) transmute([pick],{bias:{shape:SHAPE_ATTACK, shapeW:BIAS_W, mag:2, magW:BIAS_W}}); } },
+  berserk:{ id:"berserk", name:"Berserk", icon:"😤", cost:[4,0,0], desc:"every Defend → heavy Attack",
+    preview(){ return {sure:liveSlots(c=>cardShape(c)===SHAPE_DEFEND), maybe:[]}; },
+    cast(){ const p=liveSlots(c=>cardShape(c)===SHAPE_DEFEND);
+            narrate(`You fly into a <b>Berserk</b> rage — guards thrown aside, the board bristles with <b>Attacks</b>.`,"spell");
+            transmute(p,{bias:{shape:SHAPE_ATTACK, shapeW:BIAS_W, mag:2, magW:BIAS_W}}); } },
+  rampage:{ id:"rampage", name:"Rampage", icon:"💢", cost:[2,2,2], desc:"spend all essence · damage per Attack on board, then resets them",
+    preview(){ return {sure:liveSlots(c=>cardShape(c)===SHAPE_ATTACK), maybe:[]}; },
+    cast(){ const atk=liveSlots(c=>cardShape(c)===SHAPE_ATTACK);
+            if(!atk.length){ narrate(`<b>Rampage</b> finds no blades to swing — it fizzles.`,"spell"); return; }
+            const cap=atk.reduce((s,i)=>s+cardMag(state.board[i])+2,0);   // each Attack worth 2/3/4 of the roll ceiling
+            const dmg=weightedRoll(cap); applySpellDamage(dmg);
+            narrate(`You <b>Rampage</b> — <b>${atk.length}</b> Attack${atk.length>1?"s":""} unleash for ${dmg} damage (of up to ${cap}).`,"spell");
+            transmute(atk,{}); } },
+  bulwark:{ id:"bulwark", name:"Bulwark", icon:"🧱", cost:[2,2,2], desc:"+8 block · every non-Defend → heavy Defend",
+    preview(){ return {sure:liveSlots(c=>cardShape(c)!==SHAPE_DEFEND), maybe:[]}; },
+    cast(){ gainBlock(8);
+            const p=liveSlots(c=>cardShape(c)!==SHAPE_DEFEND);
+            narrate(`You raise a <b>Bulwark</b> — +8 block and the board locks into heavy <b>Defends</b>.`,"spell");
+            transmute(p,{bias:{shape:SHAPE_DEFEND, shapeW:BIAS_W, mag:2, magW:BIAS_W}}); } },
+  quickstrike:{ id:"quickstrike", name:"Quick Strike", icon:"🗡️", cost:[3,0,0], desc:"damage per Attack, then they flow into Moves",
+    preview(){ return {sure:liveSlots(c=>cardShape(c)===SHAPE_ATTACK), maybe:[]}; },
+    cast(){ const atk=liveSlots(c=>cardShape(c)===SHAPE_ATTACK);
+            const cap=atk.reduce((s,i)=>s+cardMag(state.board[i])+1,0)||4;
+            const d=dealSpellDamage(cap);
+            narrate(`A flurry of <b>Quick Strikes</b> for ${d} — blades spent, you slip back into <b>Moves</b>.`,"spell");
+            if(atk.length) transmute(atk,{bias:{shape:SHAPE_MOVE, shapeW:BIAS_W}}); } },
+  smokebomb:{ id:"smokebomb", name:"Smoke Bomb", icon:"💨", cost:[0,3,0], desc:"+6 block · big enemy slow",
+    cast(){ gainBlock(6);
+            const before=state.nextAttackAt;
+            state.nextAttackAt=Math.min(performance.now()+CLOCK_CAP*1000, state.nextAttackAt+8000);
+            const slowed=Math.round((state.nextAttackAt-before)/1000); state.tally.boot+=Math.max(0,slowed);
+            floatOverBoard(slowed>0?`+${slowed}s`:"clock maxed","var(--phos)");
+            narrate(`You drop a <b>Smoke Bomb</b> — +6 block and the enemy loses ${slowed}s in the haze.`,"spell"); } },
+  timewarp:{ id:"timewarp", name:"Time Warp", icon:"⏳", cost:[2,2,2], desc:"spend all essence · slam enemy clock to its cap + 6 dmg",
+    cast(){ const d=dealSpellDamage(6); const before=state.nextAttackAt;
+            state.nextAttackAt=performance.now()+CLOCK_CAP*1000;
+            const slowed=Math.round((state.nextAttackAt-before)/1000); state.tally.boot+=Math.max(0,slowed);
+            floatOverBoard(slowed>0?`+${slowed}s`:"clock maxed","var(--phos)");
+            narrate(`You <b>Warp Time</b> — ${d} damage and the enemy's next strike is flung ${Math.max(0,slowed)}s away.`,"spell"); } },
+};
+// the active 6-slot loadout for the chosen class (padded with null); all the cast/preview machinery reads this.
+let SPELLS=[];
+
+/* ============================================================
+   PASSIVES  —  always-on character-innate triggers on the
+   event→condition→effect bus (GAME-DESIGN §3). No clicks, no
+   mana: they fire automatically off matches / ability casts.
+   ============================================================ */
+// effect helpers (shared with abilities where natural)
+function hasPassive(id){ return state.passives.includes(id); }
+// Central block gain — ALL block flows through here. Overflow past the cap (state.playerMax, 30 by
+// default) is normally wasted; the Overflow passive (Sentinel) instead converts the excess into a
+// high-weighted-random attack on the enemy. Returns the amount actually stored as block.
+function gainBlock(n){
+  if(n<=0) return 0;
+  const room=Math.max(0, state.playerMax-state.block);
+  const applied=Math.min(n, room);
+  if(applied>0){ state.block+=applied; state.tally.block+=applied; flashStat("s-php"); }
+  const overflow=n-applied;
+  if(overflow>0){
+    if(hasPassive("overflow")){
+      const dmg=weightedRoll(overflow); applySpellDamage(dmg);   // excess block spills into the enemy
+      passProc("overflow", `⚔ +${dmg}`);
+    } else floatOverBoard("block full","var(--blue)");
+  }
+  return applied;
+}
+function passBlock(n){ return gainBlock(n); }
+function passHeal(n){ state.playerHP=Math.min(state.playerMax,state.playerHP+n); flashStat("s-php"); }
+function passSlow(sec){ const before=state.nextAttackAt;
+  state.nextAttackAt=Math.min(performance.now()+CLOCK_CAP*1000, state.nextAttackAt+sec*1000);
+  state.tally.boot+=Math.max(0,Math.round((state.nextAttackAt-before)/1000)); }
+function passProc(passId, text){ floatOverBoard(text,"var(--gold)");
+  const el=document.querySelector(`.slot[data-passive="${passId}"]`);
+  if(el){ el.classList.remove("proc"); void el.offsetWidth; el.classList.add("proc"); } }
+
+const PASSIVES={
+  flameshield:{ id:"flameshield", name:"Flame Shield", icon:"🔥", on:"match", desc:"all-red match → +3 Block",
+    test:d=>d.sameColor===COLOR_RED, fire(){ passBlock(3); passProc("flameshield","🛡 +3"); } },
+  permafrost:{ id:"permafrost", name:"Permafrost", icon:"❄️", on:"match", desc:"all-blue match → +2s enemy clock",
+    test:d=>d.sameColor===COLOR_BLUE, fire(){ passSlow(2); passProc("permafrost","+2s"); } },
+  photosynthesis:{ id:"photosynthesis", name:"Photosynthesis", icon:"🌿", on:"match", desc:"all-green match → +3 HP",
+    test:d=>d.sameColor===COLOR_GREEN, fire(){ passHeal(3); passProc("photosynthesis","+3 hp"); } },
+  bloodlust:{ id:"bloodlust", name:"Bloodlust", icon:"⚔️", on:"match", desc:"all-Attack match → +4 damage",
+    test:d=>d.sameShape===SHAPE_ATTACK, fire(){ applySpellDamage(4); passProc("bloodlust","⚔ +4"); } },
+  // Hooked directly in gainBlock() (not via firePassives) — fires on any block gain, not a match event.
+  overflow:{ id:"overflow", name:"Overflow", icon:"🛡️", on:"passive", desc:"Block past the cap spills into a weighted attack",
+    test:d=>false, fire(){} },
+  momentum:{ id:"momentum", name:"Momentum", icon:"🗡️", on:"match", desc:"all-Move match → next cards favor Attack",
+    test:d=>d.sameShape===SHAPE_MOVE, fire(){ state.pendingRegenBias={shape:SHAPE_ATTACK, shapeW:BIAS_W}; passProc("momentum","→⚔"); } },
+  quicken:{ id:"quicken", name:"Quicken", icon:"⏳", on:"match", desc:"any all-same-number match → +2s enemy clock",
+    test:d=>d.sameNumber!=null, fire(){ passSlow(2); passProc("quicken","+2s"); } },
+  tactician:{ id:"tactician", name:"Tactician", icon:"🎯", on:"match", desc:"every match → +2 Tactics",
+    test:d=>true, fire(){ addTactics(2); passProc("tactician","🎯 +2"); } },
+  spellecho:{ id:"spellecho", name:"Spell Echo", icon:"⚡", on:"ability", desc:"every ability cast → +3 bonus damage",
+    test:d=>true, fire(){ applySpellDamage(3); passProc("spellecho","⚡ +3"); } },
+};
+// fire all active passives that match this event (event: "match" w/ descriptor, or "ability").
+function firePassives(event, ctx){
+  for(const id of state.passives){ const p=id && PASSIVES[id];
+    if(p && p.on===event && (!p.test || p.test(ctx))) p.fire(ctx); }
+}
+
+/* ============================================================
+   CLASSES  —  3 abilities + 1 passive each; chosen at run start.
+   ============================================================ */
+const CLASSES=[
+  {id:"pyromancer",  name:"Pyromancer",  icon:"🔥", blurb:"Flood the board with fire and burn through anything.",
+    abilities:["firebolt","fireball","callflames"], passives:["flameshield"]},
+  {id:"cryomancer",  name:"Cryomancer",  icon:"❄️", blurb:"Freeze the enemy's tempo and grind them out.",
+    abilities:["frostbolt","glaciate","callfrost"], passives:["permafrost"]},
+  {id:"druid",       name:"Druid",       icon:"🌿", blurb:"Outlast everything on relentless healing.",
+    abilities:["heal","wildgrowth","callwilds"], passives:["photosynthesis"]},
+  {id:"berserker",   name:"Berserker",   icon:"⚔️", blurb:"Turn the whole board into blades, then swing.",
+    abilities:["cleave","berserk","rampage"], passives:["bloodlust"]},
+  {id:"sentinel",    name:"Sentinel",    icon:"🛡️", blurb:"An immovable wall that wins by attrition.",
+    abilities:["bulwark","block","heal"], passives:["overflow"]},
+  {id:"rogue",       name:"Rogue",       icon:"🗡️", blurb:"Spend Attacks for damage, flow back into Moves.",
+    abilities:["quickstrike","smokebomb","frostbolt"], passives:["momentum"]},
+  {id:"spellblade",  name:"Spellblade",  icon:"⚡", blurb:"A caster whose every spell cuts twice.",
+    abilities:["firebolt","frostbolt","block"], passives:["spellecho"]},
+  {id:"chronomancer",name:"Chronomancer",icon:"⏳", blurb:"Bend the enemy clock until it never strikes.",
+    abilities:["timewarp","glaciate","frostbolt"], passives:["quicken"]},
+  {id:"warlord",     name:"Warlord",     icon:"🎯", blurb:"Fuel the Tactics meter and never stop acting.",
+    abilities:["berserk","bulwark","cleave"], passives:["tactician"]},
 ];
+function classById(id){ return CLASSES.find(c=>c.id===id) || CLASSES[0]; }
+
 function canAfford(sp){ return sp.cost.every((c,i)=>state.mana[i]>=c); }
 function spendMana(sp){ for(let c=0;c<3;c++) state.mana[c]-=sp.cost[c]; }
 function castAnim(i){
@@ -1663,6 +1822,7 @@ function castSpell(i){
   if(state.targeting!=null) exitTargeting();         // an instant spell cancels any armed target
   spendMana(sp); castAnim(i);
   sp.cast();
+  firePassives("ability", {abilityId:sp.id});        // e.g. Spellblade's Spell Echo
   updateHUD();
   if(state.enemyHP<=0){ endCombat("win"); }
 }
@@ -1686,6 +1846,7 @@ function resolveTargetedSpell(idx){
   if(!sp || !canAfford(sp)) return;                  // mana slipped away (shouldn't, but guard)
   spendMana(sp); castAnim(i);
   sp.castOn(idx);
+  firePassives("ability", {abilityId:sp.id});
   updateHUD();
   if(state.enemyHP<=0){ endCombat("win"); }
 }
@@ -1713,34 +1874,121 @@ function updateSpells(){
     el.classList.toggle("ready", state.running && canAfford(sp));
   });
 }
-
-/* FLEE — toggle Fleeing mode; build the meter to escape */
-function toggleFlee(){
-  if(!state.running||state.lock) return;
-  if(state.fleeing){
-    state.fleeing=false;                                  // begin decay; locked until empty
-    narrate(`You steady yourself — the urge to run <b>fades</b>.`,"sys");
-  } else {
-    if(state.fleeMeter>0) return;                          // can't re-arm until the meter cools to empty
-    state.fleeing=true;
-    narrate(`You break for the exit — <b>fleeing!</b> Move cards now fuel your escape.`,"sys");
-  }
-  // board re-biases toward Move on the next patch (after each match) — not retroactively
-  updateFleeUI();
+// PASSIVES panel: render the class's passive slots (padded to 3), always-on info cards.
+function buildPassiveSlots(){
+  const g=$("passivegrid"); g.innerHTML="";
+  const ids=state.passives.slice(); while(ids.length<3) ids.push(null);
+  ids.forEach(id=>{
+    const p=id && PASSIVES[id];
+    const d=document.createElement("div");
+    if(!p){ d.className="slot passive empty"; d.innerHTML=`<span class="empced">+</span>`; g.appendChild(d); return; }
+    d.className="slot passive"; d.dataset.passive=id;
+    d.innerHTML=`<span class="sicon">${p.icon}</span><span class="sname">${p.name}</span><span class="pmini">${p.desc}</span>`;
+    d.title=`${p.name} — ${p.desc}`;
+    g.appendChild(d);
+  });
 }
-function updateFleeUI(){
-  const btn=$("btn-flee");
-  const lockedOut = !state.fleeing && state.fleeMeter>0;
-  btn.disabled = !state.running || state.lock || lockedOut;
-  btn.classList.toggle("on",state.fleeing);
-  btn.textContent = state.fleeing ? "🏃 Stop fleeing" : "🏃 Flee";
-  const show = state.fleeing || state.fleeMeter>0;
-  $("fleemeter").classList.toggle("show",show);
-  $("flee-fill").style.width=Math.min(100,state.fleeMeter/FLEE_GOAL*100)+"%";
-  const shown=Math.round(state.fleeMeter*10)/10;
-  $("flee-out").textContent=`${shown} / ${FLEE_GOAL}`;
-  $("fleenote").textContent = state.fleeing ? "Move cards fuel escape — reach 10 to retreat to town"
-    : lockedOut ? "cooling down — can't flee again until empty" : "";
+function updatePassivesUI(){
+  document.querySelectorAll("#passivegrid .slot.passive").forEach(el=>{
+    el.classList.toggle("on", state.running && !!el.dataset.passive);
+  });
+}
+
+/* CLASS SELECTION — pick a class at the start gate; loads its 6-slot loadout + passives. */
+function buildClassPicker(){
+  const g=$("classgrid"); if(!g) return; g.innerHTML="";
+  CLASSES.forEach(c=>{
+    const d=document.createElement("div");
+    d.className="classcard"+(c.id===state.classId?" sel":""); d.dataset.class=c.id;
+    d.innerHTML=`<span class="ci">${c.icon}</span><span class="cn">${c.name}</span>`;
+    d.title=c.blurb;
+    d.addEventListener("click",()=>selectClass(c.id));
+    g.appendChild(d);
+  });
+}
+function selectClass(id){
+  if(state.running) return;                         // locked once a fight is on
+  state.classId=id;
+  const cls=classById(id);
+  SPELLS=cls.abilities.map(aid=>ABILITIES[aid]); while(SPELLS.length<6) SPELLS.push(null);
+  state.passives=cls.passives.slice();
+  $("class-title").textContent=cls.name;
+  document.querySelectorAll("#classgrid .classcard").forEach(el=>el.classList.toggle("sel",el.dataset.class===id));
+  buildSpells(); buildPassiveSlots(); updateSpells(); updatePassivesUI();
+  updateClassInfo();
+}
+function updateClassInfo(){
+  const cls=classById(state.classId);
+  const abil=cls.abilities.map(a=>ABILITIES[a]?.name).filter(Boolean).join(" · ");
+  const pas=cls.passives.map(p=>PASSIVES[p]).filter(Boolean)
+    .map(p=>`<span class="pas">${p.icon} ${p.name}</span> <span style="opacity:.7">(${p.desc})</span>`).join("");
+  $("classinfo").innerHTML=`${cls.icon} <b>${cls.name}</b> — ${cls.blurb}<br>`+
+    `<b>Abilities:</b> ${abil}<br><b>Passive:</b> ${pas}`;
+}
+
+/* TACTICS — Move matches build the meter; at full it arms a row of one-shot tactic buttons. */
+function addTactics(amt){
+  if(!state.running || amt<=0) return;
+  state.tactics=Math.min(TACTICS_GOAL, state.tactics+amt);
+  if(!state.tacticsArmed && state.tactics>=TACTICS_GOAL){
+    state.tacticsArmed=true;                               // full -> arm + begin drain (handled in tick)
+    narrate(`Your <b>Tactics</b> meter peaks — a window of decisive moves opens. Spend it before it drains!`,"sys");
+  }
+  updateTacticsUI();
+}
+function resetTactics(){
+  state.tactics=0; state.tacticsArmed=false;
+  updateTacticsUI();
+}
+function updateTacticsUI(){
+  const v=state.tactics, frac=v/TACTICS_GOAL, armed=state.tacticsArmed;
+  const fill=$("tac-fill");
+  if(fill){
+    fill.style.width=Math.min(100,frac*100)+"%";
+    // building -> phos; armed -> drains blue -> green -> yellow -> red as it empties
+    fill.style.background = !armed ? "var(--phos)"
+      : frac>0.66 ? "var(--blue)" : frac>0.40 ? "var(--green)" : frac>0.18 ? "var(--warn)" : "var(--red)";
+  }
+  const out=$("tac-out"); if(out) out.textContent=`${Math.round(v*10)/10} / ${TACTICS_GOAL}`;
+  const box=$("tacbox"); if(box) box.classList.toggle("armed",armed);
+  const ready=state.running && armed;
+  document.querySelectorAll("#tacbtns .tbtn").forEach(b=>{ b.disabled=!ready; });
+}
+
+// each tactic transmutes/rerolls the whole board toward an axis, then resets the meter.
+const TACTICS={
+  strike:{ name:"Strike", run(){
+    const p=liveSlots(c=>cardShape(c)!==SHAPE_ATTACK);
+    narrate(`<b>Strike!</b> — the board snaps into heavy <b>Attacks</b>.`,"spell");
+    transmute(p,{bias:{shape:SHAPE_ATTACK, shapeW:BIAS_W, mag:2, magW:BIAS_W}}); } },
+  dodge:{ name:"Dodge", run(){
+    const p=liveSlots(c=>cardShape(c)!==SHAPE_DEFEND);
+    narrate(`<b>Dodge!</b> — the board hardens into heavy <b>Defends</b>.`,"spell");
+    transmute(p,{bias:{shape:SHAPE_DEFEND, shapeW:BIAS_W, mag:2, magW:BIAS_W}}); } },
+  heat:{ name:"Heat Up", run(){
+    const p=liveSlots(c=>cardColor(c)!==COLOR_RED);
+    narrate(`<b>Heat Up!</b> — the board flares over to <b>fire</b>.`,"spell");
+    transmute(p,{bias:{color:COLOR_RED, colorW:BIAS_W}}); } },
+  chill:{ name:"Chill Out", run(){
+    const p=liveSlots(c=>cardColor(c)!==COLOR_BLUE);
+    narrate(`<b>Chill Out!</b> — the board frosts over to <b>frost</b>.`,"spell");
+    transmute(p,{bias:{color:COLOR_BLUE, colorW:BIAS_W}}); } },
+  wild:{ name:"Go Wild", run(){
+    const p=liveSlots(c=>cardColor(c)!==COLOR_GREEN);
+    narrate(`<b>Go Wild!</b> — the board overgrows into <b>nature</b>.`,"spell");
+    transmute(p,{bias:{color:COLOR_GREEN, colorW:BIAS_W}}); } },
+  // Flee bails the whole encounter, so it asks first. Returning false aborts (meter is NOT spent).
+  flee:{ name:"Flee", run(){
+    if(!confirm("Flee combat?\n\nYou'll retreat to town and forfeit this encounter.")) return false;
+    endCombat("flee"); } },
+};
+function useTactic(key){
+  if(!state.running || state.lock || !state.tacticsArmed) return;
+  const T=TACTICS[key]; if(!T) return;
+  if(T.run()===false) return;                              // tactic cancelled (e.g. Flee confirm dismissed) — keep the meter
+  resetTactics();                                          // firing any tactic empties the meter
+  updateHUD();
+  if(state.enemyHP<=0) endCombat("win");
 }
 
 /* ============================================================
@@ -1760,7 +2008,8 @@ function buildLegend(){
   });
 }
 buildLegend();
-buildSpells();
+buildClassPicker();
+selectClass(state.classId);     // load the default class loadout + render ability/passive panels
 
 // Health gems: 4 corners on every panel; the card board also gets a center-top jewel.
 function gemEl(cls){ const g=document.createElement("i"); g.className="gem "+cls; return g; }
@@ -1806,15 +2055,15 @@ $("ecad").addEventListener("input",e=>{ if(state.running){e.target.value=state.c
 $("btn-start").addEventListener("click",startCombat);
 $("btn-end").addEventListener("click",()=>endCombat("forfeit"));
 $("btn-hint").addEventListener("click",hintNow);
-$("btn-flee").addEventListener("click",toggleFlee);
-$("startgate").addEventListener("click",startCombat);
+$("tacbtns").addEventListener("click",e=>{ const b=e.target.closest(".tbtn"); if(b && !b.disabled) useTactic(b.dataset.tac); });
+$("gate-cta").addEventListener("click",startCombat);   // only the CTA starts; clicking a class card selects it
 document.addEventListener("keydown",e=>{ if(e.key==="Escape" && state.targeting!=null) exitTargeting(); });
 $("m-again").addEventListener("click",startCombat);
 $("m-close").addEventListener("click",()=>$("overlay").classList.remove("show"));
 
 // init
 syncUI(true);
-updateFleeUI();
+updateTacticsUI();
 $("v-clock").textContent=state.cadence+"s";
 </script>
 </body>
