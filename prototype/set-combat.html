@@ -432,6 +432,25 @@
   @media(max-width:560px){.featgrid{grid-template-columns:1fr}}
   .feat{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:12px 13px}
   .feat .ft{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-dim);margin-bottom:9px}
+  /* pre-combat briefing modal */
+  .modal.brief{width:min(560px,100%)}
+  .briefhd{display:flex;align-items:center;gap:12px;margin-bottom:4px;flex-wrap:wrap}
+  .briefhd h2{font-family:"Syne",sans-serif;font-weight:800;font-size:28px;letter-spacing:-.01em}
+  .tier{font-size:10px;letter-spacing:.14em;text-transform:uppercase;padding:4px 10px;border-radius:8px;border:1px solid var(--line2);color:var(--ink-dim);font-weight:700}
+  .tier.boss{border-color:var(--red);color:var(--red)}
+  .tier.elite{border-color:var(--gold);color:var(--gold)}
+  .briefstats{display:grid;grid-template-columns:repeat(auto-fit,minmax(108px,1fr));gap:10px;margin:18px 0}
+  .briefstats .bs{background:var(--panel2);border:1px solid var(--line);border-radius:11px;padding:11px 13px}
+  .briefstats .bs .l{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-faint)}
+  .briefstats .bs .v{font-family:"Syne",sans-serif;font-weight:700;font-size:19px;margin-top:4px;font-variant-numeric:tabular-nums}
+  .briefstats .bs .v small{font-size:12px;color:var(--ink-faint);font-weight:600}
+  .subhdr2{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--red);margin:4px 0 10px;font-weight:700}
+  .brieftraps{display:flex;flex-direction:column;gap:8px;margin-bottom:22px}
+  .btrap{display:flex;align-items:flex-start;gap:11px;background:#1a1216;border:1px solid #5a2a2e;border-radius:10px;padding:10px 13px}
+  .btrap .bi{font-size:18px;line-height:1.15;flex-shrink:0}
+  .btrap .bn{font-weight:700;color:var(--red);font-size:13px}
+  .btrap .bd{color:var(--ink-dim);font-size:12px;margin-top:2px;line-height:1.45}
+  .briefnote{color:var(--ink-faint);font-style:italic;font-size:12.5px;padding:6px 2px}
   .modal .foot{display:flex;gap:10px}
   .hint{color:var(--ink-faint);font-size:12px;line-height:1.6;margin-top:6px}
   .startnote{color:var(--ink-faint);font-size:11.5px;line-height:1.65;margin-top:4px}
@@ -561,13 +580,28 @@
     <h2 id="m-title">Victory</h2>
     <div class="tagline" id="m-tagline">combat sandbox · after-action report</div>
     <div class="summary" id="m-summary"></div>
-    <div style="font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-dim);margin-bottom:11px">How you spent your matching time — the four routings of one scarce resource.</div>
+    <div style="font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-dim);margin-bottom:11px" id="m-introlbl">How you fared against the foe's threat — your output, your defense, and the traps you sprang.</div>
     <div class="featgrid" id="m-feats"></div>
     <div class="foot">
       <button class="btn" id="m-again">Fight again</button>
       <button class="btn ghost" id="m-close">Close</button>
     </div>
-    <div class="hint">No abilities yet — mana just accumulates. Next layer: mixed-cost class abilities fired outside the match, and tier-specific armor on the enemy.</div>
+    <div class="hint" id="m-hint"></div>
+  </div>
+</div>
+
+<!-- PRE-COMBAT BRIEFING — know your enemy before you engage -->
+<div class="overlay" id="briefing">
+  <div class="modal brief">
+    <div class="briefhd"><h2 id="b-name">Foe</h2><span class="tier" id="b-tier"></span></div>
+    <div class="tagline">Know your enemy — its stats and the lines you don't want to cross.</div>
+    <div class="briefstats" id="b-stats"></div>
+    <div class="subhdr2" id="b-trapshd">⚠ Active traps</div>
+    <div class="brieftraps" id="b-traps"></div>
+    <div class="foot">
+      <button class="btn" id="b-engage">⚔ Engage</button>
+      <button class="btn ghost" id="b-back">Back</button>
+    </div>
   </div>
 </div>
 
@@ -964,7 +998,7 @@ const state={
 };
 function freshTally(){
   return { dmgLight:0,dmgMed:0,dmgHeavy:0, spellDmg:0, block:0, boot:0, mana:[0,0,0],
-           absorbed:0, taken:0, attacks:0, sets:0, miss:0, attempts:0 };
+           absorbed:0, taken:0, attacks:0, sets:0, miss:0, attempts:0, tactics:0, trapProcs:0 };
 }
 const $=id=>document.getElementById(id);
 const boardEl=$("board");
@@ -1539,11 +1573,17 @@ function tick(){
   state.raf=requestAnimationFrame(tick);
 }
 
+// Begin = prep the foe + show the briefing popover. The fight itself starts on "Engage" (enterCombat).
 function startCombat(){
   rebuildCFG();
+  resolveFoe();                                                 // assemble the foe now so the briefing can show its stats + traps
+  showBriefing();
+}
+// the briefing → "Engage" actually enters combat.
+function enterCombat(){
+  $("briefing").classList.remove("show");
   state.running=true; state.lock=false;
   lockControls(true);
-  resolveFoe();                                                 // foe picker → enemy stats + traps + drift (assembled or custom)
   // seed combatants (player from slider; enemy stats set by resolveFoe — custom uses the sliders)
   state.playerHP=state.playerMax; state.enemyHP=state.enemyMax;
   state.block=0; state.mana=[0,0,0];
@@ -1600,27 +1640,29 @@ function showReport(result){
   const title=$("m-title");
   title.className = result==="win" ? "win" : "lose";
   title.textContent = result==="win" ? "Victory" : result==="lose" ? "Defeated" : result==="flee" ? "Retreated" : "Forfeited";
-  $("m-tagline").textContent=`combat sandbox · ${elapsed.toFixed(0)}s · enemy ${state.enemyMax}hp / ${state.enemyDamage}dmg every ${state.cadence}s`;
-  const total=t.dmgLight+t.dmgMed+t.dmgHeavy+t.spellDmg;
+  const foeLabel=state.foeName || "Custom foe";
+  $("m-tagline").textContent=`${foeLabel} · ${elapsed.toFixed(0)}s · ${result==="win"?"enemy down":result==="lose"?"you fell":result==="flee"?"escaped":"withdrew"}`;
+  const dealt=t.dmgLight+t.dmgMed+t.dmgHeavy+t.spellDmg;
   const sum=$("m-summary"); sum.innerHTML="";
+  // headline cells now centre on the THREAT read, not raw match accuracy
   const cells=[
-    ["Damage dealt",total,""],
+    ["Damage dealt",dealt,""],
     ["Damage taken",t.taken,""],
-    ["Sets found",t.sets,""],
-    ["Accuracy", t.attempts?Math.round(100*t.sets/t.attempts):0,"%"],
+    ["HP left", result==="win"?Math.max(0,state.playerHP):0, `<small>/${state.playerMax}</small>`],
+    ["Traps sprung",t.trapProcs,""],
   ];
   cells.forEach(([l,v,u])=>{
     const d=document.createElement("div"); d.className="sumcell";
-    d.innerHTML=`<div class="l">${l}</div><div class="v">${v}<small>${u}</small></div>`;
+    d.innerHTML=`<div class="l">${l}</div><div class="v">${v}${u}</div>`;
     sum.appendChild(d);
   });
-  // four routings breakdown
+  // breakdown: your output · the threat you faced · board economy
   const fg=$("m-feats"); fg.innerHTML="";
   const blocks=[
-    {ft:"⚔ Attack (by tier)", rows:[["Light",t.dmgLight,"#7fd1a0"],["Medium",t.dmgMed,"var(--warn)"],["Heavy",t.dmgHeavy,"var(--red)"]]},
-    {ft:"✦ Mana (by colour)", rows:[["Fire",t.mana[0],"var(--red)"],["Nature",t.mana[1],"var(--green)"],["Frost",t.mana[2],"var(--blue)"]]},
-    {ft:"🛡 Defense", rows:[["Block raised",t.block,"var(--blue)"],["Absorbed",t.absorbed,"var(--blue)"],["Taken",t.taken,"var(--red)"]]},
-    {ft:"👣 Tempo", rows:[["Move (sec)",t.boot,"var(--phos)"],["Enemy hits",t.attacks,"var(--ink-dim)"],["Misses",t.miss,"var(--ink-dim)"]]},
+    {ft:"⚔ Your offense", rows:[["Light",t.dmgLight,"#7fd1a0"],["Medium",t.dmgMed,"var(--warn)"],["Heavy",t.dmgHeavy,"var(--red)"],["Spells",t.spellDmg,"var(--gold)"]]},
+    {ft:"🛡 Your defense", rows:[["Block raised",t.block,"var(--blue)"],["Absorbed",t.absorbed,"var(--blue)"],["Tactics banked",t.tactics,"var(--phos)"]]},
+    {ft:"💀 The threat", rows:[["Enemy attacks",t.attacks,"var(--red)"],["Traps sprung",t.trapProcs,"var(--warn)"],["Damage taken",t.taken,"var(--red)"],["Misreads",t.miss,"var(--ink-dim)"]]},
+    {ft:"✦ Mana gathered", rows:[["Fire",t.mana[0],"var(--red)"],["Nature",t.mana[1],"var(--green)"],["Frost",t.mana[2],"var(--blue)"]]},
   ];
   blocks.forEach(b=>{
     const max=Math.max(1,...b.rows.map(r=>r[1]));
@@ -1634,6 +1676,9 @@ function showReport(result){
     });
     box.innerHTML=html; fg.appendChild(box);
   });
+  $("m-hint").textContent = t.trapProcs>0
+    ? `You sprang ${t.trapProcs} trap${t.trapProcs>1?"s":""} this fight — the briefing shows each foe's traps, so you can price the matches that trip them.`
+    : `Clean run — no traps sprung. Try an elite or boss, or the Haunted Warren (Undead template) for a sterner test.`;
   $("overlay").classList.add("show");
 }
 
@@ -2000,6 +2045,7 @@ function runTrap(trap){
     const r=fn(eff); if(r!=null) labels.push(r);
   }
   if(labels.length){
+    if(state.tally) state.tally.trapProcs++;
     trapProc(trap, labels.join(" · "));
     updateHUD();
     if(state.playerHP<=0 && state.running) endCombat("lose");
@@ -2087,8 +2133,9 @@ let ACTIVE_DUNGEON=null;
 function resolveFoe(){
   const sel=$("foe-pick"), val=sel?sel.value:"custom";
   const dg=(ACTIVE_DUNGEON && GDATA.dungeons)?GDATA.dungeons[ACTIVE_DUNGEON]:null;
-  state.foeName=null;
+  state.foeName=null; state.foeTier=null;
   if(val==="custom" || !dg){
+    state.enemyMax=+$("ehp").value; state.enemyDamage=+$("edmg").value; state.cadence=+$("ecad").value;   // fresh from sliders
     state.enemyTraps=ENCOUNTER_TRAPS.map(id=>TRAP_LIB[id]).filter(Boolean);
     state.drift=ENCOUNTER_DRIFT?DRIFT_LIB[ENCOUNTER_DRIFT]:null;
     return;
@@ -2097,7 +2144,37 @@ function resolveFoe(){
   const foe=assembleFoe(creatureId, dg);
   if(!foe){ state.enemyTraps=[]; state.drift=null; return; }
   state.enemyMax=foe.hp; state.enemyDamage=foe.damage; state.cadence=foe.cadence;
-  state.enemyTraps=foe.traps; state.drift=foe.drift; state.foeName=foe.name;
+  state.enemyTraps=foe.traps; state.drift=foe.drift; state.foeName=foe.name; state.foeTier=foe.tier;
+}
+// reverse-map cadence seconds → a speed band label (TRAPS.md §7.2)
+function cadenceBand(sec){
+  return sec>=17?"Lumbering" : sec>=14?"Slow" : sec>=10?"Steady" : sec>=6?"Swift" : "Frenzied";
+}
+// PRE-COMBAT BRIEFING — show the foe's stats + all active traps before the fight (foe already resolved)
+function showBriefing(){
+  $("b-name").textContent=state.foeName || "Custom Foe";
+  const tierEl=$("b-tier"), tier=state.foeTier;
+  tierEl.className="tier"+(tier==="boss"?" boss":tier==="elite"?" elite":"");
+  tierEl.textContent=tier?tier:"sandbox"; tierEl.style.display=tier?"":"none";
+  // stats grid
+  const st=$("b-stats"); st.innerHTML="";
+  const stats=[
+    ["HP", state.enemyMax],
+    ["Damage", `${state.enemyDamage}<small> max</small>`],
+    ["Speed", `${cadenceBand(state.cadence)}<small> · ${state.cadence}s</small>`],
+  ];
+  if(state.drift) stats.push(["Drift", `${state.drift.icon||""} ${state.drift.name.replace(/ Drift$/,"")}`]);
+  stats.forEach(([l,v])=>{ const d=document.createElement("div"); d.className="bs";
+    d.innerHTML=`<div class="l">${l}</div><div class="v">${v}</div>`; st.appendChild(d); });
+  // active traps
+  const tr=$("b-traps"), traps=state.enemyTraps||[];
+  $("b-trapshd").style.display = traps.length?"":"none";
+  tr.innerHTML="";
+  if(!traps.length){ tr.innerHTML='<div class="briefnote">No traps — a plain foe. Hit it until it falls.</div>'; }
+  else traps.forEach(t=>{ const d=document.createElement("div"); d.className="btrap";
+    d.innerHTML=`<span class="bi">${t.icon||"⚠"}</span><div><div class="bn">${t.name}</div><div class="bd">${t.desc||""}</div></div>`;
+    tr.appendChild(d); });
+  $("briefing").classList.add("show");
 }
 // populate the dungeon + foe <select>s from GAMEDATA
 function populateDungeons(){
@@ -2287,6 +2364,7 @@ function updateClassInfo(){
 /* TACTICS — Move matches build the meter; at full it arms a row of one-shot tactic buttons. */
 function addTactics(amt){
   if(!state.running || amt<=0) return;
+  if(state.tally) state.tally.tactics+=amt;                  // banked-tactics tally for the after-action report
   state.tactics=Math.min(TACTICS_GOAL, state.tactics+amt);
   if(!state.tacticsArmed && state.tactics>=TACTICS_GOAL){
     state.tacticsArmed=true;                               // full -> arm + begin drain (handled in tick)
@@ -2417,8 +2495,10 @@ $("btn-hint").addEventListener("click",hintNow);
 $("tacbtns").addEventListener("click",e=>{ const b=e.target.closest(".tbtn"); if(b && !b.disabled) useTactic(b.dataset.tac); });
 $("gate-cta").addEventListener("click",startCombat);   // only the CTA starts; clicking a class card selects it
 document.addEventListener("keydown",e=>{ if(e.key==="Escape" && state.targeting!=null) exitTargeting(); });
-$("m-again").addEventListener("click",startCombat);
+$("m-again").addEventListener("click",()=>{ $("overlay").classList.remove("show"); startCombat(); });
 $("m-close").addEventListener("click",()=>$("overlay").classList.remove("show"));
+$("b-engage").addEventListener("click",enterCombat);                 // briefing → start the fight
+$("b-back").addEventListener("click",()=>$("briefing").classList.remove("show"));   // back out to setup
 
 // init
 syncUI(true);
