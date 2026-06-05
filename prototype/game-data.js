@@ -73,7 +73,7 @@ window.GAMEDATA = {
 
   // --- dungeon DRIFTS: the global on:tick transmute that gives a dungeon its "feel" (TRAPS.md §7) ---
   drifts: {
-    ember: { name:"Ember Drift", icon:"🔥", on:"tick", every:5, quiet:true,
+    ember: { name:"Ember Drift", icon:"🔥", on:"tick", every:7, quiet:true,
              desc:"the board drifts toward Fire",
              do:[ {effect:"transmute", count:1,
                    select:{axis:"color", mode:"not_value", value:"red"},

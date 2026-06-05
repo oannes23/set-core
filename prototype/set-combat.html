@@ -282,23 +282,44 @@
   @media(max-width:620px){.statusbar{grid-template-columns:1fr 1fr}}
 
   /* compact combat-readout info panel in the header */
-  .readout{flex:1 1 520px;display:flex;align-items:center;gap:15px;flex-wrap:wrap;
+  .readout{flex:1 1 560px;position:relative;display:flex;align-items:stretch;gap:16px;flex-wrap:wrap;
     background:linear-gradient(180deg,var(--panel),var(--bg2));border:1px solid var(--line);
-    border-radius:12px;padding:9px 17px;box-shadow:var(--shadow)}
-  .rgroup{display:flex;flex-direction:column;gap:3px;justify-content:center}
-  .rlab{font-size:9px;letter-spacing:.15em;text-transform:uppercase;color:var(--ink-faint)}
-  .rbig{font-family:"Syne",sans-serif;font-weight:700;font-size:18px;font-variant-numeric:tabular-nums;color:var(--ink);line-height:1}
-  .rmini{display:flex;gap:10px;font-size:11px;color:var(--ink-dim)}
-  .rmini b,.rmana b{font-family:"Syne",sans-serif;color:var(--ink);font-variant-numeric:tabular-nums;margin-left:3px}
-  .rmana{display:flex;gap:11px;font-size:14px;align-items:center}
+    border-radius:12px;padding:11px 18px;box-shadow:var(--shadow)}
   .rsep{width:1px;align-self:stretch;background:var(--line)}
   @media(max-width:620px){.rsep{display:none}.readout{gap:11px}}
-  /* emphasized vital gauges (HP / Block / Next attack) embedded in the header readout */
-  .readout .stat{flex-direction:row;align-items:center;gap:9px;padding:6px 12px;min-width:0;border-radius:10px;box-shadow:none}
-  .readout .stat .sbinfo{display:flex;flex-direction:column;gap:1px;white-space:nowrap}
-  .readout .stat .lab{font-size:9px}
-  .readout .stat .val{font-size:21px}
-  .readout .stat .hpbar{flex:0 0 50px;width:50px;margin-top:0}
+
+  /* COMBAT BAR — Player (left) vs Enemy (right), Block between, a wide draining timer beneath */
+  .combatbar{flex:1 1 320px;display:flex;flex-direction:column;gap:11px;justify-content:center;min-width:282px}
+  .vsrow{display:grid;grid-template-columns:1fr auto 1fr;gap:16px;align-items:center}
+  .hpside{display:flex;flex-direction:column;gap:4px;min-width:0}
+  .hpside.player{align-items:flex-start;text-align:left}
+  .hpside.enemy{align-items:flex-end;text-align:right}
+  .hpside-lab{font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-faint);
+    max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .hpside-val{font-family:"Syne",sans-serif;font-weight:800;font-size:36px;line-height:.9;font-variant-numeric:tabular-nums}
+  .hpside.player .hpside-val{color:var(--green)}
+  .hpside.enemy .hpside-val{color:var(--red)}
+  .hpside-val small{font-size:15px;color:var(--ink-faint);font-weight:600}
+  .hpside .hpbar{width:100%;height:8px;border-radius:5px;background:#0c0f16;border:1px solid var(--line);overflow:hidden;margin-top:2px}
+  .hpside .hpbar .fill{height:100%;border-radius:5px;transition:width .3s ease}
+  .hpside.hit{animation:flash .4s ease}
+  .blockcell{display:flex;flex-direction:column;align-items:center;gap:1px;padding:0 4px;min-width:50px}
+  .blockcell .block-val{font-family:"Syne",sans-serif;font-weight:800;font-size:27px;line-height:1;color:var(--blue);
+    font-variant-numeric:tabular-nums;text-shadow:0 0 16px rgba(91,148,245,.45)}
+  .blockcell .block-lab{font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-faint)}
+  /* the timer bar — wide, spans the HP gauges, buzzes down toward the next attack */
+  .timerwrap{display:flex;flex-direction:column;gap:4px}
+  .timerlab{display:flex;justify-content:space-between;font-size:10px;letter-spacing:.06em;color:var(--ink-faint)}
+  .timerlab #v-clock{color:var(--phos);font-weight:700;font-variant-numeric:tabular-nums}
+  .timerbar{height:11px;border-radius:7px;background:#0c0f16;border:1px solid var(--line);overflow:hidden}
+  .timerfill{display:block;height:100%;width:100%;border-radius:7px;background:linear-gradient(90deg,var(--phos-dim),var(--phos));transition:width .14s linear}
+  .timerwrap.low .timerfill{background:var(--warn)} .timerwrap.low #v-clock{color:var(--warn)}
+  .timerwrap.crit .timerfill{background:var(--red);animation:timerbuzz .5s steps(2) infinite} .timerwrap.crit #v-clock{color:var(--red)}
+  @keyframes timerbuzz{50%{opacity:.5}}
+  .tacticscol{display:flex;flex-direction:column;gap:7px;justify-content:center;flex:1 1 196px}
+  .tacticscol .tactics{flex:0 0 auto}
+  /* popovers burst OVER the combat bar (HUD), not the play area — so they don't block combos */
+  .burstlayer{position:absolute;inset:0;pointer-events:none;z-index:40;overflow:visible}
 
   /* TACTICS meter — fills the header bar; arms a row of one-shot tactic buttons */
   .tactics{flex:1 1 130px;min-width:120px;display:flex;flex-direction:column;justify-content:center;gap:5px}
@@ -501,22 +522,43 @@
       <div class="sub" id="sub">action-resolution sandbox · f=3 · color / shape / number</div>
     </div>
     <div class="readout" id="readout">
-      <div class="stat hp player" id="s-php"><div class="sbinfo"><div class="lab">Your HP</div><div class="val"><span id="v-php">30</span><small id="v-phpmax">/30</small></div></div><div class="hpbar"><span class="fill" id="bar-php" style="background:var(--green);width:100%"></span></div></div>
-      <div class="stat hp enemy" id="s-ehp"><div class="sbinfo"><div class="lab">Enemy HP</div><div class="val"><span id="v-ehp">30</span><small id="v-ehpmax">/30</small></div></div><div class="hpbar"><span class="fill" id="bar-ehp" style="background:var(--red);width:100%"></span></div></div>
-      <div class="stat block"><div class="sbinfo"><div class="lab">Block</div><div class="val" id="v-block">0</div></div></div>
-      <div class="stat clock" id="s-clock"><div class="sbinfo"><div class="lab">Next attack</div><div class="val" id="v-clock">—</div></div></div>
-      <div class="rsep"></div>
-      <div class="tactics" id="tacbox">
-        <div class="tlab"><span id="tac-name">Tactics</span><span id="tac-out">0 / 10</span></div>
-        <div class="tbar"><span class="tfill" id="tac-fill"></span></div>
+      <div class="burstlayer" id="burstlayer"></div>
+      <div class="combatbar">
+        <div class="vsrow">
+          <div class="hpside player" id="s-php">
+            <div class="hpside-lab">You</div>
+            <div class="hpside-val"><span id="v-php">30</span><small id="v-phpmax">/30</small></div>
+            <div class="hpbar"><span class="fill" id="bar-php" style="background:var(--green);width:100%"></span></div>
+          </div>
+          <div class="blockcell" id="s-block">
+            <div class="block-val" id="v-block">0</div>
+            <div class="block-lab">🛡 Block</div>
+          </div>
+          <div class="hpside enemy" id="s-ehp">
+            <div class="hpside-lab" id="enemy-lab">Enemy</div>
+            <div class="hpside-val"><span id="v-ehp">30</span><small id="v-ehpmax">/30</small></div>
+            <div class="hpbar"><span class="fill" id="bar-ehp" style="background:var(--red);width:100%"></span></div>
+          </div>
+        </div>
+        <div class="timerwrap" id="s-clock">
+          <div class="timerlab"><span>⚔ Next enemy attack</span><span id="v-clock">—</span></div>
+          <div class="timerbar"><span class="timerfill" id="timer-fill"></span></div>
+        </div>
       </div>
-      <div class="tacbtns" id="tacbtns">
-        <button class="tbtn" data-tac="strike" disabled title="Transmute all non-Attacks into heavy Attacks">⚔ Strike!</button>
-        <button class="tbtn" data-tac="dodge" disabled title="Transmute all non-Defends into heavy Defends">🛡 Dodge!</button>
-        <button class="tbtn flee" data-tac="flee" disabled title="Escape combat immediately">🏃 Flee!</button>
-        <button class="tbtn" data-tac="heat" disabled title="Reroll every non-red card, biased to red">🔥 Heat Up!</button>
-        <button class="tbtn" data-tac="chill" disabled title="Reroll every non-blue card, biased to blue">❄ Chill Out!</button>
-        <button class="tbtn" data-tac="wild" disabled title="Reroll every non-green card, biased to green">🌿 Go Wild!</button>
+      <div class="rsep"></div>
+      <div class="tacticscol">
+        <div class="tactics" id="tacbox">
+          <div class="tlab"><span id="tac-name">Tactics</span><span id="tac-out">0 / 10</span></div>
+          <div class="tbar"><span class="tfill" id="tac-fill"></span></div>
+        </div>
+        <div class="tacbtns" id="tacbtns">
+          <button class="tbtn" data-tac="strike" disabled title="Transmute all non-Attacks into heavy Attacks">⚔ Strike!</button>
+          <button class="tbtn" data-tac="dodge" disabled title="Transmute all non-Defends into heavy Defends">🛡 Dodge!</button>
+          <button class="tbtn flee" data-tac="flee" disabled title="Escape combat immediately">🏃 Flee!</button>
+          <button class="tbtn" data-tac="heat" disabled title="Reroll every non-red card, biased to red">🔥 Heat Up!</button>
+          <button class="tbtn" data-tac="chill" disabled title="Reroll every non-blue card, biased to blue">❄ Chill Out!</button>
+          <button class="tbtn" data-tac="wild" disabled title="Reroll every non-green card, biased to green">🌿 Go Wild!</button>
+        </div>
       </div>
     </div>
   </header>
@@ -1421,8 +1463,8 @@ function regenSlots(slots, bias){
 function transmute(indices, opts){
   opts=opts||{};
   const bias=opts.bias||null, gap=(opts.gap!=null?opts.gap:0);
-  const slots=[...new Set(indices)].filter(i=>i!=null && state.board[i] && !state.pending.has(i) && !state.locked.has(i));
-  if(!slots.length) return;     // locked cards are inert — survive floods (the Ice Block / preservation ruling)
+  const slots=[...new Set(indices)].filter(i=>i!=null && state.board[i] && !state.pending.has(i) && !state.locked.has(i) && !state.sel.includes(i));
+  if(!slots.length) return;     // never destroy a SELECTED card (don't break a combo mid-pick) or a locked one (inert)
   const myGen=state.combatId;
   const stale=()=>!state.running || state.combatId!==myGen;
   slots.forEach(idx=>{
@@ -1537,6 +1579,7 @@ function updateHUD(){
   $("bar-php").style.width=pct(state.playerHP,state.playerMax)+"%";
   $("bar-ehp").style.width=pct(state.enemyHP,state.enemyMax)+"%";
   $("v-block").textContent=state.block;
+  const enl=$("enemy-lab"); if(enl) enl.textContent=state.foeName||"Enemy";   // name the foe over its HP
   // mana (the per-tier damage / tempo / sets tallies now live only in the after-action report)
   $("m-red").textContent=state.mana[0]; $("m-green").textContent=state.mana[1]; $("m-blue").textContent=state.mana[2];
   updateSpells();
@@ -1602,8 +1645,9 @@ function tick(){
     if(changed) render();
   }
   const remain=Math.max(0,(state.nextAttackAt-now)/1000);
-  const shown=Math.ceil(remain);
-  $("v-clock").textContent=shown+"s";
+  $("v-clock").textContent=Math.ceil(remain)+"s";
+  const tf=$("timer-fill");                                          // wide draining bar: fraction of the attack interval left
+  if(tf) tf.style.width=(state.cadence>0?Math.max(0,Math.min(100,remain/state.cadence*100)):0)+"%";
   const sc=$("s-clock");
   sc.classList.toggle("low",remain<=4 && remain>2);
   sc.classList.toggle("crit",remain<=2);
@@ -2120,12 +2164,14 @@ function trapFlash(){
   const panel=document.querySelector(".boardpanel");
   if(panel){ panel.classList.remove("traphit"); void panel.offsetWidth; panel.classList.add("traphit"); }
 }
-// core infographic burst — icon + a top label + a name + an effect line. Simultaneous bursts stack.
+// core infographic burst — icon + a top label + a name + an effect line. Bursts pop OVER the
+// combat bar (HUD), not the board, so they never cover the cards you're comboing. Simultaneous
+// bursts stack upward from the bar's center.
 function spawnBurst(icon, topLabel, name, effText, kind){
-  const layer=$("floatlayer"); if(!layer) return;
-  const stack=layer.querySelectorAll(".trapburst").length;            // offset simultaneous bursts so they don't overlap
+  const layer=$("burstlayer"); if(!layer) return;
+  const stack=layer.querySelectorAll(".trapburst").length;
   const b=document.createElement("div"); b.className="trapburst"+(kind?" "+kind:"");
-  b.style.top=(42 - stack*13)+"%";
+  b.style.top = stack ? `calc(50% - ${stack*82}px)` : "50%";
   b.innerHTML=`<span class="tbi">${icon}</span><span class="tbtext">`
     +`<span class="tblabel">${topLabel}</span><span class="tbname">${name}</span>`
     +(effText?`<span class="tbeff">${effText}</span>`:"")+`</span>`;
@@ -2562,6 +2608,9 @@ function syncUI(regen){
     $("v-ehp").textContent=state.enemyMax; $("v-ehpmax").textContent="/"+state.enemyMax;
     $("bar-php").style.width="100%"; $("bar-ehp").style.width="100%";
     $("v-block").textContent="0"; $("v-clock").textContent=state.cadence+"s";
+    const tf=$("timer-fill"); if(tf) tf.style.width="100%";
+    const enl=$("enemy-lab"); if(enl) enl.textContent="Enemy";
+    $("s-clock").classList.remove("low","crit");
     updateHealthVisuals();
   }
   if(regen && !state.running){ state.board=genInitial(); render(); }
