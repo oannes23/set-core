@@ -1071,7 +1071,8 @@ const state={
 };
 function freshTally(){
   return { dmgLight:0,dmgMed:0,dmgHeavy:0, spellDmg:0, block:0, boot:0, mana:[0,0,0],
-           absorbed:0, taken:0, attacks:0, sets:0, miss:0, attempts:0, tactics:0, trapProcs:0 };
+           absorbed:0, taken:0, attacks:0, sets:0, miss:0, attempts:0, tactics:0,
+           trapProcs:0, trapMatch:0, trapTick:0 };   // total · match-triggered · timer/dread (drift excluded)
 }
 const $=id=>document.getElementById(id);
 const boardEl=$("board");
@@ -1743,7 +1744,7 @@ function showReport(result){
   const blocks=[
     {ft:"⚔ Your offense", rows:[["Light",t.dmgLight,"#7fd1a0"],["Medium",t.dmgMed,"var(--warn)"],["Heavy",t.dmgHeavy,"var(--red)"],["Spells",t.spellDmg,"var(--gold)"]]},
     {ft:"🛡 Your defense", rows:[["Block raised",t.block,"var(--blue)"],["Absorbed",t.absorbed,"var(--blue)"],["Tactics banked",t.tactics,"var(--phos)"]]},
-    {ft:"💀 The threat", rows:[["Enemy attacks",t.attacks,"var(--red)"],["Traps sprung",t.trapProcs,"var(--warn)"],["Damage taken",t.taken,"var(--red)"],["Misreads",t.miss,"var(--ink-dim)"]]},
+    {ft:"💀 The threat", rows:[["Enemy attacks",t.attacks,"var(--red)"],["Triggered traps",t.trapMatch,"var(--warn)"],["Timer / dread ticks",t.trapTick,"var(--gold)"],["Misreads",t.miss,"var(--ink-dim)"]]},
     {ft:"✦ Mana gathered", rows:[["Fire",t.mana[0],"var(--red)"],["Nature",t.mana[1],"var(--green)"],["Frost",t.mana[2],"var(--blue)"]]},
   ];
   blocks.forEach(b=>{
@@ -2127,7 +2128,10 @@ function runTrap(trap){
     const r=fn(eff); if(r!=null) labels.push(r);
   }
   if(labels.length){
-    if(state.tally) state.tally.trapProcs++;
+    if(state.tally && !trap.quiet){                                  // ambient drift fires but isn't a "sprung trap"
+      state.tally.trapProcs++;
+      state.tally[trap.on==="tick" ? "trapTick" : "trapMatch"]++;    // split: timer/dread vs match-triggered
+    }
     trapProc(trap, labels.join(" · "));
     updateHUD();
     if(state.playerHP<=0 && state.running) endCombat("lose");
