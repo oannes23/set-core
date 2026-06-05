@@ -167,6 +167,10 @@
   .classinfo{font-size:12px;color:var(--ink-dim);max-width:520px;text-align:center;line-height:1.6;min-height:38px}
   .classinfo b{color:var(--ink)}
   .classinfo .pas{color:var(--gold)}
+  /* foe / dungeon pickers inside the start gate (pre-fight: pick class + foe together) */
+  .gatefoe{display:flex;gap:10px;width:min(540px,94%);flex-wrap:wrap}
+  .gfsel{flex:1;min-width:158px;display:flex;flex-direction:column;gap:5px;text-align:left}
+  .gflab{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-faint)}
 
   .side{display:flex;flex-direction:column;gap:14px}
   .panel{background:linear-gradient(180deg,var(--panel),var(--bg2));border:1px solid var(--line);border-radius:16px;padding:14px;box-shadow:var(--shadow)}
@@ -496,9 +500,13 @@
       <div class="ptint" id="ptint"></div>
       <div class="floatlayer" id="floatlayer"></div>
       <div class="startgate show" id="startgate">
-        <div class="big" id="gate-big">Choose your class</div>
+        <div class="big" id="gate-big">Choose your class &amp; foe</div>
         <div class="classgrid" id="classgrid"></div>
         <div class="classinfo" id="classinfo"></div>
+        <div class="gatefoe">
+          <div class="gfsel"><span class="gflab">⚑ Dungeon</span><select id="dungeon-pick" class="foesel"></select></div>
+          <div class="gfsel"><span class="gflab">💀 Foe</span><select id="foe-pick" class="foesel"></select></div>
+        </div>
         <div class="cta" id="gate-cta">▶ Begin combat</div>
       </div>
       <div class="analysis" id="analysis">
@@ -528,16 +536,7 @@
         <h2>Encounter setup</h2>
         <div class="controls" id="controls">
           <div id="dials">
-            <div class="sectlab">Foe</div>
-            <div>
-              <div class="clab">Dungeon</div>
-              <select id="dungeon-pick" class="foesel"></select>
-            </div>
-            <div>
-              <div class="clab">Enemy <span style="text-transform:none;letter-spacing:0;color:var(--ink-faint)">(non-custom drives stats + traps)</span></div>
-              <select id="foe-pick" class="foesel"></select>
-            </div>
-            <div class="sectlab">Combatants</div>
+            <div class="sectlab">Combatants <span style="text-transform:none;letter-spacing:0;color:var(--ink-faint)">· enemy sliders apply to the Custom foe</span></div>
             <div>
               <div class="clab">Your HP <span class="num" id="php-out">30</span></div>
               <input type="range" class="player" id="php" min="10" max="100" step="5" value="30">
