@@ -187,6 +187,10 @@
   input[type=range].player::-webkit-slider-thumb{background:var(--green);box-shadow:0 0 10px -2px var(--green)}
   input[type=range].player::-moz-range-thumb{background:var(--green)}
   .ticks{display:flex;justify-content:space-between;font-size:9.5px;color:var(--ink-faint);margin-top:3px;font-variant-numeric:tabular-nums}
+  select.foesel{width:100%;background:var(--panel2);color:var(--ink);border:1px solid var(--line2);border-radius:9px;
+    padding:9px 10px;font-family:inherit;font-size:13px;cursor:pointer;outline:none;appearance:none}
+  select.foesel:hover{border-color:var(--phos)}
+  select.foesel:focus{border-color:var(--phos);box-shadow:0 0 0 1px var(--phos)}
   .capnote{font-size:10px;color:var(--warn);min-height:11px;margin-top:4px;letter-spacing:.02em}
   .sectlab{font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--phos-dim);border-top:1px solid var(--line);padding-top:11px;margin-top:2px}
   .durrow{display:flex;gap:6px;flex-wrap:wrap}
@@ -505,6 +509,15 @@
         <h2>Encounter setup</h2>
         <div class="controls" id="controls">
           <div id="dials">
+            <div class="sectlab">Foe</div>
+            <div>
+              <div class="clab">Dungeon</div>
+              <select id="dungeon-pick" class="foesel"></select>
+            </div>
+            <div>
+              <div class="clab">Enemy <span style="text-transform:none;letter-spacing:0;color:var(--ink-faint)">(non-custom drives stats + traps)</span></div>
+              <select id="foe-pick" class="foesel"></select>
+            </div>
             <div class="sectlab">Combatants</div>
             <div>
               <div class="clab">Your HP <span class="num" id="php-out">30</span></div>
@@ -1530,13 +1543,12 @@ function startCombat(){
   rebuildCFG();
   state.running=true; state.lock=false;
   lockControls(true);
-  // seed combatants from the sliders
+  resolveFoe();                                                 // foe picker → enemy stats + traps + drift (assembled or custom)
+  // seed combatants (player from slider; enemy stats set by resolveFoe — custom uses the sliders)
   state.playerHP=state.playerMax; state.enemyHP=state.enemyMax;
   state.block=0; state.mana=[0,0,0];
   state.sel=[]; state.log=[]; state.tally=freshTally();
   state.tactics=0; state.tacticsArmed=false; state.lastTick=0; state.pendingRegenBias=null;
-  state.enemyTraps=ENCOUNTER_TRAPS.map(id=>TRAP_LIB[id]).filter(Boolean);   // load the foe's traps (TRAPS.md)
-  state.drift=ENCOUNTER_DRIFT?DRIFT_LIB[ENCOUNTER_DRIFT]:null;              // dungeon-global drift (on:tick)
   // tick list = the dungeon drift + any on:tick foe traps (dread-DoTs), each with its own accumulator
   state.tickList=[ ...(state.drift?[state.drift]:[]), ...state.enemyTraps.filter(t=>t.on==="tick") ]
                    .map(trap=>({trap, accum:0}));
@@ -1551,7 +1563,7 @@ function startCombat(){
   $("startgate").classList.remove("show");
   $("overlay").classList.remove("show");
   $("narrlog").innerHTML="";
-  narrate(`A foe steps forward — <b>${state.enemyMax} HP</b>, striking for ${state.enemyDamage} every ${state.cadence}s. Find sets to act; spend mana on spells.`,"sys");
+  narrate(`<b>${state.foeName||"A foe"}</b> steps forward — <b>${state.enemyMax} HP</b>, striking for ${state.enemyDamage} every ${state.cadence}s. Mind its traps; find sets to act.`,"sys");
   render(); updateHUD(); renderLog(); updateTacticsUI(); updatePassivesUI();
   $("v-clock").textContent=state.cadence+"s";
   cancelAnimationFrame(state.raf); state.raf=requestAnimationFrame(tick);
@@ -2031,9 +2043,83 @@ function loadTraps(src){ const out={}; for(const k in (src||{})) out[k]=normaliz
 const GDATA=(typeof window!=="undefined" && window.GAMEDATA) || {};
 const TRAP_LIB=loadTraps(GDATA.traps);
 const DRIFT_LIB=loadTraps(GDATA.drifts);
-// the active encounter — TEST wiring (Task 6's foe assembler will build this from creatures/dungeons).
+// the "Custom (sliders)" fallback foe — used when the foe picker is set to custom.
 let ENCOUNTER_TRAPS=(GDATA.encounter && GDATA.encounter.traps) || [];
 let ENCOUNTER_DRIFT=(GDATA.encounter && GDATA.encounter.drift) || null;
+
+/* FOE ASSEMBLY (TRAPS.md §7.1): a fielded foe = base creature ⊕ rolled variant ⊕ dungeon template.
+   Each layer adds stat-mods and traps. Speed is a named band → cadence seconds (§7.2). */
+const SPEED_ORDER=["lumbering","slow","steady","swift","frenzied"];     // slow → fast (index +1 = faster)
+function speedSeconds(band, shift){
+  const bands=GDATA.speed || {lumbering:19,slow:15,steady:11,swift:7,frenzied:4};
+  let i=SPEED_ORDER.indexOf(band); if(i<0) i=2;
+  i=Math.max(0, Math.min(SPEED_ORDER.length-1, i+(shift||0)));
+  return bands[SPEED_ORDER[i]];
+}
+function pickWeightedFoe(table){
+  const tot=table.reduce((s,e)=>s+(e.weight||1),0); let r=Math.random()*tot;
+  for(const e of table){ r-=(e.weight||1); if(r<0) return e.foe; }
+  return table[table.length-1].foe;
+}
+function assembleFoe(creatureId, dungeon){
+  const base=(GDATA.creatures||{})[creatureId]; if(!base) return null;
+  let hp=base.hp, dmg=base.damage, bandShift=0, traps=[], variantName=null, templateName=null;
+  (base.traps||[]).forEach(id=>{ if(TRAP_LIB[id]) traps.push(TRAP_LIB[id]); });           // boss: authored signature traps
+  if(base.variants && base.variants.length){                                              // minion/elite: roll ONE variant
+    const vid=base.variants[Math.random()*base.variants.length|0], v=(GDATA.variants||{})[vid];
+    if(v){ variantName=v.name; const sm=v.stat_mod||{}; hp+=sm.hp||0; dmg+=sm.damage||0; bandShift+=sm.speed_band||0;
+      if(v.trap) traps.push(normalizeTrap(vid, {name:v.name, icon:v.icon, desc:v.desc, ...v.trap})); }
+  }
+  if(base.tier==="elite" && dungeon && dungeon.boss_mirror && TRAP_LIB[dungeon.boss_mirror])
+    traps.unshift(TRAP_LIB[dungeon.boss_mirror]);                                          // elite: telegraph a boss trap
+  if(dungeon && dungeon.template){                                                         // dungeon template overlay (every foe)
+    const tpl=(GDATA.templates||{})[dungeon.template];
+    if(tpl){ templateName=tpl.name; const sm=tpl.stat_mod||{}; hp+=sm.hp||0; dmg+=sm.damage||0; bandShift+=sm.speed_band||0;
+      if(tpl.trap) traps.push(normalizeTrap("tpl_"+dungeon.template, {name:tpl.name, icon:tpl.icon, desc:tpl.desc, ...tpl.trap})); }
+  }
+  const name=(templateName?templateName+" ":"")+(variantName?variantName+" ":"")+base.name;
+  return { id:creatureId, tier:base.tier, name, hp:Math.max(1,hp|0), damage:Math.max(1,dmg|0),
+           cadence:speedSeconds(base.speed, bandShift),
+           traps, drift:(dungeon&&dungeon.drift)?DRIFT_LIB[dungeon.drift]:null, xp:base.xp||0 };
+}
+// resolve the foe picker → set enemy stats/traps/drift on state (custom = sliders + fallback traps).
+let ACTIVE_DUNGEON=null;
+function resolveFoe(){
+  const sel=$("foe-pick"), val=sel?sel.value:"custom";
+  const dg=(ACTIVE_DUNGEON && GDATA.dungeons)?GDATA.dungeons[ACTIVE_DUNGEON]:null;
+  state.foeName=null;
+  if(val==="custom" || !dg){
+    state.enemyTraps=ENCOUNTER_TRAPS.map(id=>TRAP_LIB[id]).filter(Boolean);
+    state.drift=ENCOUNTER_DRIFT?DRIFT_LIB[ENCOUNTER_DRIFT]:null;
+    return;
+  }
+  const creatureId = val==="random" ? pickWeightedFoe(dg.enemy_table) : val.slice(4);
+  const foe=assembleFoe(creatureId, dg);
+  if(!foe){ state.enemyTraps=[]; state.drift=null; return; }
+  state.enemyMax=foe.hp; state.enemyDamage=foe.damage; state.cadence=foe.cadence;
+  state.enemyTraps=foe.traps; state.drift=foe.drift; state.foeName=foe.name;
+}
+// populate the dungeon + foe <select>s from GAMEDATA
+function populateDungeons(){
+  const ds=$("dungeon-pick"); if(!ds || !GDATA.dungeons) return;
+  ds.innerHTML="";
+  for(const id in GDATA.dungeons){ const o=document.createElement("option"); o.value=id; o.textContent=GDATA.dungeons[id].name; ds.appendChild(o); }
+  ds.value=Object.keys(GDATA.dungeons)[0];
+  ds.onchange=populateFoes;
+  populateFoes();
+}
+function populateFoes(){
+  const fs=$("foe-pick"), ds=$("dungeon-pick"); if(!fs||!ds) return;
+  const dg=GDATA.dungeons && GDATA.dungeons[ds.value]; if(!dg) return;
+  ACTIVE_DUNGEON=ds.value; fs.innerHTML="";
+  const add=(v,t)=>{ const o=document.createElement("option"); o.value=v; o.textContent=t; fs.appendChild(o); };
+  add("custom","Custom (sliders + test traps)");
+  add("random","⚄ Random encounter");
+  (dg.enemy_table||[]).forEach(e=>{ const c=GDATA.creatures&&GDATA.creatures[e.foe]; if(c) add("foe:"+e.foe, c.name); });
+  (dg.elite_pool||[]).forEach(id=>{ const c=GDATA.creatures&&GDATA.creatures[id]; if(c) add("foe:"+id, "★ "+c.name+" · elite"); });
+  if(dg.boss){ const c=GDATA.creatures&&GDATA.creatures[dg.boss]; if(c) add("foe:"+dg.boss, "☠ "+c.name+" · boss"); }
+  fs.value="random";
+}
 
 // render the foe's traps as legible tags (show the RULE; spotting which on-board sets
 // satisfy it is the player's skill — TRAPS.md §2.5). Empties out of combat.
@@ -2282,6 +2368,7 @@ function buildLegend(){
 buildLegend();
 buildClassPicker();
 selectClass(state.classId);     // load the default class loadout + render ability/passive panels
+populateDungeons();             // populate the dungeon + foe pickers from GAMEDATA
 
 // Health gems: 4 corners on every panel; the card board also gets a center-top jewel.
 function gemEl(cls){ const g=document.createElement("i"); g.className="gem "+cls; return g; }
