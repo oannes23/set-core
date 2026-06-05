@@ -424,21 +424,27 @@
   .boardpanel.traphit{animation:trapshake .42s ease}
   @keyframes trapshake{0%,100%{transform:translateX(0)}18%{transform:translateX(-7px)}38%{transform:translateX(6px)}58%{transform:translateX(-4px)}78%{transform:translateX(2px)}}
   .trapburst{position:absolute;top:42%;left:50%;z-index:9;pointer-events:none;opacity:0;
-    display:flex;align-items:center;gap:14px;padding:14px 20px;border-radius:15px;
+    display:flex;align-items:center;gap:17px;padding:18px 28px;border-radius:17px;
     background:linear-gradient(180deg,#2c141a,#190f15);border:1px solid var(--red);
-    box-shadow:0 0 0 1px var(--red),0 18px 54px -10px rgba(240,86,91,.6),0 0 70px -16px var(--red)}
-  .trapburst.go{animation:trapburst 1.6s cubic-bezier(.2,.9,.2,1) forwards}
+    box-shadow:0 0 0 1px var(--red),0 22px 64px -10px rgba(240,86,91,.65),0 0 90px -16px var(--red)}
+  .trapburst.go{animation:trapburst 2.2s cubic-bezier(.2,.9,.2,1) forwards}
   @keyframes trapburst{
     0%{opacity:0;transform:translate(-50%,-50%) scale(.5)}
-    11%{opacity:1;transform:translate(-50%,-50%) scale(1.14)}
-    20%{transform:translate(-50%,-50%) scale(1)}
-    76%{opacity:1;transform:translate(-50%,-50%) scale(1)}
-    100%{opacity:0;transform:translate(-50%,-60%) scale(.97)}}
-  .trapburst .tbi{font-size:36px;line-height:1;filter:drop-shadow(0 2px 7px #000)}
+    8%{opacity:1;transform:translate(-50%,-50%) scale(1.16)}
+    15%{transform:translate(-50%,-50%) scale(1)}
+    72%{opacity:1;transform:translate(-50%,-50%) scale(1)}
+    100%{opacity:0;transform:translate(-50%,-66%) scale(.95)}}    /* hold, then a ~0.6s fade-out tail */
+  .trapburst .tbi{font-size:46px;line-height:1;filter:drop-shadow(0 2px 8px #000)}
   .trapburst .tbtext{display:flex;flex-direction:column;gap:2px;text-align:left}
-  .trapburst .tblabel{font-size:9px;letter-spacing:.18em;text-transform:uppercase;color:var(--warn);font-weight:700}
-  .trapburst .tbname{font-family:"Syne",sans-serif;font-weight:800;font-size:18px;color:var(--red);letter-spacing:.01em;line-height:1.05}
-  .trapburst .tbeff{font-size:12.5px;color:#f0c2c4;font-variant-numeric:tabular-nums;margin-top:2px}
+  .trapburst .tblabel{font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--warn);font-weight:700}
+  .trapburst .tbname{font-family:"Syne",sans-serif;font-weight:800;font-size:24px;color:var(--red);letter-spacing:.01em;line-height:1.04}
+  .trapburst .tbeff{font-size:14.5px;font-weight:600;color:#f4cdcf;font-variant-numeric:tabular-nums;margin-top:3px}
+  /* plain-damage burst variant — amber/warn accent to distinguish a hit from a trap */
+  .trapburst.dmg{border-color:var(--warn);background:linear-gradient(180deg,#2a1e10,#181109);
+    box-shadow:0 0 0 1px var(--warn),0 22px 64px -10px rgba(245,165,36,.5),0 0 90px -16px var(--warn)}
+  .trapburst.dmg .tbname{color:var(--warn)}
+  .trapburst.dmg .tblabel{color:#f0c2c4}
+  .trapburst.dmg .tbeff{color:#f3dcb0}
 
   /* end overlay */
   .overlay{position:fixed;inset:0;z-index:50;background:rgba(6,8,12,.78);backdrop-filter:blur(7px);
@@ -1447,8 +1453,9 @@ function enemyAttack(){
   const absorbed=Math.min(state.block,dmg);
   state.block-=absorbed; dmg-=absorbed;
   t.absorbed+=absorbed; t.taken+=dmg;
-  if(dmg>0){ state.playerHP=Math.max(0,state.playerHP-dmg); flashStat("s-php"); floatOverBoard(`-${dmg}`, "var(--warn)", true); }
-  else { floatOverBoard("blocked", "var(--blue)", true); }
+  if(dmg>0){ state.playerHP=Math.max(0,state.playerHP-dmg); flashStat("s-php");
+             damageBurst(dmg, state.foeName, absorbed); hitstop(500);   // shake + pause + source popover on a real hit
+  } else { floatOverBoard("blocked", "var(--blue)", true); }
   narrateEnemy(raw,absorbed,dmg);
   logEnemy(raw,absorbed,dmg);
   updateHUD();
@@ -2113,20 +2120,30 @@ function trapFlash(){
   const panel=document.querySelector(".boardpanel");
   if(panel){ panel.classList.remove("traphit"); void panel.offsetWidth; panel.classList.add("traphit"); }
 }
-// the infographic burst — icon + the condition you crossed + what it did
-function trapBurst(trap, label){
-  trapFlash();
+// core infographic burst — icon + a top label + a name + an effect line. Simultaneous bursts stack.
+function spawnBurst(icon, topLabel, name, effText, kind){
   const layer=$("floatlayer"); if(!layer) return;
   const stack=layer.querySelectorAll(".trapburst").length;            // offset simultaneous bursts so they don't overlap
-  const trigger = trap.on==="tick" ? "dread tick" : condLabel(trap.when);
-  const b=document.createElement("div"); b.className="trapburst";
+  const b=document.createElement("div"); b.className="trapburst"+(kind?" "+kind:"");
   b.style.top=(42 - stack*13)+"%";
-  b.innerHTML=`<span class="tbi">${trap.icon||"⚠"}</span>`
-    +`<span class="tbtext"><span class="tblabel">⚠ ${trigger} → trap</span>`
-    +`<span class="tbname">${trap.name}</span><span class="tbeff">${label}</span></span>`;
+  b.innerHTML=`<span class="tbi">${icon}</span><span class="tbtext">`
+    +`<span class="tblabel">${topLabel}</span><span class="tbname">${name}</span>`
+    +(effText?`<span class="tbeff">${effText}</span>`:"")+`</span>`;
   layer.appendChild(b);
   void b.offsetWidth; b.classList.add("go");
-  setTimeout(()=>b.remove(), 1650);
+  setTimeout(()=>b.remove(), 2200);
+}
+// a sprung trap: name the condition you crossed + what it did
+function trapBurst(trap, label){
+  trapFlash();
+  const trigger = trap.on==="tick" ? "dread tick" : condLabel(trap.when);
+  spawnBurst(trap.icon||"⚠", `⚠ ${trigger} → trap`, trap.name, label);
+}
+// the player took a hit: name the source + the HP lost
+function damageBurst(amount, source, absorbed){
+  trapFlash();
+  const eff = absorbed>0 ? `−${amount} HP · ${absorbed} blocked` : `−${amount} HP`;
+  spawnBurst("💥", "✷ struck", source||"Enemy attack", eff, "dmg");
 }
 function trapProc(trap, label){
   const el=document.querySelector(`.trap[data-trap="${trap.id}"]`);
