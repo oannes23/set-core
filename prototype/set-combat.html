@@ -327,8 +327,8 @@
   .trap .tn{font-weight:700;color:var(--red)}
   .trap .td{color:var(--ink-dim);font-size:11px}
   @media(max-width:620px){.trap .td{display:none}}
-  .trap.proc{animation:trapproc .55s ease}
-  @keyframes trapproc{0%,100%{box-shadow:none;transform:none}40%{box-shadow:0 0 0 2px var(--red),0 0 22px -2px var(--red);transform:translateY(-2px)}}
+  .trap.proc{animation:trapproc .6s ease}
+  @keyframes trapproc{0%,100%{box-shadow:none;transform:none;background:#1a1216}30%{box-shadow:0 0 0 2px var(--red),0 0 28px 0 var(--red);transform:translateY(-3px) scale(1.07);background:#2c141a}}
 
   /* ability grid (2 rows of 3) + passives below */
   .spellgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}
@@ -416,6 +416,30 @@
   .floater.go{animation:rise 1s ease forwards}
   @keyframes rise{0%{opacity:0;transform:translateY(8px)}18%{opacity:1}100%{opacity:0;transform:translateY(-34px)}}
 
+  /* TRAP TRIGGER FEEDBACK — make a sprung trap impossible to miss (flash + shake + burst infographic) */
+  .trapflash{position:absolute;inset:0;border-radius:18px;pointer-events:none;z-index:7;opacity:0;
+    background:radial-gradient(125% 100% at 50% 50%, transparent 38%, rgba(240,86,91,.55) 100%)}
+  .trapflash.go{animation:trapflash .55s ease}
+  @keyframes trapflash{0%{opacity:0}22%{opacity:1}100%{opacity:0}}
+  .boardpanel.traphit{animation:trapshake .42s ease}
+  @keyframes trapshake{0%,100%{transform:translateX(0)}18%{transform:translateX(-7px)}38%{transform:translateX(6px)}58%{transform:translateX(-4px)}78%{transform:translateX(2px)}}
+  .trapburst{position:absolute;top:42%;left:50%;z-index:9;pointer-events:none;opacity:0;
+    display:flex;align-items:center;gap:14px;padding:14px 20px;border-radius:15px;
+    background:linear-gradient(180deg,#2c141a,#190f15);border:1px solid var(--red);
+    box-shadow:0 0 0 1px var(--red),0 18px 54px -10px rgba(240,86,91,.6),0 0 70px -16px var(--red)}
+  .trapburst.go{animation:trapburst 1.6s cubic-bezier(.2,.9,.2,1) forwards}
+  @keyframes trapburst{
+    0%{opacity:0;transform:translate(-50%,-50%) scale(.5)}
+    11%{opacity:1;transform:translate(-50%,-50%) scale(1.14)}
+    20%{transform:translate(-50%,-50%) scale(1)}
+    76%{opacity:1;transform:translate(-50%,-50%) scale(1)}
+    100%{opacity:0;transform:translate(-50%,-60%) scale(.97)}}
+  .trapburst .tbi{font-size:36px;line-height:1;filter:drop-shadow(0 2px 7px #000)}
+  .trapburst .tbtext{display:flex;flex-direction:column;gap:2px;text-align:left}
+  .trapburst .tblabel{font-size:9px;letter-spacing:.18em;text-transform:uppercase;color:var(--warn);font-weight:700}
+  .trapburst .tbname{font-family:"Syne",sans-serif;font-weight:800;font-size:18px;color:var(--red);letter-spacing:.01em;line-height:1.05}
+  .trapburst .tbeff{font-size:12.5px;color:#f0c2c4;font-variant-numeric:tabular-nums;margin-top:2px}
+
   /* end overlay */
   .overlay{position:fixed;inset:0;z-index:50;background:rgba(6,8,12,.78);backdrop-filter:blur(7px);
     display:none;align-items:center;justify-content:center;padding:20px;animation:fade .3s ease}
@@ -498,6 +522,7 @@
       <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs id="defs"></defs></svg>
       <div class="board idle" id="board"></div>
       <div class="ptint" id="ptint"></div>
+      <div class="trapflash" id="trapflash"></div>
       <div class="floatlayer" id="floatlayer"></div>
       <div class="startgate show" id="startgate">
         <div class="big" id="gate-big">Choose your class &amp; foe</div>
@@ -988,6 +1013,7 @@ const state={
   playerHP:30, enemyHP:30, block:0, mana:[0,0,0],
   nextAttackAt:0, lastNow:0, lastTick:0,
   tactics:0, tacticsArmed:false,                 // Tactics meter (0..TACTICS_GOAL) + armed/draining flag
+  hitstopUntil:0,                                // performance.now() until which the clock is frozen (trap hitstop)
   classId:"pyromancer", passives:[],             // chosen class + its active passive ids
   enemyTraps:[],                                 // the foe's traps (threat layer, TRAPS.md) — fire on the same bus
   driftAccum:0,                                  // seconds accumulated toward the next on:tick trap fire
@@ -1538,6 +1564,12 @@ function tick(){
   if(!state.running) return;
   const now=performance.now();
   const dt=state.lastTick?(now-state.lastTick)/1000:0; state.lastTick=now;
+  // HITSTOP: a trap just sprang — freeze the clock (and lock countdowns) briefly so it's felt.
+  if(state.hitstopUntil && now<state.hitstopUntil){
+    state.nextAttackAt += dt*1000;                                  // push the attack clock so it doesn't advance
+    if(state.locked.size) for(const [s,u] of state.locked) state.locked.set(s, u+dt*1000);
+    state.raf=requestAnimationFrame(tick); return;
+  }
   // once armed (full), the Tactics meter drains TACTICS_DRAIN/sec; emptying disarms the buttons
   if(state.tacticsArmed){
     state.tactics=Math.max(0,state.tactics-TACTICS_DRAIN*dt);
@@ -1587,7 +1619,7 @@ function enterCombat(){
   state.playerHP=state.playerMax; state.enemyHP=state.enemyMax;
   state.block=0; state.mana=[0,0,0];
   state.sel=[]; state.log=[]; state.tally=freshTally();
-  state.tactics=0; state.tacticsArmed=false; state.lastTick=0; state.pendingRegenBias=null;
+  state.tactics=0; state.tacticsArmed=false; state.lastTick=0; state.pendingRegenBias=null; state.hitstopUntil=0;
   // tick list = the dungeon drift + any on:tick foe traps (dread-DoTs), each with its own accumulator
   state.tickList=[ ...(state.drift?[state.drift]:[]), ...state.enemyTraps.filter(t=>t.on==="tick") ]
                    .map(trap=>({trap, accum:0}));
@@ -2060,11 +2092,49 @@ function fireEnemyTraps(event, ctx){
     if(!state.running) return;                                        // combat ended mid-fire
   }
 }
+// short, readable label for what TRIGGERED a trap — teaches the player the line they crossed.
+const VALUE_LABEL={ color:["red","green","blue"], shape:["Attack","Defend","Move"], number:["1","2","3"] };
+function valueLabel(axis,v){ return (VALUE_LABEL[axis] && VALUE_LABEL[axis][v]) || String(v); }
+function condLabel(when){
+  if(!when) return "any match";
+  const axisName={color:"colour",shape:"shape",number:"number"}[when.axis]||when.axis;
+  const val = when.value!=null ? valueLabel(when.axis,when.value) : "";
+  if(when.mode==="all_same")      return val ? `all-${val} match` : `all-same ${axisName}`;
+  if(when.mode==="all_different") return `all-different ${axisName}`;
+  if(when.mode==="contains")      return `match with ${val}`;
+  if(when.mode==="not_value")     return `non-${val} match`;
+  return "match";
+}
+// brief hitstop: freeze the enemy clock (and lock countdowns) for ms so a trigger lands with weight.
+function hitstop(ms){ state.hitstopUntil=Math.max(state.hitstopUntil||0, performance.now()+ms); }
+// the board-wide flash + shake when a trap springs
+function trapFlash(){
+  const fl=$("trapflash"); if(fl){ fl.classList.remove("go"); void fl.offsetWidth; fl.classList.add("go"); }
+  const panel=document.querySelector(".boardpanel");
+  if(panel){ panel.classList.remove("traphit"); void panel.offsetWidth; panel.classList.add("traphit"); }
+}
+// the infographic burst — icon + the condition you crossed + what it did
+function trapBurst(trap, label){
+  trapFlash();
+  const layer=$("floatlayer"); if(!layer) return;
+  const stack=layer.querySelectorAll(".trapburst").length;            // offset simultaneous bursts so they don't overlap
+  const trigger = trap.on==="tick" ? "dread tick" : condLabel(trap.when);
+  const b=document.createElement("div"); b.className="trapburst";
+  b.style.top=(42 - stack*13)+"%";
+  b.innerHTML=`<span class="tbi">${trap.icon||"⚠"}</span>`
+    +`<span class="tbtext"><span class="tblabel">⚠ ${trigger} → trap</span>`
+    +`<span class="tbname">${trap.name}</span><span class="tbeff">${label}</span></span>`;
+  layer.appendChild(b);
+  void b.offsetWidth; b.classList.add("go");
+  setTimeout(()=>b.remove(), 1650);
+}
 function trapProc(trap, label){
-  floatOverBoard(`${trap.icon||"⚠"} ${label}`, trap.quiet?"var(--phos)":"var(--red)", true);
-  if(!trap.quiet) narrate(`<b>${trap.name}</b> springs — ${label}.`, "enemy");   // steady drift stays quiet
   const el=document.querySelector(`.trap[data-trap="${trap.id}"]`);
   if(el){ el.classList.remove("proc"); void el.offsetWidth; el.classList.add("proc"); }
+  if(trap.quiet){ floatOverBoard(`${trap.icon||"⚠"} ${label}`, "var(--phos)", true); return; }   // ambient drift: stay subtle
+  trapBurst(trap, label);
+  narrate(`<b>${trap.name}</b> springs — ${label}.`, "enemy");
+  if(trap.on==="match") hitstop(500);                                  // the 0.5s pause so a sprung match-trap is FELT
 }
 
 /* TRAP / DRIFT LIBRARIES — loaded from window.GAMEDATA (game-data.js, a classic script
