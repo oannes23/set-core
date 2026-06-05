@@ -27,7 +27,7 @@ landscape against the enemy's traps and your own combo lines, fast."
 | Param | Value | Locked because |
 |---|---|---|
 | **f (features)** | **3** (color, shape, number; shading dropped) | The three most thematically useful axes (color→element, shape→form, number→magnitude). Keeps per-card load low and preserves the "two cards determine the third" v=3 magic. |
-| **N (board size)** | **15** | Deliberately generous. |
+| **N (board size)** | **15** | Deliberately generous **and** a **5×3 grid** — chosen over 4×4 for the geometry (below). |
 | **v (values/feature)** | 3 (always) | Non-negotiable invariant. |
 
 **Why generous (f=3 / N=15):** average sets per board ≈ `C(15,3) / (3³−2) = 455/25 ≈ 18`. The board is *flooded* with combos. That is the point:
@@ -38,6 +38,26 @@ landscape against the enemy's traps and your own combo lines, fast."
   **value-targeting under pressure**, not scarcity.
 - It leaves **lots of board room for transmutation** — destroying and regenerating
   chunks of a 15-card board stays lively and never risks a dead board.
+
+**Why a 5×3 grid specifically (N=15 over a 4×4 N=16):** once geometric hit-patterns
+became a core feel (`TRAPS.md` §5.4), the grid *shape* turned into a real choice. 5×3
+wins it for this game — we consciously trade good diagonals + symmetric quadrants (the
+exotic patterns 4×4 would give) for three things that matter more:
+
+- **Row ≠ column is an asset.** A horizontal **row hits 5**, a vertical **column hits
+  3** — so the two most-used patterns are *inherently different-severity*, and the
+  geometry hands us **free severity-tuning that matches theme**: a horizontal **sweep**
+  (wall-collapse, earthquake, a line of soldiers) is naturally a bigger board event
+  than a vertical **strike** (spear, lightning bolt, pierce). Mechanical magnitude =
+  thematic magnitude, automatically. 4×4 flattens both into "4 cards," throwing that
+  semantic axis away.
+- **A true center cell** (odd×odd) gives clean epicenters for the signature
+  **blast / cross / radial** patterns — the ones used *most*. 4×4 has no single center.
+- **It fits the screen** — 3 rows, wide; 4×4 is taller on both counts (a 4th row *and*
+  wider→taller cards), which would force shrinking the very cards the patterns play on.
+
+The grid is **5 cols × 3 rows**, slots positionally stable across reforms, so every
+pattern in `TRAPS.md` §5.4 is well-defined on it.
 
 **The consequence that reframes everything:** with f and N fixed, **board generation
 is no longer the difficulty dial.** In the prototype, F was the difficulty spine.
@@ -97,9 +117,12 @@ given three owners.
 - **contains value V on axis A** ("the match includes any Attack")
 - **signature shape** ("a fully camouflaged k=3 match", "all-same everything")
 
-> Open knob: *contains-a-value* vs *all-same-value* conditions play very
-> differently (the former fires constantly on a generous board, the latter is rare
-> and skill-expressive). Default enemy traps to **all-same** so they're dodgeable.
+> ~~Open knob~~ **Resolved (`TRAPS.md` §1–§2):** punishing traps use **all-same**
+> (rare, dodgeable, a *price* you sometimes choose to pay); **contains** is reserved
+> for *reward* triggers where firing-constantly is the point. The full trap layer —
+> condition vocabulary (single / inverse-diverse / double-value / tick-dread), the
+> **severity ∝ rarity** tuning law, consequence families, the counter-foe recipe, and
+> the board-state verbs (destroy / transmute / **lock**) — now lives in **`TRAPS.md`**.
 
 **Effect** = a state change: grant mana, advance/reset an enemy timer, set a regen
 bias, transmute the board, deal damage, gain energy, etc.
@@ -125,8 +148,10 @@ is build-vs-counter falling out of the system, not authored matchup tables.
 The full analysis lives in the design conversation; the engine reality:
 
 **One primitive:** `transmute(selector, biasSpec, objective)`
-- **selector** — which cards to destroy: a value-filter (`color ≠ red`), a spatial
-  target (a card + grid neighbors), or random.
+- **selector** — which cards to destroy: a value-filter (`color ≠ red`), a **geometric
+  region** (row / column / diagonal / corners / border / center / blast / random — the
+  full pattern vocabulary lives in `TRAPS.md` §5.4), or random. Geometry is spatial
+  selection only; the refill still randomizes set-membership (no positional tell).
 - **biasSpec** — the regen bias (toward a value, or neutral). Reuses the per-feature
   deal-bias channel already built into the prototype.
 - **objective** — what the best-of-N regen optimizes: *maximize favored value* (for
@@ -204,8 +229,10 @@ genuine 2s gap — either pick a non-floor-critical card or accept the gap as th
 
 ## 7. Open questions (resolve before/while building)
 
-- **Condition granularity** per trigger source (contains-value vs all-same-value) —
-  defaults proposed in §3; needs playtest.
+- ~~**Condition granularity**~~ — resolved in `TRAPS.md` §1–§2 (all-same punishes,
+  contains rewards; severity scales with rarity). Enemy traps, the inverse "diverse"
+  conditions, double-value boss conjunctions, tick-dread DoTs, and the **lock** board
+  verb all specced there.
 - **Resource mapping** for the shape and number axes (color→mana is clear; the others
   aren't).
 - **Enemy timer model** — fixed countdown? variable per enemy? how triggers

@@ -1,13 +1,26 @@
 # CLAUDE.md — guidance for Claude Code sessions on SET.core
 
 Read `PROJECT.md` first — it is the full design context and the source of truth
-for *why* things are the way they are. This file is the fast orientation.
+for *why* the generation/tuning math is the way it is. This file is the fast
+orientation.
+
+**Design-doc map** (read in this order for the *game* on top of the core):
+- `PROJECT.md` — the Set core + generation/tuning math (why the levers exist).
+- `GAME-DESIGN.md` — the real game: locked f=3 / N=15 **5×3** board, trigger bus,
+  transmute verb. Wins over the prototype defaults where they conflict.
+- `CRAWL-DESIGN.md` — **set.crawl**, the data-driven dungeon-crawler: run loop,
+  YAML entity architecture, combat resolution, Tactics meter, gear taxonomy.
+- `TRAPS.md` — the reactive **threat layer**: trap vocabulary, the four board verbs
+  (destroy / transmute / lock / + conditions), dungeon·elite·boss attachment, foe
+  composition (creature ⊕ variant ⊕ template), enemy-transmute tuning.
 
 ## What this is
-A skill-component minigame based on the card game **Set**, intended as the
-reusable action-resolution layer of a web RPG. Current state: a single
-self-contained prototype, `prototype/set-proto.html`, that implements the Set
-core + custom generation + scoring + a full tuning-dial console.
+A skill-component minigame based on the card game **Set**, the reusable
+action-resolution layer of a web RPG. Lineage: `set.core` (skill core + tuning
+console, `prototype/set-proto.html`) → **`set.combat`** (the active combat sandbox,
+`prototype/set-combat.html` — classes, passives, abilities, Tactics, transmute) →
+**`set.crawl`** (the dungeon-crawler game, not yet code). **`set-combat.html` is the
+active prototype** — the next build (the threat layer in `TRAPS.md`) lands there.
 
 ## Mental model (don't lose this)
 - Set = finite affine geometry **AG(f,3)**. Cards are points in (ℤ/3)^f; a set is
@@ -33,15 +46,29 @@ core + custom generation + scoring + a full tuning-dial console.
 - The generation core is heavily validated (100k+ clears/config, zero invariant
   violations). Trust it. Bugs so far have all been in the UI layer.
 - Before shipping any change to generation, re-run a headless simulation that
-  checks the four invariants above across the dial space. (Past sessions extracted
-  the `<script>` core with a small Node harness and asserted floor/distinct/pin.)
+  checks the invariants above across the dial space. (Past sessions extracted the
+  `<script>` core with a small Node harness and asserted floor/distinct/pin.)
 - Prefer keeping the prototype dependency-free and single-file until there's a
   reason not to. If it graduates to an engine, prior context favored Godot
   (HTML5/WASM export, CLI builds).
+- **Lock-layer invariant (when built):** ≥ FLOOR sets must be completable from
+  *unlocked* cards (the makeable-set floor, `TRAPS.md` §6). Locked cards still form
+  sets on paper but not in reach.
 
-## Immediate open threads (see PROJECT.md §8)
-- Timer-as-character-skill, modeled as opposite pressure to encounter F.
-- Signature→effect language (2^f spell archetypes; rarity self-tunes by k).
-- Specialist (concentration) vs generalist (diversity) ability archetypes.
-- Encounter value-scoring is currently a color-only placeholder; the real version
-  maps signatures to effects.
+## Repo / workflow
+- **Personal repo** — committing and **pushing directly to the default branch
+  (`master`) is fine**, including in auto/unattended mode. No PR/branch dance
+  required unless a change is genuinely risky. Commit/push when the user asks.
+
+## Immediate open threads
+- **NEXT BUILD: the threat layer in `set-combat.html`** (`TRAPS.md`). Combat is still
+  solitaire vs a metronome; build the enemy-trap half of the trigger bus + author a
+  lot more game data (creatures, variants, templates, dungeons). Concrete on-ramp:
+  generalize the existing `firePassives` bus to fire enemy traps; add a `locked` card
+  set (parallel to `pending`); named geometry selectors (generalize `offsetSlots`);
+  the dungeon-drift tick. **Decided: enemies do NOT track resources** — traps/
+  transmutes fire directly (gated by condition/cadence), no enemy mana economy yet;
+  feel the reactive system first, add an active enemy-cast layer only if it's missing.
+- Still open (see `TRAPS.md` §8 / `CRAWL-DESIGN.md` §6): per-foe transmute *numbers*
+  (framework set, tune in play); loss-condition penalty; XP/HP/gold curves; whether
+  the enemy ever gets an active resource-spending layer.

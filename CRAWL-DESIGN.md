@@ -60,8 +60,19 @@ f=3/N=15 grid; only the skin changes.
    └────────────── exit / death ──────┴──────── BOSS room ──win──> big LOOT ──> TOWN
 ```
 
-- **Dungeons** have a difficulty level, a **weighted enemy table**, and a **named
-  boss**. Loot quality scales with **enemy level + dungeon level**.
+- **Dungeons** have a difficulty level, a **theme**, a **weighted enemy table**, and a
+  **named boss**. Loot quality scales with **enemy level + dungeon level**. Each
+  dungeon also applies one **global transmute drift** (an `on:tick` nudge of the board
+  toward the theme value) active in *every* room — this is what makes a dungeon *feel*
+  like its element, and it **baits** the theme value the foes are built to punish
+  (build-vs-dungeon). Full threat-layer spec in **`TRAPS.md`** (esp. §7 attachment).
+- **Foes** are **HP · Speed · Damage** + traps, by tier: **minion** = 1 trap (rolled as
+  a themed *variant* of the creature) · **elite/lieutenant** = 2 (one dungeon-fixed,
+  mirroring the boss's specialist theme trap — a *telegraph* — plus one rolled) ·
+  **boss** = higher stats + 3 authored signature traps (the squeeze). Ladder = **1 → 2 →
+  3 traps**. A fielded foe is composed **base creature ⊕ rolled variant ⊕ dungeon
+  template** (built like an item; `TRAPS.md` §7.1), with **Speed** named in bands
+  (Lumbering → Frenzied, §7.2).
 - **Rooms** are fought one enemy at a time (a SET combat encounter). Win → a roll on
   the loot table. Lose → run ends (death/retreat — TBD, see §6).
 - **Boss chance per room** is cumulative (the running probability the boss has
@@ -85,8 +96,15 @@ f=3/N=15 grid; only the skin changes.
 
   So **median boss ≈ room 10, guaranteed by room 14** — dungeons self-bound in
   length, with a long-run gambler's choice (push deeper for more loot rolls vs. cash
-  out before the boss). Open: does the boss *replace* that room's normal enemy or
-  *append*? (§6)
+  out before the boss). When the boss triggers, **it replaces the enemy that room would
+  have generated** (its own fresh encounter), not an appended extra room.
+
+- **Elite chance per room** — checked *only if the boss didn't trigger this room*, and
+  **recurring** (the elite tier is met repeatedly). Chance = **10% × (rooms since the
+  last elite)**; the counter **resets to 0 when an elite is fought**, so it climbs
+  10% → 20% → 30% … then drops back to 10%. Mean gap ~3–4 rooms → usually **2–3 elites
+  before the boss** (with rare swingy runs — a room-2 boss is possible). 10% is the
+  tuning dial.
 
 - **Town** between dungeons: **sell** gear/spellbooks, **buy** from shop loot-table
   inventory (gear, consumables, spellbooks). Healing/restock happens here.
@@ -100,6 +118,13 @@ f=3/N=15 grid; only the skin changes.
 - **Classes** start with **~4 abilities + 1 signature set-passive** (the class
   identity trigger, e.g. Rogue's Move→Attack bias). Ability slots cap how many
   abilities you can equip at once; leveling widens the loadout.
+- **Boss-gated ability advancement** (planned). Each **class has ~10 abilities** in its
+  list, but starts with only the kit above. **Every boss you kill → pick one new
+  ability from your class list** to learn. Bosses become the growth milestone (beating
+  one = build progress), and the wide list (10/class) + which picks you take, in what
+  order, means **lots of build variety within a single class** — before spellbooks even
+  cross the streams. (Boss-kill picks are the *intra-class* growth vector; spellbooks
+  below are the *cross-class* one.)
 - **Spellbooks** are the cross-class vector: **consume** one to *instantly learn* its
   ability (even outside your class — Firebolt is on Wizard, Sorcerer, *and*
   Pyromancer), or **sell** it in town for gold. This is how a build escapes its class
@@ -201,27 +226,87 @@ do:                  # one or more effects
 ```
 
 ```yaml
-# foes.yaml + traps.yaml (traps = enemy triggers)
-- id: goblin_patrol        # foes.yaml
-  name: Goblin Patrol
-  level: 2
-  hp: 18
-  attack_timer: 12         # seconds to next attack
-  attack_damage: 4
-  traps: [swarm]
+# foes.yaml — a base CREATURE = stats + an authored variant pool (TRAPS.md §7.1).
+# A fielded foe = base creature ⊕ rolled variant ⊕ dungeon template(s).
+- id: goblin               # a MINION creature
+  name: Goblin
+  tier: minion             # minion | elite | boss (→ trap count + stat scale)
+  hp: 20
+  speed: swift             # named band (TRAPS.md §7.2); resolves to a seconds range
+  damage: 10
+  variants: [bloodthirsty, sneaky, cowardly]   # roll ONE at spawn; the variant IS the trap
   xp: 10
   loot_tier: 2
+- id: goblin_king          # the BOSS (named → authored signature traps, no variant roll)
+  name: The Goblin King
+  tier: boss
+  hp: 90
+  speed: steady
+  damage: 14
+  traps: [ war_cry, press_the_swarm, dread_drums ]   # 3 authored: specialist + generalist + dread
+  xp: 120
+  loot_tier: 5
 
-- id: swarm                # traps.yaml
+# variants.yaml — adjective = a themed trap (+ optional ±band / stat tweak), tied to the creature
+- id: bloodthirsty         # the worked example: on all-red, chance damage + warp a Defend toward red
+  name: Bloodthirsty
+  trap:
+    on: match
+    when: { axis: color, mode: all_same, value: red }
+    do:                                            # PAIRED (damage+transmute) → transmute stays ≈1 card (§5.5)
+      - { effect: damage, chance: 0.5, amount: 6 }
+      - { effect: transmute, count: 1,
+          select: { axis: shape, mode: all_same, value: defend },
+          bias: { axis: color, value: red } }
+- id: sneaky
+  name: Sneaky
+  stat_mod: { speed_band: +1 }                     # one band faster (Swift → Frenzied)
+  trap: { on: match, when: { axis: shape, mode: all_same, value: move },
+          do: [ { effect: enemy_attack, chance: 0.25 } ] }
+- id: cowardly
+  name: Cowardly
+  stat_mod: { hp: -5, speed_band: +1 }
+  trap: { on: damage, do: [ { effect: advance_enemy_timer, seconds: -2 } ] }   # flinches when hit
+
+# templates.yaml — a DUNGEON-GLOBAL overlay stacked on EVERY foe (TRAPS.md §7.1)
+- id: undead
+  name: Undead
+  stat_mod: { hp: +8, speed_band: -1 }             # tankier but slower
+  trap: { on: lethal, once: true, do: [ { effect: set_hp, amount: 1 } ] }      # revenant: cheat death once
+
+- id: swarm                # traps.yaml — shared trap palette variants/bosses draw from
   name: Swarm
   on: match
-  when: { axis: number, mode: contains, value: 1 }   # contains vs all_same = open knob
-  do: [ { effect: advance_enemy_timer, seconds: 1 } ]
-- id: fire_breathing
-  name: Fire Breathing
+  when: { axis: number, mode: all_same, value: one }   # all_same = a dodgeable price (TRAPS.md §1)
+  do: [ { effect: advance_enemy_timer, seconds: 2 } ]
+- id: war_cry              # boss specialist trap (the dungeon's theme-punish; elites mirror this)
+  name: War Cry
   on: match
   when: { axis: color, mode: all_same, value: red }
   do: [ { effect: enemy_attack, chance: 0.25 } ]
+- id: press_the_swarm      # a TRIGGERED transmute trap (reactive herding, TRAPS.md §5.1)
+  name: Press the Swarm
+  on: match
+  when: { axis: color, mode: all_same, value: blue }   # punish your escape color...
+  do: [ { effect: transmute, count: 2,                 # ...by warping cards toward the theme
+          select: { axis: color, mode: not_value, value: red },
+          bias: { axis: color, value: red, intensity: 1.0 } } ]
+- id: dread_drums          # boss dread / tick trap (anti-stall)
+  name: Dread Drums
+  on: tick
+  every: 5                 # seconds
+  do: [ { effect: transmute, count: 1,                 # slowly rots your board toward red
+          select: { axis: shape, mode: all_same, value: defend, pick: highest_mag },
+          bias: { axis: color, value: red, intensity: 1.0 } } ]
+- id: molten_veins         # DAMAGE + GEOMETRIC transmute stacked in one do: (TRAPS.md §5.4)
+  name: Molten Veins
+  on: match
+  when: { axis: color, mode: all_same, value: red }
+  do:
+    - { effect: damage, amount: 4 }                    # punish HP...
+    - { effect: transmute,                             # ...AND warp a grid region toward red
+        select: { geometry: column, which: center },   # geometry selector (5×3 grid)
+        bias: { axis: color, value: red, intensity: 1.0 } }
 ```
 
 ```yaml
@@ -261,12 +346,27 @@ do:                  # one or more effects
 - id: goblin_warren        # dungeons.yaml
   name: The Goblin Warren
   difficulty: 1
-  enemy_table:             # weighted
-    - { foe: goblin_patrol, weight: 50 }
-    - { foe: cave_bat,      weight: 30 }
+  theme: { axis: color, value: red }     # the dungeon's element
+  drift:                                 # global on:tick transmute → "feel" + bait (TRAPS.md §7)
+    on: tick
+    every: 5                             # seconds — base drift rate: 1 card / 5s
+    do: [ { effect: transmute, count: 1,
+            bias: { axis: color, value: red, intensity: 1.0 } } ]
+  template: null           # optional DUNGEON-GLOBAL foe overlay (e.g. undead) → harder variant
+  boss_mirror: war_cry     # the boss trap elites telegraph (their "@boss_mirror" slot)
+  enemy_table:             # weighted creature roll (each rolls its own variant; tier from the foe)
+    - { foe: goblin,      weight: 50 }
+    - { foe: cave_bat,    weight: 30 }
     - { foe: goblin_shaman, weight: 20 }
+  elite_pool: [goblin_brute, goblin_shaman_elite]   # drawn by the §2 elite roll, not the weight table
   boss: goblin_king
   loot_modifier: 0         # dungeon-level loot bonus
+# A harder variant of the same dungeon — one global template makes every foe undead:
+- id: goblin_warren_haunted
+  name: The Haunted Warren
+  difficulty: 3
+  extends: goblin_warren   # same theme/drift/tables…
+  template: undead         # …but EVERY foe gains the undead overlay (TRAPS.md §7.1)
 - id: loot_tier2           # loot_tables.yaml
   rolls: 1
   entries:
@@ -278,16 +378,19 @@ do:                  # one or more effects
 
 ### How the entities reference each other
 ```
-  dungeon ──enemy_table/boss──> foe ──traps──> trap ─┐
-     │                           │                   ├─ all compile to → TRIGGER (on/when/do)
-  loot_table <── foe.loot_tier ──┘                   │
-  class ──starting_abilities/signature──> ability ──do──┘
-  spellbook ──teaches──> ability
-  item ──affix_slots──> affix ──trigger──┘
+  dungeon ──drift──────────────────────────────> trap (on:tick transmute) ─┐
+     │    ──template──> (every foe) ──┐                                     │
+     │    ──enemy_table/boss──> creature ──variants──> variant ──trap───────┤
+     │    ──boss_mirror────────────> (elite "@boss_mirror" telegraph)       ┤
+  loot_table <── foe.loot_tier ──┘   fielded foe = creature ⊕ variant ⊕ template ─→ TRIGGER
+  class ──starting_abilities/signature──> ability ──do──────────────────────┤   (on/when/do)
+  spellbook ──teaches──> ability                                            │
+  item ──base_type/affix_slots──> affix ──trigger──────────────────────────┘
 ```
 The whole content graph bottoms out in two primitives: the **trigger** (reactive)
-and the **transmute verb** (active board change) — both already specced in
-`GAME-DESIGN.md`, both honoring spec→spec fairness.
+and the **transmute verb** (active board change) — both honoring spec→spec fairness.
+Note the parallel: **foe = creature ⊕ variant ⊕ template** mirrors **item = base_type ⊕
+affixes** — the enemy is assembled like a piece of gear (`TRAPS.md` §7.1).
 
 ---
 
@@ -305,7 +408,7 @@ and the **transmute verb** (active board change) — both already specced in
 
 ---
 
-## 5.5 Combat resolution & the Flee retreat — *prototyped in `set-combat.html`*
+## 5.5 Combat resolution, the Tactics meter & the Flee retreat — *prototyped in `set-combat.html`*
 
 The per-room combat model. Values below are **prototyped and live in
 `prototype/set-combat.html`** (the basis for `set-crawl.html`); treat numbers as
@@ -316,67 +419,98 @@ by its number (magnitude 1–3), typed by its color:
 - **Attack → damage** (rolled — `weightedRoll`, triangular, weighted high toward
   magnitude but the odd weak hit slips through; *not* pure).
 - **Defend → Block** (a persistent barrier).
-- **Move → tempo** (pushes the enemy's next-attack clock later).
+- **Move → tempo + Tactics** (pushes the enemy's next-attack clock later, *and*
+  fuels the Tactics meter — see below; this is the resolution of the old §6
+  "rework Move's core" priority).
 - **Color → mana** by signature: all-same color → 3 of that mana; all-different → 1
   of each. (The speed-vs-value routing tradeoff falls out for free.)
 
 **Resource caps (and the adaptive deal).**
-- **Block ≤ max HP.** The barrier can hold up to your HP; excess is lost.
-- **Enemy clock ≤ 20s.** Move can't push the next attack more than 20s out; excess
-  is wasted.
-- **Capped → bias toward Attack.** When a resource is capped its action is wasteful, so
-  generation steers the shape axis toward Attack — *targeted*: a full Block cuts
-  Defends but keeps Moves (still useful), a maxed clock cuts Moves but keeps Defends,
-  both capped → heavy Attack. Distinctness caps the realized skew (~50% one-shape at
-  N=18 — the §3-style saturation governor), so the board never goes mono.
+- **Block ≤ max HP.** The barrier can hold up to your HP; excess is lost → generation
+  steers the shape axis away from Defend (only Defend is throttled when Block is full).
+- **Enemy clock ≤ 20s.** Move can't push the next attack more than 20s out — but the
+  overflow seconds are **no longer wasted**: they dump into the Tactics meter (below),
+  so a maxed clock keeps Move a fair, useful draw. Distinctness still caps realized
+  skew (the §3-style saturation governor), so the board never goes mono.
 
-**Flee — the retreat mechanic** (resolves the §6 loss-condition retreat path):
-- A **Flee** button under the abilities toggles **Fleeing mode**.
-- While fleeing: the deal biases **toward Move, away from Attack**; Move cards no longer
-  stall the clock — each rolls (triangular, like damage) into a **Flee meter → 10**.
-  Attacks/Defends/mana still resolve normally.
-- Meter hits 10 → **retreat to town** (in the sandbox: a flee-success end screen).
-- **Toggling off doesn't snap to 0** — the meter **decays 3s per level**, and Flee is
-  **locked out until empty**. Overshoot and you actually retreat (lose progress).
-- **The intended tech:** classes with Move-triggers (e.g. Rogue's Move→Attack passive)
-  enter Fleeing to farm Moves, then bail before 10 to reset — the lockout + decay +
-  triangular overshoot risk is the price. Build-expressive, self-balancing.
-- Prototyped constants: `FLEE_GOAL=10`, `FLEE_DECAY_PER_LEVEL=3s`, fleeing shape
-  weights `attack:defend:move = 1:4:16`, `CLOCK_CAP=20s`.
+**The Tactics meter — Move's banked outlet** (resolves the old §6 "rework Move's
+core" TOP PRIORITY). Move was the weak, fiddly verb (Defend and Move were both
+"don't-die" tools, and tempo couldn't reach the clock cap). Move is now a
+**board-control engine** instead of a second defensive tool:
+- Every **Move match** rolls (triangular on its magnitude) into a **Tactics meter →
+  10**, *on top of* still pushing the clock. Any clock-overflow seconds (Move into an
+  already-maxed clock) dump on top — so feeding Moves into a capped clock builds
+  Tactics fast. The once-wasted overcap is now the *point*.
+- **Full meter → ARMS** a row of one-shot **Tactic** buttons and then **drains**
+  `TACTICS_DRAIN`/sec (use-it-or-lose-it). The armed Tactics are universal board
+  transmutes: **Strike** (→ heavy Attacks), **Dodge** (→ heavy Defends), **Heat Up /
+  Chill Out / Go Wild** (→ red / blue / green flood), and **Flee** (the retreat —
+  see below). Firing any Tactic empties the meter.
+- **Tactics' lane — resolved: keep the overlap.** The armed transmutes deliberately
+  echo class floods (Strike ≈ Berserk, Heat Up ≈ Call Flames). In play this is a
+  *feature*: it lets any class run a control loop — **Call Flames + Strike** ping-pongs
+  the board between lots-of-red and lots-of-Attacks; **Glaciate + Chill Out** plays
+  extremely control-heavy on Cryomancer. More board-shaping options is good, especially
+  now that enemy transmutes create constant back-and-forth over the board. (Generic
+  board tools — shuffle/peek/floor-boost/lock — remain available as *additional*
+  Tactics later, not a replacement.)
+- Prototyped constants: `TACTICS_GOAL=10`, `TACTICS_DRAIN=1`/sec, `CLOCK_CAP=20s`.
+
+**Flee — the retreat mechanic** (resolves the §6 loss-condition retreat path). The
+old standalone Flee *meter* (toggle Fleeing mode, farm Moves to 10, decay + lockout)
+is **superseded**: Flee is now simply **one of the armed Tactics**. Fill the Tactics
+meter, then spend it on **Flee** to retreat to town (sandbox: a flee-success end
+screen). Confirm-gated, since it forfeits the encounter. Build-expressiveness is
+preserved — Move-trigger classes (Rogue's Move→Attack passive) fill Tactics fast and
+choose between offense (Strike) and escape (Flee) with the same resource.
 
 ---
 
 ## 6. Open questions
 
-- ⭐ **TOP PRIORITY NEXT SESSION — rework Move's core.** Playtest finding: the enemy
-  clock is **nearly impossible to push to its cap** (it resets to `now+cadence` on every
-  hit; Move adds only 1–3s/card vs. real-time drain — only stacked Frostbolts off a
-  fresh reset reach it). Deeper issue: **Defend and Move are both "don't-die" tools and
-  Move/tempo is the weak, fiddly one.** Move needs a distinct, usable core before the
-  Move affixes (§7 Windstep/Stalker's) can hang on it. Directions under consideration
-  (no decision yet): **(a) banked, spendable tempo** — flexible green=utility resource;
-  *concern: risks becoming another bolted-on fiddly resource to manage*; **(b)
-  evasion/dodge** — Move negates the next hit (distinct from Block's partial absorb),
-  liked for being flexible/utility-oriented. Also on the table: offensive-enabler/combo,
-  or just rebalance tempo numbers. **Resolve this first next session.**
+- ~~⭐ **rework Move's core**~~ — **RESOLVED: the Tactics meter (§5.5).** Move now
+  banks into a use-it-or-lose-it Tactics meter that arms one-shot board transmutes —
+  a board-control engine, distinct from Defend's "don't-die" role. (Close to the old
+  option (a) banked-tempo, but generalized to a meta-resource rather than a green
+  utility pool.) Tactics' overlap with class floods is **kept** (a control-loop
+  feature, §5.5). The Move *affixes* (§7 Windstep / Stalker's) now re-anchor on
+  **Tactics** ("a fraction of Move tempo → Block", "+dmg scaled by banked Tactics")
+  instead of the unreachable clock cap.
+- **⭐ NEXT — build the enemy-trap half of the trigger bus** (`TRAPS.md`). Combat is
+  still solitaire against a metronome; the design thesis (read the board *against the
+  enemy's traps*, `GAME-DESIGN.md` §0) is unbuilt. Minimal first build: generalize the
+  passive bus to fire enemy `traps[]`, render traps as visible tags, ship ~3 traps
+  spanning the consequence types (reflect, enemy-transmute, heal/armor). Test: *does a
+  visible trap change which sets you hunt?*
 - **Loss condition** — death = permadeath/run-over? The *retreat* path is now defined
   (the Flee mechanic, §5.5); still open is the **penalty** for fleeing and what death
   itself costs (roguelike vs. roguelite framing).
-- **Boss room** — does the boss *replace* the room's normal enemy or *append* a room?
+- ~~**Boss room**~~ — **resolved: the boss *replaces* the enemy that room would have
+  generated** (its own fresh encounter), not an appended extra room (§2).
 - ~~**Resource mapping** for shape & number axes~~ — **working resolution: single
   spendable economy.** color→mana is the only banked resource (universal, valence-themed
   — §4); shape stays immediate (per-card damage/Block/tempo), number stays a scalar.
   Revisit only if martial builds feel resource-thin in play.
-- **Trap condition default** — `contains` vs `all_same` (carried over from
-  `GAME-DESIGN.md`; `all_same` proposed so traps are dodgeable).
+- ~~**Trap condition default**~~ — **resolved in `TRAPS.md` §1–§2:** `all_same` for
+  punishing traps (rare, dodgeable, a *price*); `contains` reserved for *reward*
+  triggers. Full trap vocabulary, the severity∝rarity law, consequence families, the
+  counter-foe recipe, and the four board verbs (destroy / transmute / **lock** / —)
+  all live in `TRAPS.md`.
 - **Ability slots vs. known abilities** — do you *learn* a growing library but only
   *equip* slot-many? (Implies a loadout screen in town.)
 - **Cooldowns vs. resource-only** gating for actives.
 - **Level/XP curve, HP curve, gold economy balance.**
-- ~~**Mana persistence**~~ — **resolved: per-room, fresh start every room** (mana
-  resets to zero on entering each room; no carry-over). Caster builds must rebuild
-  their pool every encounter — bounds caster snowballing and keeps each room a clean
-  tactical reset.
+- ~~**Mana persistence**~~ — **resolved: HP is the only cross-room persistence
+  layer.** On entering each room, **everything except HP resets** — mana, Tactics, and
+  any active DoTs/dread all clear to zero; HP carries over (the run's attrition clock).
+  Caster builds rebuild their pool every encounter (bounds snowballing), dread is
+  strictly per-room pressure, and each room is a clean tactical reset on top of a
+  persistent health total. The reset is **archetype-symmetric** — casters lose mana,
+  tanks lose Block, Move-builds lose Tactics — so no archetype is singled out by it.
+- ~~**Trap resolution order**~~ — **resolved: dungeon drift first, then the foe's
+  traps in listed order.** A match (or tick) resolves the dungeon-global trap first,
+  then each foe trap top-to-bottom as authored on the foe — so trap order on the foe is
+  a deliberate design lever (e.g. transmute-then-punish vs. punish-then-transmute).
 - **Inventory limits**, gear comparison UX.
 
 ---
@@ -448,15 +582,15 @@ verb behaves* rather than pumping a stat:
 - **Offhand Dagger** — **bonus extra hit** on all-different-shape matches (dual-wield).
 - *(caster)* **Focus / Wand / Tome** — +mana / spell power / −ability cost / +1 ability slot.
 
-### Move affixes (on Boots-trinkets, etc.) — ⚠ pending the Move-core rework (§6)
-The two liked Feet mechanics survive as affixes, but both currently hinge on the enemy
-clock reaching its **cap — a state the playtest showed is nearly unreachable** (clock
-resets to `now+cadence` every hit; Move adds only 1–3s/card vs. real-time drain). They
-must be re-anchored on reachable conditions once Move's core is settled:
-- **Windstep** (overcap→Block) → re-anchor: a *fraction* of every Move's tempo grants
-  Block, not just the unreachable overcap.
-- **Stalker's** (clock-far-out → +Attack damage) → re-anchor: a combo trigger ("first
-  Attack after a Move match") or continuous "+dmg scaled by banked tempo."
+### Move affixes (on Boots-trinkets, etc.) — re-anchored on Tactics (§5.5)
+The two liked Feet mechanics survive as affixes. They originally hinged on the enemy
+clock reaching its **cap — which the playtest showed is nearly unreachable** — but the
+Move-core rework (Tactics meter, §5.5) gives them a reachable anchor: the overcap
+seconds now feed Tactics, and Move banks into the meter. Re-anchored:
+- **Windstep** — a *fraction* of every Move's tempo grants Block (not just the
+  old unreachable overcap).
+- **Stalker's** — a combo trigger ("first Attack after a Move match") or "+dmg scaled
+  by banked **Tactics**."
 
 ### Weapon color-affinity (martial weapons)
 Each martial weapon base-type carries a **color affinity** granting a **flat per-card
