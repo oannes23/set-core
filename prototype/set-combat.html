@@ -123,6 +123,16 @@
   @keyframes boom{0%{transform:scale(1);filter:brightness(1)}
     28%{transform:scale(1.16);filter:brightness(2.4) saturate(1.5)}
     100%{opacity:0;transform:scale(.5) rotate(7deg);filter:brightness(3)}}
+  /* a LOCKED card — visible, still forms sets, but unselectable for N seconds (TRAPS.md §5.2).
+     Iron padlock styling (NOT frost — avoids implying the blue/Frost colour). */
+  .card.locked{cursor:not-allowed;filter:saturate(.45) brightness(.7)}
+  .card.locked::after{content:"";position:absolute;inset:0;border-radius:13px;pointer-events:none;
+    background:repeating-linear-gradient(45deg,rgba(60,66,84,.0) 0 7px,rgba(70,78,98,.32) 7px 14px);
+    border:1px solid var(--line2);box-shadow:inset 0 0 16px rgba(0,0,0,.4)}
+  .card.locked .lockcd{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);z-index:3;
+    font-family:"Syne",sans-serif;font-weight:800;font-size:19px;color:#c2c8d6;text-shadow:0 1px 5px #000;
+    display:flex;flex-direction:column;align-items:center;line-height:1}
+  .card.locked .lockcd::before{content:"🔒";font-size:15px;margin-bottom:2px}
   /* empty slot left behind while a destroyed card reforms */
   .card.gap{opacity:.32;border-style:dashed;cursor:default;
     background:linear-gradient(170deg,#161a24,#10131b)}
@@ -300,6 +310,18 @@
   .tbtn.flee:not(:disabled):hover{background:var(--phos);color:#062b27}
   .tbtn:disabled{opacity:.4;cursor:not-allowed}
 
+  /* ENEMY TRAPS strip — the foe's "lines you don't cross", shown up front (legibility) */
+  .trapbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:0 0 14px}
+  .trapbar:empty{display:none}
+  .trapbar .tlabel{font-size:10px;letter-spacing:.15em;text-transform:uppercase;color:var(--red);font-weight:700;opacity:.85;margin-right:2px}
+  .trap{display:flex;align-items:center;gap:7px;background:#1a1216;border:1px solid #5a2a2e;border-radius:10px;padding:6px 11px;font-size:12px;color:#f0c2c4}
+  .trap .ti{font-size:14px;line-height:1}
+  .trap .tn{font-weight:700;color:var(--red)}
+  .trap .td{color:var(--ink-dim);font-size:11px}
+  @media(max-width:620px){.trap .td{display:none}}
+  .trap.proc{animation:trapproc .55s ease}
+  @keyframes trapproc{0%,100%{box-shadow:none;transform:none}40%{box-shadow:0 0 0 2px var(--red),0 0 22px -2px var(--red);transform:translateY(-2px)}}
+
   /* ability grid (2 rows of 3) + passives below */
   .spellgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}
   .passivehd{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-faint);margin:13px 0 8px;display:flex;justify-content:space-between;align-items:center}
@@ -442,6 +464,8 @@
     </div>
   </header>
 
+  <div class="trapbar" id="trapbar"></div>
+
   <div class="layout2">
     <div class="boardpanel">
       <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs id="defs"></defs></svg>
@@ -534,6 +558,8 @@
   </div>
 </div>
 
+<!-- declarative game content (classic script, file:// safe, loads BEFORE the engine) -->
+<script src="game-data.js"></script>
 <script>
 "use strict";
 /* ============================================================
@@ -797,7 +823,8 @@ function matchDescriptor(cards){
   const sh =[cards[0][1],cards[1][1],cards[2][1]];
   const nu =[cards[0][3],cards[1][3],cards[2][3]];
   const same=a=>a[0]===a[1]&&a[1]===a[2];
-  return { sameColor: same(col)?col[0]:null, sameShape: same(sh)?sh[0]:null, sameNumber: same(nu)?nu[0]:null };
+  return { sameColor: same(col)?col[0]:null, sameShape: same(sh)?sh[0]:null, sameNumber: same(nu)?nu[0]:null,
+           colors:col, shapes:sh, numbers:nu };   // raw per-axis values for `contains` trap conditions
 }
 
 /* ============================================================
@@ -906,6 +933,7 @@ function iconSVG(shape,colorHex){
 const state={
   board:[], sel:[], running:false, lock:false, raf:0,
   pending:new Set(),                            // slots mid-destroy (empty, reforming) — skip for targeting/destroy
+  locked:new Map(),                             // slot -> unlock time (ms): inert but still forms sets (TRAPS.md §5.2)
   targeting:null, combatId:0,                   // active click-to-target spell index; combat generation guard
   N:15, camoDepth:1, escapeRoutes:6,            // board difficulty — LOCKED (no UI): n=15, k1, 6 escape routes
   // combatants (configurable)
@@ -915,6 +943,8 @@ const state={
   nextAttackAt:0, lastNow:0, lastTick:0,
   tactics:0, tacticsArmed:false,                 // Tactics meter (0..TACTICS_GOAL) + armed/draining flag
   classId:"pyromancer", passives:[],             // chosen class + its active passive ids
+  enemyTraps:[],                                 // the foe's traps (threat layer, TRAPS.md) — fire on the same bus
+  driftAccum:0,                                  // seconds accumulated toward the next on:tick trap fire
   pendingRegenBias:null,                         // a passive can bias the slots freed by the current match
   // tallies for the HUD / after-action report
   tally:null, log:[], startStamp:0,
@@ -934,6 +964,11 @@ function render(){
     el.className="card"+(state.sel.includes(i)?" sel":"");
     el.dataset.i=i;
     if(card){ el.appendChild(cardSVG(card)); } else { el.classList.add("gap"); }
+    if(card && state.locked.has(i)){                              // locked: visible, still forms sets, unselectable
+      el.classList.add("locked");
+      const cd=document.createElement("span"); cd.className="lockcd";
+      cd.textContent=Math.ceil((state.locked.get(i)-performance.now())/1000); el.appendChild(cd);
+    }
     el.addEventListener("click",()=>onPick(i));
     boardEl.appendChild(el);
   });
@@ -1037,11 +1072,11 @@ function onPick(i){
   if(!state.running||state.lock) return;
   // targeting mode: the click chooses a card to blast instead of selecting for a set
   if(state.targeting!=null){
-    if(!state.board[i] || state.pending.has(i)) return;   // can't target an empty/reforming slot
+    if(!state.board[i] || state.pending.has(i) || state.locked.has(i)) return;   // can't target an empty/reforming/locked slot
     resolveTargetedSpell(i);
     return;
   }
-  if(!state.board[i] || state.pending.has(i)) return;
+  if(!state.board[i] || state.pending.has(i) || state.locked.has(i)) return;     // locked = visible but unselectable
   const at=state.sel.indexOf(i);
   if(at>=0){ state.sel.splice(at,1); cardEl(i).classList.remove("sel"); updateSelectionGlow(); return; }
   if(state.sel.length>=3) return;
@@ -1129,7 +1164,9 @@ function applyResolution(res){
   narrateSet(res);
   logAction(res);
   firePassives("match", res.desc);     // character-innate triggers react to this match's signature
+  if(state.enemyHP>0) fireEnemyTraps("match", res.desc);   // ...and the FOE's traps price this match (TRAPS.md)
   updateHUD();
+  if(!state.running) return;            // a trap may have ended combat (player death)
   if(state.enemyHP<=0){ endCombat("win"); return; }
 }
 
@@ -1160,7 +1197,7 @@ function weightedIndex(weights){
 // live, settled (not mid-reform), unselected slots — optionally filtered by predicate.
 function liveSlots(pred){
   const out=[];
-  state.board.forEach((c,i)=>{ if(c && !state.pending.has(i) && !state.sel.includes(i) && (!pred||pred(c))) out.push(i); });
+  state.board.forEach((c,i)=>{ if(c && !state.pending.has(i) && !state.locked.has(i) && !state.sel.includes(i) && (!pred||pred(c))) out.push(i); });
   return out;
 }
 // up to n slots from a pool, uniformly at random, without replacement (capped by availability).
@@ -1206,6 +1243,64 @@ const FIREBALL_BLAST=[
   [-2,0],[2,0],[0,-2],[0,2],          // orthogonal +2
   [-1,-1],[-1,1],[1,-1],[1,1],        // diagonals
 ];
+
+/* --- NAMED GEOMETRY SELECTORS (TRAPS.md §5.4) ---
+   Map a pattern name to live slot indices on the CFG.cols-wide grid (5×3 at N=15).
+   The sweep/strike grammar: a ROW = the wide horizontal sweep (5 on the locked board),
+   a COLUMN = the narrow vertical strike (3). One vocabulary for traps, drift, and player
+   abilities alike. `geometrySlots(spec)` is the dispatcher used by the transmute verb. */
+function gridDims(){ const cols=CFG.cols; return { cols, rows:Math.ceil(state.board.length/cols) }; }
+function liveAt(idxs){ return idxs.filter(i=>i!=null && i>=0 && i<state.board.length && state.board[i] && !state.pending.has(i) && !state.locked.has(i)); }
+function rowSlots(r){ const {cols,rows}=gridDims(); if(r<0||r>=rows) return []; const o=[]; for(let c=0;c<cols;c++){ const j=r*cols+c; if(j<state.board.length) o.push(j);} return o; }
+function colSlots(c){ const {cols,rows}=gridDims(); if(c<0||c>=cols) return []; const o=[]; for(let r=0;r<rows;r++){ const j=r*cols+c; if(j<state.board.length) o.push(j);} return o; }
+function cornerSlots(){ const {cols,rows}=gridDims(); return [0,cols-1,(rows-1)*cols,(rows-1)*cols+cols-1].filter(j=>j>=0&&j<state.board.length); }
+function borderSlots(){ const {cols,rows}=gridDims(); const o=[]; for(let r=0;r<rows;r++)for(let c=0;c<cols;c++) if(r===0||r===rows-1||c===0||c===cols-1){ const j=r*cols+c; if(j<state.board.length) o.push(j);} return o; }
+function innerSlots(){ const {cols,rows}=gridDims(); const o=[]; for(let r=1;r<rows-1;r++)for(let c=1;c<cols-1;c++){ const j=r*cols+c; if(j<state.board.length) o.push(j);} return o; }
+function centerSlot(){ const {cols,rows}=gridDims(); return ((rows-1)>>1)*cols + ((cols-1)>>1); }   // the true center (odd×odd grid)
+function diagSlots(anti){ const {cols,rows}=gridDims(); const o=[]; const len=Math.min(rows,cols); for(let k=0;k<len;k++){ const c=anti?cols-1-k:k; o.push(k*cols+c);} return o; }
+function halfSlots(which){ const {cols,rows}=gridDims(); const o=[]; for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){ const inHalf = which==="top"?r<rows/2 : which==="bottom"?r>=rows/2 : which==="left"?c<cols/2 : c>=cols/2; if(inHalf){ const j=r*cols+c; if(j<state.board.length) o.push(j);} } return o; }
+function geometrySlots(spec){
+  if(!spec) return [];
+  const {cols,rows}=gridDims(), which=spec.which;
+  let idxs=[];
+  switch(spec.geometry){
+    case "row":     idxs=rowSlots(spec.index!=null?spec.index : which==="top"?0 : which==="bottom"?rows-1 : which==="center"?(rows>>1) : (Math.random()*rows|0)); break;
+    case "column":  idxs=colSlots(spec.index!=null?spec.index : which==="left"?0 : which==="right"?cols-1 : which==="center"?(cols>>1) : (Math.random()*cols|0)); break;
+    case "corners": idxs=cornerSlots(); break;
+    case "border":  idxs=borderSlots(); break;
+    case "center": case "inner": idxs=innerSlots(); break;
+    case "blast":   idxs=offsetSlots(spec.center!=null?spec.center:centerSlot(), FIREBALL_BLAST); break;
+    case "cross": case "plus": { const ctr=spec.center!=null?spec.center:centerSlot(); idxs=[ctr,...offsetSlots(ctr,ORTHO4)]; break; }
+    case "diagonal": idxs=diagSlots(which==="anti"); break;
+    case "half":    idxs=halfSlots(which||"top"); break;
+    case "random":  return pickRandom(liveSlots(), spec.count||3);   // already live
+    default:        idxs=[];
+  }
+  return liveAt(idxs);
+}
+
+// --- LOCK verb (TRAPS.md §5.2): make cards inert (unselectable) for a time. Locked cards STILL
+//     form sets (findSets is untouched) — they're just out of reach. Honors the makeable-set floor:
+//     never lock below FLOOR sets completable from UNLOCKED cards. ---
+function makeableSetCountWith(lockedSet){
+  let n=0;
+  for(const [i,j,k] of findSets(state.board)) if(!lockedSet.has(i)&&!lockedSet.has(j)&&!lockedSet.has(k)) n++;
+  return n;
+}
+function lockSlots(indices, durationMs){
+  const now=performance.now();
+  const cand=[...new Set(indices)].filter(i=>i!=null && state.board[i] && !state.pending.has(i) && !state.locked.has(i));
+  const tentative=new Set(state.locked.keys());
+  const accepted=[];
+  for(const s of cand){
+    tentative.add(s);
+    if(makeableSetCountWith(tentative)>=FLOOR) accepted.push(s);    // keep the board playable from unlocked cards
+    else tentative.delete(s);                                        // this lock would starve the board — skip it
+  }
+  accepted.forEach(s=>state.locked.set(s, now+durationMs));
+  if(accepted.length) render();
+  return accepted.length;
+}
 // --- ALL lowest-cost live slots (the tie set). The cast picks one at random; the hover
 //     preview pulses the whole set to show every card that could be chosen. ---
 function pickAllLowest(pool, costFn){
@@ -1248,8 +1343,8 @@ function regenSlots(slots, bias){
 function transmute(indices, opts){
   opts=opts||{};
   const bias=opts.bias||null, gap=(opts.gap!=null?opts.gap:0);
-  const slots=[...new Set(indices)].filter(i=>i!=null && state.board[i] && !state.pending.has(i));
-  if(!slots.length) return;
+  const slots=[...new Set(indices)].filter(i=>i!=null && state.board[i] && !state.pending.has(i) && !state.locked.has(i));
+  if(!slots.length) return;     // locked cards are inert — survive floods (the Ice Block / preservation ruling)
   const myGen=state.combatId;
   const stale=()=>!state.running || state.combatId!==myGen;
   slots.forEach(idx=>{
@@ -1402,6 +1497,25 @@ function tick(){
     state.tactics=Math.max(0,state.tactics-TACTICS_DRAIN*dt);
     if(state.tactics<=0) resetTactics(); else updateTacticsUI();
   }
+  // on:tick traps — dungeon drift + dread-DoTs. Each fires every `every` seconds. Deferred while
+  // the board is mid-resolution (state.lock) so a drift can't churn cards under an evaluating match.
+  if(state.tickList && !state.lock){
+    for(const t of state.tickList){
+      t.accum+=dt;
+      const period=t.trap.every||5;
+      let guard=0;
+      while(t.accum>=period && state.running && guard++<4){ t.accum-=period; runTrap(t.trap); }
+    }
+  }
+  // tick down locked cards: update their countdowns, reform (unlock) when expired
+  if(state.locked.size){
+    let changed=false;
+    for(const [slot,until] of state.locked){
+      if(now>=until){ state.locked.delete(slot); changed=true; }
+      else { const el=cardEl(slot), cd=el&&el.querySelector(".lockcd"); if(cd) cd.textContent=Math.ceil((until-now)/1000); }
+    }
+    if(changed) render();
+  }
   const remain=Math.max(0,(state.nextAttackAt-now)/1000);
   const shown=Math.ceil(remain);
   $("v-clock").textContent=shown+"s";
@@ -1421,8 +1535,14 @@ function startCombat(){
   state.block=0; state.mana=[0,0,0];
   state.sel=[]; state.log=[]; state.tally=freshTally();
   state.tactics=0; state.tacticsArmed=false; state.lastTick=0; state.pendingRegenBias=null;
+  state.enemyTraps=ENCOUNTER_TRAPS.map(id=>TRAP_LIB[id]).filter(Boolean);   // load the foe's traps (TRAPS.md)
+  state.drift=ENCOUNTER_DRIFT?DRIFT_LIB[ENCOUNTER_DRIFT]:null;              // dungeon-global drift (on:tick)
+  // tick list = the dungeon drift + any on:tick foe traps (dread-DoTs), each with its own accumulator
+  state.tickList=[ ...(state.drift?[state.drift]:[]), ...state.enemyTraps.filter(t=>t.on==="tick") ]
+                   .map(trap=>({trap, accum:0}));
+  renderTrapTags();                                             // show the foe's traps up front (legibility)
   if(!SPELLS.length) selectClass(state.classId);                // ensure a loadout is loaded
-  state.pending=new Set(); state.combatId++; exitTargeting();   // invalidate any stale reform timers
+  state.pending=new Set(); state.locked=new Map(); state.combatId++; exitTargeting();   // invalidate any stale reform timers
   regenBias=null;
   state.board=genInitial();
   state.startStamp=performance.now();
@@ -1442,8 +1562,9 @@ function endCombat(result){
   state.running=false; state.lock=true;
   cancelAnimationFrame(state.raf);
   clearTimeout(glowTimer); clearAllGlow();          // no stale set-mate glow on the end screen
-  exitTargeting(); state.pending=new Set();
+  exitTargeting(); state.pending=new Set(); state.locked=new Map();
   resetTactics();
+  renderTrapTags();                                 // clear the enemy-trap strip
   lockControls(false);
   if(result==="win") narrate(`The enemy collapses. <b>Victory!</b>`,"sys");
   else if(result==="lose") narrate(`You fall in battle. <b>Defeat.</b>`,"sys");
@@ -1777,6 +1898,157 @@ const PASSIVES={
 function firePassives(event, ctx){
   for(const id of state.passives){ const p=id && PASSIVES[id];
     if(p && p.on===event && (!p.test || p.test(ctx))) p.fire(ctx); }
+}
+
+/* ============================================================
+   ENEMY TRAPS  —  the threat layer (TRAPS.md). Enemies own
+   event→condition→effect triggers on the SAME bus as passives.
+   For now enemies track NO resources: traps fire directly,
+   gated only by condition (match) or cadence (tick). A trap is a
+   PRICE on a specific match — it makes the build's wanted match
+   expensive, not impossible.
+   ============================================================ */
+// --- condition: does a match descriptor satisfy a trap's `when`? ---
+function descAxisValue(desc, axis){
+  return axis==="color"?desc.sameColor : axis==="shape"?desc.sameShape : desc.sameNumber;
+}
+function descAxisValues(desc, axis){          // the three card values on an axis (for `contains`)
+  return axis==="color"?desc.colors : axis==="shape"?desc.shapes : desc.numbers;
+}
+function trapCondMet(when, desc){
+  if(!when) return true;                       // no condition = fires on every match
+  const v=descAxisValue(desc, when.axis);
+  switch(when.mode){
+    case "all_same":      return when.value!=null ? v===when.value : v!=null;   // all-same (of value) = the specialist's bane
+    case "all_different": return v==null;                                        // all-diff = the generalist's bane
+    case "contains":      return descAxisValues(desc, when.axis).includes(when.value);
+    case "not_value":     return v!=null && v!==when.value;
+    default:              return true;
+  }
+}
+// --- player-damage helper (block absorbs first; shared shape with enemyAttack) ---
+function hurtPlayer(raw){
+  let dmg=raw; const absorbed=Math.min(state.block,dmg);
+  state.block-=absorbed; dmg-=absorbed;
+  if(state.tally){ state.tally.absorbed+=absorbed; state.tally.taken+=dmg; }
+  if(dmg>0){ state.playerHP=Math.max(0,state.playerHP-dmg); flashStat("s-php"); floatOverBoard(`-${dmg}`,"var(--red)",true); }
+  else floatOverBoard("blocked","var(--blue)",true);
+  return dmg;
+}
+// --- board-verb plumbing: convert a trap's {axis,value,intensity} bias to the regen-bias
+//     format the transmute() verb reads, and a trap's `select` (geometry OR value-filter)
+//     into live slot indices. ---
+function trapBias(b){
+  if(!b) return null;
+  const w=Math.max(1, Math.round(BIAS_W*(b.intensity!=null?b.intensity:1)));
+  if(b.axis==="color")  return {color:b.value, colorW:w};
+  if(b.axis==="shape")  return {shape:b.value, shapeW:w};
+  if(b.axis==="number") return {mag:b.value,   magW:w};
+  return null;
+}
+function selectSlots(sel){
+  if(!sel) return [];
+  if(sel.geometry) return geometrySlots(sel);                                  // spatial region (TRAPS.md §5.4)
+  const get = sel.axis==="color"?cardColor : sel.axis==="shape"?cardShape : cardMag;   // value filter
+  const pred = sel.mode==="not_value" ? (c=>get(c)!==sel.value) : (c=>get(c)===sel.value);
+  let slots=liveSlots(pred);
+  if(sel.pick==="highest_mag") slots.sort((a,b)=>cardMag(state.board[b])-cardMag(state.board[a]));
+  return slots;
+}
+// --- effect vocabulary. damage/heal/drain are non-board; `transmute` is the board verb. ---
+const TRAP_EFFECTS={
+  damage(e){ const amt=e.amount!=null?e.amount:weightedRoll(e.max||4); hurtPlayer(amt); return `⚔${amt}`; },
+  instant_attack(e){ enemyAttack(); return "strikes!"; },              // pull the clock to NOW — a free swing
+  advance_timer(e){ const s=e.seconds||3; state.nextAttackAt-=s*1000; return `−${s}s`; },
+  enemy_heal(e){ const a=e.amount||4; const b=state.enemyHP; state.enemyHP=Math.min(state.enemyMax,state.enemyHP+a); flashStat("s-ehp"); return state.enemyHP>b?`enemy +${state.enemyHP-b}`:null; },
+  drain_tactics(e){ const a=e.amount||4; const b=state.tactics; state.tactics=Math.max(0,state.tactics-a); if(state.tacticsArmed&&state.tactics<=0) resetTactics(); return b>state.tactics?`−${Math.round(b-state.tactics)} tac`:null; },
+  drain_mana(e){ const c=e.color!=null?e.color:0; const a=e.amount||3; const b=state.mana[c]; state.mana[c]=Math.max(0,state.mana[c]-a); return b>state.mana[c]?`−${b-state.mana[c]} ${MANA_LABELS[c]}`:null; },
+  // the enemy-as-transmuter board verb: select a region/value-set, reforge it toward a bias.
+  // `transmute(...)` here is the global verb (the method name does not shadow it).
+  transmute(e){
+    let slots=selectSlots(e.select);
+    if(e.count!=null && slots.length>e.count) slots=pickRandom(slots, e.count);    // cap (value/random selects)
+    if(!slots.length) return null;
+    transmute(slots, {bias:trapBias(e.bias)});
+    return `↯${slots.length}`;
+  },
+  // the LOCK board verb: make a region inert for a time (denies access without changing composition).
+  lock(e){
+    let slots=selectSlots(e.select);
+    if(e.count!=null && slots.length>e.count) slots=pickRandom(slots, e.count);
+    const n=lockSlots(slots, (e.seconds||4)*1000);
+    return n?`🔒${n}`:null;
+  },
+};
+function runTrap(trap){
+  const labels=[];
+  for(const eff of trap.do){
+    if(eff.chance!=null && Math.random()>=eff.chance) continue;      // chance-gated effects (e.g. 25% strike)
+    const fn=TRAP_EFFECTS[eff.effect]; if(!fn) continue;
+    const r=fn(eff); if(r!=null) labels.push(r);
+  }
+  if(labels.length){
+    trapProc(trap, labels.join(" · "));
+    updateHUD();
+    if(state.playerHP<=0 && state.running) endCombat("lose");
+  }
+}
+// fire the foe's traps for this event. event "match" reads the descriptor; "tick" is cadence-gated upstream.
+function fireEnemyTraps(event, ctx){
+  if(!state.running || !state.enemyTraps) return;
+  for(const trap of state.enemyTraps){
+    if(trap.on!==event) continue;
+    if(event==="match" && !trapCondMet(trap.when, ctx)) continue;
+    runTrap(trap);
+    if(!state.running) return;                                        // combat ended mid-fire
+  }
+}
+function trapProc(trap, label){
+  floatOverBoard(`${trap.icon||"⚠"} ${label}`, trap.quiet?"var(--phos)":"var(--red)", true);
+  if(!trap.quiet) narrate(`<b>${trap.name}</b> springs — ${label}.`, "enemy");   // steady drift stays quiet
+  const el=document.querySelector(`.trap[data-trap="${trap.id}"]`);
+  if(el){ el.classList.remove("proc"); void el.offsetWidth; el.classList.add("proc"); }
+}
+
+/* TRAP / DRIFT LIBRARIES — loaded from window.GAMEDATA (game-data.js, a classic script
+   loaded BEFORE this one). The data is pure JSON-shaped STRING TOKENS (red/attack/all_same/
+   column) for portability → YAML on the eventual server; normalize here resolves tokens to
+   the engine's numeric enums ONCE, at load. Authoring/review of content happens in game-data.js. */
+const TOKEN={ color:{red:COLOR_RED, green:COLOR_GREEN, blue:COLOR_BLUE},
+              shape:{attack:SHAPE_ATTACK, defend:SHAPE_DEFEND, move:SHAPE_MOVE},
+              number:{one:0, two:1, three:2} };                 // magnitude index 0/1/2
+function tok(axis, v){ const m=TOKEN[axis]; return (typeof v==="string" && m && m[v]!=null) ? m[v] : v; }
+function normCond(w){ return (w && w.axis!=null && w.value!=null) ? {...w, value:tok(w.axis,w.value)} : w; }
+function normEffect(e){
+  const o={...e};
+  if(typeof o.color==="string") o.color=tok("color", o.color);                                   // drain_mana color
+  if(o.select && o.select.axis!=null && o.select.value!=null) o.select={...o.select, value:tok(o.select.axis,o.select.value)};
+  if(o.bias && o.bias.axis!=null && o.bias.value!=null)       o.bias={...o.bias,   value:tok(o.bias.axis,  o.bias.value)};
+  return o;
+}
+function normalizeTrap(id, t){ return {id, ...t, when:normCond(t.when), do:(t.do||[]).map(normEffect)}; }
+function loadTraps(src){ const out={}; for(const k in (src||{})) out[k]=normalizeTrap(k, src[k]); return out; }
+const GDATA=(typeof window!=="undefined" && window.GAMEDATA) || {};
+const TRAP_LIB=loadTraps(GDATA.traps);
+const DRIFT_LIB=loadTraps(GDATA.drifts);
+// the active encounter — TEST wiring (Task 6's foe assembler will build this from creatures/dungeons).
+let ENCOUNTER_TRAPS=(GDATA.encounter && GDATA.encounter.traps) || [];
+let ENCOUNTER_DRIFT=(GDATA.encounter && GDATA.encounter.drift) || null;
+
+// render the foe's traps as legible tags (show the RULE; spotting which on-board sets
+// satisfy it is the player's skill — TRAPS.md §2.5). Empties out of combat.
+function renderTrapTags(){
+  const bar=$("trapbar"); if(!bar) return;
+  bar.innerHTML="";
+  if(!state.running || !state.enemyTraps || !state.enemyTraps.length) return;
+  const lab=document.createElement("span"); lab.className="tlabel"; lab.textContent="⚠ Enemy traps";
+  bar.appendChild(lab);
+  state.enemyTraps.forEach(tr=>{
+    const d=document.createElement("div"); d.className="trap"; d.dataset.trap=tr.id;
+    d.innerHTML=`<span class="ti">${tr.icon||"⚠"}</span><span class="tn">${tr.name}</span>`
+              + (tr.desc?`<span class="td">${tr.desc}</span>`:"");
+    bar.appendChild(d);
+  });
 }
 
 /* ============================================================
