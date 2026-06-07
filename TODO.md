@@ -91,7 +91,14 @@ a separate stack" collapses into "refactor into modular TS" — which is why rec
   tick, enemy attack, gauntlet advance). Time is explicit + RNG injected → determinism (tested). 9 engine
   tests, 23 total, typecheck clean. **Remaining:** ability roster + classes + passives + Tactics buttons
   (a `castAbility`/`useTactic` action over the same bus) — see `src/engine/README.md`.
-- `[ ]` **5. Rebuild `ui/`** intentionally (render, fx, coaching, briefing) behind the engine boundary.
+- `[~]` **5. Rebuild `ui/`** — DONE as a playable functional client; polish + abilities UI remain.
+  `app.ts` + `styles.css`: start screen (dungeon/foe pickers from data), play screen (board, HUD, enemy
+  clock, trap/trick strip), click-to-select + set-mate glow, the rAF `tick` loop, event→feedback
+  (log/flashes/win-lose/gauntlet). Drives the engine via `completeSet`/`tick`; plays the reactive board
+  game (matches, traps & tricks, Tactics meter, enemy clock, immune foes, gauntlets). Verified playable
+  via CDP (begin → find a set → complete → engine responds, board refills, no exceptions); typecheck +
+  23 tests green. **Deferred:** abilities/coaching/briefing UI + animation polish — prototype stays the
+  polished live game (see `src/ui/README.md`).
 - `[ ]` **6. Multiplayer seam:** make `engine` reduce `(state, action) -> state` / emit events; route
   ALL mutation through it. No netcode — just the shape that lets a server slot in as authority later.
 - `[ ]` **7. Wrapper smoke test:** confirm the built client runs as a PWA and under Tauri (and Capacitor
