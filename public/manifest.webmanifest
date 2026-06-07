@@ -1,0 +1,14 @@
+{
+  "name": "set.core",
+  "short_name": "set.core",
+  "description": "A Set-based skill minigame — the action layer of a web RPG.",
+  "start_url": "./app.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0b0d12",
+  "theme_color": "#0b0d12",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

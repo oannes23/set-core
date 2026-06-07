@@ -105,8 +105,12 @@ a separate stack" collapses into "refactor into modular TS" — which is why rec
   the client state exactly, that replay is deterministic (state AND events), and that `reduce` never
   mutates its input. The UI routes ALL mutation through `dispatch`→`reduce` and records the action log.
   No netcode — the shape is ready for a server to be the authority. 26 tests, typecheck clean.
-- `[ ]` **7. Wrapper smoke test:** confirm the built client runs as a PWA and under Tauri (and Capacitor
-  when mobile matters) — cheap to verify early, avoids surprises.
+- `[x]` **7. Wrapper smoke test** — PWA DONE & verified; native wrappers documented. The build is an
+  installable, offline-capable PWA (`public/manifest.webmanifest` + a dependency-free `public/sw.js` +
+  `icon.svg`, registered via `import.meta.env.BASE_URL`). CDP-verified: manifest valid, service worker
+  registers + activates with the `/set-core/` scope, app renders. Tauri (desktop/Steam) + Capacitor
+  (mobile) wrapping steps are documented in `WRAPPERS.md` — they're config, not a port, and need their
+  own toolchains (Rust / Xcode / Android SDK) to actually run, so not executed here.
 
 ### Hosting — GitHub Pages CI deploy (done)
 `[x]` `.github/workflows/deploy.yml` builds on push to `master` and publishes to Pages. Pages serves
