@@ -8,6 +8,78 @@ Status legend: `[ ]` not started · `[~]` in progress · `[x]` done
 
 ---
 
+## A. Foundation migration — dev tooling + modularization
+`[ ]` **NEXT / largest structural effort.** The prototype is at the top of what a single ~2,700-line
+HTML file should hold. The next move is **not** a server and **not** a Godot rewrite — it's a
+same-stack split into modules with real dev tooling. Capturing the decisions + reasoning here so we
+can begin.
+
+### Decisions (and *why* — these are settled)
+1. **Framework-free at runtime, dev-tooling-rich.** Split "dependency" in two:
+   - **No runtime framework** (React/Vue/state libs/game-engine libs). This game does its own DOM
+     rendering and owns `state`; a framework would *fight* that, importing a worldview to solve
+     problems we don't have. Vanilla is viable in 2026 precisely because the platform absorbed what
+     frameworks patched (ES modules, fetch, custom props, grid). This is the *forward* step, not retro.
+   - **Yes to build/dev tooling** (ships nothing to the player, all boring + removable): a **bundler
+     (Vite)**, a **test runner (Vitest)**, and **TypeScript**. Payoff is exactly our pain points —
+     module boundaries, real unit tests (today testing means regex-extracting the `<script>` + driving
+     Chrome over DevTools Protocol), and types to encode the implicit contracts (card = 4-tuple
+     `[color,shape,pin,number]`, the token vocabulary, the trap-effect schema, spec shapes). CLAUDE.md:
+     *every bug so far has been in the UI layer* — that is the exact class TypeScript eliminates.
+   - **Guardrail:** a *runtime* dep must earn its place against "could I write this in ~50 lines?"; a
+     *dev* dep just needs to be boring + widely used. TS adoption is gradual (`.js`→`.ts`, `strict` later).
+2. **Ship via a wrapper, not a port.** Web client *is* the shipping client: PWA on web, **Tauri** for
+   desktop/Steam, **Capacitor** for mobile. Godot is deferred indefinitely — it would mean rewriting
+   the engine in GDScript/C# and throwing away the hard-won *feel* layer, to buy console publishing we
+   don't need yet. Re-evaluate only if a web-unreachable target becomes a real goal.
+3. **Defer multiplayer, but build the seam now.** Don't write netcode. Do enforce one discipline (see
+   step 6) so we can "turn it on" later: the engine operates on a `state` it does **not** own, mutated
+   **only** through actions/events. Then a server can become the authority and the client replays events.
+
+### Recycle vs. rebuild — it's a *per-layer* decision, not one call
+The codebase already separates into four layers; each gets a different answer. (Avoid the
+"spec-it-all-then-reimplement-from-scratch" trap: code encodes thousands of small correct decisions a
+spec never captures — lock-before-transmute ordering, `gap`-delayed regen, the clock-cap fix. Refactor
+**under the old prototype as a behavioral oracle**, don't clean-room it.)
+- **`core/` — generation math:** **recycle verbatim.** Pure, 100k+ validated clears, zero invariant
+  violations. The *last* code to ever rewrite. Conformance-gate it with the existing invariant sim.
+- **`data/` — content (`game-data.js`):** **recycle as-is**, already the portable JSON→YAML artifact;
+  just add TS types / a schema.
+- **`engine/` — resolution, traps, tactics, targeting:** **recycle the design, clean the structure**
+  (~⅔ of the logic lifts over). The right abstractions were already discovered through play (effect
+  vocabulary, selector grammar, spec→spec transforms, trigger bus) — the "spec" mostly exists in the
+  code's shape; write it down to guide a *refactor*.
+- **`ui/` — render, CSS, fx, coaching:** **the one layer to intentionally rebuild** (least principled,
+  where the bugs live), behind the now-clean engine boundary. Preserve the hard-won *feel* decisions
+  (burst format, flash/shake intensities, animation timings, coaching flow) as spec.
+
+Net: ≈100% of math + data reused, ~⅔ of engine logic, UI rebuilt. Staying in JS/TS means "rewrite into
+a separate stack" collapses into "refactor into modular TS" — which is why recycle dominates.
+
+### Migration steps (ordered)
+- `[ ]` **0. Tag the current build** as `proto-reference` — the behavioral oracle we diff against.
+- `[ ]` **1. Scaffold** Vite + Vitest + TypeScript (no framework). Keep the single file runnable until
+  modules reach parity. Add a `dev`/`build`/`test` script set.
+- `[ ]` **2. Extract `core/`** (generator + pure helpers) first; port `sim-invariants.mjs` into Vitest
+  as the conformance gate. Nothing else moves until the core passes under the new harness.
+- `[ ]` **3. Extract `data/`** — `game-data.js` → typed module; define TS types (or JSON Schema) for the
+  trap-effect / creature / dungeon schemas.
+- `[ ]` **4. Extract `engine/`** — resolution, traps (`TRAP_EFFECTS`), tactics, targeting toolkit, the
+  trigger bus. Lift + type; refactor opportunistically; verify behavior against `proto-reference`.
+- `[ ]` **5. Rebuild `ui/`** intentionally (render, fx, coaching, briefing) behind the engine boundary.
+- `[ ]` **6. Multiplayer seam:** make `engine` reduce `(state, action) -> state` / emit events; route
+  ALL mutation through it. No netcode — just the shape that lets a server slot in as authority later.
+- `[ ]` **7. Wrapper smoke test:** confirm the built client runs as a PWA and under Tauri (and Capacitor
+  when mobile matters) — cheap to verify early, avoids surprises.
+
+### "Graduate the prototype" triggers (recap)
+- **Now-ish → do this migration** when adding the *second screen* (town / run-map / inventory) or the
+  *first persisted progression*. Don't add a third major system to the single file.
+- **Stand up a server** only when progression must be authoritative/cross-device, or any player↔player
+  interaction is wanted. The seam (step 6) is built; the server is implemented then.
+
+---
+
 ## 4. Tutorial dummy · gauntlet scaffold · 3 themed teaching foes · trap/wound feel
 `[x]` **DONE.** Verified at runtime via Chrome DevTools Protocol (29 assertions, all green).
 - **Training Dummy** (`training_dummy`): 0 damage, 30s, no trap — the guided tutorial's foe so nothing
