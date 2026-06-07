@@ -42,8 +42,14 @@ button.cta:hover { background: var(--phos); color: #062b27; }
 .trig.trick .tn { color: var(--trick); }
 .trig .td { color: var(--ink-dim); }
 
+/* play area — compact board (left) + a side rail (abilities / tactics / log) on the right */
+.play { display: grid; grid-template-columns: auto 1fr; gap: 16px; align-items: start; margin: 16px 0; }
+.rail { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.rail .panel { margin: 0; }
+@media (max-width: 760px) { .play { grid-template-columns: 1fr; } .board { width: 100% !important; } }
+
 /* board */
-.board { display: grid; gap: 10px; margin: 16px 0; }
+.board { display: grid; gap: 8px; width: 440px; max-width: 100%; margin: 0; }
 .card { aspect-ratio: 3/4; border: 2px solid var(--cc); border-radius: 12px; background: #0f131b;
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; cursor: pointer;
   box-shadow: 0 0 0 1px #0006 inset; transition: transform .1s ease, box-shadow .12s ease, filter .12s ease; user-select: none; }
@@ -70,8 +76,18 @@ button.cta:hover { background: var(--phos); color: #062b27; }
 @keyframes fk { 0%,100% { box-shadow: none; } 30% { box-shadow: 0 0 0 3px var(--trick), 0 0 60px -6px var(--trick); } }
 @keyframes fw { 0%,100% { box-shadow: none; } 25% { box-shadow: 0 0 0 4px var(--red), 0 0 70px -4px var(--red); transform: translateX(-6px); } 60% { transform: translateX(4px); } }
 
+/* abilities / tactics stub (the live panels land in migration step 5) */
+.panelhd { display: flex; justify-content: space-between; align-items: baseline; }
+.stub-note { font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-faint); }
+.ability-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 8px; }
+.ab-slot { border: 1px solid var(--line2); border-radius: 10px; padding: 10px 6px; text-align: center; background: #0e1118; opacity: .55; }
+.ab-slot .abi { font-size: 20px; line-height: 1; } .ab-slot .abn { font-size: 9.5px; color: var(--ink-dim); margin-top: 5px; }
+.ab-slot .abc { font-size: 9px; color: var(--ink-faint); margin-top: 3px; font-variant-numeric: tabular-nums; }
+.tactics-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.tac-btn { border: 1px solid var(--line2); border-radius: 8px; padding: 6px 9px; font-size: 11px; color: var(--ink-faint); background: #0e1118; opacity: .55; }
+
 /* log */
-.log { font-size: 12px; line-height: 1.7; max-height: 180px; overflow-y: auto; color: var(--ink-dim); }
+.log { font-size: 12px; line-height: 1.7; max-height: 220px; overflow-y: auto; color: var(--ink-dim); }
 .log .you { color: var(--phos); } .log .foe { color: var(--red); } .log .win { color: var(--gold); } .log .trick { color: var(--trick); }
 .banner { font-family: "Syne", sans-serif; font-weight: 800; font-size: 20px; text-align: center; padding: 14px; }
 .banner.win { color: var(--gold); } .banner.lose { color: var(--red); }

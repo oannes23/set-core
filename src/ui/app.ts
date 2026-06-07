@@ -1,7 +1,8 @@
 /* ui/app — a functional, playable UI over the engine. Renders the board/HUD, turns clicks into
    `completeSet` actions, runs the clock via `tick`, and interprets CombatEvents into feedback.
-   Intentionally a clean rebuild (not pixel-parity with the prototype). No abilities yet — it plays
-   the reactive board game: matches, traps & tricks, the Tactics meter, the enemy clock, gauntlets. */
+   Intentionally a clean rebuild (not pixel-parity with the prototype). Layout: a compact board on the
+   left + a side rail (abilities/tactics stub, combat log) on the right — the abilities panel goes live
+   in step 5. Plays the reactive board game: matches, traps & tricks, Tactics meter, enemy clock, gauntlets. */
 
 import { systemRng, type Rng } from '../core/rng'
 import { type Card, isSet, third, keyOf } from '../core/affine'
@@ -9,6 +10,8 @@ import { findSets } from '../core/sets'
 import type { GenConfig } from '../core/generate'
 import { GAMEDATA } from '../data/game-data'
 import type { Dungeon } from '../data/schema'
+import { CLASSES } from '../data/classes'
+import { ABILITIES } from '../engine/abilities'
 import { assembleFoe, pickWeightedFoe } from '../engine/foe'
 import { createCombat, reduce, colsForN, COMBAT_GEN, type Deps, type CombatAction } from '../engine/combat'
 import type { CombatState } from '../engine/state'
@@ -129,16 +132,22 @@ function buildPlay(): void {
   barP.appendChild(strip)
   wrap.appendChild(barP)
 
+  // play area: compact board (left) + side rail (abilities / tactics / log) on the right
+  const play = $(`<div class="play"></div>`)
   const boardWrap = $(`<div class="boardwrap" id="boardwrap"></div>`)
   const board = $(`<div class="board" id="board"></div>`)
   board.style.gridTemplateColumns = `repeat(${V.state.cols}, 1fr)`
   boardWrap.appendChild(board)
-  wrap.appendChild(boardWrap)
+  play.appendChild(boardWrap)
 
+  const rail = $(`<div class="rail"></div>`)
+  rail.appendChild(abilitiesStub())
   const logP = $(`<div class="panel"></div>`)
   logP.appendChild($(`<label>Combat log</label>`))
   logP.appendChild($(`<div class="log" id="log"></div>`))
-  wrap.appendChild(logP)
+  rail.appendChild(logP)
+  play.appendChild(rail)
+  wrap.appendChild(play)
   V.root.appendChild(wrap)
 
   V.refs = {}
@@ -150,6 +159,28 @@ function buildPlay(): void {
   renderStrip()
   V.refs.foename.textContent = V.state.foe.name + (V.state.sequence ? `  ·  ${V.state.seqIdx + 1}/${V.state.sequence.length}` : '')
   V.refs.foedesc.innerHTML = V.state.foe.desc ?? ''
+}
+
+/** Placeholder Abilities/Tactics panel — previews the default class loadout from the engine registries,
+ *  greyed out. The live, mana-gated, click-to-cast version lands in migration step 5 (castAbility/useTactic). */
+const MANA_ICON = ['🔥', '🌿', '❄']
+function abilitiesStub(): HTMLElement {
+  const cls = CLASSES[0] // until the new client has a class picker, preview the first class
+  const panel = $(`<div class="panel"></div>`)
+  panel.appendChild($(`<div class="panelhd"><label>Abilities · ${cls.name}</label><span class="stub-note">step 5</span></div>`))
+  const grid = $(`<div class="ability-grid"></div>`)
+  for (const id of cls.abilities) {
+    const a = ABILITIES[id]
+    if (!a) continue
+    const cost = a.cost.map((c, i) => (c > 0 ? `${MANA_ICON[i]}${c}` : '')).filter(Boolean).join(' ')
+    grid.appendChild($(`<div class="ab-slot" title="${a.desc}"><div class="abi">${a.icon}</div><div class="abn">${a.name}</div><div class="abc">${cost}</div></div>`))
+  }
+  panel.appendChild(grid)
+  panel.appendChild($(`<div class="panelhd" style="margin-top:12px"><label>Tactics</label><span class="stub-note">at full meter</span></div>`))
+  const row = $(`<div class="tactics-row"></div>`)
+  for (const t of ['⚔ Strike', '🛡 Dodge', '🏃 Flee', '🔥 Heat', '❄ Chill', '🌿 Wild']) row.appendChild($(`<div class="tac-btn">${t}</div>`))
+  panel.appendChild(row)
+  return panel
 }
 
 function renderStrip(): void {
