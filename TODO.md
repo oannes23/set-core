@@ -17,7 +17,11 @@ wounded. Currently only `outmaneuvered` is a Trick; adding more is data-only (`k
 ---
 
 ## A. Foundation migration — dev tooling + modularization
-`[ ]` **NEXT / largest structural effort.** The prototype is at the top of what a single ~2,700-line
+`[~]` **Steps 0–3, 6, 7 DONE; 4–5 done for the spine (abilities/polish remain).** All in `src/`, the
+prototype untouched as the oracle/live game. 26 tests, typecheck clean, build + PWA verified. The new
+client is playable (reactive board game) and the (state,action) replay seam is proven. Remaining to
+reach full parity: the ability roster + classes + passives (engine), and their UI + coaching/briefing
++ animation polish. **NEXT / largest structural effort.** The prototype is at the top of what a single ~2,700-line
 HTML file should hold. The next move is **not** a server and **not** a Godot rewrite — it's a
 same-stack split into modules with real dev tooling. Capturing the decisions + reasoning here so we
 can begin.
