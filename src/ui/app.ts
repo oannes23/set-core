@@ -10,12 +10,12 @@ import type { GenConfig } from '../core/generate'
 import { GAMEDATA } from '../data/game-data'
 import type { Dungeon } from '../data/schema'
 import { assembleFoe, pickWeightedFoe } from '../engine/foe'
-import { createCombat, reduce, colsForN, type Deps } from '../engine/combat'
+import { createCombat, reduce, colsForN, COMBAT_GEN, type Deps, type CombatAction } from '../engine/combat'
 import type { CombatState } from '../engine/state'
 import { TACTICS_GOAL } from '../engine/state'
 import type { CombatEvent } from '../engine/events'
 
-const GEN: GenConfig = { n: 15, active: [0, 1, 3], pin: [0, 0, 0, 0], camoDepth: 1, escapeRoutes: 6, floor: 1 }
+const GEN: GenConfig = COMBAT_GEN
 const GLYPH = ['⚔', '🛡', '➤'] // attack / defend / move
 const $ = <T extends HTMLElement>(html: string): T => {
   const t = document.createElement('template')
@@ -27,6 +27,8 @@ interface View {
   root: HTMLElement
   deps: Deps
   state: CombatState
+  /** the session action log — every mutation goes through here (the step-6 seam) */
+  actions: CombatAction[]
   selected: number[]
   raf: number
   lastT: number
@@ -93,7 +95,7 @@ function begin(root: HTMLElement, dungeonId: string, foeVal: string): void {
   const foe = assembleFoe(foeId, dg, GAMEDATA, rng)
   if (!foe) return
   const state = createCombat({ foe, gen: GEN, sequence, seqIdx: 0, dungeonId }, rng)
-  V = { root, deps: { data: GAMEDATA, rng }, state, selected: [], raf: 0, lastT: 0, boardSig: '', refs: {} }
+  V = { root, deps: { data: GAMEDATA, rng }, state, actions: [], selected: [], raf: 0, lastT: 0, boardSig: '', refs: {} }
   buildPlay()
   renderBoard()
   updateBar()
@@ -246,10 +248,11 @@ function onBoardClick(e: Event): void {
 }
 
 // ---- dispatch + event interpretation ----
-function dispatch(action: Parameters<typeof reduce>[1]): void {
+function dispatch(action: CombatAction): void {
   if (!V) return
   const { state, events } = reduce(V.state, action, V.deps)
   V.state = state
+  V.actions.push(action) // record the session log (the seam): a server could replay these
   interpret(events)
   if (boardSignature(state) !== V.boardSig) renderBoard()
   updateBar()

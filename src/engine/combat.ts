@@ -27,6 +27,9 @@ export interface Deps {
 const N_COLS: Record<number, number> = { 12: 4, 15: 5, 16: 4, 18: 6, 20: 5, 24: 6 }
 export const colsForN = (n: number): number => N_COLS[n] ?? 5
 
+/** The shipped combat board: 15 cards, shading (axis 2) dropped, easiest-k 1, 6 escape routes. */
+export const COMBAT_GEN: GenConfig = { n: 15, active: [0, 1, 3], pin: [0, 0, 0, 0], camoDepth: 1, escapeRoutes: 6, floor: 1 }
+
 export interface NewCombatOpts {
   foe: FoeRuntime
   gen: GenConfig

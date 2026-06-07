@@ -99,8 +99,12 @@ a separate stack" collapses into "refactor into modular TS" — which is why rec
   via CDP (begin → find a set → complete → engine responds, board refills, no exceptions); typecheck +
   23 tests green. **Deferred:** abilities/coaching/briefing UI + animation polish — prototype stays the
   polished live game (see `src/ui/README.md`).
-- `[ ]` **6. Multiplayer seam:** make `engine` reduce `(state, action) -> state` / emit events; route
-  ALL mutation through it. No netcode — just the shape that lets a server slot in as authority later.
+- `[x]` **6. Multiplayer seam** — DONE. The engine already reduces `(state, action) → {state, events}`;
+  step 6 formalizes it: `session.ts` models a combat as `seed + setup + action log`, and `runSession`
+  replays it deterministically. `seam.test.ts` proves a server replaying only the action log reproduces
+  the client state exactly, that replay is deterministic (state AND events), and that `reduce` never
+  mutates its input. The UI routes ALL mutation through `dispatch`→`reduce` and records the action log.
+  No netcode — the shape is ready for a server to be the authority. 26 tests, typecheck clean.
 - `[ ]` **7. Wrapper smoke test:** confirm the built client runs as a PWA and under Tauri (and Capacitor
   when mobile matters) — cheap to verify early, avoids surprises.
 
