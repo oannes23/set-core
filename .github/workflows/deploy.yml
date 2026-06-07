@@ -1,0 +1,56 @@
+name: Deploy to GitHub Pages
+
+# Builds the site and publishes it to GitHub Pages on every push to master.
+# GitHub Pages just serves static files — pnpm/Vite/TypeScript are BUILD-time only and never
+# run on the host. We compile the app with `pnpm build`, then fold in the still-static prototype
+# (the playable game during migration) and the launcher, and publish the assembled dist/.
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch: # lets you trigger a deploy by hand from the Actions tab
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deploy at a time; let an in-progress run finish rather than cancelling.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4 # reads the pnpm version from package.json "packageManager"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build # -> dist/ (compiled app.html + assets, base-prefixed for /set-core/)
+      # Assemble the published site. For now the PROTOTYPE is the playable game and the Vite app
+      # is the dev scaffold; both go live. Promote app.html -> the root when the app takes over.
+      - name: Fold in the launcher + prototype
+        run: |
+          cp index.html dist/index.html
+          cp -r prototype dist/prototype
+      - uses: actions/configure-pages@v5
+        with:
+          enablement: true # try to enable Pages automatically; if it errors, enable it once in Settings → Pages → Source: GitHub Actions
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

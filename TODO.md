@@ -76,6 +76,15 @@ a separate stack" collapses into "refactor into modular TS" — which is why rec
 - `[ ]` **7. Wrapper smoke test:** confirm the built client runs as a PWA and under Tauri (and Capacitor
   when mobile matters) — cheap to verify early, avoids surprises.
 
+### Hosting — GitHub Pages CI deploy (done)
+`[x]` `.github/workflows/deploy.yml` builds on push to `master` and publishes to Pages. Pages serves
+static files only — pnpm/Vite/TS are **build-time**, never on the host; we publish the compiled `dist/`.
+The workflow folds in the still-static **prototype** (the playable game during migration) + the launcher,
+so the live site is useful *now*. Build uses `base:/set-core/` (project sites live at a subpath); dev
+stays at root, `vite preview` mirrors the subpath (`isPreview`). Verified against a Pages-mimicking
+static server (app renders + all assets/prototype 200 under `/set-core/`). One-time: enable Pages
+(Settings → Pages → Source: GitHub Actions) if `enablement:true` doesn't auto-enable on first run.
+
 ### "Graduate the prototype" triggers (recap)
 - **Now-ish → do this migration** when adding the *second screen* (town / run-map / inventory) or the
   *first persisted progression*. Don't add a third major system to the single file.

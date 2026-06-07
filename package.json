@@ -4,6 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "description": "Set-based skill minigame — the action-resolution layer of a web RPG. Framework-free; Vite + Vitest + TypeScript.",
+  "packageManager": "pnpm@10.33.0",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
