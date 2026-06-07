@@ -1,0 +1,20 @@
+{
+  "name": "set-core",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "description": "Set-based skill minigame — the action-resolution layer of a web RPG. Framework-free; Vite + Vitest + TypeScript.",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^6.0.3",
+    "vite": "^8.0.16",
+    "vitest": "^4.1.8"
+  }
+}

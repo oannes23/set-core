@@ -6,3 +6,9 @@
 *~
 .idea/
 .vscode/
+
+# Node / build
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo

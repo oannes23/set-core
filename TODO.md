@@ -57,9 +57,13 @@ Net: ≈100% of math + data reused, ~⅔ of engine logic, UI rebuilt. Staying in
 a separate stack" collapses into "refactor into modular TS" — which is why recycle dominates.
 
 ### Migration steps (ordered)
-- `[ ]` **0. Tag the current build** as `proto-reference` — the behavioral oracle we diff against.
-- `[ ]` **1. Scaffold** Vite + Vitest + TypeScript (no framework). Keep the single file runnable until
-  modules reach parity. Add a `dev`/`build`/`test` script set.
+- `[x]` **0. Tag the current build** as `proto-reference` — the behavioral oracle we diff against. (Tag
+  pushed at `dda6cf0`.)
+- `[x]` **1. Scaffold** Vite + Vitest + TypeScript (no framework), pnpm. `src/{core,data,engine,ui}/`
+  alongside `prototype/`. Entry is `app.html` (root `index.html` stays the legacy launcher — promote
+  app.html→index.html once the app supersedes it). Scripts: `dev`/`build`/`preview`/`test`/`typecheck`.
+  Seeded `core/affine.ts` (the `third`/`isSet` primitives) + tests as the proof-of-harness. Verified:
+  `pnpm test` 4/4, `typecheck` clean, `build` ok, `dev` serves.
 - `[ ]` **2. Extract `core/`** (generator + pure helpers) first; port `sim-invariants.mjs` into Vitest
   as the conformance gate. Nothing else moves until the core passes under the new harness.
 - `[ ]` **3. Extract `data/`** — `game-data.js` → typed module; define TS types (or JSON Schema) for the
