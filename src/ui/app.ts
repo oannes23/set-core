@@ -199,31 +199,24 @@ function buildPlay(): void {
   head.appendChild($(`<div class="foedesc" id="foedesc"></div>`))
   wrap.appendChild(head)
 
-  const barP = $(`<div class="panel"></div>`)
-  barP.appendChild($(`
-    <div class="bar">
-      <div class="gauge"><div class="lab"><span>You</span><span id="phpv"></span></div><div class="track"><span class="fill php" id="php"></span></div></div>
+  // play area: left 2/3 (combat bar embedded above the board) · right 1/3 (Tactics / Abilities / log)
+  const play = $(`<div class="play"></div>`)
+
+  const left = $(`<div class="panel leftcol"></div>`)
+  left.appendChild($(`
+    <div class="bar combatbar">
+      <div class="gauge you"><div class="lab"><span class="youname">You <span class="blockbadge" id="block"></span></span><span id="phpv"></span></div><div class="track"><span class="fill php" id="php"></span></div></div>
       <div class="gauge"><div class="lab"><span id="enemylab">Enemy</span><span id="ehpv"></span></div><div class="track"><span class="fill ehp" id="ehp"></span></div></div>
       <div class="clock" id="clock">—</div>
     </div>`))
-  barP.appendChild($(`
-    <div class="bar" style="margin-top:12px">
-      <div class="gauge"><div class="lab"><span>Tactics</span><span id="tacv"></span></div><div class="track"><span class="fill tac" id="tac"></span></div></div>
-      <div class="mana"><span style="color:var(--c0)">🔥<b id="m0">0</b></span><span style="color:var(--c1)">🌿<b id="m1">0</b></span><span style="color:var(--c2)">❄<b id="m2">0</b></span></div>
-      <div class="chips"><span>🛡 <b id="block">0</b></span></div>
-    </div>`))
-  const strip = $(`<div class="strip" id="strip"></div>`)
-  barP.appendChild(strip)
-  wrap.appendChild(barP)
-
-  // play area: compact board (left) + side rail (abilities / tactics / log) on the right
-  const play = $(`<div class="play"></div>`)
+  left.appendChild($(`<div class="strip" id="strip"></div>`))
   const boardWrap = $(`<div class="boardwrap" id="boardwrap"></div>`)
   const board = $(`<div class="board" id="board"></div>`)
   board.style.gridTemplateColumns = `repeat(${V.state.cols}, 1fr)`
   boardWrap.appendChild(board)
   boardWrap.appendChild($(`<div id="floatlayer"></div>`))
-  play.appendChild(boardWrap)
+  left.appendChild(boardWrap)
+  play.appendChild(left)
 
   const rail = $(`<div class="rail"></div>`)
   rail.appendChild(buildCastPanel())
@@ -261,9 +254,17 @@ const TAC_BTNS: { k: string; label: string; flee?: boolean }[] = [
 function buildCastPanel(): HTMLElement {
   const cls = classById(V!.classId)
   const panel = $(`<div class="panel"></div>`)
-  // abilities section (header + grid + passive chips) — coach-gateable as one region
-  const abSec = $(`<div class="coach-sec" data-sec="abilities"></div>`)
-  abSec.appendChild($(`<div class="panelhd"><label>Abilities · ${cls.name}</label><span class="stub-note">spend mana</span></div>`))
+  // TACTICS section (meter built in, above abilities) — coach-gateable as one region
+  const tacSec = $(`<div class="coach-sec" data-sec="tactics"></div>`)
+  tacSec.appendChild($(`<div class="panelhd"><label>Tactics</label><span class="stub-note" id="tacv">0/${TACTICS_GOAL}</span></div>`))
+  tacSec.appendChild($(`<div class="track tacmeter"><span class="fill tac" id="tac"></span></div>`))
+  const row = $(`<div class="tactics-row" id="tactics"></div>`)
+  for (const t of TAC_BTNS) row.appendChild($(`<div class="tac-btn${t.flee ? ' flee' : ''}" data-tac="${t.k}">${t.label}</div>`))
+  tacSec.appendChild(row)
+  panel.appendChild(tacSec)
+  // ABILITIES section (mana display built into the header) + grid + passive chips
+  const abSec = $(`<div class="coach-sec" data-sec="abilities" style="margin-top:14px"></div>`)
+  abSec.appendChild($(`<div class="panelhd"><label>Abilities · ${cls.name}</label><span class="manabar"><span style="color:var(--c0)">🔥<b id="m0">0</b></span><span style="color:var(--c1)">🌿<b id="m1">0</b></span><span style="color:var(--c2)">❄<b id="m2">0</b></span></span></div>`))
   const grid = $(`<div class="ability-grid" id="abilities"></div>`)
   for (const id of V!.loadout) {
     const a = ABILITIES[id]
@@ -279,13 +280,6 @@ function buildCastPanel(): HTMLElement {
   }
   if (V!.state.passives.length) abSec.appendChild(pas)
   panel.appendChild(abSec)
-  // tactics section (header + button row)
-  const tacSec = $(`<div class="coach-sec" data-sec="tactics"></div>`)
-  tacSec.appendChild($(`<div class="panelhd" style="margin-top:12px"><label>Tactics</label><span class="stub-note">at full meter</span></div>`))
-  const row = $(`<div class="tactics-row" id="tactics"></div>`)
-  for (const t of TAC_BTNS) row.appendChild($(`<div class="tac-btn${t.flee ? ' flee' : ''}" data-tac="${t.k}">${t.label}</div>`))
-  tacSec.appendChild(row)
-  panel.appendChild(tacSec)
   return panel
 }
 
@@ -353,7 +347,7 @@ function glowSet(s: CombatState, sel: number[], sets: [number, number, number][]
 
 // ---- input ----
 function onBoardClick(e: Event): void {
-  if (!V || !V.state.running) return
+  if (!V || !V.state.running || V.paused) return // board is inert during a coaching/briefing freeze
   const el = (e.target as HTMLElement).closest('.card') as HTMLElement | null
   if (!el || el.dataset.i == null) return
   const i = +el.dataset.i
@@ -607,7 +601,8 @@ function updateBar(): void {
   V.refs.m0.textContent = String(s.mana[0])
   V.refs.m1.textContent = String(s.mana[1])
   V.refs.m2.textContent = String(s.mana[2])
-  V.refs.block.textContent = String(s.block)
+  V.refs.block.textContent = s.block > 0 ? `🛡 ${s.block}` : ''
+  V.refs.block.classList.toggle('on', s.block > 0)
   const remain = Math.max(0, (s.nextAttackAt - s.now) / 1000)
   const clk = V.refs.clock
   clk.textContent = s.running ? `${Math.ceil(remain)}s` : '—'
