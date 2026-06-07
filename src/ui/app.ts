@@ -35,6 +35,8 @@ interface View {
   actions: CombatAction[]
   classId: string
   loadout: string[] // the chosen class's ability ids (the active grid)
+  coach: boolean // affordance arrows on (Training / Tutorial dungeons)
+  paused: boolean // coaching freeze gate — the clock loop stops dispatching ticks
   selected: number[]
   raf: number
   lastT: number
@@ -49,6 +51,7 @@ export function mountApp(root: HTMLElement): void {
 
 // ---- start screen ----
 function startScreen(root: HTMLElement): void {
+  coachTeardown() // clear any lingering scrim/popover from a prior guided run
   root.innerHTML = ''
   const wrap = $(`<div class="wrap"></div>`)
   wrap.appendChild($(`<h1>set.core</h1>`))
@@ -129,11 +132,12 @@ function begin(root: HTMLElement, dungeonId: string, foeVal: string, classId: st
   if (!foe) return
   const cls = classById(classId)
   const state = createCombat({ foe, gen: GEN, passives: cls.passives, sequence, seqIdx: 0, dungeonId }, rng)
-  V = { root, deps: { data: GAMEDATA, rng }, state, actions: [], classId: cls.id, loadout: cls.abilities.slice(), selected: [], raf: 0, lastT: 0, boardSig: '', refs: {} }
+  V = { root, deps: { data: GAMEDATA, rng }, state, actions: [], classId: cls.id, loadout: cls.abilities.slice(), coach: !!dg.coach, paused: false, selected: [], raf: 0, lastT: 0, boardSig: '', refs: {} }
   buildPlay()
   renderBoard()
   updateBar()
   loop(performance.now())
+  if (dg.guided) coachStartGuided()
 }
 
 // ---- play screen skeleton ----
@@ -205,7 +209,9 @@ const TAC_BTNS: { k: string; label: string; flee?: boolean }[] = [
 function buildCastPanel(): HTMLElement {
   const cls = classById(V!.classId)
   const panel = $(`<div class="panel"></div>`)
-  panel.appendChild($(`<div class="panelhd"><label>Abilities · ${cls.name}</label><span class="stub-note">spend mana</span></div>`))
+  // abilities section (header + grid + passive chips) — coach-gateable as one region
+  const abSec = $(`<div class="coach-sec" data-sec="abilities"></div>`)
+  abSec.appendChild($(`<div class="panelhd"><label>Abilities · ${cls.name}</label><span class="stub-note">spend mana</span></div>`))
   const grid = $(`<div class="ability-grid" id="abilities"></div>`)
   for (const id of V!.loadout) {
     const a = ABILITIES[id]
@@ -213,17 +219,21 @@ function buildCastPanel(): HTMLElement {
     const cost = a.cost.map((c, i) => (c > 0 ? `${MANA_ICON[i]}${c}` : '')).filter(Boolean).join(' ')
     grid.appendChild($(`<div class="ab-slot" data-ab="${id}" title="${a.name} — ${a.desc}"><div class="abi">${a.icon}</div><div class="abn">${a.name}</div><div class="abc">${cost}</div></div>`))
   }
-  panel.appendChild(grid)
-  panel.appendChild($(`<div class="panelhd" style="margin-top:12px"><label>Tactics</label><span class="stub-note">at full meter</span></div>`))
-  const row = $(`<div class="tactics-row" id="tactics"></div>`)
-  for (const t of TAC_BTNS) row.appendChild($(`<div class="tac-btn${t.flee ? ' flee' : ''}" data-tac="${t.k}">${t.label}</div>`))
-  panel.appendChild(row)
+  abSec.appendChild(grid)
   const pas = $(`<div class="passives" id="passives"></div>`)
   for (const id of V!.state.passives) {
     const p = PASSIVES[id]
     if (p) pas.appendChild($(`<div class="pchip" data-passive="${id}" title="${p.name} — ${p.desc}"><span class="pi">${p.icon}</span>${p.name}</div>`))
   }
-  if (V!.state.passives.length) panel.appendChild(pas)
+  if (V!.state.passives.length) abSec.appendChild(pas)
+  panel.appendChild(abSec)
+  // tactics section (header + button row)
+  const tacSec = $(`<div class="coach-sec" data-sec="tactics"></div>`)
+  tacSec.appendChild($(`<div class="panelhd" style="margin-top:12px"><label>Tactics</label><span class="stub-note">at full meter</span></div>`))
+  const row = $(`<div class="tactics-row" id="tactics"></div>`)
+  for (const t of TAC_BTNS) row.appendChild($(`<div class="tac-btn${t.flee ? ' flee' : ''}" data-tac="${t.k}">${t.label}</div>`))
+  tacSec.appendChild(row)
+  panel.appendChild(tacSec)
   return panel
 }
 
@@ -344,17 +354,29 @@ function onTacticClick(e: Event): void {
   dispatch({ type: 'useTactic', key })
 }
 
-/** Refresh ability/tactic affordances — runs every frame so they track mana + the armed meter live. */
+/** Refresh ability/tactic affordances — runs every frame so they track mana + the armed meter live.
+ *  In coach dungeons a beckoning arrow marks anything that just became usable (the cause→effect cue). */
 function updateCastables(): void {
   if (!V) return
   const s = V.state
   V.refs.abilities?.querySelectorAll<HTMLElement>('.ab-slot').forEach((el) => {
     const a = el.dataset.ab ? ABILITIES[el.dataset.ab] : undefined
-    el.classList.toggle('ready', !!a && s.running && canAfford(s, a.cost))
+    const ready = !!a && s.running && canAfford(s, a.cost)
+    el.classList.toggle('ready', ready)
+    if (V!.coach) setCoachArrow(el, ready)
   })
   V.refs.tactics?.querySelectorAll<HTMLElement>('.tac-btn').forEach((el) => {
     el.classList.toggle('armed', s.running && s.tacticsArmed)
   })
+  if (V.coach) setCoachArrow(V.refs.tactics, s.running && s.tacticsArmed)
+}
+
+/** A single beckoning arrow above an element (added on the transition into "usable", removed when not). */
+function setCoachArrow(el: HTMLElement | undefined, on: boolean): void {
+  if (!el) return
+  const has = el.querySelector(':scope > .coach-arrow')
+  if (on && !has) el.appendChild($(`<span class="coach-arrow">▼</span>`))
+  else if (!on && has) has.remove()
 }
 
 // ---- dispatch + event interpretation ----
@@ -386,6 +408,7 @@ function interpret(events: CombatEvent[]): void {
         break
       case 'abilityCast':
         log(`You cast <b>${ABILITIES[e.id]?.name ?? e.id}</b>.`, 'you')
+        coachNotify('ability') // guided intro: "cast an ability" step
         break
       case 'abilityFizzled':
         log(`<b>${ABILITIES[e.id]?.name ?? e.id}</b> fizzles — no target.`, 'foe')
@@ -394,7 +417,10 @@ function interpret(events: CombatEvent[]): void {
         pulsePassive(e.id)
         break
       case 'tacticUsed':
-        if (e.key !== 'flee') log(`Tactic — <b>${e.key[0].toUpperCase()}${e.key.slice(1)}</b>!`, 'you')
+        if (e.key !== 'flee') {
+          log(`Tactic — <b>${e.key[0].toUpperCase()}${e.key.slice(1)}</b>!`, 'you')
+          coachNotify('tactic') // guided intro: "spend Tactics" step
+        }
         break
       case 'fled':
         endScreen('flee')
@@ -403,6 +429,7 @@ function interpret(events: CombatEvent[]): void {
         log(`The foe drains your ${['Fire', 'Nature', 'Frost'][e.color]} mana.`, 'foe')
         break
       case 'setResolved': {
+        coachNotify('match') // guided intro: "make your first set" step
         // give every match a line; a damaging match already logged its strike (enemyDamaged)
         if (e.damage > 0) break
         const parts: string[] = []
@@ -498,7 +525,8 @@ function loop(t: number): void {
   if (!V.state.running) return
   const dt = V.lastT ? t - V.lastT : 0
   V.lastT = t
-  if (dt > 0 && dt < 500) dispatch({ type: 'tick', dtMs: dt })
+  // V.paused = a coaching freeze: keep rendering but stop advancing the engine clock
+  if (!V.paused && dt > 0 && dt < 500) dispatch({ type: 'tick', dtMs: dt })
   updateBar()
   V.raf = requestAnimationFrame(loop)
 }
@@ -506,6 +534,7 @@ function loop(t: number): void {
 // ---- end ----
 function endScreen(result: 'win' | 'lose' | 'flee'): void {
   if (!V) return
+  coachFinish() // close any open guided step before the end banner
   cancelAnimationFrame(V.raf)
   const text = result === 'win' ? '★ Victory' : result === 'flee' ? '🏃 Fled' : '✖ Defeat'
   const banner = $(`<div class="banner ${result === 'win' ? 'win' : 'lose'}">${text}</div>`)
@@ -516,4 +545,133 @@ function endScreen(result: 'win' | 'lose' | 'flee'): void {
     V = null
     startScreen(root)
   })
+}
+
+/* ============================================================
+   COACHING LAYER (TODO §3) — a reusable teaching harness over four primitives:
+   PAUSE (V.paused, honored by the clock loop) · SECTION GATES (dim a region until its
+   stage) · SPOTLIGHT (scrim + ringed target) · POPOVER (the freeze-and-explain card).
+   Affordance arrows (3a) live in updateCastables. The guided intro (3b) is DATA below.
+   ============================================================ */
+interface GuidedStep {
+  icon: string
+  title: string
+  body: string
+  spot?: string | null // selector to ring (and, with `hold`, dim the rest)
+  hold?: boolean // freeze + explain (Next to continue)
+  await?: 'match' | 'ability' | 'tactic' // un-freeze and wait for the player to DO it
+  reveal?: string[] // section names to un-dim at this stage
+  hint?: string
+  finishLabel?: string
+}
+const COACH: { active: boolean; steps: GuidedStep[]; idx: number; await: string | null } = { active: false, steps: [], idx: 0, await: null }
+
+// named UI regions the guided match reveals one stage at a time
+const COACH_SECTIONS: Record<string, string> = { abilities: '[data-sec="abilities"]', tactics: '[data-sec="tactics"]', traps: '#strip' }
+function setSectionEnabled(name: string, on: boolean): void {
+  const sel = COACH_SECTIONS[name]
+  if (sel) document.querySelectorAll(sel).forEach((el) => el.classList.toggle('coach-locked', !on))
+}
+const lockAllSections = () => { for (const n in COACH_SECTIONS) setSectionEnabled(n, false) }
+const unlockAllSections = () => { for (const n in COACH_SECTIONS) setSectionEnabled(n, true) }
+
+// ring the target(s); `dim` also drops a click-blocking scrim (hold/explain steps)
+function coachSpotlight(sel: string | null, dim: boolean): void {
+  document.querySelectorAll('.coach-spot').forEach((e) => e.classList.remove('coach-spot'))
+  const els = sel ? [...document.querySelectorAll(sel)] : []
+  els.forEach((e) => e.classList.add('coach-spot'))
+  document.getElementById('coachscrim')?.classList.toggle('show', dim && els.length > 0)
+}
+
+// build the scrim + popover once, lazily (kept out of the static markup)
+function buildCoachUI(): void {
+  if (document.getElementById('coachscrim')) return
+  document.body.appendChild($(`<div id="coachscrim"></div>`))
+  const pop = $(`<div id="coachpop">
+    <div class="cphd"><span class="cpicon" id="cp-icon">🎓</span><span class="cptitle" id="cp-title"></span></div>
+    <div class="cpbody" id="cp-body"></div><div class="cphint" id="cp-hint"></div>
+    <div class="cpfoot"><span class="cpstep" id="cp-step"></span>
+    <span class="cpbtns"><button id="cp-skip">Skip intro</button><button class="primary" id="cp-next">Next ▸</button></span></div></div>`)
+  document.body.appendChild(pop)
+  pop.querySelector('#cp-next')!.addEventListener('click', () => { if (!COACH.await) coachAdvance() })
+  pop.querySelector('#cp-skip')!.addEventListener('click', coachFinish)
+}
+
+// the guided intro script (3b): a gradual reveal, ONE play-element per stage
+const GUIDED_STEPS: GuidedStep[] = [
+  { icon: '🃏', title: 'Read the board', spot: '#board', hold: true,
+    body: 'Every card shows three traits — a <b>colour</b>, a <b>shape</b>, and a <b>number</b> (1–3). The clock is frozen; take your time looking them over.' },
+  { icon: '✨', title: 'Make your first set', spot: '#board', await: 'match',
+    hint: '▸ Pick a card, watch the teal halos, then complete a set.',
+    body: 'A <b>set</b> is three cards where each trait is <b>all the same</b> or <b>all different</b> across the three. Pick any card — the teal halos light up its set-mates. Complete a set now.' },
+  { icon: '⚠️', title: 'Watch for traps', spot: '#strip', reveal: ['traps'], hold: true,
+    body: "Tougher foes carry <b>traps</b> — rules that punish (or reward!) certain matches, shown in the <b>trap strip</b> above the board. This dummy has none, but the <b>Training · Gauntlet</b> has foes whose lines you must read, dodge, or deliberately spring." },
+  { icon: '🎯', title: 'Spend Tactics', spot: '[data-sec="tactics"]', reveal: ['tactics'], await: 'tactic',
+    hint: '▸ Match Moves (➤) to fill the meter; when the arrow appears, press a tactic.',
+    body: 'Matching <b>Move</b> cards fills your <b>Tactics</b> meter. Full, it <b>arms</b> — a glowing arrow marks it — and you can spend it to reshape the whole board. Fill it and spend one.' },
+  { icon: '🔥', title: 'Cast an ability', spot: '[data-sec="abilities"]', reveal: ['abilities'], await: 'ability',
+    hint: '▸ Build mana from matches; when an ability lights up with an arrow, click it.',
+    body: 'Matches also generate <b>mana</b> by colour. When you can afford an ability it lights up (with a beckoning arrow, here in Training). Build mana and cast one.' },
+  { icon: '🎓', title: "You're ready", spot: null, hold: true, finishLabel: 'Begin! ▸',
+    body: "That's the whole loop: <b>find sets</b>, dodge traps, bank <b>Tactics</b>, spend <b>mana</b>. The clock resumes when you close this — good luck." },
+]
+
+function coachStartGuided(): void {
+  buildCoachUI()
+  COACH.active = true
+  COACH.steps = GUIDED_STEPS
+  COACH.idx = 0
+  COACH.await = null
+  lockAllSections() // everything but the board starts dark
+  coachShowStep(0)
+}
+function coachShowStep(i: number): void {
+  const s = COACH.steps[i]
+  if (!s) { coachFinish(); return }
+  COACH.idx = i
+  COACH.await = s.await ?? null
+  ;(s.reveal ?? []).forEach((n) => setSectionEnabled(n, true))
+  if (V) V.paused = !!s.hold // hold = freeze; await = let them play
+  coachSpotlight(s.spot ?? null, !!s.hold)
+  const set = (id: string, html: string) => { const el = document.getElementById(id); if (el) el.innerHTML = html }
+  set('cp-icon', s.icon)
+  set('cp-title', s.title)
+  set('cp-body', s.body)
+  set('cp-hint', s.hint ?? '')
+  set('cp-step', `Step ${i + 1} / ${COACH.steps.length}`)
+  const next = document.getElementById('cp-next') as HTMLButtonElement | null
+  const pop = document.getElementById('coachpop')
+  if (next) { next.textContent = s.finishLabel ?? (i === COACH.steps.length - 1 ? 'Finish' : 'Next ▸'); next.classList.toggle('await', !!COACH.await) }
+  pop?.classList.toggle('awaiting', !!COACH.await)
+  pop?.classList.add('show')
+}
+function coachAdvance(): void {
+  if (COACH.idx >= COACH.steps.length - 1) { coachFinish(); return }
+  coachShowStep(COACH.idx + 1)
+}
+/** Engine event points call this; if the current step awaits this event, satisfy it + advance. */
+function coachNotify(event: 'match' | 'ability' | 'tactic'): void {
+  if (!COACH.active || COACH.await !== event) return
+  COACH.await = null
+  document.getElementById('coachpop')?.classList.remove('awaiting')
+  document.getElementById('cp-next')?.classList.remove('await')
+  setTimeout(coachAdvance, 700) // a beat so the player sees their action land
+}
+function coachFinish(): void {
+  if (!COACH.active && !document.getElementById('coachpop')) return
+  COACH.active = false
+  COACH.await = null
+  if (V) V.paused = false
+  coachSpotlight(null, false)
+  unlockAllSections()
+  document.getElementById('coachpop')?.classList.remove('show')
+}
+/** Hard teardown when leaving combat — remove the body-level scrim/popover + any stray markers. */
+function coachTeardown(): void {
+  COACH.active = false
+  COACH.await = null
+  document.getElementById('coachscrim')?.remove()
+  document.getElementById('coachpop')?.remove()
+  document.querySelectorAll('.coach-spot').forEach((e) => e.classList.remove('coach-spot'))
+  document.querySelectorAll('.coach-arrow').forEach((e) => e.remove())
 }

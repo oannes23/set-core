@@ -104,9 +104,13 @@ a separate stack" collapses into "refactor into modular TS" — which is why rec
   loop, event→feedback (log/flashes/casts/procs/win-lose-flee/gauntlet). Drives the engine via
   `completeSet`/`tick`/`castAbility`/`useTactic`. **CDP-verified end-to-end:** pick a class → bank mana
   via sets → a slot arms → cast (mana spent, foe damaged, passive procs) → fill the Tactics meter →
-  fire a tactic (board transmutes, meter resets). typecheck + 40 tests + build green. **Deferred:** the
-  coaching layer + guided tutorial, the pre-combat briefing, and animation polish (card SVGs, bursts,
-  hitstop, spell target previews) — the prototype stays the more polished live game (see `src/ui/README.md`).
+  fire a tactic (board transmutes, meter resets). The **coaching layer + guided intro** are also ported
+  (four primitives — pause/section-gates/spotlight/popover — affordance arrows, the `GUIDED_STEPS`
+  script over `coachNotify`; the Tutorial dungeon launches it, CDP-verified through the await→match
+  advance + skip teardown). typecheck + 40 tests + build green. **Deferred:** the "explain
+  mid-normal-play" tutorial variant + persisted "seen", the pre-combat briefing modal, and animation
+  polish (card SVGs, bursts, hitstop, spell target previews) — the prototype stays the more polished
+  live game (see `src/ui/README.md`).
 - `[x]` **6. Multiplayer seam** — DONE. The engine already reduces `(state, action) → {state, events}`;
   step 6 formalizes it: `session.ts` models a combat as `seed + setup + action log`, and `runSession`
   replays it deterministically. `seam.test.ts` proves a server replaying only the action log reproduces
@@ -306,8 +310,11 @@ on selection so it actively guides the eye.
 ---
 
 ## 3. Tutorial mode — guided, freeze-and-explain onboarding
-`[~]` **Coaching layer BUILT (3a + 3b + the four shared primitives). Remaining: an event-triggered
-"explain mid-normal-play" tutorial variant, and content polish.** The four primitives now exist in
+`[~]` **Coaching layer BUILT in BOTH the prototype and the new client (3a + 3b + the four shared
+primitives). Remaining: an event-triggered "explain mid-normal-play" tutorial variant, and content
+polish.** It is now ported to `src/ui/app.ts` (migration step 5): the four primitives + affordance
+arrows + the `GUIDED_STEPS` script over `coachNotify`; pause is UI-side (the clock loop stops sending
+`tick`s, keeping the engine pure). The four primitives also exist in
 `set-combat.html`: PAUSE (`state.paused`, honored by `tick`), SECTION GATES (`setSectionEnabled` +
 `.coach-locked`), SPOTLIGHT (`coachSpotlight` + `#coachscrim`/`.coach-spot`), POPOVER (`#coachpop`).
 The guided-intro match (3b) is a DATA script (`GUIDED_STEPS`) over them; `coachNotify(event)` is wired
