@@ -25,6 +25,7 @@
     --blue:#5b94f5;
     --warn:#f5a524;
     --gold:#f5c542;
+    --trick:#34d399;     /* TRICK: a favorable trigger to aim for (green) */
     --shadow:0 20px 50px -20px rgba(0,0,0,.7);
   }
   *{box-sizing:border-box;margin:0;padding:0}
@@ -478,8 +479,9 @@
   /* TRAP TRIGGER FEEDBACK — make a sprung trap impossible to miss (flash + shake + burst infographic) */
   .trapflash{position:absolute;inset:0;border-radius:18px;pointer-events:none;z-index:7;opacity:0}
   .trapflash.trap{background:radial-gradient(125% 100% at 50% 50%, transparent 42%, rgba(245,200,60,.52) 100%)}    /* yellow: a trap sprang */
+  .trapflash.trick{background:radial-gradient(125% 100% at 50% 50%, transparent 42%, rgba(52,211,153,.5) 100%)}    /* green: a trick landed (aim for it) */
   .trapflash.wound{background:radial-gradient(125% 100% at 50% 50%, transparent 30%, rgba(240,86,91,.66) 100%)}   /* red: you took a wound */
-  .trapflash.trap.go{animation:trapflash .5s ease}
+  .trapflash.trap.go,.trapflash.trick.go{animation:trapflash .5s ease}
   .trapflash.wound.go{animation:woundflash .6s ease}
   @keyframes trapflash{0%{opacity:0}24%{opacity:1}100%{opacity:0}}
   @keyframes woundflash{0%{opacity:0}14%{opacity:1}55%{opacity:.5}100%{opacity:0}}
@@ -510,6 +512,20 @@
   .trapburst.dmg .tbname{color:var(--warn)}
   .trapburst.dmg .tblabel{color:#f0c2c4}
   .trapburst.dmg .tbeff{color:#f3dcb0}
+  /* TRICK burst variant — green accent: a favorable trigger landed */
+  .trapburst.trick{border-color:var(--trick);background:linear-gradient(180deg,#0c2a20,#08160f);
+    box-shadow:0 0 0 1px var(--trick),0 22px 64px -10px rgba(52,211,153,.45),0 0 90px -16px var(--trick)}
+  .trapburst.trick .tbname{color:var(--trick)}
+  .trapburst.trick .tblabel{color:#9fe7cf}
+  .trapburst.trick .tbeff{color:#cdeede}
+  /* TRICK strip tag (green, "aim for") + a coached trick-line glow on the board */
+  .trap.trick{background:#0f1f1a;border-color:#2f6b56;color:#bfe9da}
+  .trap.trick .tn{color:var(--trick)}
+  .trap.trick.proc{animation:trickproc .6s ease}
+  @keyframes trickproc{0%,100%{box-shadow:none;transform:none;background:#0f1f1a}30%{box-shadow:0 0 0 2px var(--trick),0 0 28px 0 var(--trick);transform:translateY(-3px) scale(1.07);background:#123026}}
+  .card.trickline{box-shadow:0 0 0 2px var(--trick),0 0 22px -2px var(--trick) !important;animation:tricklinepulse 1.1s ease-in-out infinite}
+  @keyframes tricklinepulse{0%,100%{box-shadow:0 0 0 2px var(--trick),0 0 12px -2px var(--trick)}50%{box-shadow:0 0 0 2px var(--trick),0 0 30px 2px var(--trick)}}
+  .coach-arrow.trick{color:var(--trick);text-shadow:0 0 7px var(--trick)}
 
   /* end overlay */
   .overlay{position:fixed;inset:0;z-index:50;background:rgba(6,8,12,.78);backdrop-filter:blur(7px);
@@ -1153,6 +1169,26 @@ function render(){
   boardEl.classList.toggle("idle",!state.running);
   updateBoardAnalysis();
   updateSelectionGlow();
+  updateTrickLines();
+}
+// COACH trick-lines (Training/coach mode): glow the cards of a makeable set that would trigger a
+// TRICK (favorable trigger), with a green arrow, so new players learn to AIM for the good line.
+// One line marked at a time to avoid clutter. Re-runs each render (which rebuilds the cards).
+function updateTrickLines(){
+  if(!state.coach || !state.running || !state.enemyTraps) return;
+  const tricks=state.enemyTraps.filter(t=>t.kind==="trick" && t.on==="match" && t.when);
+  if(!tricks.length) return;
+  for(const [i,j,k] of findSets(state.board)){
+    if(state.locked.has(i)||state.locked.has(j)||state.locked.has(k)) continue;
+    const desc=matchDescriptor([state.board[i],state.board[j],state.board[k]]);
+    if(tricks.some(t=>trapCondMet(t.when, desc))){
+      [i,j,k].forEach(idx=>{ const el=cardEl(idx); if(el) el.classList.add("trickline"); });
+      const mid=cardEl(j);
+      if(mid){ mid.classList.add("coach-host");
+        const a=document.createElement("span"); a.className="coach-arrow trick"; a.textContent="▼"; mid.appendChild(a); }
+      return;   // one beckoned line is enough
+    }
+  }
 }
 // per-card "match-mate" count: how many on-board sets each slot belongs to (used by bolt auto-targeting).
 function comboCounts(){
@@ -2287,10 +2323,10 @@ function hitstop(ms){ state.hitstopUntil=Math.max(state.hitstopUntil||0, perform
 // the board-wide flash + shake. kind "trap" = yellow tint + a small, sharp shake; kind "wound" =
 // red tint + a bigger, heavier shake (a real hit should feel worse than a trap springing).
 function boardFlash(kind){
-  const k = kind==="wound" ? "wound" : "trap";
+  const k = kind==="wound" ? "wound" : kind==="trick" ? "trick" : "trap";
   const fl=$("trapflash");
-  if(fl){ fl.classList.remove("go","trap","wound"); fl.classList.add(k); void fl.offsetWidth; fl.classList.add("go"); }
-  const panel=document.querySelector(".boardpanel"), hit = k==="wound" ? "woundhit" : "traphit";
+  if(fl){ fl.classList.remove("go","trap","trick","wound"); fl.classList.add(k); void fl.offsetWidth; fl.classList.add("go"); }
+  const panel=document.querySelector(".boardpanel"), hit = k==="wound" ? "woundhit" : "traphit";   // trick/trap share the small shake
   if(panel){ panel.classList.remove("traphit","woundhit"); void panel.offsetWidth; panel.classList.add(hit); }
 }
 // core infographic burst — icon + a top label + a name + an effect line + (optional) flavor line.
@@ -2308,11 +2344,14 @@ function spawnBurst(icon, topLabel, name, effText, kind, flavor){
   void b.offsetWidth; b.classList.add("go");
   setTimeout(()=>b.remove(), 2600);
 }
-// a sprung trap: name the condition you crossed, what it did, AND the trap's visceral flavor line
+// a sprung trigger: name the condition you crossed, what it did, AND its flavor line.
+// Tricks (favorable) read green + "aim for"; traps (hostile) read yellow + "avoid".
 function trapBurst(trap, label){
-  boardFlash("trap");
+  const trick = trap.kind==="trick";
+  boardFlash(trick ? "trick" : "trap");
   const trigger = trap.on==="tick" ? "dread tick" : condLabel(trap.when);
-  spawnBurst(trap.icon||"⚠", `⚠ ${trigger} → trap`, trap.name, label, null, trap.desc||"");
+  if(trick) spawnBurst(trap.icon||"✦", `✦ ${trigger} → trick`, trap.name, label, "trick", trap.desc||"");
+  else      spawnBurst(trap.icon||"⚠", `⚠ ${trigger} → trap`,  trap.name, label, null,    trap.desc||"");
 }
 // the player took a hit: name the source + the HP lost
 function damageBurst(amount, source, absorbed){
@@ -2325,8 +2364,9 @@ function trapProc(trap, label){
   if(el){ el.classList.remove("proc"); void el.offsetWidth; el.classList.add("proc"); }
   if(trap.quiet){ floatOverBoard(`${trap.icon||"⚠"} ${label}`, "var(--phos)", true); return; }   // ambient drift: stay subtle
   trapBurst(trap, label);
-  narrate(`<b>${trap.name}</b> springs — ${label}.`, "enemy");
-  if(trap.on==="match") hitstop(500);                                  // the 0.5s pause so a sprung match-trap is FELT
+  if(trap.kind==="trick") narrate(`<b>${trap.name}</b> — ${label}. <span style="color:var(--trick)">Well played.</span>`, "sys");
+  else                    narrate(`<b>${trap.name}</b> springs — ${label}.`, "enemy");
+  if(trap.on==="match") hitstop(500);                                  // the 0.5s pause so a sprung match-trigger is FELT
 }
 
 /* TRAP / DRIFT LIBRARIES — loaded from window.GAMEDATA (game-data.js, a classic script
@@ -2496,12 +2536,15 @@ function renderTrapTags(){
   const bar=$("trapbar"); if(!bar) return;
   bar.innerHTML="";
   if(!state.running || !state.enemyTraps || !state.enemyTraps.length) return;
-  const lab=document.createElement("span"); lab.className="tlabel"; lab.textContent="⚠ Enemy traps";
+  const hasTrick = state.enemyTraps.some(t=>t.kind==="trick");
+  const lab=document.createElement("span"); lab.className="tlabel";
+  lab.innerHTML = hasTrick ? `⚠ Traps · <span style="color:var(--trick)">✦ Tricks</span>` : "⚠ Enemy traps";
   bar.appendChild(lab);
   state.enemyTraps.forEach(tr=>{
-    const d=document.createElement("div"); d.className="trap"; d.dataset.trap=tr.id;
-    d.innerHTML=`<span class="ti">${tr.icon||"⚠"}</span><span class="tn">${tr.name}</span>`
-              + (tr.desc?`<span class="td">${tr.desc}</span>`:"");
+    const trick = tr.kind==="trick";
+    const d=document.createElement("div"); d.className="trap"+(trick?" trick":""); d.dataset.trap=tr.id;
+    d.innerHTML=`<span class="ti">${tr.icon||(trick?"✦":"⚠")}</span><span class="tn">${tr.name}</span>`
+              + (tr.desc?`<span class="td">${trick?"aim for it — ":""}${tr.desc}</span>`:"");
     bar.appendChild(d);
   });
 }

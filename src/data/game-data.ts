@@ -89,8 +89,9 @@ export const GAMEDATA: GameData = {
       do: [{ effect: 'transmute', select: { axis: 'shape', mode: 'all_same', value: 'defend' }, bias: { axis: 'shape', value: 'move', intensity: 2 } }],
     },
     // the gentle NUDGE toward Moves: a Move set pushes the behemoth's attack back 5s (a "Slow").
+    // A TRICK — favorable, aim for it (green), not a trap to avoid.
     outmaneuvered: {
-      name: 'Outmaneuvered', icon: '🐢', on: 'match', when: { axis: 'shape', mode: 'all_same', value: 'move' },
+      name: 'Outmaneuvered', icon: '🐢', kind: 'trick', on: 'match', when: { axis: 'shape', mode: 'all_same', value: 'move' },
       desc: 'all-Move match → you dance aside; the behemoth lumbers after you, +5s before it can strike',
       do: [{ effect: 'delay_attack', seconds: 5 }],
     },

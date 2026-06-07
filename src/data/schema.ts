@@ -17,6 +17,10 @@ export type Geometry =
 export type Which = 'top' | 'bottom' | 'left' | 'right' | 'center' | 'anti'
 export type On = 'match' | 'tick'
 export type Tier = 'minion' | 'elite' | 'boss'
+/** Valence of a reactive trigger: a Trap is hostile (avoid, yellow); a Trick is favorable
+ *  (aim for, green). Same mechanism (condition → effects); only valence + presentation differ.
+ *  Default when omitted is 'trap'. */
+export type TriggerKind = 'trap' | 'trick'
 export type SpeedBand = 'lumbering' | 'slow' | 'steady' | 'swift' | 'frenzied'
 /** A creature's speed: a named band OR a raw cadence in seconds (e.g. 30, 120). */
 export type Speed = SpeedBand | number
@@ -72,6 +76,7 @@ export interface Effect {
 export interface Trap {
   name: string
   icon?: string
+  kind?: TriggerKind // 'trap' (hostile, default) | 'trick' (favorable — aim for it)
   on: On
   when?: Condition
   every?: number // on:'tick' cadence (seconds)
@@ -79,6 +84,9 @@ export interface Trap {
   desc?: string
   do: Effect[]
 }
+/** Forward-looking umbrella name. A trap and a trick are one mechanism differing only by `kind`;
+ *  the data collection stays `traps` until the prototype retires (then it can become `triggers`). */
+export type Trigger = Trap
 /** A trap authored inline on a variant/template (carries no name/icon of its own). */
 export interface InlineTrap {
   on: On

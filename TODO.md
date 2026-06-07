@@ -6,6 +6,14 @@ lives in the code, and what (if anything) is a genuine engine change vs. pure da
 
 Status legend: `[ ]` not started · `[~]` in progress · `[x]` done
 
+## Convention — Trap vs Trick (settled)
+A reactive trigger is one mechanism (condition → effects); a `kind` field gives its valence:
+**Trap** = hostile, avoid (⚠ yellow flash); **Trick** = favorable, aim for (✦ green flash + green
+strip + coach arrows on the makeable line). Default `kind` is `trap`. The data collection stays
+named `traps` (parity with the prototype) — `Trigger` is the forward umbrella alias (rename to
+`triggers` when the prototype retires). Traffic-light: green = pursue · yellow = consequence · red =
+wounded. Currently only `outmaneuvered` is a Trick; adding more is data-only (`kind:'trick'`).
+
 ---
 
 ## A. Foundation migration — dev tooling + modularization
