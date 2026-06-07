@@ -71,8 +71,11 @@ a separate stack" collapses into "refactor into modular TS" — which is why rec
   generalizes `dealShape`/`regenBias`. Conformance gate `generate.invariants.test.ts` ports
   `sim-invariants.mjs` (full dial space, 0 violations) + a focused locked-combat (f3/n15/k1) test.
   `pnpm test` 10/10 in ~2.5s, typecheck clean.
-- `[ ]` **3. Extract `data/`** — `game-data.js` → typed module; define TS types (or JSON Schema) for the
-  trap-effect / creature / dungeon schemas.
+- `[x]` **3. Extract `data/`** — `schema.ts` (token-validated types: axis-correlated conditions/biases,
+  effects, traps, creatures, variants, templates, dungeons) + `game-data.ts` (content ported verbatim
+  as a typed `GAMEDATA` const). `game-data.test.ts` enforces **parity** with the prototype oracle (deep
+  equal → no drift) + referential integrity of every id (foe/trap/drift/template/mirror/extends). Content
+  stays pure JSON-shaped (YAML-portable); types are authoring-time only. `pnpm test` 14/14, typecheck clean.
 - `[ ]` **4. Extract `engine/`** — resolution, traps (`TRAP_EFFECTS`), tactics, targeting toolkit, the
   trigger bus. Lift + type; refactor opportunistically; verify behavior against `proto-reference`.
 - `[ ]` **5. Rebuild `ui/`** intentionally (render, fx, coaching, briefing) behind the engine boundary.
