@@ -1,0 +1,237 @@
+/* core/generate — board generation as a PURE function of an explicit spec + an injectable RNG.
+   Ported from the prototype's genInitial / patch / patchFavor (the heavily-validated generator:
+   100k+ clears, zero invariant violations). The prototype threaded config via globals (`state`,
+   `CFG`, `regenBias`); here everything is an argument, so generation is deterministic and testable.
+
+   Guarantees (asserted by generate.invariants.test.ts, the conformance gate):
+     1. no duplicate cards on a board
+     2. ≥ `floor` sets present (initial AND after every clear)
+     3. dropped axes stay pinned → never affect set validity
+     4. the findability knobs (camoDepth / escapeRoutes) steer toward their target */
+
+import { type Card, keyOf, third } from './affine'
+import { type Board, countSets, boardKInfo } from './sets'
+import { type Rng, r3 } from './rng'
+
+export interface GenConfig {
+  /** board size (number of slots) */
+  n: number
+  /** varying axis indices; dropped axes are excluded and stay pinned */
+  active: number[]
+  /** pinned values for every axis (active axes are overwritten per draw) */
+  pin: Card
+  /** findability target: the desired easiest-k (set difficulty) */
+  camoDepth: number
+  /** findability target: desired number of sets at that easiest-k */
+  escapeRoutes: number
+  /** minimum sets that must be present on the board */
+  floor: number
+}
+
+/** Per-axis sampling weights: axis index → [w0,w1,w2]. A missing axis samples uniformly. */
+export type AxisWeights = Record<number, [number, number, number]>
+
+/** Prototype-style single-target favour bias (axis 0 = colour, 1 = shape, 3 = magnitude). */
+export interface FavorBias {
+  color?: number
+  colorW?: number
+  shape?: number
+  shapeW?: number
+  mag?: number
+  magW?: number
+}
+
+function pickWeighted(w: [number, number, number], rng: Rng): number {
+  const s = w[0] + w[1] + w[2]
+  let r = rng() * s
+  let acc = 0
+  for (let i = 0; i < 3; i++) {
+    acc += w[i]
+    if (r < acc) return i
+  }
+  return 2
+}
+
+/** A weight vector leaning `weight`× toward `target`, others 1. */
+function towardWeights(target: number, weight: number): [number, number, number] {
+  const w: [number, number, number] = [1, 1, 1]
+  w[target] = weight
+  return w
+}
+
+/** Convert a single-target favour bias into per-axis weight vectors (for transmute/regen). */
+export function favorWeights(bias: FavorBias): AxisWeights {
+  const w: AxisWeights = {}
+  if (bias.color != null) w[0] = towardWeights(bias.color, bias.colorW ?? 1)
+  if (bias.shape != null) w[1] = towardWeights(bias.shape, bias.shapeW ?? 1)
+  if (bias.mag != null) w[3] = towardWeights(bias.mag, bias.magW ?? 1)
+  return w
+}
+
+/** Draw one card: active axes sampled (uniform, or weighted if `weights` given), others pinned. */
+export function randCard(cfg: GenConfig, rng: Rng, weights?: AxisWeights): Card {
+  const c = cfg.pin.slice() as Card
+  for (const i of cfg.active) {
+    const w = weights?.[i]
+    c[i] = w ? pickWeighted(w, rng) : r3(rng)
+  }
+  return c
+}
+
+function distinctRandomBoard(cfg: GenConfig, rng: Rng, weights?: AxisWeights): Card[] {
+  const seen = new Set<number>()
+  const out: Card[] = []
+  while (out.length < cfg.n) {
+    const c = randCard(cfg, rng, weights)
+    const k = keyOf(c)
+    if (!seen.has(k)) {
+      seen.add(k)
+      out.push(c)
+    }
+  }
+  return out
+}
+
+/** Distance of a board from its findability target: hit camoDepth (easiest-k) first, then tune
+ *  escapeRoutes (count at that k). Lower is better; 0 is on-target. Used to rank candidates. */
+export function boardFindDist(board: Board, cfg: GenConfig): number {
+  const { minK, hist, count } = boardKInfo(board, cfg.active)
+  if (!count) return Infinity
+  const kErr = Math.abs(minK - cfg.camoDepth)
+  const rErr = Math.abs((hist[minK] ?? 0) - cfg.escapeRoutes)
+  return kErr * 100 + rErr
+}
+
+/** A distinct board with at least `floor` sets (rejection-sampled). */
+function genOnce(cfg: GenConfig, rng: Rng): Card[] {
+  for (let t = 0; t < 5000; t++) {
+    const b = distinctRandomBoard(cfg, rng)
+    if (countSets(b) >= cfg.floor) return b
+  }
+  return distinctRandomBoard(cfg, rng)
+}
+
+/** The opening board: sample many candidates, keep the one closest to the findability target. */
+export function genInitial(cfg: GenConfig, rng: Rng): Card[] {
+  const samples = 140
+  let best: Card[] | null = null
+  let bestDist = Infinity
+  for (let s = 0; s < samples; s++) {
+    const b = genOnce(cfg, rng)
+    const d = boardFindDist(b, cfg)
+    if (d < bestDist) {
+      bestDist = d
+      best = b
+    }
+    if (bestDist === 0) break
+  }
+  return best ?? genOnce(cfg, rng)
+}
+
+/** Refill the given empty `slots` with distinct cards keeping ≥ floor sets (one attempt). */
+function patchOnce(board: Board, slots: number[], cfg: GenConfig, rng: Rng, weights?: AxisWeights): Board {
+  const present = new Set<number>()
+  board.forEach((c) => {
+    if (c) present.add(keyOf(c))
+  })
+  for (let attempt = 0; attempt < 400; attempt++) {
+    const nb = board.slice()
+    const seen = new Set(present)
+    let ok = true
+    for (const s of slots) {
+      let c: Card
+      let g = 0
+      do {
+        c = randCard(cfg, rng, weights)
+        g++
+        if (g > 200) {
+          ok = false
+          break
+        }
+      } while (seen.has(keyOf(c)))
+      if (!ok) break
+      seen.add(keyOf(c))
+      nb[s] = c
+    }
+    if (ok && countSets(nb) >= cfg.floor) return nb
+  }
+  // fallback: fill distinct, then PLANT a completing third card if still below floor
+  const nb = board.slice()
+  const seen = new Set(present)
+  for (const s of slots) {
+    let c: Card
+    do {
+      c = randCard(cfg, rng, weights)
+    } while (seen.has(keyOf(c)))
+    seen.add(keyOf(c))
+    nb[s] = c
+  }
+  let guard = 0
+  while (countSets(nb) < cfg.floor && guard < 60) {
+    const cards = nb.map((c, i) => [c, i] as [Card | null, number]).filter((x) => x[0])
+    let planted = false
+    for (let i = 0; i < cards.length && !planted; i++) {
+      for (let j = i + 1; j < cards.length && !planted; j++) {
+        const t = third(cards[i][0]!, cards[j][0]!)
+        if (!seen.has(keyOf(t))) {
+          const s = slots[guard % slots.length]
+          seen.delete(keyOf(nb[s]!))
+          nb[s] = t
+          seen.add(keyOf(t))
+          planted = true
+        }
+      }
+    }
+    if (!planted) break
+    guard++
+  }
+  return nb
+}
+
+/** Refill `slots`, keeping the result closest to the findability target. */
+export function patch(board: Board, slots: number[], cfg: GenConfig, rng: Rng, weights?: AxisWeights): Board {
+  const samples = 80
+  let best: Board | null = null
+  let bestDist = Infinity
+  for (let s = 0; s < samples; s++) {
+    const b = patchOnce(board, slots, cfg, rng, weights)
+    const d = boardFindDist(b, cfg)
+    if (d < bestDist) {
+      bestDist = d
+      best = b
+    }
+    if (bestDist === 0) break
+  }
+  return best ?? patchOnce(board, slots, cfg, rng, weights)
+}
+
+/** Bias-objective refill (for ability-driven transmutes): MAXIMIZE how many freed slots land on
+ *  the favoured value(s), tie-broken by findability. Still distinct + ≥ floor (via patchOnce). */
+export function patchFavor(board: Board, slots: number[], cfg: GenConfig, rng: Rng, bias: FavorBias): Board {
+  const weights = favorWeights(bias)
+  const axes = (bias.color != null ? 1 : 0) + (bias.shape != null ? 1 : 0) + (bias.mag != null ? 1 : 0)
+  const samples = 80
+  const want = slots.length * axes
+  let best: Board | null = null
+  let bestScore = -1
+  let bestDist = Infinity
+  for (let s = 0; s < samples; s++) {
+    const b = patchOnce(board, slots, cfg, rng, weights)
+    let score = 0
+    for (const sl of slots) {
+      const c = b[sl]
+      if (!c) continue
+      if (bias.color != null && c[0] === bias.color) score++
+      if (bias.shape != null && c[1] === bias.shape) score++
+      if (bias.mag != null && c[3] === bias.mag) score++
+    }
+    const d = boardFindDist(b, cfg)
+    if (score > bestScore || (score === bestScore && d < bestDist)) {
+      bestScore = score
+      bestDist = d
+      best = b
+    }
+    if (bestScore >= want && bestDist === 0) break
+  }
+  return best ?? patchOnce(board, slots, cfg, rng, weights)
+}

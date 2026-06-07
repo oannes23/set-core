@@ -64,8 +64,13 @@ a separate stack" collapses into "refactor into modular TS" — which is why rec
   app.html→index.html once the app supersedes it). Scripts: `dev`/`build`/`preview`/`test`/`typecheck`.
   Seeded `core/affine.ts` (the `third`/`isSet` primitives) + tests as the proof-of-harness. Verified:
   `pnpm test` 4/4, `typecheck` clean, `build` ok, `dev` serves.
-- `[ ]` **2. Extract `core/`** (generator + pure helpers) first; port `sim-invariants.mjs` into Vitest
-  as the conformance gate. Nothing else moves until the core passes under the new harness.
+- `[x]` **2. Extract `core/`** — `affine.ts` (third/isSet/keyOf/eq), `sets.ts` (findSets/kOfSet/boardKInfo),
+  `generate.ts` (genInitial/patch/patchFavor/boardFindDist), `rng.ts` (injectable + seedable). Cleanups
+  over the prototype: `state`/`CFG`/`regenBias` globals → explicit params; `Math.random` → an injected
+  `Rng` (deterministic, and the basis for replayable/server generation later); per-axis weight bias
+  generalizes `dealShape`/`regenBias`. Conformance gate `generate.invariants.test.ts` ports
+  `sim-invariants.mjs` (full dial space, 0 violations) + a focused locked-combat (f3/n15/k1) test.
+  `pnpm test` 10/10 in ~2.5s, typecheck clean.
 - `[ ]` **3. Extract `data/`** — `game-data.js` → typed module; define TS types (or JSON Schema) for the
   trap-effect / creature / dungeon schemas.
 - `[ ]` **4. Extract `engine/`** — resolution, traps (`TRAP_EFFECTS`), tactics, targeting toolkit, the
