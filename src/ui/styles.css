@@ -47,6 +47,19 @@ button.cta:hover { background: var(--phos); color: #062b27; }
 .leftcol { margin: 0; display: flex; flex-direction: column; gap: 12px; }
 .leftcol .strip { margin: 0; }
 .combatbar { margin: 0; }
+
+/* foe header — tall (room for foe art); also the stage for popup messaging (the tutorial) */
+.headpanel { min-height: 150px; position: relative; }
+
+/* enemy attack timer — full-width emptying meter below the HP gauges, above the board */
+.timerbar { width: 100%; }
+.timerbar .lab { display: flex; justify-content: space-between; font-size: 11px; color: var(--ink-dim); margin-bottom: 4px; }
+.timerbar .track { height: 12px; }
+.fill.atk { background: var(--red); transition: width .12s linear; }
+.fill.atk.low { background: var(--warn); }
+.fill.atk.crit { background: var(--red); animation: atkpulse .5s ease-in-out infinite; }
+@keyframes atkpulse { 0%, 100% { opacity: 1; } 50% { opacity: .45; } }
+#clock.low { color: var(--warn); } #clock.crit { color: var(--red); font-weight: 700; }
 .rail { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
 .rail .panel { margin: 0; }
 @media (max-width: 760px) { .play { grid-template-columns: 1fr; } }
@@ -162,6 +175,11 @@ button.cta:hover { background: var(--phos); color: #062b27; }
 .burst .bun { font-family: "Syne", sans-serif; font-weight: 800; font-size: 15px; color: var(--warn); }
 .burst.trick .bun { color: var(--trick); } .burst.wound .bun { color: var(--red); }
 .burst .bue { font-size: 11px; color: var(--ink-dim); margin-top: 2px; }
+
+/* ---- coach: gently dim the board (intro step) + lightly ring Move cards (the Tactics cue) ---- */
+.boardwrap.coach-dim { opacity: .45; filter: grayscale(.4); pointer-events: none; transition: opacity .35s ease, filter .35s ease; }
+.card.movehint { animation: movehint 1.6s ease-in-out infinite; }
+@keyframes movehint { 0%, 100% { box-shadow: 0 0 0 2px rgba(245, 197, 66, .28); } 50% { box-shadow: 0 0 0 2px rgba(245, 197, 66, .55), 0 0 14px -8px var(--gold); } }
 
 /* ---- spell target previews (hover an ability) ---- */
 .card.tgtsure { box-shadow: 0 0 0 3px var(--red), 0 0 18px -4px var(--red); }

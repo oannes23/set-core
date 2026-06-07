@@ -12,6 +12,7 @@ import { GAMEDATA } from '../data/game-data'
 import type { Dungeon } from '../data/schema'
 import { CLASSES, classById } from '../data/classes'
 import { ABILITIES, canAfford, ABILITY_PREVIEW } from '../engine/abilities'
+import { SHAPE_MOVE } from '../engine/resolve'
 import { PASSIVES } from '../engine/passives'
 import { assembleFoe, pickWeightedFoe } from '../engine/foe'
 import { createCombat, reduce, colsForN, COMBAT_GEN, type Deps, type CombatAction } from '../engine/combat'
@@ -194,7 +195,8 @@ function buildPlay(): void {
   if (!V) return
   V.root.innerHTML = ''
   const wrap = $(`<div class="wrap"></div>`)
-  const head = $(`<div class="panel"></div>`)
+  // foe header — tall (room for future foe art); also the stage for popup messaging (the tutorial)
+  const head = $(`<div class="panel headpanel"></div>`)
   head.appendChild($(`<div class="foename" id="foename"></div>`))
   head.appendChild($(`<div class="foedesc" id="foedesc"></div>`))
   wrap.appendChild(head)
@@ -207,7 +209,12 @@ function buildPlay(): void {
     <div class="bar combatbar">
       <div class="gauge you"><div class="lab"><span class="youname">You <span class="blockbadge" id="block"></span></span><span id="phpv"></span></div><div class="track"><span class="fill php" id="php"></span></div></div>
       <div class="gauge"><div class="lab"><span id="enemylab">Enemy</span><span id="ehpv"></span></div><div class="track"><span class="fill ehp" id="ehp"></span></div></div>
-      <div class="clock" id="clock">—</div>
+    </div>`))
+  // enemy attack timer — a full-width meter that empties toward the next strike
+  left.appendChild($(`
+    <div class="timerbar">
+      <div class="lab"><span>⚔ Enemy attack</span><span id="clock">—</span></div>
+      <div class="track"><span class="fill atk" id="atkfill"></span></div>
     </div>`))
   left.appendChild($(`<div class="strip" id="strip"></div>`))
   const boardWrap = $(`<div class="boardwrap" id="boardwrap"></div>`)
@@ -229,7 +236,7 @@ function buildPlay(): void {
   V.root.appendChild(wrap)
 
   V.refs = {}
-  for (const id of ['foename', 'foedesc', 'enemylab', 'phpv', 'ehpv', 'php', 'ehp', 'clock', 'tacv', 'tac', 'm0', 'm1', 'm2', 'block', 'strip', 'boardwrap', 'board', 'log', 'abilities', 'tactics', 'passives', 'floatlayer']) {
+  for (const id of ['foename', 'foedesc', 'enemylab', 'phpv', 'ehpv', 'php', 'ehp', 'clock', 'atkfill', 'tacv', 'tac', 'm0', 'm1', 'm2', 'block', 'strip', 'boardwrap', 'board', 'log', 'abilities', 'tactics', 'passives', 'floatlayer']) {
     const el = wrap.querySelector('#' + id)
     if (el) V.refs[id] = el as HTMLElement
   }
@@ -414,7 +421,27 @@ function updateCastables(): void {
   V.refs.tactics?.querySelectorAll<HTMLElement>('.tac-btn').forEach((el) => {
     el.classList.toggle('armed', s.running && s.tacticsArmed)
   })
-  if (V.coach) setCoachArrow(V.refs.tactics, s.running && s.tacticsArmed)
+  if (V.coach) {
+    // teach the Move → Tactics loop, but only once the Tactics section is in play (revealed)
+    const tacSec = document.querySelector('[data-sec="tactics"]')
+    const tacLive = s.running && !!tacSec && !tacSec.classList.contains('coach-locked')
+    // armed → hard-beckon the tactic buttons; not yet → lightly mark Move cards to fill the meter
+    setCoachArrow(V.refs.tactics, tacLive && s.tacticsArmed)
+    updateMoveHints(tacLive && !s.tacticsArmed)
+  }
+}
+
+/** Coach cue: lightly ring the live Move cards (matching them fills the Tactics meter). */
+function updateMoveHints(on: boolean): void {
+  if (!V) return
+  const want = new Set<number>()
+  if (on)
+    V.state.board.forEach((c, i) => {
+      if (c && c[1] === SHAPE_MOVE && !V!.state.locked.has(i) && !V!.state.pending.has(i) && !V!.selected.includes(i)) want.add(i)
+    })
+  V.refs.board?.querySelectorAll<HTMLElement>('.card').forEach((el) => {
+    el.classList.toggle('movehint', el.dataset.i != null && want.has(+el.dataset.i))
+  })
 }
 
 /** A single beckoning arrow above an element (added on the transition into "usable", removed when not). */
@@ -608,6 +635,11 @@ function updateBar(): void {
   clk.textContent = s.running ? `${Math.ceil(remain)}s` : '—'
   clk.classList.toggle('low', remain <= 5 && remain > 2.5)
   clk.classList.toggle('crit', remain <= 2.5)
+  // the attack timer empties as the strike nears (fraction of the foe's cadence)
+  const frac = s.foe.cadence > 0 ? Math.max(0, Math.min(1, remain / s.foe.cadence)) : 0
+  V.refs.atkfill.style.width = `${s.running ? frac * 100 : 100}%`
+  V.refs.atkfill.classList.toggle('low', remain <= 5 && remain > 2.5)
+  V.refs.atkfill.classList.toggle('crit', remain <= 2.5)
   updateCastables()
 }
 
@@ -709,6 +741,7 @@ interface GuidedStep {
   body: string
   spot?: string | null // selector to ring (and, with `hold`, dim the rest)
   hold?: boolean // freeze + explain (Next to continue)
+  dimBoard?: boolean // gently dim the board (the intro step, before it lights up to be played)
   await?: 'match' | 'ability' | 'tactic' // un-freeze and wait for the player to DO it
   reveal?: string[] // section names to un-dim at this stage
   hint?: string
@@ -749,7 +782,7 @@ function buildCoachUI(): void {
 
 // the guided intro script (3b): a gradual reveal, ONE play-element per stage
 const GUIDED_STEPS: GuidedStep[] = [
-  { icon: '🃏', title: 'Read the board', spot: '#board', hold: true,
+  { icon: '🃏', title: 'Read the board', dimBoard: true, hold: true,
     body: 'Every card shows three traits — a <b>colour</b>, a <b>shape</b>, and a <b>number</b> (1–3). The clock is frozen; take your time looking them over.' },
   { icon: '✨', title: 'Make your first set', spot: '#board', await: 'match',
     hint: '▸ Pick a card, watch the teal halos, then complete a set.',
@@ -782,6 +815,7 @@ function coachShowStep(i: number): void {
   COACH.await = s.await ?? null
   ;(s.reveal ?? []).forEach((n) => setSectionEnabled(n, true))
   if (V) V.paused = !!s.hold // hold = freeze; await = let them play
+  document.getElementById('boardwrap')?.classList.toggle('coach-dim', !!s.dimBoard)
   coachSpotlight(s.spot ?? null, !!s.hold)
   const set = (id: string, html: string) => { const el = document.getElementById(id); if (el) el.innerHTML = html }
   set('cp-icon', s.icon)
@@ -813,6 +847,7 @@ function coachFinish(): void {
   COACH.await = null
   if (V) V.paused = false
   coachSpotlight(null, false)
+  document.getElementById('boardwrap')?.classList.remove('coach-dim')
   unlockAllSections()
   document.getElementById('coachpop')?.classList.remove('show')
 }
