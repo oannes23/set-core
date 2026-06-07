@@ -22,10 +22,11 @@ wounded. Currently only `outmaneuvered` is a Trick; adding more is data-only (`k
 `reduce(state,action)→{state,events}`. UI (step 5): the complete client — board, HUD, traps/tricks,
 live abilities/tactics/passives + class picker, the coaching layer + guided intro, and the polish
 (card SVGs, briefing modal, floaters, hitstop, bursts, spell previews). 40 tests, typecheck clean,
-build + PWA verified, replay seam proven. **Remaining in §A: Phase 3 — flip `app.html`→`index.html`
-and archive the prototype** (it stays only as the migration oracle). After that the file is decomposed
-and the *next* major system (set.crawl: town / run-map / inventory / persistence) builds on the modules
-rather than the single ~2,900-line HTML file.
+build + PWA verified, replay seam proven. **Phase 3 DONE — the modular client is the front door:** root
+`index.html` is the Vite entry (the live app), the prototype is archived under `prototype/` (its own
+launcher `prototype/index.html`) as the migration oracle, the PWA `start_url` is `./`, and CI publishes
+the built `dist/` with the archive folded in. **§A is complete.** The *next* major system (set.crawl:
+town / run-map / inventory / persistence) now builds on the modules, not the single HTML file.
 
 ### Decisions (and *why* — these are settled)
 1. **Framework-free at runtime, dev-tooling-rich.** Split "dependency" in two:
@@ -73,8 +74,8 @@ a separate stack" collapses into "refactor into modular TS" — which is why rec
 - `[x]` **0. Tag the current build** as `proto-reference` — the behavioral oracle we diff against. (Tag
   pushed at `dda6cf0`.)
 - `[x]` **1. Scaffold** Vite + Vitest + TypeScript (no framework), pnpm. `src/{core,data,engine,ui}/`
-  alongside `prototype/`. Entry is `app.html` (root `index.html` stays the legacy launcher — promote
-  app.html→index.html once the app supersedes it). Scripts: `dev`/`build`/`preview`/`test`/`typecheck`.
+  alongside `prototype/`. (Phase 3: the entry was promoted `app.html`→root `index.html`; the legacy
+  launcher moved to `prototype/index.html`.) Scripts: `dev`/`build`/`preview`/`test`/`typecheck`.
   Seeded `core/affine.ts` (the `third`/`isSet` primitives) + tests as the proof-of-harness. Verified:
   `pnpm test` 4/4, `typecheck` clean, `build` ok, `dev` serves.
 - `[x]` **2. Extract `core/`** — `affine.ts` (third/isSet/keyOf/eq), `sets.ts` (findSets/kOfSet/boardKInfo),
@@ -112,8 +113,8 @@ a separate stack" collapses into "refactor into modular TS" — which is why rec
   numbers, impact hitstop, a centered burst for sprung traps/tricks + hits, and spell target previews
   (hover → ring hit cards, via the engine's pure `ABILITY_PREVIEW`). typecheck + 40 tests + build green.
   **Optional/future (not parity):** an "explain mid-normal-play" tutorial variant + persisted "seen"
-  (see §3). The new client now matches the prototype's mechanics — **Phase 3 (flip app.html→index.html,
-  archive the prototype) is unblocked.**
+  (see §3). The new client matches the prototype's mechanics — **and Phase 3 has since retired the
+  prototype (the app is the front door).**
 - `[x]` **6. Multiplayer seam** — DONE. The engine already reduces `(state, action) → {state, events}`;
   step 6 formalizes it: `session.ts` models a combat as `seed + setup + action log`, and `runSession`
   replays it deterministically. `seam.test.ts` proves a server replaying only the action log reproduces
@@ -130,12 +131,12 @@ a separate stack" collapses into "refactor into modular TS" — which is why rec
 ### Hosting — GitHub Pages CI deploy (done)
 `[x]` `.github/workflows/deploy.yml` builds on push to `master` and publishes to Pages. Pages serves
 static files only — pnpm/Vite/TS are **build-time**, never on the host; we publish the compiled `dist/`.
-The workflow folds in the still-static **prototype** (the playable game during migration) + the launcher,
-so the live site is useful *now*. Build uses `base:/set-core/` (project sites live at a subpath); dev
-stays at root, `vite preview` mirrors the subpath (`isPreview`). Verified against a Pages-mimicking
-static server (app renders + all assets/prototype 200 under `/set-core/`). **Live** — Pages Source is
-set to "GitHub Actions"; the built app + prototype both serve from the CI artifact at
-`https://oannes23.github.io/set-core/` (play link: `…/prototype/set-combat.html`).
+Since Phase 3, the built `dist/index.html` IS the live client; the workflow folds the **archived
+prototype** in at `/prototype/` (oracle). Build uses `base:/set-core/` (project sites live at a subpath);
+dev stays at root, `vite preview` mirrors the subpath (`isPreview`). Verified against a Pages-mimicking
+static server (app renders at root + the prototype archive 200 under `/set-core/prototype/`). **Live** —
+Pages Source is "GitHub Actions"; the app serves from `https://oannes23.github.io/set-core/`, the
+archived prototypes at `…/set-core/prototype/`.
 
 ### "Graduate the prototype" triggers (recap)
 - **Now-ish → do this migration** when adding the *second screen* (town / run-map / inventory) or the

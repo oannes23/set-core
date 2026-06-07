@@ -17,10 +17,14 @@ orientation.
 ## What this is
 A skill-component minigame based on the card game **Set**, the reusable
 action-resolution layer of a web RPG. Lineage: `set.core` (skill core + tuning
-console, `prototype/set-proto.html`) → **`set.combat`** (the active combat sandbox,
-`prototype/set-combat.html` — classes, passives, abilities, Tactics, transmute) →
-**`set.crawl`** (the dungeon-crawler game, not yet code). **`set-combat.html` is the
-active prototype** — the next build (the threat layer in `TRAPS.md`) lands there.
+console) → **`set.combat`** (classes, passives, abilities, Tactics, transmute,
+the threat layer) → **`set.crawl`** (the dungeon-crawler game, not yet code).
+**The live game is now the modular TypeScript client in `src/`** (`core`/`data`/
+`engine`/`ui`, entry root `index.html`, run with `pnpm dev`). The original
+single-file prototypes (`prototype/set-proto.html`, `prototype/set-combat.html`)
+are **archived** under `prototype/` as the behavioral oracle the rebuild was
+diffed against — read them for *intent*, but new code lands in `src/`. The
+foundation migration is complete (TODO §A); next is **set.crawl on the modules**.
 
 ## Mental model (don't lose this)
 - Set = finite affine geometry **AG(f,3)**. Cards are points in (ℤ/3)^f; a set is
@@ -61,14 +65,14 @@ active prototype** — the next build (the threat layer in `TRAPS.md`) lands the
   required unless a change is genuinely risky. Commit/push when the user asks.
 
 ## Immediate open threads
-- **NEXT BUILD: the threat layer in `set-combat.html`** (`TRAPS.md`). Combat is still
-  solitaire vs a metronome; build the enemy-trap half of the trigger bus + author a
-  lot more game data (creatures, variants, templates, dungeons). Concrete on-ramp:
-  generalize the existing `firePassives` bus to fire enemy traps; add a `locked` card
-  set (parallel to `pending`); named geometry selectors (generalize `offsetSlots`);
-  the dungeon-drift tick. **Decided: enemies do NOT track resources** — traps/
-  transmutes fire directly (gated by condition/cadence), no enemy mana economy yet;
-  feel the reactive system first, add an active enemy-cast layer only if it's missing.
+- **DONE: the threat layer** (`TRAPS.md`) — enemy traps/tricks fire on the trigger bus
+  (gated by condition/cadence; no enemy resources), the `locked` card set, named geometry
+  selectors, dungeon-drift tick. Built in the prototype, then ported to `src/engine`.
+- **DONE: the foundation migration** (TODO §A) — the modular `src/` client is the live
+  game at full parity (engine + UI + coaching + polish); the prototype is archived.
+- **NEXT BUILD: `set.crawl` on the modules** (`CRAWL-DESIGN.md`) — the run loop +
+  second screens (town / run-map / inventory) + persisted progression. This is the
+  "graduate the prototype" trigger; build it on `src/`, not the archived HTML.
 - Still open (see `TRAPS.md` §8 / `CRAWL-DESIGN.md` §6): per-foe transmute *numbers*
   (framework set, tune in play); loss-condition penalty; XP/HP/gold curves; whether
   the enemy ever gets an active resource-spending layer.

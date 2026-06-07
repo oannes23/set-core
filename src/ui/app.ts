@@ -133,6 +133,7 @@ function startScreen(root: HTMLElement): void {
   panel.appendChild(cta)
   wrap.appendChild(panel)
   wrap.appendChild($(`<div class="sub" style="margin-top:18px">Click cards to build a set (same-or-all-different on every trait). Teal halos show set-mates.</div>`))
+  wrap.appendChild($(`<div class="sub" style="margin-top:10px;text-transform:none;letter-spacing:0;color:var(--ink-faint)">Archived single-file prototypes (the migration oracle): <a href="${import.meta.env.BASE_URL}prototype/" style="color:var(--phos);text-decoration:none">▸ /prototype/</a></div>`))
   root.appendChild(wrap)
 
   const fillFoes = () => {

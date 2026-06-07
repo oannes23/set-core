@@ -1,128 +1,18 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>SET · core</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=Spline+Sans+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-<style>
-  :root{
-    --bg:#0b0d12;
-    --bg2:#0f1219;
-    --panel:#13161f;
-    --line:#232838;
-    --line2:#2d3344;
-    --ink:#e8ebf2;
-    --ink-dim:#8b93a7;
-    --ink-faint:#5b6175;
-    --phos:#5eead4;
-    --phos-dim:#2dd4bf;
-    --red:#f0565b;
-    --shadow:0 20px 50px -20px rgba(0,0,0,.7);
-  }
-  *{box-sizing:border-box;margin:0;padding:0}
-  html,body{height:100%}
-  body{
-    background:
-      radial-gradient(1200px 700px at 80% -10%, #16203022, transparent),
-      radial-gradient(900px 600px at 0% 110%, #1a162a22, transparent),
-      var(--bg);
-    color:var(--ink);
-    font-family:"Spline Sans Mono",ui-monospace,monospace;
-    min-height:100%;
-    padding:clamp(14px,3vw,34px);
-    -webkit-font-smoothing:antialiased;
-    display:flex;align-items:center;justify-content:center;
-  }
-  body::before{
-    content:"";position:fixed;inset:0;pointer-events:none;z-index:0;opacity:.4;
-    background-image:linear-gradient(var(--line) 1px,transparent 1px),linear-gradient(90deg,var(--line) 1px,transparent 1px);
-    background-size:46px 46px;
-    mask-image:radial-gradient(ellipse 80% 70% at 50% 30%, #000 30%, transparent 80%);
-  }
-  .wrap{position:relative;z-index:1;max-width:760px;width:100%}
-
-  .brand{display:flex;flex-direction:column;gap:6px;margin-bottom:6px}
-  .brand h1{font-family:"Syne",sans-serif;font-weight:800;font-size:clamp(40px,8vw,72px);letter-spacing:-.02em;line-height:.9}
-  .brand h1 .dot{color:var(--phos)}
-  .brand .sub{color:var(--ink-faint);font-size:12px;letter-spacing:.18em;text-transform:uppercase}
-  .lede{color:var(--ink-dim);font-size:14px;line-height:1.6;max-width:62ch;margin:18px 0 30px}
-  .lede b{color:var(--ink)}
-
-  nav.top{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}
-  nav.top a{
-    text-decoration:none;
-    font-size:13px;font-weight:500;letter-spacing:.02em;
-    color:var(--ink-dim);
-    background:linear-gradient(180deg,var(--panel),var(--bg2));
-    border:1px solid var(--line);border-radius:10px;padding:8px 14px;
-    transition:border-color .18s ease, color .18s ease;
-  }
-  nav.top a:hover{border-color:var(--line2);color:var(--phos)}
-  nav.top a .dot{color:var(--phos)}
-
-  .cards{display:grid;grid-template-columns:1fr 1fr;gap:16px}
-  @media(max-width:620px){.cards{grid-template-columns:1fr}}
-
-  a.card{
-    text-decoration:none;color:inherit;
-    background:linear-gradient(180deg,var(--panel),var(--bg2));
-    border:1px solid var(--line);border-radius:16px;padding:20px;
-    box-shadow:var(--shadow);position:relative;overflow:hidden;
-    display:flex;flex-direction:column;gap:8px;
-    transition:border-color .18s ease, transform .18s ease;
-  }
-  a.card:hover{border-color:var(--line2);transform:translateY(-2px)}
-  a.card::after{content:"";position:absolute;inset:0;border-radius:16px;pointer-events:none;box-shadow:inset 0 1px 0 #ffffff0a}
-  a.card .tag{font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--phos-dim)}
-  a.card h2{font-family:"Syne",sans-serif;font-weight:700;font-size:22px;letter-spacing:-.01em}
-  a.card p{color:var(--ink-dim);font-size:13px;line-height:1.55}
-  a.card .go{margin-top:6px;color:var(--phos);font-size:13px;font-weight:500}
-  a.card .go::after{content:" →";transition:margin .18s ease}
-  a.card:hover .go::after{margin-left:4px}
-
-  footer{margin-top:30px;color:var(--ink-faint);font-size:12px;letter-spacing:.04em;display:flex;gap:18px;flex-wrap:wrap}
-  footer a{color:var(--ink-dim);text-decoration:none}
-  footer a:hover{color:var(--phos)}
-</style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>set.core</title>
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="icon" href="icon.svg" type="image/svg+xml" />
+  <meta name="theme-color" content="#0b0d12" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=Spline+Sans+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
 </head>
 <body>
-<div class="wrap">
-  <div class="brand">
-    <h1>SET<span class="dot">.</span>core</h1>
-    <div class="sub">skill-component minigame · finite affine geometry AG(f,3)</div>
-    <nav class="top">
-      <a href="prototype/set-proto.html">SET<span class="dot">.</span>core</a>
-      <a href="prototype/set-combat.html">SET<span class="dot">.</span>combat</a>
-    </nav>
-  </div>
-  <p class="lede">
-    A <b>Set</b>-based action-resolution layer for a web RPG. Cards are points in (ℤ/3)<sup>f</sup>;
-    a valid set is a line. Difficulty rides the feature dial <b>f</b>; texture rides board size <b>N</b>;
-    pressure rides the timer. Prototypes below run entirely in your browser — no install.
-  </p>
-
-  <div class="cards">
-    <a class="card" href="prototype/set-proto.html">
-      <span class="tag">Core prototype</span>
-      <h2>Skill core + tuning console</h2>
-      <p>The Set generation core, scoring, and a full tuning-dial console for exploring the difficulty space.</p>
-      <span class="go">Open</span>
-    </a>
-    <a class="card" href="prototype/set-combat.html">
-      <span class="tag">Sandbox</span>
-      <h2>Combat sandbox</h2>
-      <p>Combat-encounter prototype layering signatures and effects on top of the skill core.</p>
-      <span class="go">Open</span>
-    </a>
-  </div>
-
-  <footer>
-    <a href="https://github.com/oannes23/set-core">GitHub repo</a>
-    <span>Design notes: PROJECT.md</span>
-  </footer>
-</div>
+  <div id="app"></div>
+  <script type="module" src="/src/main.ts"></script>
 </body>
 </html>

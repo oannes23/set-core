@@ -6,30 +6,41 @@ action-resolution layer of a web RPG.
 ## Start here
 1. **`CLAUDE.md`** — fast orientation for a Claude Code session.
 2. **`PROJECT.md`** — full design context and rationale (the source of truth).
-3. **`prototype/set-proto.html`** — the working prototype. Open in any browser;
-   no build step or dependencies (uses inline CSS/JS + Google Fonts).
+3. **`TODO.md` §A** — the foundation-migration log (prototype → modular `src/`).
 
-## Try the prototype
-Open `prototype/set-proto.html`, pick dials (defaults to f=3 / N=12 / 30s), hit
-Start. Use the **Quick compare** presets to feel f=3·n=10 vs f=4·n=15, the
-**Set camouflage** dial for findability, and **Encounter** for value-scoring.
-The board-analysis strip shows the honest difficulty number (easiest-k).
+## Run the game (modular client)
+The live game is the modular TypeScript client under `src/` (engine + UI). Dev tooling
+is build-time only — the shipped client is framework-free.
+```
+pnpm install
+pnpm dev        # serve the app at http://localhost:5173/
+pnpm test       # vitest (engine + data conformance)
+pnpm typecheck  # tsc --noEmit
+pnpm build      # -> dist/ (base-prefixed for the /set-core/ Pages subpath)
+```
+Live build: <https://oannes23.github.io/set-core/> (CI deploys `dist/` on push to `master`).
+
+## Archived prototypes (the migration oracle)
+The original single-file prototypes — `prototype/set-proto.html` (skill core + tuning
+console) and `prototype/set-combat.html` (combat sandbox) — are **archived** under
+`prototype/` (launcher at `prototype/index.html`). They were the behavioral oracle the
+modular rebuild was diffed against; they run in any browser with no build step.
 
 ## Images
 Diagnostic renders used during development — see `PROJECT.md` §10 for what each
 one demonstrates.
 
-## Suggested repo layout when seeding
+## Repo layout
 ```
 .
-├── CLAUDE.md
-├── PROJECT.md
-├── README.md
-├── prototype/
-│   └── set-proto.html
-└── images/
-    ├── f3-board-n12-highlighted.png
-    ├── f4-board-n15-highlighted.png
-    ├── shading-solid-striped-open.png
-    └── feature-contact-sheet.png
+├── CLAUDE.md · PROJECT.md · GAME-DESIGN.md · CRAWL-DESIGN.md · TRAPS.md   # design docs
+├── TODO.md                         # working backlog + the migration log (§A)
+├── index.html                      # the modular client entry (Vite)
+├── src/
+│   ├── core/    # generation math (affine geometry, set-finding, RNG)
+│   ├── data/    # typed game content (creatures/traps/dungeons/classes)
+│   ├── engine/  # pure reduce(state,action) → {state,events}
+│   └── ui/      # the client (board, HUD, abilities, coaching, polish)
+├── prototype/   # ARCHIVED single-file prototypes (the migration oracle)
+└── images/      # diagnostic renders (see PROJECT.md §10)
 ```

@@ -2,8 +2,8 @@ name: Deploy to GitHub Pages
 
 # Builds the site and publishes it to GitHub Pages on every push to master.
 # GitHub Pages just serves static files — pnpm/Vite/TypeScript are BUILD-time only and never
-# run on the host. We compile the app with `pnpm build`, then fold in the still-static prototype
-# (the playable game during migration) and the launcher, and publish the assembled dist/.
+# run on the host. We compile the app with `pnpm build` (dist/index.html is the live client now),
+# then fold in the archived prototype (the migration oracle, with its own launcher), and publish.
 
 on:
   push:
@@ -37,13 +37,11 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm build # -> dist/ (compiled app.html + assets, base-prefixed for /set-core/)
-      # Assemble the published site. For now the PROTOTYPE is the playable game and the Vite app
-      # is the dev scaffold; both go live. Promote app.html -> the root when the app takes over.
-      - name: Fold in the launcher + prototype
-        run: |
-          cp index.html dist/index.html
-          cp -r prototype dist/prototype
+      - run: pnpm build # -> dist/ (compiled index.html = the live app + assets, base-prefixed for /set-core/)
+      # The built dist/index.html IS the live client now. Fold in the archived prototype (oracle)
+      # alongside it at /prototype/ (it carries its own launcher index.html).
+      - name: Fold in the archived prototype
+        run: cp -r prototype dist/prototype
       - uses: actions/configure-pages@v5
         with:
           enablement: true # try to enable Pages automatically; if it errors, enable it once in Settings → Pages → Source: GitHub Actions

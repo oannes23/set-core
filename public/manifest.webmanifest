@@ -2,7 +2,7 @@
   "name": "set.core",
   "short_name": "set.core",
   "description": "A Set-based skill minigame — the action layer of a web RPG.",
-  "start_url": "./app.html",
+  "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "orientation": "any",
