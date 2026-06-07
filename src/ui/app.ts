@@ -10,8 +10,9 @@ import { findSets } from '../core/sets'
 import type { GenConfig } from '../core/generate'
 import { GAMEDATA } from '../data/game-data'
 import type { Dungeon } from '../data/schema'
-import { CLASSES } from '../data/classes'
-import { ABILITIES } from '../engine/abilities'
+import { CLASSES, classById } from '../data/classes'
+import { ABILITIES, canAfford } from '../engine/abilities'
+import { PASSIVES } from '../engine/passives'
 import { assembleFoe, pickWeightedFoe } from '../engine/foe'
 import { createCombat, reduce, colsForN, COMBAT_GEN, type Deps, type CombatAction } from '../engine/combat'
 import type { CombatState } from '../engine/state'
@@ -32,6 +33,8 @@ interface View {
   state: CombatState
   /** the session action log — every mutation goes through here (the step-6 seam) */
   actions: CombatAction[]
+  classId: string
+  loadout: string[] // the chosen class's ability ids (the active grid)
   selected: number[]
   raf: number
   lastT: number
@@ -62,6 +65,25 @@ function startScreen(root: HTMLElement): void {
   rowEl.appendChild(dCol)
   rowEl.appendChild(fCol)
   panel.appendChild(rowEl)
+
+  // class picker
+  let classId = CLASSES[0].id
+  panel.appendChild($(`<label style="margin-top:14px">Class</label>`))
+  const cgrid = $(`<div class="classgrid"></div>`)
+  const blurb = $(`<div class="classblurb"></div>`)
+  const paintClass = () => {
+    cgrid.querySelectorAll('.classcard').forEach((el) => el.classList.toggle('sel', (el as HTMLElement).dataset.cid === classId))
+    blurb.innerHTML = classBlurbHTML(classId)
+  }
+  for (const c of CLASSES) {
+    const card = $(`<div class="classcard" data-cid="${c.id}"><div class="ci">${c.icon}</div><div class="cn">${c.name}</div></div>`)
+    card.addEventListener('click', () => { classId = c.id; paintClass() })
+    cgrid.appendChild(card)
+  }
+  panel.appendChild(cgrid)
+  panel.appendChild(blurb)
+  paintClass()
+
   const cta = $<HTMLButtonElement>(`<button class="cta">▶ Begin combat</button>`)
   panel.appendChild(cta)
   wrap.appendChild(panel)
@@ -78,11 +100,19 @@ function startScreen(root: HTMLElement): void {
   }
   dSel.addEventListener('change', fillFoes)
   fillFoes()
-  cta.addEventListener('click', () => begin(root, dSel.value, fSel.value))
+  cta.addEventListener('click', () => begin(root, dSel.value, fSel.value, classId))
+}
+
+/** Loadout summary for the class blurb: tagline + ability names + passive name. */
+function classBlurbHTML(id: string): string {
+  const c = classById(id)
+  const abil = c.abilities.map((a) => ABILITIES[a]?.name).filter(Boolean).join(' · ')
+  const pas = c.passives.map((p) => PASSIVES[p]?.name).filter(Boolean).join(' · ')
+  return `${c.icon} <b>${c.name}</b> — ${c.blurb}<br><b>Abilities:</b> ${abil} &nbsp; <b>Passive:</b> ${pas}`
 }
 
 // ---- begin combat ----
-function begin(root: HTMLElement, dungeonId: string, foeVal: string): void {
+function begin(root: HTMLElement, dungeonId: string, foeVal: string, classId: string): void {
   const rng: Rng = systemRng
   const dg: Dungeon = GAMEDATA.dungeons[dungeonId]
   let foeId: string
@@ -97,8 +127,9 @@ function begin(root: HTMLElement, dungeonId: string, foeVal: string): void {
   }
   const foe = assembleFoe(foeId, dg, GAMEDATA, rng)
   if (!foe) return
-  const state = createCombat({ foe, gen: GEN, sequence, seqIdx: 0, dungeonId }, rng)
-  V = { root, deps: { data: GAMEDATA, rng }, state, actions: [], selected: [], raf: 0, lastT: 0, boardSig: '', refs: {} }
+  const cls = classById(classId)
+  const state = createCombat({ foe, gen: GEN, passives: cls.passives, sequence, seqIdx: 0, dungeonId }, rng)
+  V = { root, deps: { data: GAMEDATA, rng }, state, actions: [], classId: cls.id, loadout: cls.abilities.slice(), selected: [], raf: 0, lastT: 0, boardSig: '', refs: {} }
   buildPlay()
   renderBoard()
   updateBar()
@@ -141,7 +172,7 @@ function buildPlay(): void {
   play.appendChild(boardWrap)
 
   const rail = $(`<div class="rail"></div>`)
-  rail.appendChild(abilitiesStub())
+  rail.appendChild(buildCastPanel())
   const logP = $(`<div class="panel"></div>`)
   logP.appendChild($(`<label>Combat log</label>`))
   logP.appendChild($(`<div class="log" id="log"></div>`))
@@ -151,35 +182,48 @@ function buildPlay(): void {
   V.root.appendChild(wrap)
 
   V.refs = {}
-  for (const id of ['foename', 'foedesc', 'enemylab', 'phpv', 'ehpv', 'php', 'ehp', 'clock', 'tacv', 'tac', 'm0', 'm1', 'm2', 'block', 'strip', 'boardwrap', 'board', 'log']) {
+  for (const id of ['foename', 'foedesc', 'enemylab', 'phpv', 'ehpv', 'php', 'ehp', 'clock', 'tacv', 'tac', 'm0', 'm1', 'm2', 'block', 'strip', 'boardwrap', 'board', 'log', 'abilities', 'tactics', 'passives']) {
     const el = wrap.querySelector('#' + id)
     if (el) V.refs[id] = el as HTMLElement
   }
   board.addEventListener('click', onBoardClick)
+  V.refs.abilities?.addEventListener('click', onAbilityClick)
+  V.refs.tactics?.addEventListener('click', onTacticClick)
   renderStrip()
+  updateCastables()
   V.refs.foename.textContent = V.state.foe.name + (V.state.sequence ? `  ·  ${V.state.seqIdx + 1}/${V.state.sequence.length}` : '')
   V.refs.foedesc.innerHTML = V.state.foe.desc ?? ''
 }
 
-/** Placeholder Abilities/Tactics panel — previews the default class loadout from the engine registries,
- *  greyed out. The live, mana-gated, click-to-cast version lands in migration step 5 (castAbility/useTactic). */
+/** The live castable panel: the class loadout (mana-gated click-to-cast), the Tactics buttons (live at
+ *  full meter), and the always-on passive chips — all dispatching castAbility / useTactic to the engine. */
 const MANA_ICON = ['🔥', '🌿', '❄']
-function abilitiesStub(): HTMLElement {
-  const cls = CLASSES[0] // until the new client has a class picker, preview the first class
+const TAC_BTNS: { k: string; label: string; flee?: boolean }[] = [
+  { k: 'strike', label: '⚔ Strike' }, { k: 'dodge', label: '🛡 Dodge' }, { k: 'flee', label: '🏃 Flee', flee: true },
+  { k: 'heat', label: '🔥 Heat' }, { k: 'chill', label: '❄ Chill' }, { k: 'wild', label: '🌿 Wild' },
+]
+function buildCastPanel(): HTMLElement {
+  const cls = classById(V!.classId)
   const panel = $(`<div class="panel"></div>`)
-  panel.appendChild($(`<div class="panelhd"><label>Abilities · ${cls.name}</label><span class="stub-note">step 5</span></div>`))
-  const grid = $(`<div class="ability-grid"></div>`)
-  for (const id of cls.abilities) {
+  panel.appendChild($(`<div class="panelhd"><label>Abilities · ${cls.name}</label><span class="stub-note">spend mana</span></div>`))
+  const grid = $(`<div class="ability-grid" id="abilities"></div>`)
+  for (const id of V!.loadout) {
     const a = ABILITIES[id]
     if (!a) continue
     const cost = a.cost.map((c, i) => (c > 0 ? `${MANA_ICON[i]}${c}` : '')).filter(Boolean).join(' ')
-    grid.appendChild($(`<div class="ab-slot" title="${a.desc}"><div class="abi">${a.icon}</div><div class="abn">${a.name}</div><div class="abc">${cost}</div></div>`))
+    grid.appendChild($(`<div class="ab-slot" data-ab="${id}" title="${a.name} — ${a.desc}"><div class="abi">${a.icon}</div><div class="abn">${a.name}</div><div class="abc">${cost}</div></div>`))
   }
   panel.appendChild(grid)
   panel.appendChild($(`<div class="panelhd" style="margin-top:12px"><label>Tactics</label><span class="stub-note">at full meter</span></div>`))
-  const row = $(`<div class="tactics-row"></div>`)
-  for (const t of ['⚔ Strike', '🛡 Dodge', '🏃 Flee', '🔥 Heat', '❄ Chill', '🌿 Wild']) row.appendChild($(`<div class="tac-btn">${t}</div>`))
+  const row = $(`<div class="tactics-row" id="tactics"></div>`)
+  for (const t of TAC_BTNS) row.appendChild($(`<div class="tac-btn${t.flee ? ' flee' : ''}" data-tac="${t.k}">${t.label}</div>`))
   panel.appendChild(row)
+  const pas = $(`<div class="passives" id="passives"></div>`)
+  for (const id of V!.state.passives) {
+    const p = PASSIVES[id]
+    if (p) pas.appendChild($(`<div class="pchip" data-passive="${id}" title="${p.name} — ${p.desc}"><span class="pi">${p.icon}</span>${p.name}</div>`))
+  }
+  if (V!.state.passives.length) panel.appendChild(pas)
   return panel
 }
 
@@ -278,6 +322,41 @@ function onBoardClick(e: Event): void {
   renderBoard()
 }
 
+function onAbilityClick(e: Event): void {
+  if (!V || !V.state.running) return
+  const el = (e.target as HTMLElement).closest('.ab-slot') as HTMLElement | null
+  const id = el?.dataset.ab
+  if (!id) return
+  const a = ABILITIES[id]
+  if (!a || !canAfford(V.state, a.cost)) return
+  el!.classList.remove('casting')
+  void el!.offsetWidth
+  el!.classList.add('casting')
+  dispatch({ type: 'castAbility', abilityId: id })
+}
+
+function onTacticClick(e: Event): void {
+  if (!V || !V.state.running || !V.state.tacticsArmed) return
+  const el = (e.target as HTMLElement).closest('.tac-btn') as HTMLElement | null
+  const key = el?.dataset.tac
+  if (!key) return
+  if (key === 'flee' && !confirm('Flee combat?\n\nYou forfeit this encounter.')) return
+  dispatch({ type: 'useTactic', key })
+}
+
+/** Refresh ability/tactic affordances — runs every frame so they track mana + the armed meter live. */
+function updateCastables(): void {
+  if (!V) return
+  const s = V.state
+  V.refs.abilities?.querySelectorAll<HTMLElement>('.ab-slot').forEach((el) => {
+    const a = el.dataset.ab ? ABILITIES[el.dataset.ab] : undefined
+    el.classList.toggle('ready', !!a && s.running && canAfford(s, a.cost))
+  })
+  V.refs.tactics?.querySelectorAll<HTMLElement>('.tac-btn').forEach((el) => {
+    el.classList.toggle('armed', s.running && s.tacticsArmed)
+  })
+}
+
 // ---- dispatch + event interpretation ----
 function dispatch(action: CombatAction): void {
   if (!V) return
@@ -296,7 +375,32 @@ function interpret(events: CombatEvent[]): void {
     switch (e.type) {
       case 'enemyDamaged':
         if (e.immune) log('Swords pass through — only magic bites this foe.', 'foe')
+        else if (e.magic) log(`Your magic drains <b>${e.amount}</b>.`, 'you')
         else log(`You strike for <b>${e.amount}</b>.`, 'you')
+        break
+      case 'enemyHealed':
+        log(`The ${V.state.foe.name} heals <b>${e.amount}</b>.`, 'foe')
+        break
+      case 'playerHealed':
+        log(`You recover <b>${e.amount}</b> HP.`, 'you')
+        break
+      case 'abilityCast':
+        log(`You cast <b>${ABILITIES[e.id]?.name ?? e.id}</b>.`, 'you')
+        break
+      case 'abilityFizzled':
+        log(`<b>${ABILITIES[e.id]?.name ?? e.id}</b> fizzles — no target.`, 'foe')
+        break
+      case 'passiveProc':
+        pulsePassive(e.id)
+        break
+      case 'tacticUsed':
+        if (e.key !== 'flee') log(`Tactic — <b>${e.key[0].toUpperCase()}${e.key.slice(1)}</b>!`, 'you')
+        break
+      case 'fled':
+        endScreen('flee')
+        break
+      case 'manaDrained':
+        log(`The foe drains your ${['Fire', 'Nature', 'Frost'][e.color]} mana.`, 'foe')
         break
       case 'setResolved': {
         // give every match a line; a damaging match already logged its strike (enemyDamaged)
@@ -354,6 +458,15 @@ function log(html: string, cls: string): void {
   V.refs.log.prepend(line)
 }
 
+/** Re-trigger the gold pulse on a passive chip when it fires. */
+function pulsePassive(id: string): void {
+  const el = V?.refs.passives?.querySelector(`[data-passive="${id}"]`) as HTMLElement | null
+  if (!el) return
+  el.classList.remove('proc')
+  void el.offsetWidth
+  el.classList.add('proc')
+}
+
 // ---- per-frame HUD ----
 function updateBar(): void {
   if (!V) return
@@ -376,6 +489,7 @@ function updateBar(): void {
   clk.textContent = s.running ? `${Math.ceil(remain)}s` : '—'
   clk.classList.toggle('low', remain <= 5 && remain > 2.5)
   clk.classList.toggle('crit', remain <= 2.5)
+  updateCastables()
 }
 
 // ---- the clock loop ----
@@ -390,10 +504,11 @@ function loop(t: number): void {
 }
 
 // ---- end ----
-function endScreen(result: 'win' | 'lose'): void {
+function endScreen(result: 'win' | 'lose' | 'flee'): void {
   if (!V) return
   cancelAnimationFrame(V.raf)
-  const banner = $(`<div class="banner ${result}">${result === 'win' ? '★ Victory' : '✖ Defeat'}</div>`)
+  const text = result === 'win' ? '★ Victory' : result === 'flee' ? '🏃 Fled' : '✖ Defeat'
+  const banner = $(`<div class="banner ${result === 'win' ? 'win' : 'lose'}">${text}</div>`)
   const again = $<HTMLButtonElement>(`<button class="cta" style="display:block;margin:0 auto">▶ Back to start</button>`)
   const root = V.root
   V.refs.boardwrap.replaceChildren(banner, again)

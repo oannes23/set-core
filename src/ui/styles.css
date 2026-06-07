@@ -76,15 +76,39 @@ button.cta:hover { background: var(--phos); color: #062b27; }
 @keyframes fk { 0%,100% { box-shadow: none; } 30% { box-shadow: 0 0 0 3px var(--trick), 0 0 60px -6px var(--trick); } }
 @keyframes fw { 0%,100% { box-shadow: none; } 25% { box-shadow: 0 0 0 4px var(--red), 0 0 70px -4px var(--red); transform: translateX(-6px); } 60% { transform: translateX(4px); } }
 
-/* abilities / tactics stub (the live panels land in migration step 5) */
+/* abilities / tactics / passives — the live castable panels (migration step 5) */
 .panelhd { display: flex; justify-content: space-between; align-items: baseline; }
 .stub-note { font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-faint); }
 .ability-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 8px; }
-.ab-slot { border: 1px solid var(--line2); border-radius: 10px; padding: 10px 6px; text-align: center; background: #0e1118; opacity: .55; }
+.ab-slot { border: 1px solid var(--line2); border-radius: 10px; padding: 10px 6px; text-align: center; background: #0e1118;
+  opacity: .5; transition: transform .1s ease, box-shadow .12s ease, opacity .12s ease; cursor: default; }
 .ab-slot .abi { font-size: 20px; line-height: 1; } .ab-slot .abn { font-size: 9.5px; color: var(--ink-dim); margin-top: 5px; }
 .ab-slot .abc { font-size: 9px; color: var(--ink-faint); margin-top: 3px; font-variant-numeric: tabular-nums; }
+.ab-slot.ready { opacity: 1; border-color: var(--gold); box-shadow: 0 0 0 1px var(--gold), 0 0 16px -10px var(--gold); cursor: pointer; }
+.ab-slot.ready:hover { transform: translateY(-2px); }
+.ab-slot.casting { animation: castpulse .35s ease; }
+@keyframes castpulse { 0% { box-shadow: 0 0 0 3px var(--phos), 0 0 22px -4px var(--phos); } 100% { box-shadow: none; } }
 .tactics-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
-.tac-btn { border: 1px solid var(--line2); border-radius: 8px; padding: 6px 9px; font-size: 11px; color: var(--ink-faint); background: #0e1118; opacity: .55; }
+.tac-btn { border: 1px solid var(--line2); border-radius: 8px; padding: 6px 9px; font-size: 11px; color: var(--ink-faint);
+  background: #0e1118; opacity: .5; cursor: default; transition: transform .1s ease, background .12s ease; }
+.tac-btn.armed { opacity: 1; border-color: var(--gold); color: var(--gold); cursor: pointer; }
+.tac-btn.armed:hover { background: var(--gold); color: #2b1f02; transform: translateY(-1px); }
+.tac-btn.armed.flee { border-color: var(--phos); color: var(--phos); }
+.tac-btn.armed.flee:hover { background: var(--phos); color: #062b27; }
+.passives { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.pchip { display: flex; align-items: center; gap: 5px; border: 1px solid var(--line2); border-radius: 8px; padding: 5px 8px;
+  font-size: 10.5px; color: var(--ink-dim); background: #0e1118; }
+.pchip .pi { font-size: 13px; }
+.pchip.proc { animation: pproc .55s ease; }
+@keyframes pproc { 0% { box-shadow: 0 0 0 2px var(--gold), 0 0 18px -6px var(--gold); transform: scale(1.06); border-color: var(--gold); } 100% { box-shadow: none; transform: scale(1); } }
+
+/* start-screen class picker */
+.classgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(94px, 1fr)); gap: 8px; margin-top: 6px; }
+.classcard { border: 1px solid var(--line2); border-radius: 10px; padding: 10px 6px; text-align: center; cursor: pointer; background: #0e1118; transition: border-color .12s ease, box-shadow .12s ease; }
+.classcard:hover { border-color: var(--ink-dim); }
+.classcard.sel { border-color: var(--phos); box-shadow: 0 0 0 1px var(--phos), 0 0 16px -10px var(--phos); }
+.classcard .ci { font-size: 22px; line-height: 1; } .classcard .cn { font-size: 10.5px; margin-top: 5px; color: var(--ink-dim); }
+.classblurb { font-size: 11.5px; color: var(--ink-faint); margin-top: 10px; min-height: 16px; line-height: 1.5; }
 
 /* log */
 .log { font-size: 12px; line-height: 1.7; max-height: 220px; overflow-y: auto; color: var(--ink-dim); }

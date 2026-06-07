@@ -97,14 +97,16 @@ a separate stack" collapses into "refactor into modular TS" — which is why rec
   cast/tactic actions, gauntlet advance). Classes (9) are in `data/classes.ts` as id-list loadouts,
   integrity-gated against the registries. Time is explicit + RNG injected → determinism (tested).
   40 tests, typecheck clean. **Engine is at full combat parity with the prototype.**
-- `[~]` **5. Rebuild `ui/`** — DONE as a playable functional client; polish + abilities UI remain.
-  `app.ts` + `styles.css`: start screen (dungeon/foe pickers from data), play screen (board, HUD, enemy
-  clock, trap/trick strip), click-to-select + set-mate glow, the rAF `tick` loop, event→feedback
-  (log/flashes/win-lose/gauntlet). Drives the engine via `completeSet`/`tick`; plays the reactive board
-  game (matches, traps & tricks, Tactics meter, enemy clock, immune foes, gauntlets). Verified playable
-  via CDP (begin → find a set → complete → engine responds, board refills, no exceptions); typecheck +
-  23 tests green. **Deferred:** abilities/coaching/briefing UI + animation polish — prototype stays the
-  polished live game (see `src/ui/README.md`).
+- `[~]` **5. Rebuild `ui/`** — DONE to full combat parity; coaching/briefing/animation polish remain.
+  `app.ts` + `styles.css`: start screen (dungeon/foe + **class** pickers), a two-region play screen
+  (compact board left; a side rail with HUD, enemy clock, trap/trick strip, the **live ability grid**,
+  **Tactics buttons**, **passive chips**, combat log), click-to-select + set-mate glow, the rAF `tick`
+  loop, event→feedback (log/flashes/casts/procs/win-lose-flee/gauntlet). Drives the engine via
+  `completeSet`/`tick`/`castAbility`/`useTactic`. **CDP-verified end-to-end:** pick a class → bank mana
+  via sets → a slot arms → cast (mana spent, foe damaged, passive procs) → fill the Tactics meter →
+  fire a tactic (board transmutes, meter resets). typecheck + 40 tests + build green. **Deferred:** the
+  coaching layer + guided tutorial, the pre-combat briefing, and animation polish (card SVGs, bursts,
+  hitstop, spell target previews) — the prototype stays the more polished live game (see `src/ui/README.md`).
 - `[x]` **6. Multiplayer seam** — DONE. The engine already reduces `(state, action) → {state, events}`;
   step 6 formalizes it: `session.ts` models a combat as `seed + setup + action log`, and `runSession`
   replays it deterministically. `seam.test.ts` proves a server replaying only the action log reproduces
