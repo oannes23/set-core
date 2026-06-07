@@ -54,9 +54,7 @@ button.cta:hover { background: var(--phos); color: #062b27; }
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; cursor: pointer;
   box-shadow: 0 0 0 1px #0006 inset; transition: transform .1s ease, box-shadow .12s ease, filter .12s ease; user-select: none; }
 .card:hover { transform: translateY(-2px); }
-.card .glyph { font-size: 30px; line-height: 1; color: var(--cc); }
-.card .pips { display: flex; gap: 5px; }
-.card .pips i { width: 8px; height: 8px; border-radius: 50%; background: var(--cc); display: block; }
+.card .cardsvg { width: 82%; height: 82%; display: block; pointer-events: none; }
 .card.sel { box-shadow: 0 0 0 3px var(--phos), 0 0 22px -4px var(--phos); transform: translateY(-3px); }
 .card.mate { filter: drop-shadow(0 0 7px rgba(94,234,212,.55)); }
 .card.complete { filter: drop-shadow(0 0 10px rgba(94,234,212,.95)); }
@@ -109,6 +107,53 @@ button.cta:hover { background: var(--phos); color: #062b27; }
 .classcard.sel { border-color: var(--phos); box-shadow: 0 0 0 1px var(--phos), 0 0 16px -10px var(--phos); }
 .classcard .ci { font-size: 22px; line-height: 1; } .classcard .cn { font-size: 10.5px; margin-top: 5px; color: var(--ink-dim); }
 .classblurb { font-size: 11.5px; color: var(--ink-faint); margin-top: 10px; min-height: 16px; line-height: 1.5; }
+
+/* ---- pre-combat briefing modal ---- */
+#briefing { position: fixed; inset: 0; z-index: 50; display: none; align-items: center; justify-content: center;
+  background: rgba(4, 6, 10, .72); padding: 20px; }
+#briefing.show { display: flex; }
+.briefcard { background: var(--panel); border: 1px solid var(--line2); border-radius: 16px; padding: 22px 24px 20px;
+  width: min(460px, 100%); box-shadow: 0 22px 70px -18px rgba(0, 0, 0, .8); }
+.bseq { font-size: 10.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--gold); margin-bottom: 8px; }
+.bhead { display: flex; align-items: center; gap: 10px; }
+.bname { font-family: "Syne", sans-serif; font-weight: 800; font-size: 22px; letter-spacing: .01em; }
+.btier { font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-dim); border: 1px solid var(--line2); border-radius: 6px; padding: 3px 7px; }
+.btier.elite { color: var(--gold); border-color: var(--gold); } .btier.boss { color: var(--red); border-color: var(--red); }
+.bdesc { font-size: 12.5px; color: var(--ink-dim); line-height: 1.6; margin: 12px 0 0; border-left: 2px solid var(--line2); padding-left: 11px; }
+.bstats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 16px 0 0; }
+.bs { background: #0e1118; border: 1px solid var(--line); border-radius: 10px; padding: 9px 10px; }
+.bs .l { font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-faint); }
+.bs .v { font-size: 15px; font-weight: 700; margin-top: 3px; font-variant-numeric: tabular-nums; } .bs .v small { font-size: 10px; color: var(--ink-faint); font-weight: 400; }
+.btrapshd { font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--red); margin: 18px 0 8px; }
+.btrap { display: flex; gap: 9px; align-items: flex-start; background: #1a1216; border: 1px solid #5a2a2e; border-radius: 9px; padding: 8px 10px; margin-bottom: 6px; }
+.btrap.trick { background: #0f1f1a; border-color: #2f6b56; }
+.btrap .bi { font-size: 15px; line-height: 1.2; } .btrap .bn { font-weight: 700; font-size: 12.5px; color: var(--red); } .btrap.trick .bn { color: var(--trick); }
+.btrap .bd { font-size: 11px; color: var(--ink-dim); line-height: 1.45; margin-top: 2px; }
+.briefnote { font-size: 11.5px; color: var(--ink-faint); }
+#briefing .cta { margin-top: 18px; width: 100%; }
+
+/* ---- floaters + bursts ---- */
+#floatlayer { position: absolute; inset: 0; pointer-events: none; z-index: 6; overflow: hidden; }
+.floater { position: absolute; font-size: 17px; font-weight: 700; font-variant-numeric: tabular-nums;
+  text-shadow: 0 1px 6px #000a; opacity: 0; transform: translateY(0); transition: transform .95s ease-out, opacity .95s ease-out; white-space: nowrap; }
+.floater.go { opacity: 1; transform: translateY(-46px); }
+#burstlayer { position: fixed; left: 0; right: 0; top: 0; bottom: 0; pointer-events: none; z-index: 38; }
+.burst { position: absolute; left: 50%; top: 42%; transform: translate(-50%, -50%) scale(.8); opacity: 0;
+  display: flex; align-items: center; gap: 11px; background: var(--panel); border: 1px solid var(--warn); border-radius: 13px;
+  padding: 11px 16px; box-shadow: 0 14px 50px -12px #000c, 0 0 0 1px var(--warn) inset; transition: transform .22s ease, opacity .22s ease; }
+.burst.go { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+.burst.trick { border-color: var(--trick); box-shadow: 0 14px 50px -12px #000c, 0 0 0 1px var(--trick) inset; }
+.burst.wound { border-color: var(--red); box-shadow: 0 14px 50px -12px #000c, 0 0 0 1px var(--red) inset; }
+.burst .bui { font-size: 24px; line-height: 1; }
+.burst .bul { font-size: 9.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-faint); }
+.burst .bun { font-family: "Syne", sans-serif; font-weight: 800; font-size: 15px; color: var(--warn); }
+.burst.trick .bun { color: var(--trick); } .burst.wound .bun { color: var(--red); }
+.burst .bue { font-size: 11px; color: var(--ink-dim); margin-top: 2px; }
+
+/* ---- spell target previews (hover an ability) ---- */
+.card.tgtsure { box-shadow: 0 0 0 3px var(--red), 0 0 18px -4px var(--red); }
+.card.tgtmaybe { box-shadow: 0 0 0 2px var(--warn); animation: tgtpulse 1s ease-in-out infinite; }
+@keyframes tgtpulse { 0%, 100% { box-shadow: 0 0 0 2px var(--warn); } 50% { box-shadow: 0 0 0 2px var(--warn), 0 0 16px -3px var(--warn); } }
 
 /* ---- coaching layer (item 3): affordance arrows · section gates · spotlight · popover ---- */
 .ab-slot, .tactics-row { position: relative; }

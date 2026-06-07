@@ -17,14 +17,15 @@ wounded. Currently only `outmaneuvered` is a Trick; adding more is data-only (`k
 ---
 
 ## A. Foundation migration — dev tooling + modularization
-`[~]` **Steps 0–3, 6, 7 DONE; 4–5 done for the spine (abilities/polish remain).** All in `src/`, the
-prototype untouched as the oracle/live game. 26 tests, typecheck clean, build + PWA verified. The new
-client is playable (reactive board game) and the (state,action) replay seam is proven. Remaining to
-reach full parity: the ability roster + classes + passives (engine), and their UI + coaching/briefing
-+ animation polish. **NEXT / largest structural effort.** The prototype is at the top of what a single ~2,700-line
-HTML file should hold. The next move is **not** a server and **not** a Godot rewrite — it's a
-same-stack split into modules with real dev tooling. Capturing the decisions + reasoning here so we
-can begin.
+`[~]` **Steps 0–7 all DONE — the new `src/` client is at full combat parity with the prototype.** Engine
+(step 4): generation + data + the full resolution/trigger/ability/passive/tactics layer as a pure
+`reduce(state,action)→{state,events}`. UI (step 5): the complete client — board, HUD, traps/tricks,
+live abilities/tactics/passives + class picker, the coaching layer + guided intro, and the polish
+(card SVGs, briefing modal, floaters, hitstop, bursts, spell previews). 40 tests, typecheck clean,
+build + PWA verified, replay seam proven. **Remaining in §A: Phase 3 — flip `app.html`→`index.html`
+and archive the prototype** (it stays only as the migration oracle). After that the file is decomposed
+and the *next* major system (set.crawl: town / run-map / inventory / persistence) builds on the modules
+rather than the single ~2,900-line HTML file.
 
 ### Decisions (and *why* — these are settled)
 1. **Framework-free at runtime, dev-tooling-rich.** Split "dependency" in two:
@@ -97,20 +98,22 @@ a separate stack" collapses into "refactor into modular TS" — which is why rec
   cast/tactic actions, gauntlet advance). Classes (9) are in `data/classes.ts` as id-list loadouts,
   integrity-gated against the registries. Time is explicit + RNG injected → determinism (tested).
   40 tests, typecheck clean. **Engine is at full combat parity with the prototype.**
-- `[~]` **5. Rebuild `ui/`** — DONE to full combat parity; coaching/briefing/animation polish remain.
+- `[x]` **5. Rebuild `ui/`** — DONE to full combat parity + polish.
   `app.ts` + `styles.css`: start screen (dungeon/foe + **class** pickers), a two-region play screen
   (compact board left; a side rail with HUD, enemy clock, trap/trick strip, the **live ability grid**,
   **Tactics buttons**, **passive chips**, combat log), click-to-select + set-mate glow, the rAF `tick`
   loop, event→feedback (log/flashes/casts/procs/win-lose-flee/gauntlet). Drives the engine via
   `completeSet`/`tick`/`castAbility`/`useTactic`. **CDP-verified end-to-end:** pick a class → bank mana
   via sets → a slot arms → cast (mana spent, foe damaged, passive procs) → fill the Tactics meter →
-  fire a tactic (board transmutes, meter resets). The **coaching layer + guided intro** are also ported
+  fire a tactic (board transmutes, meter resets). The **coaching layer + guided intro** are ported
   (four primitives — pause/section-gates/spotlight/popover — affordance arrows, the `GUIDED_STEPS`
-  script over `coachNotify`; the Tutorial dungeon launches it, CDP-verified through the await→match
-  advance + skip teardown). typecheck + 40 tests + build green. **Deferred:** the "explain
-  mid-normal-play" tutorial variant + persisted "seen", the pre-combat briefing modal, and animation
-  polish (card SVGs, bursts, hitstop, spell target previews) — the prototype stays the more polished
-  live game (see `src/ui/README.md`).
+  script over `coachNotify`). **Polish landed:** card SVGs (Lucide glyphs, number = stacked glyph
+  count), the pre-combat briefing modal (before Engage + between gauntlet foes), floating combat
+  numbers, impact hitstop, a centered burst for sprung traps/tricks + hits, and spell target previews
+  (hover → ring hit cards, via the engine's pure `ABILITY_PREVIEW`). typecheck + 40 tests + build green.
+  **Optional/future (not parity):** an "explain mid-normal-play" tutorial variant + persisted "seen"
+  (see §3). The new client now matches the prototype's mechanics — **Phase 3 (flip app.html→index.html,
+  archive the prototype) is unblocked.**
 - `[x]` **6. Multiplayer seam** — DONE. The engine already reduces `(state, action) → {state, events}`;
   step 6 formalizes it: `session.ts` models a combat as `seed + setup + action log`, and `runSession`
   replays it deterministically. `seam.test.ts` proves a server replaying only the action log reproduces

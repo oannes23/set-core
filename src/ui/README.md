@@ -22,8 +22,11 @@ Coaching today: the **Tutorial · Guided Intro** dungeon (`guided:true`) runs th
 arm the affordance arrows. The freeze gate is UI-side (the loop just stops sending `tick`s — the engine
 stays pure).
 
-**Deferred (the prototype keeps these until parity):** an "explain mid-normal-play" tutorial variant
-(popovers at first trap-spring / first lock, vs only the staged intro), persisting "seen", the
-pre-combat briefing modal, and the prototype's animation polish (card SVGs, burst infographics,
-hitstop, spell target previews). This is a functional rebuild, not pixel-parity — `prototype/set-combat.html`
-remains the more polished live game during migration.
+Polish in place: **card SVGs** (Lucide glyphs, number = stacked glyph count), the **pre-combat briefing
+modal** (before Engage + between gauntlet foes), **floating combat numbers**, an **impact hitstop**, a
+**centered burst** for sprung traps/tricks + player hits, and **spell target previews** (hover an ability
+→ ring the cards it would hit, via the engine's pure `ABILITY_PREVIEW`).
+
+**At parity — step 5 is complete.** Still optional/future (not parity gaps): an "explain mid-normal-play"
+tutorial variant (popovers at first trap-spring / first lock, vs only the staged intro) + persisting
+"seen" (tracked in TODO §3). `prototype/set-combat.html` is retained as the migration oracle.

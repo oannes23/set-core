@@ -11,7 +11,7 @@ import type { GenConfig } from '../core/generate'
 import { GAMEDATA } from '../data/game-data'
 import type { Dungeon } from '../data/schema'
 import { CLASSES, classById } from '../data/classes'
-import { ABILITIES, canAfford } from '../engine/abilities'
+import { ABILITIES, canAfford, ABILITY_PREVIEW } from '../engine/abilities'
 import { PASSIVES } from '../engine/passives'
 import { assembleFoe, pickWeightedFoe } from '../engine/foe'
 import { createCombat, reduce, colsForN, COMBAT_GEN, type Deps, type CombatAction } from '../engine/combat'
@@ -20,11 +20,51 @@ import { TACTICS_GOAL } from '../engine/state'
 import type { CombatEvent } from '../engine/events'
 
 const GEN: GenConfig = COMBAT_GEN
-const GLYPH = ['⚔', '🛡', '➤'] // attack / defend / move
 const $ = <T extends HTMLElement>(html: string): T => {
   const t = document.createElement('template')
   t.innerHTML = html.trim()
   return t.content.firstChild as T
+}
+
+// ---- card glyphs: Lucide line icons (MIT) — Attack=swords, Defend=shield, Move=footprints ----
+const CARD_HEX = ['#f0565b', '#46c46a', '#5b94f5'] // red / green / blue (matches --c0/c1/c2)
+interface SvgPart { tag: string; attr: Record<string, string | number>; fill?: boolean }
+const SHAPE_PARTS: SvgPart[][] = [
+  [ // swords (Attack)
+    { tag: 'polyline', attr: { points: '14.5 17.5 3 6 3 3 6 3 17.5 14.5' } },
+    { tag: 'line', attr: { x1: 13, x2: 19, y1: 19, y2: 13 } },
+    { tag: 'line', attr: { x1: 16, x2: 20, y1: 16, y2: 20 } },
+    { tag: 'line', attr: { x1: 19, x2: 21, y1: 21, y2: 19 } },
+    { tag: 'polyline', attr: { points: '14.5 6.5 18 3 21 3 21 6 17.5 9.5' } },
+    { tag: 'line', attr: { x1: 5, x2: 9, y1: 14, y2: 18 } },
+    { tag: 'line', attr: { x1: 7, x2: 4, y1: 17, y2: 20 } },
+    { tag: 'line', attr: { x1: 3, x2: 5, y1: 19, y2: 21 } },
+  ],
+  [{ tag: 'path', fill: true, attr: { d: 'M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z' } }], // shield (Defend)
+  [ // footprints (Move)
+    { tag: 'path', fill: true, attr: { d: 'M4 16v-2.38C4 11.5 2.97 10.5 3 8c.03-2.72 1.49-6 4.5-6C9.37 2 10 3.8 10 5.5c0 3.11-2 5.66-2 8.68V16a2 2 0 1 1-4 0Z' } },
+    { tag: 'path', fill: true, attr: { d: 'M20 20v-2.38c0-2.12 1.03-3.12 1-5.62-.03-2.72-1.49-6-4.5-6C14.63 6 14 7.8 14 9.5c0 3.11 2 5.66 2 8.68V20a2 2 0 1 0 4 0Z' } },
+    { tag: 'path', attr: { d: 'M16 17h4' } },
+    { tag: 'path', attr: { d: 'M4 13h4' } },
+  ],
+]
+const GLYPH_T = `translate(${50 - 12 * 1.85},${22 - 12 * 1.85}) scale(1.85)` // fit 24x24 Lucide into the 100x44 box
+function partMarkup(p: SvgPart, hex: string): string {
+  const attrs = Object.entries(p.attr).map(([k, v]) => `${k}="${v}"`).join(' ')
+  return p.fill
+    ? `<${p.tag} ${attrs} fill="${hex}"/>`
+    : `<${p.tag} ${attrs} fill="none" stroke="${hex}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>`
+}
+/** A card as inline SVG: number+1 stacked shape glyphs (count = the number trait), recoloured by colour. */
+function cardSVG(card: Card): string {
+  const hex = CARD_HEX[card[0]]
+  const inner = SHAPE_PARTS[card[1]].map((p) => partMarkup(p, hex)).join('')
+  const n = card[3] + 1
+  const gap = 52
+  const startY = 80 - (n * gap) / 2 + gap / 2
+  let glyphs = ''
+  for (let s = 0; s < n; s++) glyphs += `<g transform="translate(10,${startY + s * gap - 22})"><g transform="${GLYPH_T}">${inner}</g></g>`
+  return `<svg class="cardsvg" viewBox="0 0 120 160" preserveAspectRatio="xMidYMid meet">${glyphs}</svg>`
 }
 
 interface View {
@@ -36,7 +76,9 @@ interface View {
   classId: string
   loadout: string[] // the chosen class's ability ids (the active grid)
   coach: boolean // affordance arrows on (Training / Tutorial dungeons)
-  paused: boolean // coaching freeze gate — the clock loop stops dispatching ticks
+  paused: boolean // coaching/briefing freeze gate — the clock loop stops dispatching ticks
+  hitstopUntil: number // performance.now() until which ticks are frozen (impact freeze)
+  preview: number[] | null // board slots currently ringed by an ability hover
   selected: number[]
   raf: number
   lastT: number
@@ -132,12 +174,18 @@ function begin(root: HTMLElement, dungeonId: string, foeVal: string, classId: st
   if (!foe) return
   const cls = classById(classId)
   const state = createCombat({ foe, gen: GEN, passives: cls.passives, sequence, seqIdx: 0, dungeonId }, rng)
-  V = { root, deps: { data: GAMEDATA, rng }, state, actions: [], classId: cls.id, loadout: cls.abilities.slice(), coach: !!dg.coach, paused: false, selected: [], raf: 0, lastT: 0, boardSig: '', refs: {} }
+  V = { root, deps: { data: GAMEDATA, rng }, state, actions: [], classId: cls.id, loadout: cls.abilities.slice(), coach: !!dg.coach, paused: true, hitstopUntil: 0, preview: null, selected: [], raf: 0, lastT: 0, boardSig: '', refs: {} }
   buildPlay()
   renderBoard()
   updateBar()
-  loop(performance.now())
-  if (dg.guided) coachStartGuided()
+  // brief the foe first; Engage starts the clock (and the guided intro, in the Tutorial)
+  showBriefing(() => {
+    if (!V) return
+    V.paused = false
+    V.lastT = 0
+    loop(performance.now())
+    if (dg.guided) coachStartGuided()
+  })
 }
 
 // ---- play screen skeleton ----
@@ -173,6 +221,7 @@ function buildPlay(): void {
   const board = $(`<div class="board" id="board"></div>`)
   board.style.gridTemplateColumns = `repeat(${V.state.cols}, 1fr)`
   boardWrap.appendChild(board)
+  boardWrap.appendChild($(`<div id="floatlayer"></div>`))
   play.appendChild(boardWrap)
 
   const rail = $(`<div class="rail"></div>`)
@@ -186,12 +235,14 @@ function buildPlay(): void {
   V.root.appendChild(wrap)
 
   V.refs = {}
-  for (const id of ['foename', 'foedesc', 'enemylab', 'phpv', 'ehpv', 'php', 'ehp', 'clock', 'tacv', 'tac', 'm0', 'm1', 'm2', 'block', 'strip', 'boardwrap', 'board', 'log', 'abilities', 'tactics', 'passives']) {
+  for (const id of ['foename', 'foedesc', 'enemylab', 'phpv', 'ehpv', 'php', 'ehp', 'clock', 'tacv', 'tac', 'm0', 'm1', 'm2', 'block', 'strip', 'boardwrap', 'board', 'log', 'abilities', 'tactics', 'passives', 'floatlayer']) {
     const el = wrap.querySelector('#' + id)
     if (el) V.refs[id] = el as HTMLElement
   }
   board.addEventListener('click', onBoardClick)
   V.refs.abilities?.addEventListener('click', onAbilityClick)
+  V.refs.abilities?.addEventListener('mouseover', onAbilityHover)
+  V.refs.abilities?.addEventListener('mouseout', clearPreview)
   V.refs.tactics?.addEventListener('click', onTacticClick)
   renderStrip()
   updateCastables()
@@ -274,7 +325,7 @@ function renderBoard(): void {
     else if (mates.complete === i) cls.push('complete')
     else if (mates.set.has(i)) cls.push('mate')
     if (locked) cls.push('locked')
-    const el = $(`<div class="${cls.join(' ')}" data-i="${i}" style="--cc:var(--c${c[0]})"><div class="glyph">${GLYPH[c[1]]}</div><div class="pips">${'<i></i>'.repeat(c[3] + 1)}</div>${locked ? '<span class="lock">🔒</span>' : ''}</div>`)
+    const el = $(`<div class="${cls.join(' ')}" data-i="${i}" style="--cc:var(--c${c[0]})">${cardSVG(c)}${locked ? '<span class="lock">🔒</span>' : ''}</div>`)
     board.appendChild(el)
   })
   V.boardSig = boardSignature(s)
@@ -396,15 +447,20 @@ function interpret(events: CombatEvent[]): void {
   for (const e of events) {
     switch (e.type) {
       case 'enemyDamaged':
-        if (e.immune) log('Swords pass through — only magic bites this foe.', 'foe')
-        else if (e.magic) log(`Your magic drains <b>${e.amount}</b>.`, 'you')
-        else log(`You strike for <b>${e.amount}</b>.`, 'you')
+        if (e.immune) { log('Swords pass through — only magic bites this foe.', 'foe'); floatBoard('blocked', 'var(--ink-faint)', 'enemy') }
+        else if (e.magic) { log(`Your magic drains <b>${e.amount}</b>.`, 'you'); floatBoard(`-${e.amount}`, 'var(--gold)', 'enemy') }
+        else { log(`You strike for <b>${e.amount}</b>.`, 'you'); floatBoard(`-${e.amount}`, 'var(--red)', 'enemy') }
         break
       case 'enemyHealed':
         log(`The ${V.state.foe.name} heals <b>${e.amount}</b>.`, 'foe')
+        floatBoard(`+${e.amount}`, 'var(--red)', 'enemy')
         break
       case 'playerHealed':
         log(`You recover <b>${e.amount}</b> HP.`, 'you')
+        floatBoard(`+${e.amount}`, 'var(--green)', 'you')
+        break
+      case 'blockGained':
+        floatBoard(`+${e.amount}🛡`, 'var(--blue)', 'you')
         break
       case 'abilityCast':
         log(`You cast <b>${ABILITIES[e.id]?.name ?? e.id}</b>.`, 'you')
@@ -444,11 +500,16 @@ function interpret(events: CombatEvent[]): void {
       case 'playerDamaged':
         log(`The ${V.state.foe.name} hits you for <b>${e.amount}</b>${e.absorbed ? ` (${e.absorbed} blocked)` : ''}.`, 'foe')
         flash('wound')
+        floatBoard(`-${e.amount} HP`, 'var(--red)', 'you')
+        burst('💥', '✷ struck', V.state.foe.name, e.absorbed ? `−${e.amount} HP · ${e.absorbed} blocked` : `−${e.amount} HP`, 'wound')
+        hitstop(150)
         break
       case 'triggerSprung': {
         const trick = e.trigger.kind === 'trick'
         log(`<b>${e.trigger.name}</b> — ${e.label}.`, trick ? 'trick' : 'foe')
         flash(trick ? 'trick' : 'trap')
+        burst(e.trigger.icon ?? (trick ? '✦' : '⚠'), trick ? '✦ trick' : '⚠ trap', e.trigger.name, e.label, trick ? 'trick' : undefined)
+        hitstop(120)
         break
       }
       case 'tacticsArmed':
@@ -460,6 +521,9 @@ function interpret(events: CombatEvent[]): void {
         if (V.refs.foename) V.refs.foename.textContent = e.name + (V.state.sequence ? `  ·  ${V.state.seqIdx + 1}/${V.state.sequence.length}` : '')
         if (V.refs.foedesc) V.refs.foedesc.innerHTML = V.state.foe.desc ?? ''
         renderBoard()
+        // brief the next foe (freeze until Engage)
+        V.paused = true
+        showBriefing(() => { if (V) { V.paused = false; V.lastT = 0 } })
         break
       case 'won':
         endScreen('win')
@@ -483,6 +547,38 @@ function log(html: string, cls: string): void {
   if (!V) return
   const line = $(`<div class="${cls}">${html}</div>`)
   V.refs.log.prepend(line)
+}
+
+/** A combat number that rises and fades over the board. `side` biases it left (you) / right (enemy). */
+function floatBoard(text: string, color: string, side?: 'you' | 'enemy'): void {
+  const layer = V?.refs.floatlayer
+  if (!layer) return
+  const el = $(`<div class="floater">${text}</div>`)
+  el.style.color = color
+  el.style.left = side === 'you' ? `${14 + Math.random() * 16}%` : side === 'enemy' ? `${64 + Math.random() * 18}%` : `${34 + Math.random() * 32}%`
+  el.style.top = `${30 + Math.random() * 26}%`
+  layer.appendChild(el)
+  void el.offsetWidth
+  el.classList.add('go')
+  setTimeout(() => el.remove(), 1000)
+}
+
+/** A centered infographic burst — icon + label + name + effect line. For sprung traps/tricks + hits. */
+function burst(icon: string, label: string, name: string, eff: string, kind?: 'trick' | 'wound'): void {
+  let layer = document.getElementById('burstlayer')
+  if (!layer) { layer = $(`<div id="burstlayer"></div>`); document.body.appendChild(layer) }
+  const stack = layer.querySelectorAll('.burst').length
+  const b = $(`<div class="burst${kind ? ' ' + kind : ''}"><span class="bui">${icon}</span><span><span class="bul">${label}</span><br><span class="bun">${name}</span>${eff ? `<div class="bue">${eff}</div>` : ''}</span></div>`)
+  b.style.top = `${42 - stack * 8}%`
+  layer.appendChild(b)
+  void b.offsetWidth
+  b.classList.add('go')
+  setTimeout(() => { b.classList.remove('go'); setTimeout(() => b.remove(), 240) }, 2200)
+}
+
+/** A brief impact freeze — pause the engine clock for `ms` so a hit/spring lands with weight. */
+function hitstop(ms: number): void {
+  if (V) V.hitstopUntil = Math.max(V.hitstopUntil, performance.now() + ms)
 }
 
 /** Re-trigger the gold pulse on a passive chip when it fires. */
@@ -525,8 +621,9 @@ function loop(t: number): void {
   if (!V.state.running) return
   const dt = V.lastT ? t - V.lastT : 0
   V.lastT = t
-  // V.paused = a coaching freeze: keep rendering but stop advancing the engine clock
-  if (!V.paused && dt > 0 && dt < 500) dispatch({ type: 'tick', dtMs: dt })
+  // freeze the engine clock during a coaching/briefing pause or a brief impact hitstop
+  const frozen = V.paused || t < V.hitstopUntil
+  if (!frozen && dt > 0 && dt < 500) dispatch({ type: 'tick', dtMs: dt })
   updateBar()
   V.raf = requestAnimationFrame(loop)
 }
@@ -545,6 +642,63 @@ function endScreen(result: 'win' | 'lose' | 'flee'): void {
     V = null
     startScreen(root)
   })
+}
+
+/* ---- pre-combat briefing ---- */
+function cadenceBand(sec: number): string {
+  return sec >= 40 ? 'Glacial' : sec >= 22 ? 'Torpid' : sec >= 16 ? 'Lumbering' : sec >= 11 ? 'Slow' : sec >= 8 ? 'Steady' : sec >= 5 ? 'Swift' : 'Frenzied'
+}
+function showBriefing(onEngage: () => void): void {
+  if (!V) return
+  document.getElementById('briefing')?.remove()
+  const f = V.state.foe
+  const seq = V.state.sequence
+  const stats: [string, string][] = [
+    ['HP', String(V.state.enemyMax)],
+    ['Damage', `${f.damage}<small> max</small>`],
+    ['Speed', `${cadenceBand(f.cadence)}<small> · ${f.cadence}s</small>`],
+  ]
+  if (f.drift) stats.push(['Drift', `${f.drift.icon ?? ''} ${f.drift.name.replace(/ Drift$/, '')}`])
+  const statsHTML = stats.map(([l, v]) => `<div class="bs"><div class="l">${l}</div><div class="v">${v}</div></div>`).join('')
+  const tier = f.tier
+  const trapsHTML = f.triggers.length
+    ? `<div class="btrapshd">Threats</div><div class="btraps">${f.triggers.map((t) => `<div class="btrap${t.kind === 'trick' ? ' trick' : ''}"><span class="bi">${t.icon ?? (t.kind === 'trick' ? '✦' : '⚠')}</span><div><div class="bn">${t.name}</div><div class="bd">${t.desc ?? ''}</div></div></div>`).join('')}</div>`
+    : `<div class="btraps" style="margin-top:14px"><div class="briefnote">No traps — a plain foe. Hit it until it falls.</div></div>`
+  const modal = $(`<div id="briefing" class="show"><div class="briefcard">
+    ${seq ? `<div class="bseq">Gauntlet · ${V.state.seqIdx + 1} of ${seq.length}</div>` : ''}
+    <div class="bhead">${tier ? `<span class="btier ${tier}">${tier}</span>` : ''}<h2 class="bname">${f.name}</h2></div>
+    ${f.desc ? `<div class="bdesc">${f.desc}</div>` : ''}
+    <div class="bstats">${statsHTML}</div>
+    ${trapsHTML}
+    <button class="cta" id="b-engage">▶ Engage</button>
+  </div></div>`)
+  document.body.appendChild(modal)
+  modal.querySelector('#b-engage')!.addEventListener('click', () => { modal.remove(); onEngage() })
+}
+
+/* ---- spell target previews (hover an ability slot → ring the cards it would hit) ---- */
+function onAbilityHover(e: Event): void {
+  if (!V || !V.state.running) return
+  const id = ((e.target as HTMLElement).closest('.ab-slot') as HTMLElement | null)?.dataset.ab
+  if (id) previewAbility(id)
+}
+function previewAbility(id: string): void {
+  clearPreview()
+  const fn = ABILITY_PREVIEW[id]
+  if (!fn || !V) return
+  const pv = fn(V.state)
+  const sure = pv.sure.filter((j) => V!.state.board[j])
+  const sureSet = new Set(sure)
+  const maybe = pv.maybe.filter((j) => V!.state.board[j] && !sureSet.has(j))
+  if (!sure.length && !maybe.length) return
+  V.preview = [...sure, ...maybe]
+  sure.forEach((j) => V!.refs.board.querySelector(`[data-i="${j}"]`)?.classList.add('tgtsure'))
+  maybe.forEach((j) => V!.refs.board.querySelector(`[data-i="${j}"]`)?.classList.add('tgtmaybe'))
+}
+function clearPreview(): void {
+  if (!V?.preview) return
+  V.preview.forEach((j) => V!.refs.board.querySelector(`[data-i="${j}"]`)?.classList.remove('tgtsure', 'tgtmaybe'))
+  V.preview = null
 }
 
 /* ============================================================
@@ -672,6 +826,8 @@ function coachTeardown(): void {
   COACH.await = null
   document.getElementById('coachscrim')?.remove()
   document.getElementById('coachpop')?.remove()
+  document.getElementById('briefing')?.remove()
+  document.getElementById('burstlayer')?.remove()
   document.querySelectorAll('.coach-spot').forEach((e) => e.classList.remove('coach-spot'))
   document.querySelectorAll('.coach-arrow').forEach((e) => e.remove())
 }

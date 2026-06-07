@@ -183,6 +183,37 @@ export function canAfford(s: CombatState, cost: [number, number, number]): boole
   return cost.every((c, i) => s.mana[i] >= c)
 }
 
+/** Pure hover-preview: which slots an ability WOULD act on. `sure` = always hit; `maybe` = a random
+ *  pick among these (the cast resolves one). Used by the UI to ring targets on hover. No rng. */
+export interface Preview { sure: number[]; maybe: number[] }
+const oneOf = (cand: number[]): Preview => (cand.length <= 1 ? { sure: cand.slice(), maybe: [] } : { sure: [], maybe: cand.slice() })
+const blastFoot = (s: CombatState, center: number) => offsetSlots(s, center, FIREBALL_BLAST).filter((i) => s.board[i] && !s.pending.has(i) && !s.locked.has(i))
+
+export const ABILITY_PREVIEW: Record<string, (s: CombatState) => Preview> = {
+  firebolt: (s) => oneOf(deadestCandidates(s, COLOR_RED)),
+  frostbolt: (s) => oneOf(deadestCandidates(s, COLOR_BLUE)),
+  cleave: (s) => oneOf(deadestCandidates(s, COLOR_RED)),
+  heal: (s) => ({ sure: [], maybe: [...woundedSlots(s), ...liveSlots(s, (c) => cardColor(c) === COLOR_GREEN)] }),
+  block: (s) => ({ sure: [], maybe: liveSlots(s, (c) => cardShape(c) === SHAPE_DEFEND) }),
+  fireball: (s) => {
+    const foots = deadestCandidates(s, COLOR_RED).map((c) => blastFoot(s, c))
+    if (foots.length <= 1) return { sure: foots[0] ?? [], maybe: [] }
+    const all = [...new Set(foots.flat())]
+    const sure = all.filter((j) => foots.every((f) => f.includes(j)))
+    return { sure, maybe: all.filter((j) => !sure.includes(j)) }
+  },
+  glaciate: (s) => ({ sure: liveSlots(s, (c) => cardShape(c) === SHAPE_ATTACK), maybe: [] }),
+  wildgrowth: (s) => ({ sure: [], maybe: liveSlots(s).sort((a, b) => cardMag(s.board[b]!) - cardMag(s.board[a]!)).slice(0, 5) }),
+  callflames: (s) => ({ sure: liveSlots(s, (c) => cardColor(c) !== COLOR_RED), maybe: [] }),
+  callfrost: (s) => ({ sure: liveSlots(s, (c) => cardColor(c) !== COLOR_BLUE), maybe: [] }),
+  callwilds: (s) => ({ sure: liveSlots(s, (c) => cardColor(c) !== COLOR_GREEN), maybe: [] }),
+  berserk: (s) => ({ sure: liveSlots(s, (c) => cardShape(c) === SHAPE_DEFEND), maybe: [] }),
+  rampage: (s) => ({ sure: liveSlots(s, (c) => cardShape(c) === SHAPE_ATTACK), maybe: [] }),
+  quickstrike: (s) => ({ sure: liveSlots(s, (c) => cardShape(c) === SHAPE_ATTACK), maybe: [] }),
+  bulwark: (s) => ({ sure: liveSlots(s, (c) => cardShape(c) !== SHAPE_DEFEND), maybe: [] }),
+  // smokebomb / timewarp: no board target
+}
+
 /** Cast an ability: spend mana, run its effect, fire ability-passives (Spell Echo). No-op if unaffordable
  *  or unknown. Returns whether it fired (the reducer does the post-cast win check). */
 export function castAbility(s: CombatState, id: string, rng: Rng, sink: EventSink): boolean {
