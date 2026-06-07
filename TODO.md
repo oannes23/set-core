@@ -84,8 +84,13 @@ a separate stack" collapses into "refactor into modular TS" — which is why rec
   as a typed `GAMEDATA` const). `game-data.test.ts` enforces **parity** with the prototype oracle (deep
   equal → no drift) + referential integrity of every id (foe/trap/drift/template/mirror/extends). Content
   stays pure JSON-shaped (YAML-portable); types are authoring-time only. `pnpm test` 14/14, typecheck clean.
-- `[ ]` **4. Extract `engine/`** — resolution, traps (`TRAP_EFFECTS`), tactics, targeting toolkit, the
-  trigger bus. Lift + type; refactor opportunistically; verify behavior against `proto-reference`.
+- `[~]` **4. Extract `engine/`** — DONE for the combat spine; ability roster remains. Built a pure,
+  deterministic, DOM-free `reduce(state, action, deps) → {state, events}`: `resolve` (set→effects),
+  `triggers` (conditions incl. compound, geometry∩value selectors, all effects, transmute/lock with the
+  makeable-floor guard, the bus), `tactics` (fill/arm/drain), `foe` (assembleFoe), `combat` (completeSet,
+  tick, enemy attack, gauntlet advance). Time is explicit + RNG injected → determinism (tested). 9 engine
+  tests, 23 total, typecheck clean. **Remaining:** ability roster + classes + passives + Tactics buttons
+  (a `castAbility`/`useTactic` action over the same bus) — see `src/engine/README.md`.
 - `[ ]` **5. Rebuild `ui/`** intentionally (render, fx, coaching, briefing) behind the engine boundary.
 - `[ ]` **6. Multiplayer seam:** make `engine` reduce `(state, action) -> state` / emit events; route
   ALL mutation through it. No netcode — just the shape that lets a server slot in as authority later.

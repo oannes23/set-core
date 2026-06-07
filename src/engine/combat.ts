@@ -1,0 +1,255 @@
+/* engine/combat — the reducer. `reduce(state, action, deps) -> { state, events }`: pure, deterministic
+   (RNG injected via deps), no DOM. This is the single mutation path (the step-6 seam): the UI dispatches
+   actions and renders events; later a server can be the authority and clients replay the same actions. */
+
+import type { Card } from '../core/affine'
+import { isSet } from '../core/affine'
+import type { Board } from '../core/sets'
+import { findSets } from '../core/sets'
+import { type GenConfig, genInitial } from '../core/generate'
+import type { Rng } from '../core/rng'
+import type { GameData } from '../data/schema'
+import { type CombatState, type FoeRuntime, type Pending, TACTICS_GOAL, TACTICS_DRAIN, clockCapMs } from './state'
+import { type CombatEvent, EventSink } from './events'
+import { type Resolution, resolveSet, weightedRoll } from './resolve'
+import { fireTriggers, runTrigger, enemyAttack, reformSlots, EMPTY_DESC } from './triggers'
+import { assembleFoe } from './foe'
+
+export type CombatAction =
+  | { type: 'completeSet'; slots: [number, number, number] }
+  | { type: 'tick'; dtMs: number }
+
+export interface Deps {
+  data: GameData
+  rng: Rng
+}
+
+const N_COLS: Record<number, number> = { 12: 4, 15: 5, 16: 4, 18: 6, 20: 5, 24: 6 }
+export const colsForN = (n: number): number => N_COLS[n] ?? 5
+
+export interface NewCombatOpts {
+  foe: FoeRuntime
+  gen: GenConfig
+  playerMax?: number
+  sequence?: string[] | null
+  seqIdx?: number
+  dungeonId?: string | null
+}
+
+/** Build a fresh combat state: a generated board + full vitals + the foe's clock primed. */
+export function createCombat(opts: NewCombatOpts, rng: Rng): CombatState {
+  const playerMax = opts.playerMax ?? 30
+  const board: Board = genInitial(opts.gen, rng)
+  return {
+    playerHP: playerMax,
+    playerMax,
+    enemyHP: opts.foe.hp,
+    enemyMax: opts.foe.hp,
+    block: 0,
+    mana: [0, 0, 0],
+    tactics: 0,
+    tacticsArmed: false,
+    board,
+    cols: colsForN(opts.gen.n),
+    pending: new Map(),
+    locked: new Map(),
+    foe: opts.foe,
+    now: 0,
+    nextAttackAt: opts.foe.cadence * 1000,
+    tickAccum: {},
+    sequence: opts.sequence ?? null,
+    seqIdx: opts.seqIdx ?? 0,
+    running: true,
+    result: null,
+    gen: opts.gen,
+    dungeonId: opts.dungeonId ?? null,
+  }
+}
+
+// ---- combatant ops ----
+function gainBlock(s: CombatState, n: number, sink: EventSink): void {
+  const before = s.block
+  s.block = Math.min(s.playerMax, s.block + n)
+  if (s.block > before) sink.emit({ type: 'blockGained', amount: s.block - before })
+}
+
+function addTactics(s: CombatState, amt: number, sink: EventSink): void {
+  if (amt <= 0) return
+  s.tactics = Math.min(TACTICS_GOAL, s.tactics + amt)
+  sink.emit({ type: 'tacticsGained', amount: amt })
+  if (!s.tacticsArmed && s.tactics >= TACTICS_GOAL) {
+    s.tacticsArmed = true
+    sink.emit({ type: 'tacticsArmed' })
+  }
+}
+
+function applyResolution(s: CombatState, res: Resolution, rng: Rng, sink: EventSink): void {
+  // damage to enemy (immune foes — e.g. the ethereal goblin — take none from cards)
+  if (res.damage > 0) {
+    if (s.foe.rules.immune_card_damage) {
+      sink.emit({ type: 'enemyDamaged', amount: 0, immune: true })
+    } else {
+      s.enemyHP = Math.max(0, s.enemyHP - res.damage)
+      sink.emit({ type: 'enemyDamaged', amount: res.damage })
+    }
+  }
+  if (res.block > 0) gainBlock(s, res.block, sink)
+  // Move boots push the clock (capped at the foe's interval); overflow seconds feed Tactics
+  let tactics = 0
+  if (res.boot > 0) {
+    const before = s.nextAttackAt
+    s.nextAttackAt = Math.min(s.now + clockCapMs(s), s.nextAttackAt + res.boot * 1000)
+    const applied = Math.round((s.nextAttackAt - before) / 1000)
+    const overflow = Math.max(0, res.boot - applied)
+    tactics = weightedRoll(res.boot, rng) + overflow
+    if (applied > 0) sink.emit({ type: 'clockChanged', deltaSeconds: applied })
+  }
+  for (let i = 0; i < 3; i++) s.mana[i] += res.mana[i]
+  sink.emit({ type: 'manaGained', mana: res.mana })
+  if (tactics > 0) addTactics(s, tactics, sink)
+}
+
+/** Advance a gauntlet to the next foe (fresh board + vitals), or end the run with a win. */
+function onWin(s: CombatState, deps: Deps, sink: EventSink): void {
+  if (s.sequence && s.seqIdx < s.sequence.length - 1) {
+    s.seqIdx++
+    const dungeon = s.dungeonId ? (deps.data.dungeons[s.dungeonId] ?? null) : null
+    const foe = assembleFoe(s.sequence[s.seqIdx], dungeon, deps.data, deps.rng)
+    if (foe) {
+      s.foe = foe
+      s.enemyHP = foe.hp
+      s.enemyMax = foe.hp
+      // fresh start for the next lesson (forgiving)
+      s.playerHP = s.playerMax
+      s.block = 0
+      s.mana = [0, 0, 0]
+      s.tactics = 0
+      s.tacticsArmed = false
+      s.pending = new Map()
+      s.locked = new Map()
+      s.tickAccum = {}
+      s.board = genInitial(s.gen, deps.rng)
+      s.now = 0
+      s.nextAttackAt = foe.cadence * 1000
+      sink.emit({ type: 'foeChanged', name: foe.name, rules: foe.rules })
+      return
+    }
+  }
+  s.running = false
+  s.result = 'win'
+  sink.emit({ type: 'won' })
+}
+
+function completeSet(s: CombatState, slots: [number, number, number], deps: Deps, sink: EventSink): void {
+  const [a, b, c] = slots
+  const ca = s.board[a]
+  const cb = s.board[b]
+  const cc = s.board[c]
+  if (!ca || !cb || !cc) return
+  if (s.locked.has(a) || s.locked.has(b) || s.locked.has(c)) return
+  if (!isSet(ca, cb, cc)) return // invalid pick — no-op (the UI handles misread feedback)
+  const cards: [Card, Card, Card] = [ca, cb, cc]
+  const res = resolveSet(cards, deps.rng)
+  applyResolution(s, res, deps.rng, sink)
+  sink.emit({ type: 'setResolved', damage: res.damage, block: res.block, boot: res.boot, tactics: 0, mana: res.mana, slots })
+  // the foe prices this match (traps + tricks fire on the same bus)
+  if (s.enemyHP > 0) fireTriggers(s, 'match', res.desc, deps.rng, sink)
+  if (!s.running) return
+  if (s.enemyHP <= 0) {
+    onWin(s, deps, sink)
+    return
+  }
+  // clear the matched slots and refill (keeps ≥ FLOOR sets)
+  for (const i of slots) s.board[i] = null
+  reformSlots(s, slots, undefined, deps.rng)
+}
+
+function tick(s: CombatState, dtMs: number, deps: Deps, sink: EventSink): void {
+  if (!s.running) return
+  s.now += dtMs
+  const dt = dtMs / 1000
+  // tactics drain while armed
+  if (s.tacticsArmed) {
+    s.tactics = Math.max(0, s.tactics - TACTICS_DRAIN * dt)
+    if (s.tactics <= 0) {
+      s.tacticsArmed = false
+      sink.emit({ type: 'tacticsReset' })
+    }
+  }
+  // on:tick triggers (drift + dread-DoTs), each on its own accumulator
+  const tickers: { key: string; trig: typeof s.foe.triggers[number] }[] = []
+  s.foe.triggers.forEach((t, i) => {
+    if (t.on === 'tick') tickers.push({ key: `t${i}`, trig: t })
+  })
+  if (s.foe.drift) tickers.push({ key: 'drift', trig: s.foe.drift })
+  for (const { key, trig } of tickers) {
+    s.tickAccum[key] = (s.tickAccum[key] ?? 0) + dt
+    const period = trig.every || 5
+    let guard = 0
+    while (s.tickAccum[key] >= period && s.running && guard++ < 4) {
+      s.tickAccum[key] -= period
+      runTrigger(s, trig, EMPTY_DESC, deps.rng, sink) // tick triggers fire with no match descriptor
+    }
+  }
+  // unlock expired locks
+  if (s.locked.size) {
+    const freed: number[] = []
+    for (const [slot, until] of s.locked) if (s.now >= until) freed.push(slot)
+    for (const slot of freed) s.locked.delete(slot)
+    if (freed.length) sink.emit({ type: 'cardsUnlocked', slots: freed })
+  }
+  // reform pending slots whose timer elapsed (grouped by bias for a single patch each)
+  if (s.pending.size) {
+    const due: { slot: number; bias?: Pending['bias'] }[] = []
+    for (const [slot, p] of s.pending) if (s.now >= p.reformAt) due.push({ slot, bias: p.bias })
+    if (due.length) {
+      // group by bias identity (undefined vs each bias object); reform per group
+      const groups = new Map<unknown, number[]>()
+      for (const d of due) {
+        const k = d.bias ?? 'none'
+        if (!groups.has(k)) groups.set(k, [])
+        groups.get(k)!.push(d.slot)
+      }
+      const reformed: number[] = []
+      for (const [, gslots] of groups) {
+        const bias = s.pending.get(gslots[0])?.bias
+        reformSlots(s, gslots, bias, deps.rng)
+        reformed.push(...gslots)
+      }
+      if (reformed.length) sink.emit({ type: 'cardsReformed', slots: reformed })
+    }
+  }
+  // enemy attack when the clock elapses
+  if (s.now >= s.nextAttackAt && s.running) {
+    enemyAttack(s, deps.rng, sink)
+    if (!s.running) return
+  }
+}
+
+/** The single reduction step. Clones the input state so callers keep the prior state (replay/undo). */
+export function reduce(state: CombatState, action: CombatAction, deps: Deps): { state: CombatState; events: CombatEvent[] } {
+  const s = cloneState(state)
+  const sink = new EventSink()
+  switch (action.type) {
+    case 'completeSet':
+      completeSet(s, action.slots, deps, sink)
+      break
+    case 'tick':
+      tick(s, action.dtMs, deps, sink)
+      break
+  }
+  return { state: s, events: sink.events }
+}
+
+export function cloneState(s: CombatState): CombatState {
+  return {
+    ...s,
+    mana: [s.mana[0], s.mana[1], s.mana[2]],
+    board: s.board.map((c) => (c ? ([c[0], c[1], c[2], c[3]] as Card) : null)),
+    pending: new Map([...s.pending].map(([k, v]) => [k, { ...v }])),
+    locked: new Map(s.locked),
+    tickAccum: { ...s.tickAccum },
+    foe: s.foe, // immutable per encounter
+    gen: s.gen,
+  }
+}

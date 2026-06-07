@@ -1,0 +1,352 @@
+/* engine/triggers — the reactive trigger bus: condition matching, region/value selectors, and the
+   effect vocabulary (TRAP_EFFECTS). Ported from the prototype, made pure: effects mutate CombatState
+   and emit events via a sink; no DOM. Shared by traps and tricks (same mechanism, see `kind`). */
+
+import type { Card } from '../core/affine'
+import { keyOf, third } from '../core/affine'
+import type { Board } from '../core/sets'
+import { findSets } from '../core/sets'
+import type { Rng } from '../core/rng'
+import { patch, patchFavor, type FavorBias } from '../core/generate'
+import type { Condition, Selector, Bias, Effect, Trigger } from '../data/schema'
+import type { CombatState, Pending } from './state'
+import { clockCapMs, TACTICS_GOAL } from './state'
+import type { EventSink } from './events'
+import { type MatchDescriptor, weightedRoll } from './resolve'
+
+const TOKEN_COLOR: Record<string, number> = { red: 0, green: 1, blue: 2 }
+const TOKEN_SHAPE: Record<string, number> = { attack: 0, defend: 1, move: 2 }
+const TOKEN_NUMBER: Record<string, number> = { one: 0, two: 1, three: 2 }
+const BIAS_W = 8
+
+/** Resolve a token value on an axis to its numeric index. */
+function tokVal(axis: string, v: string): number {
+  if (axis === 'color') return TOKEN_COLOR[v] ?? 0
+  if (axis === 'shape') return TOKEN_SHAPE[v] ?? 0
+  return TOKEN_NUMBER[v] ?? 0
+}
+function descAxisValue(desc: MatchDescriptor, axis: string): number | null {
+  return axis === 'color' ? desc.sameColor : axis === 'shape' ? desc.sameShape : desc.sameNumber
+}
+function descAxisValues(desc: MatchDescriptor, axis: string): [number, number, number] {
+  return axis === 'color' ? desc.colors : axis === 'shape' ? desc.shapes : desc.numbers
+}
+
+/** Does this match satisfy the trigger's condition? Supports compound `all` (AND). */
+export function condMet(when: Condition | undefined, desc: MatchDescriptor): boolean {
+  if (!when) return true
+  if ('all' in when) return when.all.every((c) => condMet(c, desc))
+  const v = descAxisValue(desc, when.axis)
+  const target = when.value != null ? tokVal(when.axis, when.value) : null
+  switch (when.mode) {
+    case 'all_same':
+      return target != null ? v === target : v != null
+    case 'all_different':
+      return v == null
+    case 'contains':
+      return target != null && descAxisValues(desc, when.axis).includes(target)
+    case 'not_value':
+      return v != null && v !== target
+    default:
+      return true
+  }
+}
+
+// ---- selectors ----
+const cardColor = (c: Card) => c[0]
+const cardShape = (c: Card) => c[1]
+const cardMag = (c: Card) => c[3]
+
+function isLive(s: CombatState, i: number): boolean {
+  return i >= 0 && i < s.board.length && s.board[i] != null && !s.pending.has(i) && !s.locked.has(i)
+}
+function liveSlots(s: CombatState, pred?: (c: Card) => boolean): number[] {
+  const out: number[] = []
+  s.board.forEach((c, i) => {
+    if (c && isLive(s, i) && (!pred || pred(c))) out.push(i)
+  })
+  return out
+}
+function gridDims(s: CombatState): { cols: number; rows: number } {
+  return { cols: s.cols, rows: Math.ceil(s.board.length / s.cols) }
+}
+function rowSlots(s: CombatState, r: number): number[] {
+  const { cols, rows } = gridDims(s)
+  if (r < 0 || r >= rows) return []
+  const o: number[] = []
+  for (let c = 0; c < cols; c++) {
+    const j = r * cols + c
+    if (j < s.board.length) o.push(j)
+  }
+  return o
+}
+function colSlots(s: CombatState, c: number): number[] {
+  const { cols, rows } = gridDims(s)
+  if (c < 0 || c >= cols) return []
+  const o: number[] = []
+  for (let r = 0; r < rows; r++) {
+    const j = r * cols + c
+    if (j < s.board.length) o.push(j)
+  }
+  return o
+}
+function liveAt(s: CombatState, idxs: number[]): number[] {
+  return idxs.filter((i) => isLive(s, i))
+}
+
+function geometrySlots(s: CombatState, sel: Selector, rng: Rng): number[] {
+  const { cols, rows } = gridDims(s)
+  const which = sel.which
+  let idxs: number[] = []
+  switch (sel.geometry) {
+    case 'row':
+      idxs = rowSlots(s, sel.index ?? (which === 'top' ? 0 : which === 'bottom' ? rows - 1 : which === 'center' ? rows >> 1 : Math.floor(rng() * rows)))
+      break
+    case 'column':
+      idxs = colSlots(s, sel.index ?? (which === 'left' ? 0 : which === 'right' ? cols - 1 : which === 'center' ? cols >> 1 : Math.floor(rng() * cols)))
+      break
+    case 'corners':
+      idxs = [0, cols - 1, (rows - 1) * cols, (rows - 1) * cols + cols - 1].filter((j) => j >= 0 && j < s.board.length)
+      break
+    case 'border':
+      for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) if (r === 0 || r === rows - 1 || c === 0 || c === cols - 1) { const j = r * cols + c; if (j < s.board.length) idxs.push(j) }
+      break
+    case 'center':
+    case 'inner':
+      for (let r = 1; r < rows - 1; r++) for (let c = 1; c < cols - 1; c++) { const j = r * cols + c; if (j < s.board.length) idxs.push(j) }
+      break
+    case 'diagonal': {
+      const len = Math.min(rows, cols)
+      for (let k = 0; k < len; k++) { const c = which === 'anti' ? cols - 1 - k : k; idxs.push(k * cols + c) }
+      break
+    }
+    case 'half':
+      for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
+        const half = which === 'bottom' ? r >= rows / 2 : which === 'left' ? c < cols / 2 : which === 'right' ? c >= cols / 2 : r < rows / 2
+        if (half) { const j = r * cols + c; if (j < s.board.length) idxs.push(j) }
+      }
+      break
+    case 'random':
+      return pickRandom(liveSlots(s), sel.count ?? 3, rng)
+    default:
+      idxs = []
+  }
+  return liveAt(s, idxs)
+}
+
+function pickRandom(arr: number[], n: number, rng: Rng): number[] {
+  const a = arr.slice()
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1))
+    ;[a[i], a[j]] = [a[j], a[i]]
+  }
+  return a.slice(0, n)
+}
+
+/** Resolve a selector into live board slots: a region and/or a value filter (intersected). */
+export function selectSlots(s: CombatState, sel: Selector, rng: Rng): number[] {
+  let slots = sel.geometry ? geometrySlots(s, sel, rng) : liveSlots(s)
+  if (sel.axis != null && sel.value != null) {
+    const get = sel.axis === 'color' ? cardColor : sel.axis === 'shape' ? cardShape : cardMag
+    const target = tokVal(sel.axis, sel.value)
+    const pred = sel.mode === 'not_value' ? (c: Card) => get(c) !== target : (c: Card) => get(c) === target
+    slots = slots.filter((i) => pred(s.board[i] as Card))
+  }
+  if (sel.pick === 'highest_mag') slots.sort((a, b) => cardMag(s.board[b] as Card) - cardMag(s.board[a] as Card))
+  return slots
+}
+
+function biasFromSpec(b: Bias | undefined): FavorBias | undefined {
+  if (!b) return undefined
+  const w = Math.max(1, Math.round(BIAS_W * (b.intensity ?? 1)))
+  if (b.axis === 'color') return { color: tokVal('color', b.value), colorW: w }
+  if (b.axis === 'shape') return { shape: tokVal('shape', b.value), shapeW: w }
+  return { mag: tokVal('number', b.value), magW: w }
+}
+
+// ---- board verbs (pure: mutate state.board / pending / locked, emit events) ----
+
+/** Transmute slots: destroy now, reform after `gapMs` (0 = next reform tick). Regen optionally biased. */
+export function transmute(s: CombatState, slots: number[], opts: { bias?: FavorBias; gapMs?: number }, sink: EventSink): void {
+  const live = slots.filter((i) => isLive(s, i))
+  if (!live.length) return
+  for (const i of live) {
+    s.board[i] = null
+    const p: Pending = { reformAt: s.now + (opts.gapMs ?? 0) }
+    if (opts.bias) p.bias = opts.bias
+    s.pending.set(i, p)
+  }
+  sink.emit({ type: 'cardsTransmuted', slots: live, gapMs: opts.gapMs ?? 0 })
+}
+
+/** Makeable sets that don't use any locked slot — the lock floor (never lock below FLOOR makeable). */
+function makeableSetCount(board: Board, lockedKeys: Set<number>): number {
+  let n = 0
+  for (const [i, j, k] of findSets(board)) if (!lockedKeys.has(i) && !lockedKeys.has(j) && !lockedKeys.has(k)) n++
+  return n
+}
+
+/** Lock slots for `durationMs`, honoring the makeable-set floor (FLOOR completable from unlocked cards). */
+export function lockSlots(s: CombatState, slots: number[], durationMs: number, sink: EventSink): number {
+  const cand = [...new Set(slots)].filter((i) => s.board[i] != null && !s.pending.has(i) && !s.locked.has(i))
+  const locked: number[] = []
+  const tentative = new Set(s.locked.keys())
+  for (const i of cand) {
+    tentative.add(i)
+    if (makeableSetCount(s.board, tentative) >= s.gen.floor) {
+      s.locked.set(i, s.now + durationMs)
+      locked.push(i)
+    } else {
+      tentative.delete(i) // would drop below floor — skip this one
+    }
+  }
+  if (locked.length) sink.emit({ type: 'cardsLocked', slots: locked, untilMs: s.now + durationMs })
+  return locked.length
+}
+
+// ---- effects ----
+
+function runEffect(s: CombatState, e: Effect, desc: MatchDescriptor, rng: Rng, sink: EventSink): string | null {
+  if (e.chance != null && rng() >= e.chance) return null
+  switch (e.effect) {
+    case 'damage': {
+      const amt = e.amount != null ? e.amount : weightedRoll(e.max ?? 4, rng)
+      hurtPlayer(s, amt, s.foe.name, sink)
+      return `⚔${amt}`
+    }
+    case 'instant_attack':
+      enemyAttack(s, rng, sink)
+      sink.emit({ type: 'enemyStrikes' })
+      return 'strikes!'
+    case 'advance_timer': {
+      const sec = e.seconds ?? 3
+      s.nextAttackAt -= sec * 1000
+      sink.emit({ type: 'clockChanged', deltaSeconds: -sec })
+      return `−${sec}s`
+    }
+    case 'delay_attack': {
+      const sec = e.seconds ?? 5
+      const before = s.nextAttackAt
+      s.nextAttackAt = Math.min(s.now + clockCapMs(s), s.nextAttackAt + sec * 1000)
+      const applied = Math.round((s.nextAttackAt - before) / 1000)
+      if (applied > 0) sink.emit({ type: 'clockChanged', deltaSeconds: applied })
+      return applied > 0 ? `+${applied}s` : null
+    }
+    case 'enemy_heal': {
+      const a = e.amount ?? 4
+      const before = s.enemyHP
+      s.enemyHP = Math.min(s.enemyMax, s.enemyHP + a)
+      const healed = s.enemyHP - before
+      if (healed > 0) sink.emit({ type: 'enemyHealed', amount: healed })
+      return healed > 0 ? `enemy +${healed}` : null
+    }
+    case 'drain_tactics': {
+      const a = e.amount ?? 4
+      const before = s.tactics
+      s.tactics = Math.max(0, s.tactics - a)
+      if (s.tacticsArmed && s.tactics <= 0) {
+        s.tacticsArmed = false
+        sink.emit({ type: 'tacticsReset' })
+      }
+      const drained = before - s.tactics
+      if (drained > 0) sink.emit({ type: 'tacticsDrained', amount: drained })
+      return drained > 0 ? `−${Math.round(drained)} tac` : null
+    }
+    case 'drain_mana': {
+      const c = e.color != null ? tokVal('color', e.color) : 0
+      const a = e.amount ?? 3
+      const before = s.mana[c]
+      s.mana[c] = Math.max(0, s.mana[c] - a)
+      const drained = before - s.mana[c]
+      if (drained > 0) sink.emit({ type: 'manaDrained', color: c, amount: drained })
+      return drained > 0 ? `−${drained}` : null
+    }
+    case 'transmute': {
+      let slots = e.select ? selectSlots(s, e.select, rng) : []
+      if (e.count != null && slots.length > e.count) slots = pickRandom(slots, e.count, rng)
+      if (!slots.length) return null
+      transmuteFor(s, slots, biasFromSpec(e.bias), e.gap ?? 0, sink)
+      return `↯${slots.length}`
+    }
+    case 'lock': {
+      let slots = e.select ? selectSlots(s, e.select, rng) : []
+      if (e.count != null && slots.length > e.count) slots = pickRandom(slots, e.count, rng)
+      const n = lockSlots(s, slots, (e.seconds ?? 4) * 1000, sink)
+      return n ? `🔒${n}` : null
+    }
+    default:
+      return null
+  }
+}
+
+/** transmute with a regen that may favour a bias — the actual reform happens on a tick (gap), but we
+ *  precompute the reform via patch/patchFavor at reform time. Here we just mark pending (see tick). */
+function transmuteFor(s: CombatState, slots: number[], bias: FavorBias | undefined, gapMs: number, sink: EventSink): void {
+  transmute(s, slots, bias ? { bias, gapMs } : { gapMs }, sink)
+}
+
+/** Apply a single trigger's effects; emit `triggerSprung` if anything landed. */
+export function runTrigger(s: CombatState, trigger: Trigger, desc: MatchDescriptor, rng: Rng, sink: EventSink): void {
+  const labels: string[] = []
+  for (const eff of trigger.do) {
+    const r = runEffect(s, eff, desc, rng, sink)
+    if (r != null) labels.push(r)
+  }
+  if (labels.length) sink.emit({ type: 'triggerSprung', trigger, label: labels.join(' · ') })
+}
+
+/** Fire all foe triggers matching this event (`match` checks the condition; `tick` is gated upstream). */
+export function fireTriggers(s: CombatState, on: 'match' | 'tick', desc: MatchDescriptor, rng: Rng, sink: EventSink): void {
+  if (!s.running) return
+  for (const t of s.foe.triggers) {
+    if (t.on !== on) continue
+    if (on === 'match' && !condMet(t.when, desc)) continue
+    runTrigger(s, t, desc, rng, sink)
+    if (!s.running) return
+  }
+}
+
+// ---- shared combatant ops (used by effects + the reducer) ----
+
+export function hurtPlayer(s: CombatState, raw: number, source: string, sink: EventSink): void {
+  const absorbed = Math.min(s.block, raw)
+  s.block -= absorbed
+  const dmg = raw - absorbed
+  if (dmg > 0) {
+    s.playerHP = Math.max(0, s.playerHP - dmg)
+    sink.emit({ type: 'playerDamaged', amount: dmg, absorbed, source })
+    if (s.playerHP <= 0) {
+      s.running = false
+      s.result = 'lose'
+      sink.emit({ type: 'lost' })
+    }
+  } else {
+    sink.emit({ type: 'playerBlocked' })
+  }
+}
+
+/** The enemy's scheduled (or instant) attack. 0-damage foes (the dummy) can't hurt you. */
+export function enemyAttack(s: CombatState, rng: Rng, sink: EventSink): void {
+  const raw = s.foe.damage > 0 ? weightedRoll(s.foe.damage, rng) : 0
+  if (raw === 0) {
+    sink.emit({ type: 'playerBlocked' })
+  } else {
+    hurtPlayer(s, raw, s.foe.name, sink)
+  }
+  s.nextAttackAt = s.now + s.foe.cadence * 1000
+}
+
+export const EMPTY_DESC: MatchDescriptor = {
+  sameColor: null, sameShape: null, sameNumber: null, colors: [0, 0, 0], shapes: [0, 0, 0], numbers: [0, 0, 0],
+}
+
+/** Reform-on-tick is handled by the reducer; expose the regen helper it uses (bias-aware). */
+export function reformSlots(s: CombatState, slots: number[], bias: FavorBias | undefined, rng: Rng): void {
+  const fill = slots.filter((i) => s.board[i] == null)
+  if (!fill.length) return
+  const next = bias ? patchFavor(s.board, fill, s.gen, rng, bias) : patch(s.board, fill, s.gen, rng)
+  for (const i of fill) {
+    s.board[i] = next[i]
+    s.pending.delete(i)
+  }
+}
