@@ -1,0 +1,81 @@
+/* engine/ops — shared combatant operations used by the reducer, abilities, passives, and tactics.
+   Pure: mutate CombatState and emit events; no DOM. Pulled out of combat.ts so abilities/passives
+   can reuse block/tactics/heal/damage without a dependency cycle (combat → abilities → ops). */
+
+import type { Rng } from '../core/rng'
+import type { CombatState } from './state'
+import { TACTICS_GOAL, clockCapMs } from './state'
+import type { EventSink } from './events'
+import { weightedRoll } from './resolve'
+
+/** Add to the persistent block barrier (capped at max HP). Overflow past the cap is wasted — unless
+ *  the Overflow passive (Sentinel) is active, which spills the excess into a weighted attack. */
+export function gainBlock(s: CombatState, n: number, rng: Rng, sink: EventSink): number {
+  if (n <= 0) return 0
+  const room = Math.max(0, s.playerMax - s.block)
+  const applied = Math.min(n, room)
+  if (applied > 0) {
+    s.block += applied
+    sink.emit({ type: 'blockGained', amount: applied })
+  }
+  const overflow = n - applied
+  if (overflow > 0) {
+    if (s.passives.includes('overflow')) {
+      const dmg = weightedRoll(overflow, rng)
+      const dealt = dealAbilityDamage(s, dmg, sink)
+      if (dealt > 0) sink.emit({ type: 'passiveProc', id: 'overflow', label: `⚔ +${dealt}` })
+    } else {
+      sink.emit({ type: 'blockOverflow', amount: overflow })
+    }
+  }
+  return applied
+}
+
+/** Fill the Tactics meter; arm it (begin draining) when it tops out. */
+export function addTactics(s: CombatState, amt: number, sink: EventSink): void {
+  if (amt <= 0) return
+  s.tactics = Math.min(TACTICS_GOAL, s.tactics + amt)
+  sink.emit({ type: 'tacticsGained', amount: amt })
+  if (!s.tacticsArmed && s.tactics >= TACTICS_GOAL) {
+    s.tacticsArmed = true
+    sink.emit({ type: 'tacticsArmed' })
+  }
+}
+
+/** Heal the player (capped at max HP). */
+export function healPlayer(s: CombatState, amt: number, sink: EventSink): number {
+  if (amt <= 0) return 0
+  const before = s.playerHP
+  s.playerHP = Math.min(s.playerMax, s.playerHP + amt)
+  const healed = s.playerHP - before
+  if (healed > 0) sink.emit({ type: 'playerHealed', amount: healed })
+  return healed
+}
+
+/** Intrinsic ability damage to the enemy. The ethereal rule (ability_damage:'mana_spent') replaces
+ *  intrinsic spell damage entirely — those foes are hurt only by castDamageHook (mana spent). */
+export function dealAbilityDamage(s: CombatState, dmg: number, sink: EventSink): number {
+  if (s.foe.rules.ability_damage === 'mana_spent') return 0
+  if (dmg <= 0) return 0
+  s.enemyHP = Math.max(0, s.enemyHP - dmg)
+  sink.emit({ type: 'enemyDamaged', amount: dmg })
+  return dmg
+}
+
+/** Ethereal rule: each ability cast drains the foe by the mana spent on it (the only way to hurt him). */
+export function castDamageHook(s: CombatState, cost: [number, number, number], sink: EventSink): void {
+  if (s.foe.rules.ability_damage !== 'mana_spent') return
+  const spent = cost[0] + cost[1] + cost[2]
+  if (spent <= 0) return
+  s.enemyHP = Math.max(0, s.enemyHP - spent)
+  sink.emit({ type: 'enemyDamaged', amount: spent, magic: true })
+}
+
+/** Push the enemy's next attack later, capped at the clock ceiling. Returns the seconds applied. */
+export function pushClock(s: CombatState, sec: number, sink: EventSink): number {
+  const before = s.nextAttackAt
+  s.nextAttackAt = Math.min(s.now + clockCapMs(s), s.nextAttackAt + sec * 1000)
+  const applied = Math.round((s.nextAttackAt - before) / 1000)
+  if (applied > 0) sink.emit({ type: 'clockChanged', deltaSeconds: applied })
+  return applied
+}

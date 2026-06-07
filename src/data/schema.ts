@@ -165,6 +165,17 @@ export interface Encounter {
   drift: string
 }
 
+/** A playable class: a presentation shell over a loadout of ability + passive ids (resolved against
+ *  the engine ABILITIES / PASSIVES registries). Pure content — chosen at run start. */
+export interface ClassDef {
+  id: string
+  name: string
+  icon: string
+  blurb: string
+  abilities: string[] // ability ids (3) drawn into the active loadout
+  passives: string[] // passive id(s) — always-on
+}
+
 export interface GameData {
   traps: Record<string, Trap>
   drifts: Record<string, Trap>

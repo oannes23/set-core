@@ -3,16 +3,16 @@
    and emit events via a sink; no DOM. Shared by traps and tricks (same mechanism, see `kind`). */
 
 import type { Card } from '../core/affine'
-import { keyOf, third } from '../core/affine'
 import type { Board } from '../core/sets'
 import { findSets } from '../core/sets'
 import type { Rng } from '../core/rng'
 import { patch, patchFavor, type FavorBias } from '../core/generate'
 import type { Condition, Selector, Bias, Effect, Trigger } from '../data/schema'
 import type { CombatState, Pending } from './state'
-import { clockCapMs, TACTICS_GOAL } from './state'
+import { clockCapMs } from './state'
 import type { EventSink } from './events'
 import { type MatchDescriptor, weightedRoll } from './resolve'
+import { cardColor, cardShape, cardMag, isLive, liveSlots, pickRandom } from './select'
 
 const TOKEN_COLOR: Record<string, number> = { red: 0, green: 1, blue: 2 }
 const TOKEN_SHAPE: Record<string, number> = { attack: 0, defend: 1, move: 2 }
@@ -53,20 +53,6 @@ export function condMet(when: Condition | undefined, desc: MatchDescriptor): boo
 }
 
 // ---- selectors ----
-const cardColor = (c: Card) => c[0]
-const cardShape = (c: Card) => c[1]
-const cardMag = (c: Card) => c[3]
-
-function isLive(s: CombatState, i: number): boolean {
-  return i >= 0 && i < s.board.length && s.board[i] != null && !s.pending.has(i) && !s.locked.has(i)
-}
-function liveSlots(s: CombatState, pred?: (c: Card) => boolean): number[] {
-  const out: number[] = []
-  s.board.forEach((c, i) => {
-    if (c && isLive(s, i) && (!pred || pred(c))) out.push(i)
-  })
-  return out
-}
 function gridDims(s: CombatState): { cols: number; rows: number } {
   return { cols: s.cols, rows: Math.ceil(s.board.length / s.cols) }
 }
@@ -132,15 +118,6 @@ function geometrySlots(s: CombatState, sel: Selector, rng: Rng): number[] {
       idxs = []
   }
   return liveAt(s, idxs)
-}
-
-function pickRandom(arr: number[], n: number, rng: Rng): number[] {
-  const a = arr.slice()
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(rng() * (i + 1))
-    ;[a[i], a[j]] = [a[j], a[i]]
-  }
-  return a.slice(0, n)
 }
 
 /** Resolve a selector into live board slots: a region and/or a value filter (intersected). */

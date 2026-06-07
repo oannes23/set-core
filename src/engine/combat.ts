@@ -9,15 +9,21 @@ import { findSets } from '../core/sets'
 import { type GenConfig, genInitial } from '../core/generate'
 import type { Rng } from '../core/rng'
 import type { GameData } from '../data/schema'
-import { type CombatState, type FoeRuntime, type Pending, TACTICS_GOAL, TACTICS_DRAIN, clockCapMs } from './state'
+import { type CombatState, type FoeRuntime, type Pending, TACTICS_DRAIN, clockCapMs } from './state'
 import { type CombatEvent, EventSink } from './events'
 import { type Resolution, resolveSet, weightedRoll } from './resolve'
 import { fireTriggers, runTrigger, enemyAttack, reformSlots, EMPTY_DESC } from './triggers'
+import { gainBlock, addTactics } from './ops'
+import { firePassives } from './passives'
+import { castAbility } from './abilities'
+import { useTactic } from './tactics'
 import { assembleFoe } from './foe'
 
 export type CombatAction =
   | { type: 'completeSet'; slots: [number, number, number] }
   | { type: 'tick'; dtMs: number }
+  | { type: 'castAbility'; abilityId: string }
+  | { type: 'useTactic'; key: string }
 
 export interface Deps {
   data: GameData
@@ -34,6 +40,7 @@ export interface NewCombatOpts {
   foe: FoeRuntime
   gen: GenConfig
   playerMax?: number
+  passives?: string[] // the chosen class's always-on passive ids
   sequence?: string[] | null
   seqIdx?: number
   dungeonId?: string | null
@@ -56,6 +63,8 @@ export function createCombat(opts: NewCombatOpts, rng: Rng): CombatState {
     cols: colsForN(opts.gen.n),
     pending: new Map(),
     locked: new Map(),
+    pendingRegenBias: null,
+    passives: opts.passives ? opts.passives.slice() : [],
     foe: opts.foe,
     now: 0,
     nextAttackAt: opts.foe.cadence * 1000,
@@ -69,22 +78,7 @@ export function createCombat(opts: NewCombatOpts, rng: Rng): CombatState {
   }
 }
 
-// ---- combatant ops ----
-function gainBlock(s: CombatState, n: number, sink: EventSink): void {
-  const before = s.block
-  s.block = Math.min(s.playerMax, s.block + n)
-  if (s.block > before) sink.emit({ type: 'blockGained', amount: s.block - before })
-}
-
-function addTactics(s: CombatState, amt: number, sink: EventSink): void {
-  if (amt <= 0) return
-  s.tactics = Math.min(TACTICS_GOAL, s.tactics + amt)
-  sink.emit({ type: 'tacticsGained', amount: amt })
-  if (!s.tacticsArmed && s.tactics >= TACTICS_GOAL) {
-    s.tacticsArmed = true
-    sink.emit({ type: 'tacticsArmed' })
-  }
-}
+// ---- combatant ops (block / tactics live in ops.ts, shared with abilities/passives/tactics) ----
 
 function applyResolution(s: CombatState, res: Resolution, rng: Rng, sink: EventSink): void {
   // damage to enemy (immune foes — e.g. the ethereal goblin — take none from cards)
@@ -96,7 +90,7 @@ function applyResolution(s: CombatState, res: Resolution, rng: Rng, sink: EventS
       sink.emit({ type: 'enemyDamaged', amount: res.damage })
     }
   }
-  if (res.block > 0) gainBlock(s, res.block, sink)
+  if (res.block > 0) gainBlock(s, res.block, rng, sink)
   // Move boots push the clock (capped at the foe's interval); overflow seconds feed Tactics
   let tactics = 0
   if (res.boot > 0) {
@@ -130,6 +124,7 @@ function onWin(s: CombatState, deps: Deps, sink: EventSink): void {
       s.tacticsArmed = false
       s.pending = new Map()
       s.locked = new Map()
+      s.pendingRegenBias = null
       s.tickAccum = {}
       s.board = genInitial(s.gen, deps.rng)
       s.now = 0
@@ -155,16 +150,20 @@ function completeSet(s: CombatState, slots: [number, number, number], deps: Deps
   const res = resolveSet(cards, deps.rng)
   applyResolution(s, res, deps.rng, sink)
   sink.emit({ type: 'setResolved', damage: res.damage, block: res.block, boot: res.boot, tactics: 0, mana: res.mana, slots })
-  // the foe prices this match (traps + tricks fire on the same bus)
-  if (s.enemyHP > 0) fireTriggers(s, 'match', res.desc, deps.rng, sink)
+  // character-innate passives react to this match's signature (Momentum may steer the refill below)...
+  firePassives(s, 'match', res.desc, deps.rng, sink)
+  // ...and the FOE prices this match (traps + tricks fire on the same bus)
+  if (s.running && s.enemyHP > 0) fireTriggers(s, 'match', res.desc, deps.rng, sink)
   if (!s.running) return
   if (s.enemyHP <= 0) {
     onWin(s, deps, sink)
     return
   }
-  // clear the matched slots and refill (keeps ≥ FLOOR sets)
+  // clear the matched slots and refill (keeps ≥ FLOOR sets); a passive may bias this refill
+  const bias = s.pendingRegenBias
+  s.pendingRegenBias = null
   for (const i of slots) s.board[i] = null
-  reformSlots(s, slots, undefined, deps.rng)
+  reformSlots(s, slots, bias ?? undefined, deps.rng)
 }
 
 function tick(s: CombatState, dtMs: number, deps: Deps, sink: EventSink): void {
@@ -240,6 +239,12 @@ export function reduce(state: CombatState, action: CombatAction, deps: Deps): { 
     case 'tick':
       tick(s, action.dtMs, deps, sink)
       break
+    case 'castAbility':
+      if (castAbility(s, action.abilityId, deps.rng, sink) && s.running && s.enemyHP <= 0) onWin(s, deps, sink)
+      break
+    case 'useTactic':
+      if (useTactic(s, action.key, deps.rng, sink) && s.running && s.enemyHP <= 0) onWin(s, deps, sink)
+      break
   }
   return { state: s, events: sink.events }
 }
@@ -251,6 +256,8 @@ export function cloneState(s: CombatState): CombatState {
     board: s.board.map((c) => (c ? ([c[0], c[1], c[2], c[3]] as Card) : null)),
     pending: new Map([...s.pending].map(([k, v]) => [k, { ...v }])),
     locked: new Map(s.locked),
+    pendingRegenBias: s.pendingRegenBias ? { ...s.pendingRegenBias } : null,
+    passives: s.passives.slice(),
     tickAccum: { ...s.tickAccum },
     foe: s.foe, // immutable per encounter
     gen: s.gen,

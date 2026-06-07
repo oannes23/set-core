@@ -88,13 +88,15 @@ a separate stack" collapses into "refactor into modular TS" — which is why rec
   as a typed `GAMEDATA` const). `game-data.test.ts` enforces **parity** with the prototype oracle (deep
   equal → no drift) + referential integrity of every id (foe/trap/drift/template/mirror/extends). Content
   stays pure JSON-shaped (YAML-portable); types are authoring-time only. `pnpm test` 14/14, typecheck clean.
-- `[~]` **4. Extract `engine/`** — DONE for the combat spine; ability roster remains. Built a pure,
+- `[x]` **4. Extract `engine/`** — DONE (combat spine + the full castable layer). Built a pure,
   deterministic, DOM-free `reduce(state, action, deps) → {state, events}`: `resolve` (set→effects),
   `triggers` (conditions incl. compound, geometry∩value selectors, all effects, transmute/lock with the
-  makeable-floor guard, the bus), `tactics` (fill/arm/drain), `foe` (assembleFoe), `combat` (completeSet,
-  tick, enemy attack, gauntlet advance). Time is explicit + RNG injected → determinism (tested). 9 engine
-  tests, 23 total, typecheck clean. **Remaining:** ability roster + classes + passives + Tactics buttons
-  (a `castAbility`/`useTactic` action over the same bus) — see `src/engine/README.md`.
+  makeable-floor guard, the bus), `select` (board-targeting toolkit), `ops` (shared block/tactics/heal/
+  damage), `passives` (9, fire on match/ability), `abilities` (17-ability roster + `castAbility`),
+  `tactics` (6 buttons + `useTactic`), `foe` (assembleFoe), `combat` (completeSet, tick, enemy attack,
+  cast/tactic actions, gauntlet advance). Classes (9) are in `data/classes.ts` as id-list loadouts,
+  integrity-gated against the registries. Time is explicit + RNG injected → determinism (tested).
+  40 tests, typecheck clean. **Engine is at full combat parity with the prototype.**
 - `[~]` **5. Rebuild `ui/`** — DONE as a playable functional client; polish + abilities UI remain.
   `app.ts` + `styles.css`: start screen (dungeon/foe pickers from data), play screen (board, HUD, enemy
   clock, trap/trick strip), click-to-select + set-mate glow, the rAF `tick` loop, event→feedback

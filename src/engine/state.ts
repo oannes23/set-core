@@ -40,6 +40,9 @@ export interface CombatState {
   cols: number // grid width (for geometry selectors); rows = ceil(board.length / cols)
   pending: Map<number, Pending> // empty slots reforming
   locked: Map<number, number> // slot -> unlockAt (ms)
+  pendingRegenBias: FavorBias | null // a passive (e.g. Momentum) may steer THIS match's refill
+  // character
+  passives: string[] // active passive ids (always-on triggers — fire on the bus)
   // foe
   foe: FoeRuntime
   // clock (all ms, on the `now` timeline)
@@ -51,7 +54,7 @@ export interface CombatState {
   seqIdx: number
   dungeonId: string | null // for re-assembling the next gauntlet foe
   running: boolean
-  result: 'win' | 'lose' | null
+  result: 'win' | 'lose' | 'flee' | null
   // board generation config
   gen: GenConfig
 }

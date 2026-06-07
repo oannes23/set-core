@@ -6,11 +6,13 @@ import type { Trigger, FoeRules } from '../data/schema'
 
 export type CombatEvent =
   | { type: 'setResolved'; damage: number; block: number; boot: number; tactics: number; mana: [number, number, number]; slots: number[] }
-  | { type: 'enemyDamaged'; amount: number; immune?: boolean } // immune = card damage hit an immune foe
+  | { type: 'enemyDamaged'; amount: number; immune?: boolean; magic?: boolean } // immune = card damage hit an immune foe; magic = ethereal mana-spent drain
   | { type: 'enemyHealed'; amount: number }
   | { type: 'playerDamaged'; amount: number; absorbed: number; source: string }
+  | { type: 'playerHealed'; amount: number }
   | { type: 'playerBlocked' } // an attack fully absorbed / a 0-damage swing
   | { type: 'blockGained'; amount: number }
+  | { type: 'blockOverflow'; amount: number } // block past the cap (wasted unless Overflow converts it)
   | { type: 'manaGained'; mana: [number, number, number] }
   | { type: 'manaDrained'; color: number; amount: number }
   | { type: 'tacticsGained'; amount: number }
@@ -25,6 +27,11 @@ export type CombatEvent =
   | { type: 'cardsUnlocked'; slots: number[] }
   | { type: 'cardsShattered'; slots: number[] } // wound regen (enemy hit shatters a rune)
   | { type: 'triggerSprung'; trigger: Trigger; label: string } // a trap/trick fired (kind on the trigger)
+  | { type: 'abilityCast'; id: string; mana: [number, number, number] } // an ability fired (mana = cost spent)
+  | { type: 'abilityFizzled'; id: string } // ability found nothing to act on
+  | { type: 'passiveProc'; id: string; label: string } // an always-on passive fired off a match/cast
+  | { type: 'tacticUsed'; key: string } // a Tactics button spent the meter
+  | { type: 'fled' } // the player fled combat (Flee tactic)
   | { type: 'foeChanged'; name: string; rules: FoeRules } // gauntlet advanced to a new foe
   | { type: 'won' }
   | { type: 'lost' }
