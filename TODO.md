@@ -82,8 +82,9 @@ static files only — pnpm/Vite/TS are **build-time**, never on the host; we pub
 The workflow folds in the still-static **prototype** (the playable game during migration) + the launcher,
 so the live site is useful *now*. Build uses `base:/set-core/` (project sites live at a subpath); dev
 stays at root, `vite preview` mirrors the subpath (`isPreview`). Verified against a Pages-mimicking
-static server (app renders + all assets/prototype 200 under `/set-core/`). One-time: enable Pages
-(Settings → Pages → Source: GitHub Actions) if `enablement:true` doesn't auto-enable on first run.
+static server (app renders + all assets/prototype 200 under `/set-core/`). **Live** — Pages Source is
+set to "GitHub Actions"; the built app + prototype both serve from the CI artifact at
+`https://oannes23.github.io/set-core/` (play link: `…/prototype/set-combat.html`).
 
 ### "Graduate the prototype" triggers (recap)
 - **Now-ish → do this migration** when adding the *second screen* (town / run-map / inventory) or the
