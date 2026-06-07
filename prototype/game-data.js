@@ -69,6 +69,41 @@ window.GAMEDATA = {
     dread_drums: { name:"Dread Drums",    icon:"🥁", on:"tick", every:8,
                    desc:"every 8s: 3 unblockable dread damage",
                    do:[ {effect:"damage", amount:3} ] },
+
+    // TRAINING-DUMMY signature: a COMPOUND trigger (all-Move AND all-1s) + a sequenced board verb.
+    // Locks the bottom-row cards that were ALREADY Move (fires first, so transmute skips them),
+    // then warps the rest of the bottom row toward Move. The lurch of a limbless zombie.
+    limbless:    { name:"Limbless",       icon:"🧟", on:"match",
+                   when:{ all:[ {axis:"shape",  mode:"all_same", value:"move"},
+                                {axis:"number", mode:"all_same", value:"one"} ] },
+                   desc:"all-Move + all-1s match → the zombie lurches: Moves in your bottom row lock 5s, then the row warps toward Move",
+                   do:[ {effect:"lock", seconds:5,
+                         select:{geometry:"row", which:"bottom", axis:"shape", mode:"all_same", value:"move"}},
+                        {effect:"transmute", gap:5000,    // knocked down: the row stays EMPTY for the 5s lock, then you "get up" — Moves reform
+                         select:{geometry:"row", which:"bottom"},
+                         bias:{axis:"shape", value:"move", intensity:2}} ] },
+
+    // TACTICS lesson — all CARROT, no stick (punishing a skill the player hasn't learned just makes them
+    // quit). Block is worthless against a one-shot, so its tremors CHANNEL your dead Defend cards into
+    // useful Moves. (Pairs with `outmaneuvered`, which rewards spending those Moves.)
+    tremor:      { name:"Tremor", icon:"🪨", on:"tick", every:12,
+                   desc:"every 12s the ground quakes, rattling your useless shields loose into Moves",
+                   do:[ {effect:"transmute",
+                         select:{axis:"shape", mode:"all_same", value:"defend"},
+                         bias:{axis:"shape", value:"move", intensity:2}} ] },
+    // the gentle NUDGE toward Moves: a Move set leaves the lumbering behemoth a step behind — its attack
+    // is pushed back 5s (a "Slow"). No timer reduction anywhere; failing to grab Moves just isn't rewarded.
+    outmaneuvered:{ name:"Outmaneuvered", icon:"🐢", on:"match", when:{axis:"shape", mode:"all_same", value:"move"},
+                   desc:"all-Move match → you dance aside; the behemoth lumbers after you, +5s before it can strike",
+                   do:[ {effect:"delay_attack", seconds:5} ] },
+
+    // ABILITIES lesson: an INVERSE trap the player WANTS to trigger. All-Attack matches are wasted on
+    // an immune foe, so he melts every sword into a Move — feeding Tactics → mana → the spells that hurt him.
+    ethereal_cackle:{ name:"Ethereal Cackle", icon:"😈", on:"match", when:{axis:"shape", mode:"all_same", value:"attack"},
+                   desc:"all-Attack match → he cackles at your flailing and melts every sword into a Move",
+                   do:[ {effect:"transmute",
+                         select:{axis:"shape", mode:"all_same", value:"attack"},
+                         bias:{axis:"shape", value:"move", intensity:2}} ] },
   },
 
   // --- dungeon DRIFTS: the global on:tick transmute that gives a dungeon its "feel" (TRAPS.md §7) ---
@@ -86,6 +121,27 @@ window.GAMEDATA = {
   // --- CREATURES: stat baseline + a variant pool (minion/elite) OR authored traps (boss).
   //     A fielded foe = creature ⊕ rolled variant ⊕ dungeon template (TRAPS.md §7.1). ---
   creatures: {
+    // TUTORIAL DUMMY: cannot hurt you (damage 0) and has no trap — pure, pressure-free practice for
+    // the guided intro. Numeric speed = raw cadence seconds (30s). High HP so it survives the lesson.
+    training_dummy:{ name:"Training Dummy", tier:"minion", hp:120, speed:30, damage:0,
+                     desc:"A straw-stuffed practice dummy on a creaky pivot. It cannot hurt you — take all the time you need to learn the ropes.",
+                     traps:[], variants:[], xp:0, loot_tier:0 },
+    // TRAINING DUMMY (zombie): a sandbag. Huge HP, slowest band the system has (lumbering), trivial bite.
+    // Its ONE signature is the authored `limbless` trap; variants:[] so it never rolls a random one.
+    limbless_zombie:{ name:"Limbless Zombie", tier:"minion", hp:30, speed:"lumbering", damage:3,
+                     desc:"A zombie with no limbs, chin-crawling across the floor toward you. Harmless — until it gathers itself for a sudden lurch.",
+                     traps:["limbless"], variants:[], xp:5, loot_tier:1 },
+    // TACTICS teacher: one hit is death, but it is ponderously slow. Survive by matching Moves (which
+    // push its clock back AND bank Tactics), then spend a decisive Tactic to break its 50 HP.
+    dread_behemoth:{ name:"Dread Behemoth", tier:"elite", hp:50, speed:120, damage:100,
+                     desc:"A mountain that walks. Its blow is <b>certain death</b>, so blocking is futile — but it is <i>ponderously</i> slow. Its tremors shake your useless <b>Defend</b> cards loose into <b>Moves</b>; spend a <b>Move</b> set and you dance aside, leaving it a step behind. Stay mobile, bank <b>Tactics</b>, and break it with a decisive strike.",
+                     traps:["tremor","outmaneuvered"], variants:[], xp:30, loot_tier:3 },
+    // ABILITIES teacher: immune to swords; only spells bite him, for the mana you spend. His cackle
+    // (inverse trap) melts your wasted Attacks into Moves — fueling the Tactics→mana→spells loop.
+    unstable_ethereal_goblin:{ name:"Unstable Ethereal Goblin", tier:"minion", hp:15, speed:"steady", damage:6,
+                     desc:"A goblin who gulped a Potion of Etherealness <i>and</i> a Potion of Polymorph at once — now a flickering wisp of raw magic. <b>Swords pass right through him</b> (Attack cards deal no damage). Only <b>magic</b> bites: every <b>ability</b> you cast drains him by the <b>mana you spent</b>. Spend 15 mana of spells to dispel him.",
+                     rules:{ immune_card_damage:true, ability_damage:"mana_spent" },
+                     traps:["ethereal_cackle"], variants:[], xp:25, loot_tier:3 },
     goblin:        { name:"Goblin",        tier:"minion", hp:20, speed:"swift",   damage:10,
                      variants:["bloodthirsty","sneaky","cowardly"], xp:10, loot_tier:2 },
     cave_bat:      { name:"Cave Bat",      tier:"minion", hp:14, speed:"frenzied", damage:6,
@@ -134,6 +190,21 @@ window.GAMEDATA = {
 
   // --- DUNGEONS: theme + drift + weighted enemy table + elite pool + boss (+ optional template) ---
   dungeons: {
+    // GUIDED INTRO: the DEFAULT room for a fresh player. `guided:true` triggers the staged walkthrough
+    // on Engage (freeze-and-explain, one play-element per stage). Foe = the harmless Training Dummy
+    // (0 damage) so nothing swings at you while you read. `coach:true` arms the ready-arrow affordances.
+    tutorial:      { name:"Tutorial · Guided Intro", difficulty:0, coach:true, guided:true,
+                     theme:null, drift:null, boss_mirror:null, default_foe:"training_dummy",
+                     enemy_table:[ {foe:"training_dummy", weight:100} ],
+                     elite_pool:[], boss:null, template:null },
+    // TRAINING: a planned GAUNTLET — a fixed sequence of foes fought in a row, each teaching one
+    // concept (traps → tactics → abilities). `sequence` drives the run; the enemy_table keeps the
+    // individual foes selectable for practice. No drift/template — the only threats are the foes' own.
+    training:      { name:"Training · Gauntlet", difficulty:0, coach:true,
+                     theme:null, drift:null, boss_mirror:null,
+                     sequence:[ "limbless_zombie", "dread_behemoth", "unstable_ethereal_goblin" ],
+                     enemy_table:[ {foe:"limbless_zombie", weight:1}, {foe:"dread_behemoth", weight:1}, {foe:"unstable_ethereal_goblin", weight:1} ],
+                     elite_pool:[], boss:null, template:null },
     goblin_warren: { name:"The Goblin Warren", difficulty:1,
                      theme:{axis:"color", value:"red"}, drift:"ember", boss_mirror:"war_cry",
                      enemy_table:[ {foe:"goblin", weight:50}, {foe:"cave_bat", weight:30}, {foe:"goblin_shaman", weight:20} ],

@@ -370,6 +370,44 @@
   .slot.spell.ready{opacity:1;filter:none;cursor:pointer;border-color:var(--phos);box-shadow:0 0 0 1px var(--phos),0 0 18px -9px var(--phos-dim)}
   .slot.spell.ready:hover{transform:translateY(-2px);box-shadow:0 0 0 1px var(--phos),0 0 22px -4px var(--phos-dim)}
   .slot.casting{animation:pop .32s ease}
+  /* COACHING affordance arrows (3a) — a pulsing yellow chevron that beckons above an element the
+     moment it becomes usable (ability affordable / Tactics armed). Coach/Training mode only. */
+  .coach-host{position:relative;overflow:visible}
+  .coach-arrow{position:absolute;left:50%;top:-21px;transform:translateX(-50%);z-index:9;
+    pointer-events:none;font-size:19px;line-height:1;color:var(--warn);
+    text-shadow:0 0 7px var(--warn);animation:coachbob .8s ease-in-out infinite}
+  @keyframes coachbob{
+    0%,100%{transform:translateX(-50%) translateY(-2px) scale(1);   text-shadow:0 0 4px var(--warn);opacity:.85}
+    50%    {transform:translateX(-50%) translateY(3px)  scale(1.4); text-shadow:0 0 16px var(--warn);opacity:1}
+  }
+  /* COACH SECTION GATE (3b) — a UI region disabled+dimmed until its stage unlocks it. */
+  .coach-locked{opacity:.28;filter:grayscale(.55);pointer-events:none;transition:opacity .35s ease,filter .35s ease}
+  /* COACH SPOTLIGHT (tutorial freeze-and-explain) — a full-screen scrim + raised, ringed target(s). */
+  #coachscrim{position:fixed;inset:0;background:rgba(4,6,10,.64);z-index:40;opacity:0;pointer-events:none;transition:opacity .25s ease}
+  #coachscrim.show{opacity:1;pointer-events:auto}
+  .coach-spot{position:relative;z-index:42;border-radius:13px;
+    box-shadow:0 0 0 3px var(--warn),0 0 32px -2px var(--warn);animation:coachspot 1.1s ease-in-out infinite}
+  @keyframes coachspot{0%,100%{box-shadow:0 0 0 3px var(--warn),0 0 20px -4px var(--warn)}50%{box-shadow:0 0 0 3px var(--warn),0 0 40px 2px var(--warn)}}
+  /* COACH POPOVER — the freeze-and-explain card (tutorial + guided-intro stages share it). */
+  #coachpop{position:fixed;z-index:44;left:50%;bottom:34px;transform:translateX(-50%);width:min(560px,calc(100% - 44px));
+    background:var(--panel,#14181f);border:1px solid var(--gold);border-radius:15px;padding:18px 20px 16px;
+    box-shadow:0 18px 60px -14px rgba(0,0,0,.75),0 0 0 1px var(--gold) inset;display:none}
+  #coachpop.show{display:block;animation:pop .3s ease}
+  #coachpop .cphd{display:flex;align-items:center;gap:9px;margin-bottom:7px}
+  #coachpop .cpicon{font-size:21px;line-height:1}
+  #coachpop .cptitle{font-family:"Syne",sans-serif;font-weight:800;font-size:16px;color:var(--gold);letter-spacing:.01em}
+  #coachpop .cpbody{font-size:13px;line-height:1.62;color:var(--ink);margin-bottom:14px}
+  #coachpop .cpbody b{color:var(--phos)}
+  #coachpop .cpfoot{display:flex;justify-content:space-between;align-items:center;gap:10px}
+  #coachpop .cpstep{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-faint);font-variant-numeric:tabular-nums}
+  #coachpop .cpbtns{display:flex;gap:8px}
+  #coachpop button{font-family:inherit;font-size:12px;font-weight:600;padding:8px 15px;border-radius:9px;cursor:pointer;border:1px solid var(--line);background:transparent;color:var(--ink-dim);transition:all .14s ease}
+  #coachpop button:hover{color:var(--ink)}
+  #coachpop button.primary{border-color:var(--gold);color:var(--gold)}
+  #coachpop button.primary:hover{background:var(--gold);color:#2b1f02}
+  #coachpop button.primary.await{opacity:.45;cursor:not-allowed}
+  #coachpop .cphint{font-size:11.5px;color:var(--warn);margin-top:9px;display:none}
+  #coachpop.awaiting .cphint{display:block}
   .slot .sicon{font-size:18px;line-height:1}
   .slot .sname{font-size:10px;font-weight:600;color:var(--ink);letter-spacing:.01em}
   .slot .scost{display:flex;gap:5px;justify-content:center;flex-wrap:wrap}
@@ -438,12 +476,17 @@
   @keyframes rise{0%{opacity:0;transform:translateY(8px)}18%{opacity:1}100%{opacity:0;transform:translateY(-34px)}}
 
   /* TRAP TRIGGER FEEDBACK — make a sprung trap impossible to miss (flash + shake + burst infographic) */
-  .trapflash{position:absolute;inset:0;border-radius:18px;pointer-events:none;z-index:7;opacity:0;
-    background:radial-gradient(125% 100% at 50% 50%, transparent 38%, rgba(240,86,91,.55) 100%)}
-  .trapflash.go{animation:trapflash .55s ease}
-  @keyframes trapflash{0%{opacity:0}22%{opacity:1}100%{opacity:0}}
-  .boardpanel.traphit{animation:trapshake .42s ease}
-  @keyframes trapshake{0%,100%{transform:translateX(0)}18%{transform:translateX(-7px)}38%{transform:translateX(6px)}58%{transform:translateX(-4px)}78%{transform:translateX(2px)}}
+  .trapflash{position:absolute;inset:0;border-radius:18px;pointer-events:none;z-index:7;opacity:0}
+  .trapflash.trap{background:radial-gradient(125% 100% at 50% 50%, transparent 42%, rgba(245,200,60,.52) 100%)}    /* yellow: a trap sprang */
+  .trapflash.wound{background:radial-gradient(125% 100% at 50% 50%, transparent 30%, rgba(240,86,91,.66) 100%)}   /* red: you took a wound */
+  .trapflash.trap.go{animation:trapflash .5s ease}
+  .trapflash.wound.go{animation:woundflash .6s ease}
+  @keyframes trapflash{0%{opacity:0}24%{opacity:1}100%{opacity:0}}
+  @keyframes woundflash{0%{opacity:0}14%{opacity:1}55%{opacity:.5}100%{opacity:0}}
+  .boardpanel.traphit{animation:trapshake .4s ease}      /* small, sharp */
+  .boardpanel.woundhit{animation:woundshake .52s ease}   /* bigger, heavier */
+  @keyframes trapshake{0%,100%{transform:translateX(0)}20%{transform:translateX(-4px)}40%{transform:translateX(4px)}60%{transform:translateX(-3px)}80%{transform:translateX(2px)}}
+  @keyframes woundshake{0%,100%{transform:translate(0,0)}14%{transform:translate(-11px,2px)}30%{transform:translate(10px,-2px)}46%{transform:translate(-8px,1px)}62%{transform:translate(6px,-1px)}80%{transform:translate(-3px,0)}}
   .trapburst{position:absolute;top:42%;left:50%;z-index:9;pointer-events:none;opacity:0;
     display:flex;align-items:center;gap:17px;padding:18px 28px;border-radius:17px;
     background:linear-gradient(180deg,#2c141a,#190f15);border:1px solid var(--red);
@@ -460,6 +503,7 @@
   .trapburst .tblabel{font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--warn);font-weight:700}
   .trapburst .tbname{font-family:"Syne",sans-serif;font-weight:800;font-size:24px;color:var(--red);letter-spacing:.01em;line-height:1.04}
   .trapburst .tbeff{font-size:14.5px;font-weight:600;color:#f4cdcf;font-variant-numeric:tabular-nums;margin-top:3px}
+  .trapburst .tbflavor{font-size:12px;line-height:1.4;color:var(--ink-dim);font-style:italic;margin-top:5px;max-width:300px}
   /* plain-damage burst variant — amber/warn accent to distinguish a hit from a trap */
   .trapburst.dmg{border-color:var(--warn);background:linear-gradient(180deg,#2a1e10,#181109);
     box-shadow:0 0 0 1px var(--warn),0 22px 64px -10px rgba(245,165,36,.5),0 0 90px -16px var(--warn)}
@@ -494,6 +538,9 @@
   .tier{font-size:10px;letter-spacing:.14em;text-transform:uppercase;padding:4px 10px;border-radius:8px;border:1px solid var(--line2);color:var(--ink-dim);font-weight:700}
   .tier.boss{border-color:var(--red);color:var(--red)}
   .tier.elite{border-color:var(--gold);color:var(--gold)}
+  .seqbadge{font-size:10px;letter-spacing:.12em;text-transform:uppercase;padding:4px 10px;border-radius:8px;border:1px solid var(--phos);color:var(--phos);font-weight:700}
+  .briefdesc{font-size:13.5px;line-height:1.62;color:var(--ink);margin:2px 0 18px;border-left:2px solid var(--line2);padding-left:12px}
+  .briefdesc b{color:var(--phos)} .briefdesc i{color:var(--ink-dim)}
   .briefstats{display:grid;grid-template-columns:repeat(auto-fit,minmax(108px,1fr));gap:10px;margin:18px 0}
   .briefstats .bs{background:var(--panel2);border:1px solid var(--line);border-radius:11px;padding:11px 13px}
   .briefstats .bs .l{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-faint)}
@@ -665,8 +712,9 @@
 <!-- PRE-COMBAT BRIEFING — know your enemy before you engage -->
 <div class="overlay" id="briefing">
   <div class="modal brief">
-    <div class="briefhd"><h2 id="b-name">Foe</h2><span class="tier" id="b-tier"></span></div>
+    <div class="briefhd"><h2 id="b-name">Foe</h2><span class="tier" id="b-tier"></span><span class="seqbadge" id="b-seq"></span></div>
     <div class="tagline">Know your enemy — its stats and the lines you don't want to cross.</div>
+    <div class="briefdesc" id="b-desc"></div>
     <div class="briefstats" id="b-stats"></div>
     <div class="subhdr2" id="b-trapshd">⚠ Active traps</div>
     <div class="brieftraps" id="b-traps"></div>
@@ -714,7 +762,11 @@ const MANA_LABELS = ["Fire","Nature","Frost"];
 // (colour-shifting blue→green→yellow→red). Firing any tactic resets the meter to empty.
 const TACTICS_GOAL=10;
 const TACTICS_DRAIN=1;                  // armed meter empties this many levels per second
-const CLOCK_CAP=20;                    // Move can't push the enemy's next attack more than 20s out
+const CLOCK_CAP=20;                    // base: Move can't push the enemy's next attack more than 20s out...
+// ...EXCEPT a slow foe's clock should never be cratered below its own interval. The effective ceiling
+// is the foe's full cadence or CLOCK_CAP, whichever is higher — so Moves push a 120s foe UP toward 120s
+// instead of slamming it down to 20s (which made high-cadence foes punish the very skill they teach).
+function clockCapSec(){ return Math.max(CLOCK_CAP, state.cadence||CLOCK_CAP); }
 const DMG_REGEN_MS=10000;              // a card shattered by enemy damage stays "wounded" (empty) 10s, then reforms (Heal can close it early)
 const BIAS_W=8;                        // transmute regen: weight toward the spell's favored color/shape
 
@@ -738,7 +790,7 @@ function pickWeighted(w){
   return 2;
 }
 // is the enemy's next attack already pushed to the cap? (boots beyond it are wasted)
-function clockCapped(){ return (state.nextAttackAt - performance.now()) >= CLOCK_CAP*1000 - 500; }
+function clockCapped(){ return (state.nextAttackAt - performance.now()) >= clockCapSec()*1000 - 500; }
 function blockCapped(){ return state.playerMax>0 && state.block >= state.playerMax; }
 // SHAPE deal logic:
 //  - a capped Block (at HP) makes Defend wasteful -> steer away from it.
@@ -1062,6 +1114,11 @@ const state={
   nextAttackAt:0, lastNow:0, lastTick:0,
   tactics:0, tacticsArmed:false,                 // Tactics meter (0..TACTICS_GOAL) + armed/draining flag
   hitstopUntil:0,                                // performance.now() until which the clock is frozen (trap hitstop)
+  coach:false,                                   // coaching layer on (Training dungeon): pulsing ready-arrows etc.
+  paused:false,                                  // coaching freeze: holds the clock/ticks/locks (generalized hitstop)
+  guided:false,                                  // guided-intro match active (the staged walkthrough)
+  sequence:null, seqIdx:0,                        // gauntlet: ordered foe-id list + position (Training run)
+  foeRules:{}, foeDesc:null,                      // per-foe damage rules (immunities, mana-spent) + briefing flavor
   classId:"pyromancer", passives:[],             // chosen class + its active passive ids
   enemyTraps:[],                                 // the foe's traps (threat layer, TRAPS.md) — fire on the same bus
   driftAccum:0,                                  // seconds accumulated toward the next on:tick trap fire
@@ -1120,11 +1177,24 @@ function setGlow(j, level){
 // SELECTION-RELATIVE glow: show set-mates of what you've picked.
 //  1 selected -> every set-mate lights up slightly.
 //  2 selected -> all set-mates of either card glow dim; the card that COMPLETES the pair glows brightest.
-// The hint is a TIME COST: it stays dark for GLOW_DELAY after each pick, then the .5s filter transition
-// fades it to full (full at ~1s). Any selection change resets the timer and clears the glow at once.
-const GLOW_DELAY=500;
+// The glow is INSTANT (GLOW_DELAY=0): set-mates light up the moment you pick, actively guiding the eye
+// — newcomers who don't know *Set* learn how cards combine by watching them. (It used to be a TIME COST
+// gated behind a 0.5s delay so experts got no free findability; that lost us every new player. Re-gate
+// this constant per-difficulty if a "hard mode" ever wants the handicap back — see PROJECT.md §4.)
+const GLOW_DELAY=0;
 let glowTimer=0;
 function clearAllGlow(){ for(let i=0;i<state.board.length;i++){ const el=cardEl(i); if(el) el.style.filter=""; } }
+// COACHING affordance arrow (3a): a pulsing yellow beckon over an element that just became usable.
+// Idempotent (mutates the DOM only on the on/off transition) + gated to coach mode by the caller,
+// so experts in normal dungeons never see it. The host gets .coach-host so the arrow anchors to it.
+function setCoachArrow(el, on){
+  if(!el) return;
+  const has=el.querySelector(":scope > .coach-arrow");
+  if(on && !has){ el.classList.add("coach-host");
+    const a=document.createElement("span"); a.className="coach-arrow"; a.textContent="▼"; el.appendChild(a); }
+  else if(!on && has){ has.remove(); }
+}
+function clearAllCoachArrows(){ document.querySelectorAll(".coach-arrow").forEach(a=>a.remove()); }
 function paintSelectionGlow(){
   clearAllGlow();
   if(!state.running) return;
@@ -1223,6 +1293,8 @@ function evaluate(){
   if(ok){
     const res=resolveSet(cards);
     applyResolution(res);
+    if(COACH.active) coachNotify("match");                    // guided intro: "make your first set" step
+
     state.sel.forEach(idx=>{ const e=cardEl(idx); e.classList.remove("sel"); e.classList.add("good"); });
     setTimeout(()=>{
       state.sel.forEach(idx=>{ const e=cardEl(idx); e.classList.remove("good"); e.classList.add("leaving"); });
@@ -1257,12 +1329,16 @@ function evaluate(){
 // mutate combat state from a resolved set, animate, check for win
 function applyResolution(res){
   const t=state.tally;
-  // damage to enemy
+  // damage to enemy (some foes are immune to card/Attack damage — e.g. the ethereal goblin)
   if(res.damage>0){
-    state.enemyHP=Math.max(0,state.enemyHP-res.damage);
-    t.dmgLight+=res.dmgLight; t.dmgMed+=res.dmgMed; t.dmgHeavy+=res.dmgHeavy;
-    floatOverBoard(`-${res.damage}`, "var(--red)");
-    flashStat("s-ehp");
+    if(foeRule("immune_card_damage")){
+      floatOverBoard("swords pass through!", "var(--ink-faint)");   // teach: only magic bites
+    } else {
+      state.enemyHP=Math.max(0,state.enemyHP-res.damage);
+      t.dmgLight+=res.dmgLight; t.dmgMed+=res.dmgMed; t.dmgHeavy+=res.dmgHeavy;
+      floatOverBoard(`-${res.damage}`, "var(--red)");
+      flashStat("s-ehp");
+    }
   }
   // block accrues into a persistent barrier, capped at max HP (overflow wasted — or, with the
   // Overflow passive, spilled into the enemy as a weighted attack). All block routes through gainBlock.
@@ -1272,7 +1348,7 @@ function applyResolution(res){
   // cap) is dumped on top — so feeding Moves into an already-maxed clock builds Tactics fast.
   if(res.boot>0){
     const before=state.nextAttackAt;
-    state.nextAttackAt=Math.min(performance.now()+CLOCK_CAP*1000, state.nextAttackAt+res.boot*1000);
+    state.nextAttackAt=Math.min(performance.now()+clockCapSec()*1000, state.nextAttackAt+res.boot*1000);
     const applied=Math.round((state.nextAttackAt-before)/1000); t.boot+=Math.max(0,applied);
     const overflow=Math.max(0,res.boot-applied);
     const gain=weightedRoll(res.boot)+overflow;       // triangular roll of magnitude, + wasted seconds
@@ -1288,7 +1364,7 @@ function applyResolution(res){
   if(state.enemyHP>0) fireEnemyTraps("match", res.desc);   // ...and the FOE's traps price this match (TRAPS.md)
   updateHUD();
   if(!state.running) return;            // a trap may have ended combat (player death)
-  if(state.enemyHP<=0){ endCombat("win"); return; }
+  if(state.enemyHP<=0){ onWin(); return; }
 }
 
 /* ============================================================
@@ -1491,14 +1567,15 @@ function transmute(indices, opts){
 // enemy strikes: block absorbs first (remainder persists), the rest hits HP
 function enemyAttack(){
   const t=state.tally; t.attacks++;
-  const raw=weightedRoll(state.enemyDamage);   // enemy's slider value is the MAX of the roll
+  const raw=state.enemyDamage>0 ? weightedRoll(state.enemyDamage) : 0;   // MAX of the roll; 0 stays 0 (training dummy)
   let dmg=raw;
   const absorbed=Math.min(state.block,dmg);
   state.block-=absorbed; dmg-=absorbed;
   t.absorbed+=absorbed; t.taken+=dmg;
   if(dmg>0){ state.playerHP=Math.max(0,state.playerHP-dmg); flashStat("s-php");
              damageBurst(dmg, state.foeName, absorbed); hitstop(500);   // shake + pause + source popover on a real hit
-  } else { floatOverBoard("blocked", "var(--blue)", true); }
+  } else if(raw===0){ floatOverBoard("harmless", "var(--ink-faint)", true); }   // a 0-damage foe (training dummy) can't hurt you
+  else { floatOverBoard("blocked", "var(--blue)", true); }
   narrateEnemy(raw,absorbed,dmg);
   logEnemy(raw,absorbed,dmg);
   updateHUD();
@@ -1615,8 +1692,9 @@ function tick(){
   if(!state.running) return;
   const now=performance.now();
   const dt=state.lastTick?(now-state.lastTick)/1000:0; state.lastTick=now;
-  // HITSTOP: a trap just sprang — freeze the clock (and lock countdowns) briefly so it's felt.
-  if(state.hitstopUntil && now<state.hitstopUntil){
+  // HITSTOP / COACH PAUSE: a trap just sprang (brief), OR a coaching step is holding the game
+  // (indefinite) — freeze the clock AND lock countdowns so nothing advances under the player.
+  if(state.paused || (state.hitstopUntil && now<state.hitstopUntil)){
     state.nextAttackAt += dt*1000;                                  // push the attack clock so it doesn't advance
     if(state.locked.size) for(const [s,u] of state.locked) state.locked.set(s, u+dt*1000);
     state.raf=requestAnimationFrame(tick); return;
@@ -1678,6 +1756,7 @@ function enterCombat(){
   renderTrapTags();                                             // show the foe's traps up front (legibility)
   if(!SPELLS.length) selectClass(state.classId);                // ensure a loadout is loaded
   state.pending=new Set(); state.locked=new Map(); state.combatId++; exitTargeting();   // invalidate any stale reform timers
+  clearAllCoachArrows();                                        // drop arrows from a prior run; this run's render re-adds them if coaching
   regenBias=null;
   state.board=genInitial();
   state.startStamp=performance.now();
@@ -1690,6 +1769,28 @@ function enterCombat(){
   render(); updateHUD(); renderLog(); updateTacticsUI(); updatePassivesUI();
   $("v-clock").textContent=state.cadence+"s";
   cancelAnimationFrame(state.raf); state.raf=requestAnimationFrame(tick);
+  if(state.guided) coachStartGuided();                         // staged walkthrough takes over (pauses the clock per step)
+}
+
+// enemy defeated → advance the gauntlet to the next foe, or end the run if this was the last.
+function onWin(){
+  if(state.sequence && state.seqIdx < state.sequence.length-1) advanceSequence();
+  else endCombat("win");
+}
+// GAUNTLET advance: clear the board state, assemble the next foe, and show its briefing. "Engage"
+// (enterCombat) resumes the run with a fresh board/HP — each foe is a clean, forgiving lesson.
+function advanceSequence(){
+  state.running=false; state.lock=true;
+  cancelAnimationFrame(state.raf);
+  clearTimeout(glowTimer); clearAllGlow(); clearAllCoachArrows();
+  exitTargeting(); state.pending=new Set(); state.locked=new Map();
+  resetTactics();
+  const dg=(ACTIVE_DUNGEON && GDATA.dungeons)?GDATA.dungeons[ACTIVE_DUNGEON]:null;
+  state.seqIdx++;
+  applyFoeToState(assembleFoe(state.sequence[state.seqIdx], dg));
+  renderTrapTags();
+  narrate(`The foe falls! Steel yourself — <b>${state.foeName}</b> rises next (${state.seqIdx+1} of ${state.sequence.length}).`,"sys");
+  showBriefing();                                   // briefing → "Engage" continues the run (enterCombat)
 }
 
 function endCombat(result){
@@ -1697,6 +1798,8 @@ function endCombat(result){
   state.running=false; state.lock=true;
   cancelAnimationFrame(state.raf);
   clearTimeout(glowTimer); clearAllGlow();          // no stale set-mate glow on the end screen
+  clearAllCoachArrows();                            // no stale beckon-arrows on the end screen
+  coachFinish();                                    // tear down any guided-intro overlay/pause/dimming
   exitTargeting(); state.pending=new Set(); state.locked=new Map();
   resetTactics();
   renderTrapTags();                                 // clear the enemy-trap strip
@@ -1800,7 +1903,8 @@ function narrateSet(res){
 }
 function narrateEnemy(raw,absorbed,taken){
   let msg;
-  if(taken>0 && absorbed>0) msg=`The enemy lashes out for ${raw} — your guard soaks ${absorbed}, you take <b>${taken}</b>.`;
+  if(raw===0) msg=`The <b>${state.foeName||"foe"}</b> flops against you — utterly harmless.`;
+  else if(taken>0 && absorbed>0) msg=`The enemy lashes out for ${raw} — your guard soaks ${absorbed}, you take <b>${taken}</b>.`;
   else if(taken>0) msg=`The enemy lands a clean hit for <b>${raw}</b>.`;
   else msg=`The enemy strikes for ${raw} — your guard holds, <b>no damage</b>.`;
   narrate(msg,"enemy");
@@ -1811,11 +1915,21 @@ function narrateEnemy(raw,absorbed,taken){
    cost = [red(Fire), green(Nature), blue(Frost)] mana.
    ============================================================ */
 function applySpellDamage(dmg){                    // apply a (pre-rolled) spell hit to the enemy
+  if(foeRule("ability_damage")==="mana_spent") return 0;   // intrinsic spell damage is replaced by mana-spent (ethereal goblin)
   state.enemyHP=Math.max(0,state.enemyHP-dmg);
   state.tally.spellDmg+=dmg;
   floatOverBoard(`-${dmg}`, "var(--gold)");
   flashStat("s-ehp");
   return dmg;
+}
+// ETHEREAL rule: each ability cast drains the foe by the mana spent on it (the only way to hurt him).
+function castDamageHook(sp){
+  if(foeRule("ability_damage")!=="mana_spent" || !sp) return;
+  const spent=sp.cost.reduce((a,b)=>a+(b||0),0); if(spent<=0) return;
+  state.enemyHP=Math.max(0,state.enemyHP-spent);
+  state.tally.spellDmg+=spent;
+  floatOverBoard(`-${spent} ✦ magic`, "var(--gold)");
+  flashStat("s-ehp");
 }
 function dealSpellDamage(max){ return applySpellDamage(weightedRoll(max)); }   // single rolled hit
 // The "deadest" cards a bolt could aim at: fewest match-mates, then off its own color, then lowest
@@ -1894,7 +2008,7 @@ const ABILITIES={
       const attacks=liveSlots(c=>cardShape(c)===SHAPE_ATTACK);
       if(!attacks.length){ narrate(`<b>Glaciate</b> finds no aggression to freeze — it fizzles.`,"spell"); return; }
       const before=state.nextAttackAt;
-      state.nextAttackAt=Math.min(performance.now()+CLOCK_CAP*1000, state.nextAttackAt+attacks.length*2000);  // +2s per frozen Attack, capped
+      state.nextAttackAt=Math.min(performance.now()+clockCapSec()*1000, state.nextAttackAt+attacks.length*2000);  // +2s per frozen Attack, capped
       const slowed=Math.round((state.nextAttackAt-before)/1000); state.tally.boot+=Math.max(0,slowed);
       floatOverBoard(slowed>0?`+${slowed}s`:"clock maxed","var(--phos)");
       narrate(`You sweep out <b>Glaciate</b> — <b>${attacks.length}</b> Attack${attacks.length>1?"s":""} freeze into drifting <b>Moves</b>, the enemy slowed ${slowed}s.`,"spell");
@@ -1966,13 +2080,13 @@ const ABILITIES={
   smokebomb:{ id:"smokebomb", name:"Smoke Bomb", icon:"💨", cost:[0,3,0], desc:"+6 block · big enemy slow",
     cast(){ gainBlock(6);
             const before=state.nextAttackAt;
-            state.nextAttackAt=Math.min(performance.now()+CLOCK_CAP*1000, state.nextAttackAt+8000);
+            state.nextAttackAt=Math.min(performance.now()+clockCapSec()*1000, state.nextAttackAt+8000);
             const slowed=Math.round((state.nextAttackAt-before)/1000); state.tally.boot+=Math.max(0,slowed);
             floatOverBoard(slowed>0?`+${slowed}s`:"clock maxed","var(--phos)");
             narrate(`You drop a <b>Smoke Bomb</b> — +6 block and the enemy loses ${slowed}s in the haze.`,"spell"); } },
   timewarp:{ id:"timewarp", name:"Time Warp", icon:"⏳", cost:[2,2,2], desc:"spend all essence · slam enemy clock to its cap + 6 dmg",
     cast(){ const d=dealSpellDamage(6); const before=state.nextAttackAt;
-            state.nextAttackAt=performance.now()+CLOCK_CAP*1000;
+            state.nextAttackAt=performance.now()+clockCapSec()*1000;
             const slowed=Math.round((state.nextAttackAt-before)/1000); state.tally.boot+=Math.max(0,slowed);
             floatOverBoard(slowed>0?`+${slowed}s`:"clock maxed","var(--phos)");
             narrate(`You <b>Warp Time</b> — ${d} damage and the enemy's next strike is flung ${Math.max(0,slowed)}s away.`,"spell"); } },
@@ -2007,7 +2121,7 @@ function gainBlock(n){
 function passBlock(n){ return gainBlock(n); }
 function passHeal(n){ state.playerHP=Math.min(state.playerMax,state.playerHP+n); flashStat("s-php"); }
 function passSlow(sec){ const before=state.nextAttackAt;
-  state.nextAttackAt=Math.min(performance.now()+CLOCK_CAP*1000, state.nextAttackAt+sec*1000);
+  state.nextAttackAt=Math.min(performance.now()+clockCapSec()*1000, state.nextAttackAt+sec*1000);
   state.tally.boot+=Math.max(0,Math.round((state.nextAttackAt-before)/1000)); }
 function passProc(passId, text){ floatOverBoard(text,"var(--gold)");
   const el=document.querySelector(`.slot[data-passive="${passId}"]`);
@@ -2057,6 +2171,7 @@ function descAxisValues(desc, axis){          // the three card values on an axi
 }
 function trapCondMet(when, desc){
   if(!when) return true;                       // no condition = fires on every match
+  if(when.all) return when.all.every(c=>trapCondMet(c, desc));   // compound AND (e.g. all-Move AND all-1s — Limbless)
   const v=descAxisValue(desc, when.axis);
   switch(when.mode){
     case "all_same":      return when.value!=null ? v===when.value : v!=null;   // all-same (of value) = the specialist's bane
@@ -2088,10 +2203,12 @@ function trapBias(b){
 }
 function selectSlots(sel){
   if(!sel) return [];
-  if(sel.geometry) return geometrySlots(sel);                                  // spatial region (TRAPS.md §5.4)
-  const get = sel.axis==="color"?cardColor : sel.axis==="shape"?cardShape : cardMag;   // value filter
-  const pred = sel.mode==="not_value" ? (c=>get(c)!==sel.value) : (c=>get(c)===sel.value);
-  let slots=liveSlots(pred);
+  let slots = sel.geometry ? geometrySlots(sel) : liveSlots();                 // spatial region (TRAPS.md §5.4) or whole board
+  if(sel.axis!=null && sel.value!=null){                                       // value filter — INTERSECTS the region when both are given
+    const get = sel.axis==="color"?cardColor : sel.axis==="shape"?cardShape : cardMag;
+    const pred = sel.mode==="not_value" ? (c=>get(c)!==sel.value) : (c=>get(c)===sel.value);
+    slots = slots.filter(i=>pred(state.board[i]));
+  }
   if(sel.pick==="highest_mag") slots.sort((a,b)=>cardMag(state.board[b])-cardMag(state.board[a]));
   return slots;
 }
@@ -2100,6 +2217,10 @@ const TRAP_EFFECTS={
   damage(e){ const amt=e.amount!=null?e.amount:weightedRoll(e.max||4); hurtPlayer(amt); return `⚔${amt}`; },
   instant_attack(e){ enemyAttack(); return "strikes!"; },              // pull the clock to NOW — a free swing
   advance_timer(e){ const s=e.seconds||3; state.nextAttackAt-=s*1000; return `−${s}s`; },
+  // PLAYER-favorable inverse trap: push the foe's next attack LATER (a "slow"), capped like a Move boot.
+  delay_attack(e){ const s=e.seconds||5; const before=state.nextAttackAt;
+    state.nextAttackAt=Math.min(performance.now()+clockCapSec()*1000, state.nextAttackAt+s*1000);
+    const applied=Math.round((state.nextAttackAt-before)/1000); return applied>0?`+${applied}s`:null; },
   enemy_heal(e){ const a=e.amount||4; const b=state.enemyHP; state.enemyHP=Math.min(state.enemyMax,state.enemyHP+a); flashStat("s-ehp"); return state.enemyHP>b?`enemy +${state.enemyHP-b}`:null; },
   drain_tactics(e){ const a=e.amount||4; const b=state.tactics; state.tactics=Math.max(0,state.tactics-a); if(state.tacticsArmed&&state.tactics<=0) resetTactics(); return b>state.tactics?`−${Math.round(b-state.tactics)} tac`:null; },
   drain_mana(e){ const c=e.color!=null?e.color:0; const a=e.amount||3; const b=state.mana[c]; state.mana[c]=Math.max(0,state.mana[c]-a); return b>state.mana[c]?`−${b-state.mana[c]} ${MANA_LABELS[c]}`:null; },
@@ -2109,7 +2230,7 @@ const TRAP_EFFECTS={
     let slots=selectSlots(e.select);
     if(e.count!=null && slots.length>e.count) slots=pickRandom(slots, e.count);    // cap (value/random selects)
     if(!slots.length) return null;
-    transmute(slots, {bias:trapBias(e.bias)});
+    transmute(slots, {bias:trapBias(e.bias), gap:e.gap||0});                        // gap = hold the slots empty before reforming
     return `↯${slots.length}`;
   },
   // the LOCK board verb: make a region inert for a time (denies access without changing composition).
@@ -2152,6 +2273,7 @@ const VALUE_LABEL={ color:["red","green","blue"], shape:["Attack","Defend","Move
 function valueLabel(axis,v){ return (VALUE_LABEL[axis] && VALUE_LABEL[axis][v]) || String(v); }
 function condLabel(when){
   if(!when) return "any match";
+  if(when.all) return when.all.map(condLabel).join(" + ");      // compound AND → "all-Move + all-1s"
   const axisName={color:"colour",shape:"shape",number:"number"}[when.axis]||when.axis;
   const val = when.value!=null ? valueLabel(when.axis,when.value) : "";
   if(when.mode==="all_same")      return val ? `all-${val} match` : `all-same ${axisName}`;
@@ -2162,36 +2284,39 @@ function condLabel(when){
 }
 // brief hitstop: freeze the enemy clock (and lock countdowns) for ms so a trigger lands with weight.
 function hitstop(ms){ state.hitstopUntil=Math.max(state.hitstopUntil||0, performance.now()+ms); }
-// the board-wide flash + shake when a trap springs
-function trapFlash(){
-  const fl=$("trapflash"); if(fl){ fl.classList.remove("go"); void fl.offsetWidth; fl.classList.add("go"); }
-  const panel=document.querySelector(".boardpanel");
-  if(panel){ panel.classList.remove("traphit"); void panel.offsetWidth; panel.classList.add("traphit"); }
+// the board-wide flash + shake. kind "trap" = yellow tint + a small, sharp shake; kind "wound" =
+// red tint + a bigger, heavier shake (a real hit should feel worse than a trap springing).
+function boardFlash(kind){
+  const k = kind==="wound" ? "wound" : "trap";
+  const fl=$("trapflash");
+  if(fl){ fl.classList.remove("go","trap","wound"); fl.classList.add(k); void fl.offsetWidth; fl.classList.add("go"); }
+  const panel=document.querySelector(".boardpanel"), hit = k==="wound" ? "woundhit" : "traphit";
+  if(panel){ panel.classList.remove("traphit","woundhit"); void panel.offsetWidth; panel.classList.add(hit); }
 }
-// core infographic burst — icon + a top label + a name + an effect line. Bursts pop OVER the
-// combat bar (HUD), not the board, so they never cover the cards you're comboing. Simultaneous
-// bursts stack upward from the bar's center.
-function spawnBurst(icon, topLabel, name, effText, kind){
+// core infographic burst — icon + a top label + a name + an effect line + (optional) flavor line.
+// Bursts pop OVER the combat bar (HUD), not the board, so they never cover the cards you're comboing.
+function spawnBurst(icon, topLabel, name, effText, kind, flavor){
   const layer=$("burstlayer"); if(!layer) return;
   const stack=layer.querySelectorAll(".trapburst").length;
   const b=document.createElement("div"); b.className="trapburst"+(kind?" "+kind:"");
   b.style.top = stack ? `calc(50% - ${stack*82}px)` : "50%";
   b.innerHTML=`<span class="tbi">${icon}</span><span class="tbtext">`
     +`<span class="tblabel">${topLabel}</span><span class="tbname">${name}</span>`
-    +(effText?`<span class="tbeff">${effText}</span>`:"")+`</span>`;
+    +(effText?`<span class="tbeff">${effText}</span>`:"")
+    +(flavor?`<span class="tbflavor">${flavor}</span>`:"")+`</span>`;
   layer.appendChild(b);
   void b.offsetWidth; b.classList.add("go");
-  setTimeout(()=>b.remove(), 2200);
+  setTimeout(()=>b.remove(), 2600);
 }
-// a sprung trap: name the condition you crossed + what it did
+// a sprung trap: name the condition you crossed, what it did, AND the trap's visceral flavor line
 function trapBurst(trap, label){
-  trapFlash();
+  boardFlash("trap");
   const trigger = trap.on==="tick" ? "dread tick" : condLabel(trap.when);
-  spawnBurst(trap.icon||"⚠", `⚠ ${trigger} → trap`, trap.name, label);
+  spawnBurst(trap.icon||"⚠", `⚠ ${trigger} → trap`, trap.name, label, null, trap.desc||"");
 }
 // the player took a hit: name the source + the HP lost
 function damageBurst(amount, source, absorbed){
-  trapFlash();
+  boardFlash("wound");
   const eff = absorbed>0 ? `−${amount} HP · ${absorbed} blocked` : `−${amount} HP`;
   spawnBurst("💥", "✷ struck", source||"Enemy attack", eff, "dmg");
 }
@@ -2212,7 +2337,11 @@ const TOKEN={ color:{red:COLOR_RED, green:COLOR_GREEN, blue:COLOR_BLUE},
               shape:{attack:SHAPE_ATTACK, defend:SHAPE_DEFEND, move:SHAPE_MOVE},
               number:{one:0, two:1, three:2} };                 // magnitude index 0/1/2
 function tok(axis, v){ const m=TOKEN[axis]; return (typeof v==="string" && m && m[v]!=null) ? m[v] : v; }
-function normCond(w){ return (w && w.axis!=null && w.value!=null) ? {...w, value:tok(w.axis,w.value)} : w; }
+function normCond(w){
+  if(!w) return w;
+  if(w.all) return {...w, all:w.all.map(normCond)};                               // compound AND: normalize each sub-condition
+  return (w.axis!=null && w.value!=null) ? {...w, value:tok(w.axis,w.value)} : w;
+}
 function normEffect(e){
   const o={...e};
   if(typeof o.color==="string") o.color=tok("color", o.color);                                   // drain_mana color
@@ -2233,6 +2362,7 @@ let ENCOUNTER_DRIFT=(GDATA.encounter && GDATA.encounter.drift) || null;
    Each layer adds stat-mods and traps. Speed is a named band → cadence seconds (§7.2). */
 const SPEED_ORDER=["lumbering","slow","steady","swift","frenzied"];     // slow → fast (index +1 = faster)
 function speedSeconds(band, shift){
+  if(typeof band==="number") return band;            // raw cadence seconds (special foes: dummy 30s, behemoth 60s)
   const bands=GDATA.speed || {lumbering:19,slow:15,steady:11,swift:7,frenzied:4};
   let i=SPEED_ORDER.indexOf(band); if(i<0) i=2;
   i=Math.max(0, Math.min(SPEED_ORDER.length-1, i+(shift||0)));
@@ -2260,9 +2390,10 @@ function assembleFoe(creatureId, dungeon){
       if(tpl.trap) traps.push(normalizeTrap("tpl_"+dungeon.template, {name:tpl.name, icon:tpl.icon, desc:tpl.desc, ...tpl.trap})); }
   }
   const name=(templateName?templateName+" ":"")+(variantName?variantName+" ":"")+base.name;
-  return { id:creatureId, tier:base.tier, name, hp:Math.max(1,hp|0), damage:Math.max(1,dmg|0),
+  return { id:creatureId, tier:base.tier, name, hp:Math.max(1,hp|0), damage:Math.max(0,dmg|0),   // damage 0 allowed (training dummy)
            cadence:speedSeconds(base.speed, bandShift),
-           traps, drift:(dungeon&&dungeon.drift)?DRIFT_LIB[dungeon.drift]:null, xp:base.xp||0 };
+           traps, drift:(dungeon&&dungeon.drift)?DRIFT_LIB[dungeon.drift]:null,
+           rules:base.rules||null, desc:base.desc||null, xp:base.xp||0 };
 }
 // resolve the foe picker → set enemy stats/traps/drift on state (custom = sliders + fallback traps).
 let ACTIVE_DUNGEON=null;
@@ -2270,21 +2401,37 @@ function resolveFoe(){
   const sel=$("foe-pick"), val=sel?sel.value:"custom";
   const dg=(ACTIVE_DUNGEON && GDATA.dungeons)?GDATA.dungeons[ACTIVE_DUNGEON]:null;
   state.foeName=null; state.foeTier=null;
+  state.coach  = !!(dg && dg.coach  && val!=="custom");    // coaching layer: Training dungeon (not the custom sandbox)
+  state.guided = !!(dg && dg.guided && val!=="custom");    // guided-intro: the staged walkthrough dungeon
+  state.sequence=null; state.seqIdx=0;
   if(val==="custom" || !dg){
     state.enemyMax=+$("ehp").value; state.enemyDamage=+$("edmg").value; state.cadence=+$("ecad").value;   // fresh from sliders
     state.enemyTraps=ENCOUNTER_TRAPS.map(id=>TRAP_LIB[id]).filter(Boolean);
     state.drift=ENCOUNTER_DRIFT?DRIFT_LIB[ENCOUNTER_DRIFT]:null;
+    state.foeRules={}; state.foeDesc=null;
+    return;
+  }
+  if(val==="sequence" && dg.sequence && dg.sequence.length){     // GAUNTLET: line up the fixed run
+    state.sequence=dg.sequence.slice(); state.seqIdx=0;
+    applyFoeToState(assembleFoe(state.sequence[0], dg));
     return;
   }
   const creatureId = val==="random" ? pickWeightedFoe(dg.enemy_table) : val.slice(4);
-  const foe=assembleFoe(creatureId, dg);
-  if(!foe){ state.enemyTraps=[]; state.drift=null; return; }
-  state.enemyMax=foe.hp; state.enemyDamage=foe.damage; state.cadence=foe.cadence;
-  state.enemyTraps=foe.traps; state.drift=foe.drift; state.foeName=foe.name; state.foeTier=foe.tier;
+  applyFoeToState(assembleFoe(creatureId, dg));
 }
+// push an assembled foe onto the live state (stats / traps / drift / rules / flavor). Shared by
+// the picker (resolveFoe) and the gauntlet advance (advanceSequence).
+function applyFoeToState(foe){
+  if(!foe){ state.enemyTraps=[]; state.drift=null; state.foeRules={}; state.foeDesc=null; state.foeName=null; state.foeTier=null; return; }
+  state.enemyMax=foe.hp; state.enemyDamage=foe.damage; state.cadence=foe.cadence;
+  state.enemyTraps=foe.traps; state.drift=foe.drift;
+  state.foeName=foe.name; state.foeTier=foe.tier;
+  state.foeRules=foe.rules||{}; state.foeDesc=foe.desc||null;
+}
+function foeRule(key){ return state.foeRules && state.foeRules[key]; }
 // reverse-map cadence seconds → a speed band label (TRAPS.md §7.2)
 function cadenceBand(sec){
-  return sec>=17?"Lumbering" : sec>=14?"Slow" : sec>=10?"Steady" : sec>=6?"Swift" : "Frenzied";
+  return sec>=40?"Glacial" : sec>=22?"Torpid" : sec>=17?"Lumbering" : sec>=14?"Slow" : sec>=10?"Steady" : sec>=6?"Swift" : "Frenzied";
 }
 // PRE-COMBAT BRIEFING — show the foe's stats + all active traps before the fight (foe already resolved)
 function showBriefing(){
@@ -2292,6 +2439,12 @@ function showBriefing(){
   const tierEl=$("b-tier"), tier=state.foeTier;
   tierEl.className="tier"+(tier==="boss"?" boss":tier==="elite"?" elite":"");
   tierEl.textContent=tier?tier:"sandbox"; tierEl.style.display=tier?"":"none";
+  // gauntlet position + foe flavor text
+  const seq=$("b-seq");
+  if(state.sequence){ seq.textContent=`Gauntlet · ${state.seqIdx+1} of ${state.sequence.length}`; seq.style.display=""; }
+  else seq.style.display="none";
+  const dsc=$("b-desc");
+  if(state.foeDesc){ dsc.innerHTML=state.foeDesc; dsc.style.display=""; } else dsc.style.display="none";
   // stats grid
   const st=$("b-stats"); st.innerHTML="";
   const stats=[
@@ -2326,12 +2479,15 @@ function populateFoes(){
   const dg=GDATA.dungeons && GDATA.dungeons[ds.value]; if(!dg) return;
   ACTIVE_DUNGEON=ds.value; fs.innerHTML="";
   const add=(v,t)=>{ const o=document.createElement("option"); o.value=v; o.textContent=t; fs.appendChild(o); };
+  if(dg.sequence && dg.sequence.length) add("sequence", `▶ Run the gauntlet · ${dg.sequence.length} foes`);   // the planned run
   add("custom","Custom (sliders + test traps)");
   add("random","⚄ Random encounter");
   (dg.enemy_table||[]).forEach(e=>{ const c=GDATA.creatures&&GDATA.creatures[e.foe]; if(c) add("foe:"+e.foe, c.name); });
   (dg.elite_pool||[]).forEach(id=>{ const c=GDATA.creatures&&GDATA.creatures[id]; if(c) add("foe:"+id, "★ "+c.name+" · elite"); });
   if(dg.boss){ const c=GDATA.creatures&&GDATA.creatures[dg.boss]; if(c) add("foe:"+dg.boss, "☠ "+c.name+" · boss"); }
-  fs.value="random";
+  // default: the gauntlet run if present, else a dungeon-declared default foe, else a random encounter
+  const wantFoe = dg.sequence ? "sequence" : dg.default_foe ? "foe:"+dg.default_foe : "random";
+  fs.value = [...fs.options].some(o=>o.value===wantFoe) ? wantFoe : "random";
 }
 
 // render the foe's traps as legible tags (show the RULE; spotting which on-board sets
@@ -2392,10 +2548,12 @@ function castSpell(i){
   }
   if(state.targeting!=null) exitTargeting();         // an instant spell cancels any armed target
   spendMana(sp); castAnim(i);
+  castDamageHook(sp);                                 // ethereal goblin: drain by mana spent
   sp.cast();
   firePassives("ability", {abilityId:sp.id});        // e.g. Spellblade's Spell Echo
+  if(COACH.active) coachNotify("ability");            // guided intro: "cast an ability" step
   updateHUD();
-  if(state.enemyHP<=0){ endCombat("win"); }
+  if(state.enemyHP<=0){ onWin(); }
 }
 // click-to-target lifecycle (Firebolt / Frostbolt)
 function enterTargeting(i){
@@ -2416,10 +2574,12 @@ function resolveTargetedSpell(idx){
   exitTargeting();
   if(!sp || !canAfford(sp)) return;                  // mana slipped away (shouldn't, but guard)
   spendMana(sp); castAnim(i);
+  castDamageHook(sp);                                 // ethereal goblin: drain by mana spent
   sp.castOn(idx);
   firePassives("ability", {abilityId:sp.id});
+  if(COACH.active) coachNotify("ability");            // guided intro: "cast an ability" step
   updateHUD();
-  if(state.enemyHP<=0){ endCombat("win"); }
+  if(state.enemyHP<=0){ onWin(); }
 }
 function buildSpells(){
   const g=$("spellgrid"); g.innerHTML="";
@@ -2442,7 +2602,9 @@ function updateSpells(){
   SPELLS.forEach((sp,i)=>{
     if(!sp) return;
     const el=document.querySelector(`.slot[data-spell="${i}"]`); if(!el) return;
-    el.classList.toggle("ready", state.running && canAfford(sp));
+    const ready=state.running && canAfford(sp);
+    el.classList.toggle("ready", ready);
+    setCoachArrow(el, state.coach && ready);              // coach mode: beckon when an ability is castable
   });
 }
 // PASSIVES panel: render the class's passive slots (padded to 3), always-on info cards.
@@ -2525,6 +2687,7 @@ function updateTacticsUI(){
   const box=$("tacbox"); if(box) box.classList.toggle("armed",armed);
   const ready=state.running && armed;
   document.querySelectorAll("#tacbtns .tbtn").forEach(b=>{ b.disabled=!ready; });
+  setCoachArrow($("tacbtns"), state.coach && ready);     // coach mode: beckon when Tactics arms (spend it!)
 }
 
 // each tactic transmutes/rerolls the whole board toward an axis, then resets the meter.
@@ -2559,8 +2722,9 @@ function useTactic(key){
   const T=TACTICS[key]; if(!T) return;
   if(T.run()===false) return;                              // tactic cancelled (e.g. Flee confirm dismissed) — keep the meter
   resetTactics();                                          // firing any tactic empties the meter
+  if(COACH.active) coachNotify("tactic");                  // guided intro: "spend Tactics" step
   updateHUD();
-  if(state.enemyHP<=0) endCombat("win");
+  if(state.enemyHP<=0) onWin();
 }
 
 /* ============================================================
@@ -2638,6 +2802,113 @@ $("m-again").addEventListener("click",()=>{ $("overlay").classList.remove("show"
 $("m-close").addEventListener("click",()=>$("overlay").classList.remove("show"));
 $("b-engage").addEventListener("click",enterCombat);                 // briefing → start the fight
 $("b-back").addEventListener("click",()=>$("briefing").classList.remove("show"));   // back out to setup
+
+/* ============================================================
+   COACHING LAYER (item 3) — a reusable teaching harness shared by the Training-dungeon
+   affordance arrows (3a, already wired into updateSpells/updateTacticsUI) and the gradual
+   GUIDED INTRO match (3b). Four primitives: PAUSE (state.paused, honored by tick) · SECTION
+   GATES (dim+disable a UI region until its stage) · SPOTLIGHT (scrim + ringed target) ·
+   POPOVER (the freeze-and-explain card). The guided script below is DATA over the primitives.
+   ============================================================ */
+const COACH={ active:false, steps:null, idx:0, await:null };
+
+// SECTION GATES — named UI regions the guided match reveals one stage at a time (3b).
+const COACH_SECTIONS={ tactics:".tacticscol", abilities:".spellpanel", traps:"#trapbar" };
+function setSectionEnabled(name, on){
+  const sel=COACH_SECTIONS[name]; if(!sel) return;
+  document.querySelectorAll(sel).forEach(el=>el.classList.toggle("coach-locked", !on));
+}
+function lockAllSections(){ for(const n in COACH_SECTIONS) setSectionEnabled(n,false); }
+function unlockAllSections(){ for(const n in COACH_SECTIONS) setSectionEnabled(n,true); }
+
+// SPOTLIGHT — ring the named target(s); `dim` also drops a click-blocking scrim (used on
+// freeze/explain steps so the player can't act until they read it). `dim=false` rings without
+// the scrim so the board (and the revealed section) stay fully interactive on "do" steps.
+function coachSpotlight(sel, dim){
+  const scrim=$("coachscrim"); if(!scrim) return;
+  document.querySelectorAll(".coach-spot").forEach(e=>e.classList.remove("coach-spot"));
+  const els = sel ? [...document.querySelectorAll(sel)] : [];
+  els.forEach(e=>e.classList.add("coach-spot"));
+  scrim.classList.toggle("show", dim && els.length>0);
+}
+
+// build the scrim + popover once, lazily (keeps them out of the static markup)
+function buildCoachUI(){
+  if($("coachscrim")) return;
+  const scrim=document.createElement("div"); scrim.id="coachscrim"; document.body.appendChild(scrim);
+  const pop=document.createElement("div"); pop.id="coachpop";
+  pop.innerHTML=`<div class="cphd"><span class="cpicon" id="cp-icon">🎓</span><span class="cptitle" id="cp-title"></span></div>`
+    +`<div class="cpbody" id="cp-body"></div><div class="cphint" id="cp-hint"></div>`
+    +`<div class="cpfoot"><span class="cpstep" id="cp-step"></span>`
+    +`<span class="cpbtns"><button id="cp-skip">Skip intro</button><button class="primary" id="cp-next">Next ▸</button></span></div>`;
+  document.body.appendChild(pop);
+  $("cp-next").addEventListener("click",()=>{ if(!COACH.await) coachAdvance(); });   // parked while a step awaits an action
+  $("cp-skip").addEventListener("click",coachFinish);
+}
+
+// the GUIDED INTRO script (3b): a gradual reveal, ONE play-element per stage. Pure data over
+// the primitives — `hold` freezes + explains (Next to go on); `await` un-freezes and waits for
+// the player to actually DO the thing; `reveal` un-dims that stage's section.
+const GUIDED_STEPS=[
+  { icon:"🃏", title:"Read the board", spot:"#board", hold:true,
+    body:`Every card shows three traits — a <b>colour</b>, a <b>shape</b>, and a <b>number</b> (1–3). The clock is frozen; take your time looking them over.` },
+  { icon:"✨", title:"Make your first set", spot:"#board", await:"match",
+    hint:"▸ Pick a card, watch the teal halos, then complete a set.",
+    body:`A <b>set</b> is three cards where each trait is <b>all the same</b> or <b>all different</b> across the three. Pick any card — the teal halos light up its set-mates. Complete a set now.` },
+  { icon:"⚠️", title:"Watch for traps", spot:null, reveal:["traps"], hold:true,
+    body:`Tougher foes carry <b>traps</b> — rules that punish (or reward!) certain matches, always shown in the <b>trap strip</b> above the board. This dummy has none, but in the <b>Training · Gauntlet</b> you'll meet foes whose lines you must read, dodge, or deliberately spring.` },
+  { icon:"🎯", title:"Spend Tactics", spot:".tacticscol", reveal:["tactics"], await:"tactic",
+    hint:"▸ Match Moves to fill the meter; when the yellow arrow appears, press a tactic.",
+    body:`Matching <b>Move</b> cards fills your <b>Tactics</b> meter. Full, it <b>arms</b> — a glowing arrow marks it — and you can spend it to reshape the whole board. Fill it and spend one.` },
+  { icon:"🔥", title:"Cast an ability", spot:".spellpanel", reveal:["abilities"], await:"ability",
+    hint:"▸ Build mana from matches; when an ability lights up with an arrow, click it.",
+    body:`Matches also generate <b>mana</b>. When you can afford an ability it lights up (with a beckoning arrow, here in Training). Build mana and cast one.` },
+  { icon:"🎓", title:"You're ready", spot:null, hold:true, finishLabel:"Begin! ▸",
+    body:`That's the whole loop: <b>find sets</b>, dodge traps, bank <b>Tactics</b>, spend <b>mana</b>. The clock resumes when you close this — good luck.` },
+];
+
+function coachStartGuided(){
+  buildCoachUI();
+  COACH.active=true; COACH.steps=GUIDED_STEPS; COACH.idx=0; COACH.await=null;
+  lockAllSections();                                       // everything but the board starts dark
+  coachShowStep(0);
+}
+function coachShowStep(i){
+  const s=COACH.steps[i]; if(!s){ coachFinish(); return; }
+  COACH.idx=i; COACH.await=s.await||null;
+  (s.reveal||[]).forEach(n=>setSectionEnabled(n,true));    // un-dim this stage's section(s)
+  state.paused = !!s.hold;                                  // hold = freeze; await = let them play
+  coachSpotlight(s.spot||null, !!s.hold);
+  $("cp-icon").textContent=s.icon||"🎓";
+  $("cp-title").textContent=s.title||"";
+  $("cp-body").innerHTML=s.body||"";
+  $("cp-hint").innerHTML=s.hint||"";
+  $("cp-step").textContent=`Step ${i+1} / ${COACH.steps.length}`;
+  const next=$("cp-next"), pop=$("coachpop"), last=i===COACH.steps.length-1;
+  next.textContent = s.finishLabel || (last?"Finish":"Next ▸");
+  pop.classList.toggle("awaiting", !!COACH.await);
+  next.classList.toggle("await", !!COACH.await);           // visually parked until the action lands
+  pop.classList.add("show");
+}
+function coachAdvance(){
+  if(COACH.idx>=COACH.steps.length-1){ coachFinish(); return; }
+  coachShowStep(COACH.idx+1);
+}
+// engine event points call this; if the current step awaits this event, satisfy it + advance
+function coachNotify(event){
+  if(!COACH.active || COACH.await!==event) return;
+  COACH.await=null;
+  const pop=$("coachpop"); if(pop) pop.classList.remove("awaiting");
+  $("cp-next").classList.remove("await");
+  setTimeout(coachAdvance, 700);                            // a beat so the player sees their action land
+}
+function coachFinish(){
+  COACH.active=false; COACH.await=null;
+  state.paused=false;
+  coachSpotlight(null,false);
+  unlockAllSections();
+  const pop=$("coachpop"); if(pop) pop.classList.remove("show");
+}
 
 // init
 syncUI(true);
