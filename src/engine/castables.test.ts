@@ -93,8 +93,8 @@ test('an armed tactic transmutes the board and resets the meter', () => {
   s.tactics = TACTICS_GOAL
   s.tacticsArmed = true
   s.board = s.board.map((_, i) => card(i % 3, i % 3 === 0 ? SHAPE_ATTACK : 1, i % 3)) // mix of Attacks + Defends
-  const r = reduce(s, { type: 'useTactic', key: 'strike' }, deps())
-  expect(r.events.some((e) => e.type === 'tacticUsed' && e.key === 'strike')).toBe(true)
+  const r = reduce(s, { type: 'useTactic', key: 'attack' }, deps())
+  expect(r.events.some((e) => e.type === 'tacticUsed' && e.key === 'attack')).toBe(true)
   expect(r.events.some((e) => e.type === 'cardsTransmuted')).toBe(true)
   expect(r.events.some((e) => e.type === 'tacticsReset')).toBe(true)
   expect(r.state.tactics).toBe(0)
@@ -103,17 +103,19 @@ test('an armed tactic transmutes the board and resets the meter', () => {
 
 test('a tactic is a no-op unless the meter is armed', () => {
   const s = combat('training_dummy') // tactics 0, not armed
-  const r = reduce(s, { type: 'useTactic', key: 'strike' }, deps())
+  const r = reduce(s, { type: 'useTactic', key: 'attack' }, deps())
   expect(r.events).toHaveLength(0)
 })
 
-test('Flee ends the encounter with result "flee"', () => {
+test('the Move tactic floods the board toward Move', () => {
   const s = combat('training_dummy')
+  s.tactics = TACTICS_GOAL
   s.tacticsArmed = true
-  const r = reduce(s, { type: 'useTactic', key: 'flee' }, deps())
-  expect(r.events.some((e) => e.type === 'fled')).toBe(true)
-  expect(r.state.running).toBe(false)
-  expect(r.state.result).toBe('flee')
+  s.board = s.board.map((_, i) => card(i % 3, SHAPE_ATTACK, i % 3)) // all Attacks → all get transmuted toward Move
+  const r = reduce(s, { type: 'useTactic', key: 'move' }, deps())
+  expect(r.events.some((e) => e.type === 'tacticUsed' && e.key === 'move')).toBe(true)
+  expect(r.events.some((e) => e.type === 'cardsTransmuted')).toBe(true)
+  expect(r.state.tacticsArmed).toBe(false)
 })
 
 // ---- determinism with casts in the mix ----

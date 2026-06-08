@@ -8,8 +8,10 @@ import { TACTICS_GOAL, clockCapMs } from './state'
 import type { EventSink } from './events'
 import { weightedRoll } from './resolve'
 
-/** Add to the persistent block barrier (capped at max HP). Overflow past the cap is wasted — unless
- *  the Overflow passive (Sentinel) is active, which spills the excess into a weighted attack. */
+/** Add to the persistent block barrier (capped at max HP). Block past the cap gets a slight Defend bonus:
+ *  a low-weighted triangular slice of the overflow rolls over into block ABOVE the cap (can be 0). This
+ *  stacks with the Overflow passive (Sentinel), which independently spills the FULL overflow into a
+ *  weighted attack — a Sentinel gets both the attack and the rollover. */
 export function gainBlock(s: CombatState, n: number, rng: Rng, sink: EventSink): number {
   if (n <= 0) return 0
   const room = Math.max(0, s.playerMax - s.block)
@@ -20,12 +22,18 @@ export function gainBlock(s: CombatState, n: number, rng: Rng, sink: EventSink):
   }
   const overflow = n - applied
   if (overflow > 0) {
+    // low-weighted triangular rollover (favours 0; range 0..overflow) — salvage a little wasted block
+    const rollover = overflow + 1 - weightedRoll(overflow + 1, rng)
+    if (rollover > 0) {
+      s.block += rollover // intentionally above the cap — the slight Defend overflow bonus
+      sink.emit({ type: 'blockGained', amount: rollover })
+    }
     if (s.passives.includes('overflow')) {
-      const dmg = weightedRoll(overflow, rng)
+      const dmg = weightedRoll(overflow, rng) // Sentinel: the full overflow ALSO becomes a weighted attack
       const dealt = dealAbilityDamage(s, dmg, sink)
       if (dealt > 0) sink.emit({ type: 'passiveProc', id: 'overflow', label: `⚔ +${dealt}` })
-    } else {
-      sink.emit({ type: 'blockOverflow', amount: overflow })
+    } else if (rollover < overflow) {
+      sink.emit({ type: 'blockOverflow', amount: overflow - rollover }) // the unsalvaged remainder is wasted
     }
   }
   return applied

@@ -116,7 +116,7 @@ window.GAMEDATA = {
   },
 
   // --- SPEED bands → attack cadence in seconds (TRAPS.md §7.2; lower = more dangerous) ---
-  speed: { lumbering:19, slow:15, steady:11, swift:7, frenzied:4 },
+  speed: { lumbering:20, slow:15, steady:12, swift:10, frenzied:8 },
 
   // --- CREATURES: stat baseline + a variant pool (minion/elite) OR authored traps (boss).
   //     A fielded foe = creature ⊕ rolled variant ⊕ dungeon template (TRAPS.md §7.1). ---

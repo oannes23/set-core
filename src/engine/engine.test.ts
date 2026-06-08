@@ -74,7 +74,7 @@ test('selectSlots: geometry ∩ value, and lock/transmute board verbs', () => {
 test('assembleFoe resolves stats, triggers, rules', () => {
   const z = foe('limbless_zombie')
   expect(z.hp).toBe(30)
-  expect(z.cadence).toBe(19) // lumbering
+  expect(z.cadence).toBe(20) // lumbering
   expect(z.damage).toBe(3)
   expect(z.triggers.map((t) => t.name)).toContain('Limbless')
   const g = foe('unstable_ethereal_goblin')
@@ -96,8 +96,8 @@ test('completeSet damages the foe / banks mana; tick fires the enemy attack', ()
   expect(r.events.some((e) => e.type === 'setResolved')).toBe(true)
   expect(r.events.some((e) => e.type === 'manaGained')).toBe(true)
   expect(r.state.board.filter(Boolean).length).toBe(15) // refilled
-  // advance the clock past the goblin's cadence (swift = 7s) → it attacks
-  const t = reduce(r.state, { type: 'tick', dtMs: 8000 }, { data: GAMEDATA, rng })
+  // advance past the goblin's cadence (swift = 10s) + the 3s start grace → it attacks
+  const t = reduce(r.state, { type: 'tick', dtMs: 14000 }, { data: GAMEDATA, rng })
   expect(t.events.some((e) => e.type === 'playerDamaged' || e.type === 'playerBlocked')).toBe(true)
 })
 
@@ -105,7 +105,7 @@ test('the training dummy (0 damage) cannot hurt the player', () => {
   const rng = mulberry32(5)
   const f = foe('training_dummy', rng)
   const s = createCombat({ foe: f, gen: GEN, dungeonId: 'tutorial' }, rng)
-  const t = reduce(s, { type: 'tick', dtMs: 31000 }, { data: GAMEDATA, rng })
+  const t = reduce(s, { type: 'tick', dtMs: 34000 }, { data: GAMEDATA, rng }) // cadence 30s + 3s grace
   expect(t.state.playerHP).toBe(t.state.playerMax)
   expect(t.events.some((e) => e.type === 'playerBlocked')).toBe(true) // harmless swing
 })

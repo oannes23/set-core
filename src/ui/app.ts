@@ -263,8 +263,8 @@ function buildPlay(): void {
 /** The live castable panel: the class loadout (mana-gated click-to-cast), the Tactics buttons (live at
  *  full meter), and the always-on passive chips — all dispatching castAbility / useTactic to the engine. */
 const MANA_ICON = ['🔥', '🌿', '❄']
-const TAC_BTNS: { k: string; label: string; flee?: boolean }[] = [
-  { k: 'strike', label: '⚔ Strike' }, { k: 'dodge', label: '🛡 Dodge' }, { k: 'flee', label: '🏃 Flee', flee: true },
+const TAC_BTNS: { k: string; label: string }[] = [
+  { k: 'attack', label: '⚔ Attack' }, { k: 'defend', label: '🛡 Defend' }, { k: 'move', label: '➤ Move' },
   { k: 'heat', label: '🔥 Heat' }, { k: 'chill', label: '❄ Chill' }, { k: 'wild', label: '🌿 Wild' },
 ]
 function buildCastPanel(): HTMLElement {
@@ -275,7 +275,7 @@ function buildCastPanel(): HTMLElement {
   tacSec.appendChild($(`<div class="panelhd"><label>Tactics</label><span class="stub-note" id="tacv">0/${TACTICS_GOAL}</span></div>`))
   tacSec.appendChild($(`<div class="track tacmeter"><span class="fill tac" id="tac"></span></div>`))
   const row = $(`<div class="tactics-row" id="tactics"></div>`)
-  for (const t of TAC_BTNS) row.appendChild($(`<div class="tac-btn${t.flee ? ' flee' : ''}" data-tac="${t.k}">${t.label}</div>`))
+  for (const t of TAC_BTNS) row.appendChild($(`<div class="tac-btn" data-tac="${t.k}">${t.label}</div>`))
   tacSec.appendChild(row)
   panel.appendChild(tacSec)
   // ABILITIES section (mana display built into the header) + grid + passive chips
@@ -504,7 +504,6 @@ function onTacticClick(e: Event): void {
   const el = (e.target as HTMLElement).closest('.tac-btn') as HTMLElement | null
   const key = el?.dataset.tac
   if (!key) return
-  if (key === 'flee' && !confirm('Flee combat?\n\nYou forfeit this encounter.')) return
   dispatch({ type: 'useTactic', key })
 }
 
@@ -618,7 +617,7 @@ function verbsFromEvents(events: CombatEvent[]): Map<number, CardVerb> {
 /** Full-screen feedback priority — a wound out-shouts a trap spring (TRAPS layering scheme). */
 const FLASH_PRI: Record<string, number> = { wound: 3, trap: 2, trick: 2 }
 /** Per-tactic flavour tail for the combat log (the board-reshape it triggers). */
-const TAC_TAIL: Record<string, string> = { strike: 'the board snaps to Attacks', dodge: 'the board hardens to Defends', heat: 'everything kindles to Fire', chill: 'everything glazes to Frost', wild: 'everything greens to Nature' }
+const TAC_TAIL: Record<string, string> = { attack: 'the board snaps to Attacks', defend: 'the board hardens to Defends', move: 'the board flows into Moves', heat: 'everything kindles to Fire', chill: 'everything glazes to Frost', wild: 'everything greens to Nature' }
 function interpret(events: CombatEvent[]): void {
   if (!V) return
   const MANA = ['Fire', 'Nature', 'Frost']
@@ -668,13 +667,12 @@ function interpret(events: CombatEvent[]): void {
       case 'passiveProc':
         pulsePassive(e.id)
         break
-      case 'tacticUsed':
-        if (e.key !== 'flee') {
-          const tail = TAC_TAIL[e.key]
-          log(`Tactic — <b>${e.key[0].toUpperCase()}${e.key.slice(1)}</b>!${tail ? ` ${tail}.` : ''}`, 'you')
-          coachNotify('tactic') // guided intro: "spend Tactics" step
-        }
+      case 'tacticUsed': {
+        const tail = TAC_TAIL[e.key]
+        log(`Tactic — <b>${e.key[0].toUpperCase()}${e.key.slice(1)}</b>!${tail ? ` ${tail}.` : ''}`, 'you')
+        coachNotify('tactic') // guided intro: "spend Tactics" step
         break
+      }
       case 'fled':
         endScreen('flee')
         break
@@ -985,7 +983,8 @@ function endScreen(result: 'win' | 'lose' | 'flee'): void {
 
 /* ---- pre-combat briefing ---- */
 function cadenceBand(sec: number): string {
-  return sec >= 40 ? 'Glacial' : sec >= 22 ? 'Torpid' : sec >= 16 ? 'Lumbering' : sec >= 11 ? 'Slow' : sec >= 8 ? 'Steady' : sec >= 5 ? 'Swift' : 'Frenzied'
+  // recalibrated: ~12s = average (Steady), ~10s = quick (Swift), ~8s = very fast (Frenzied)
+  return sec >= 40 ? 'Glacial' : sec >= 24 ? 'Torpid' : sec >= 18 ? 'Lumbering' : sec >= 14 ? 'Slow' : sec >= 11 ? 'Steady' : sec >= 9 ? 'Swift' : 'Frenzied'
 }
 function showBriefing(onEngage: () => void): void {
   if (!V) return

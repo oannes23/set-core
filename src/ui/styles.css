@@ -104,7 +104,7 @@ button.cta.bob { animation: ctabob 1.6s ease-in-out infinite; }
 .card.sel { box-shadow: var(--moat), 0 0 0 6px var(--phos), 0 0 22px -3px var(--phos); transform: translateY(-3px); }
 /* set-mate hints (2nd possibilities — often MANY at once) are an INNER gold FRAME: it stays inside the card,
    so adjacent lit cards never bleed across the 8px gap. Gold ≠ card colours, so it reads on red/green/blue. */
-.card.mate { box-shadow: inset 0 0 0 3px rgba(245,197,66,.8); }
+.card.mate { box-shadow: inset 0 0 0 3px rgba(245,197,66,.58); }
 .board.teachmates .card.mate { box-shadow: inset 0 0 0 3px var(--gold), inset 0 0 11px -2px var(--gold); } /* tutorial: fuller */
 /* the completer (3rd finisher) is a single card, so it gets an OUTER breathing ring (with moat) to POP out */
 .card.complete { animation: completebreath 1.1s ease-in-out infinite; }

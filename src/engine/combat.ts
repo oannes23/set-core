@@ -9,7 +9,7 @@ import { findSets } from '../core/sets'
 import { type GenConfig, genInitial } from '../core/generate'
 import type { Rng } from '../core/rng'
 import type { GameData } from '../data/schema'
-import { type CombatState, type FoeRuntime, type Pending, TACTICS_DRAIN, clockCapMs } from './state'
+import { type CombatState, type FoeRuntime, type Pending, TACTICS_DRAIN, START_GRACE_MS, clockCapMs } from './state'
 import { type CombatEvent, EventSink } from './events'
 import { type Resolution, resolveSet, weightedRoll } from './resolve'
 import { fireTriggers, runTrigger, enemyAttack, reformSlots, EMPTY_DESC } from './triggers'
@@ -67,7 +67,7 @@ export function createCombat(opts: NewCombatOpts, rng: Rng): CombatState {
     passives: opts.passives ? opts.passives.slice() : [],
     foe: opts.foe,
     now: 0,
-    nextAttackAt: opts.foe.cadence * 1000,
+    nextAttackAt: opts.foe.cadence * 1000 + START_GRACE_MS, // +grace: a beat to read the board before the first strike
     tickAccum: {},
     sequence: opts.sequence ?? null,
     seqIdx: opts.seqIdx ?? 0,
@@ -128,7 +128,7 @@ function onWin(s: CombatState, deps: Deps, sink: EventSink): void {
       s.tickAccum = {}
       s.board = genInitial(s.gen, deps.rng)
       s.now = 0
-      s.nextAttackAt = foe.cadence * 1000
+      s.nextAttackAt = foe.cadence * 1000 + START_GRACE_MS // +grace on each gauntlet foe too
       sink.emit({ type: 'foeChanged', name: foe.name, rules: foe.rules })
       return
     }

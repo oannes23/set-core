@@ -16,7 +16,7 @@ over `core/` (generation) and `data/` (content). The UI dispatches actions and r
 - `passives.ts` — the 9 always-on passives + `firePassives` (fire on `match` / `ability`).
 - `abilities.ts` — the 17-ability roster (pure DOM-free casts) + `castAbility` (afford → spend → cast →
   ability-passives).
-- `tactics.ts` — the 6 Tactics buttons (strike/dodge/heat/chill/wild/flee) + `useTactic`.
+- `tactics.ts` — the 6 Tactics buttons (attack/defend/move/heat/chill/wild) + `useTactic`.
 - `combat.ts` — the reducer: `createCombat`, `completeSet`, `tick`, `castAbility`/`useTactic` actions,
   gauntlet advance, `cloneState`.
 
