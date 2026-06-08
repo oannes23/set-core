@@ -425,9 +425,12 @@ function updateCastables(): void {
     // teach the Move → Tactics loop, but only once the Tactics section is in play (revealed)
     const tacSec = document.querySelector('[data-sec="tactics"]')
     const tacLive = s.running && !!tacSec && !tacSec.classList.contains('coach-locked')
-    // armed → hard-beckon the tactic buttons; not yet → lightly mark Move cards to fill the meter
+    const building = tacLive && !s.tacticsArmed
+    // building → STRONG cue on the Move cards (match these) + a LIGHT pulse on the filling meter;
+    // armed → drop the card cue and HARD-beckon the tactic buttons.
+    updateMoveHints(building)
+    tacSec?.querySelector('.tacmeter')?.classList.toggle('meterhint', building)
     setCoachArrow(V.refs.tactics, tacLive && s.tacticsArmed)
-    updateMoveHints(tacLive && !s.tacticsArmed)
   }
 }
 
@@ -789,7 +792,7 @@ const GUIDED_STEPS: GuidedStep[] = [
     body: 'A <b>set</b> is three cards where each trait is <b>all the same</b> or <b>all different</b> across the three. Pick any card — the teal halos light up its set-mates. Complete a set now.' },
   { icon: '⚠️', title: 'Watch for traps', spot: '#strip', reveal: ['traps'], hold: true,
     body: "Tougher foes carry <b>traps</b> — rules that punish (or reward!) certain matches, shown in the <b>trap strip</b> above the board. This dummy has none, but the <b>Training · Gauntlet</b> has foes whose lines you must read, dodge, or deliberately spring." },
-  { icon: '🎯', title: 'Spend Tactics', spot: '[data-sec="tactics"]', reveal: ['tactics'], await: 'tactic',
+  { icon: '🎯', title: 'Spend Tactics', reveal: ['tactics'], await: 'tactic',
     hint: '▸ Match Moves (➤) to fill the meter; when the arrow appears, press a tactic.',
     body: 'Matching <b>Move</b> cards fills your <b>Tactics</b> meter. Full, it <b>arms</b> — a glowing arrow marks it — and you can spend it to reshape the whole board. Fill it and spend one.' },
   { icon: '🔥', title: 'Cast an ability', spot: '[data-sec="abilities"]', reveal: ['abilities'], await: 'ability',

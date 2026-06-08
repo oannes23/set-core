@@ -176,10 +176,12 @@ button.cta:hover { background: var(--phos); color: #062b27; }
 .burst.trick .bun { color: var(--trick); } .burst.wound .bun { color: var(--red); }
 .burst .bue { font-size: 11px; color: var(--ink-dim); margin-top: 2px; }
 
-/* ---- coach: gently dim the board (intro step) + lightly ring Move cards (the Tactics cue) ---- */
+/* ---- coach: dim the board (intro step); ring Move cards STRONG + the meter LIGHT while building ---- */
 .boardwrap.coach-dim { opacity: .45; filter: grayscale(.4); pointer-events: none; transition: opacity .35s ease, filter .35s ease; }
-.card.movehint { animation: movehint 1.6s ease-in-out infinite; }
-@keyframes movehint { 0%, 100% { box-shadow: 0 0 0 2px rgba(245, 197, 66, .28); } 50% { box-shadow: 0 0 0 2px rgba(245, 197, 66, .55), 0 0 14px -8px var(--gold); } }
+.card.movehint { position: relative; z-index: 1; animation: movehint 1.05s ease-in-out infinite; }
+@keyframes movehint { 0%, 100% { box-shadow: 0 0 0 3px var(--gold), 0 0 18px -5px var(--gold); } 50% { box-shadow: 0 0 0 3px var(--gold), 0 0 34px -1px var(--gold); } }
+.tacmeter.meterhint { animation: meterhint 1.6s ease-in-out infinite; }
+@keyframes meterhint { 0%, 100% { box-shadow: 0 0 0 1px rgba(245, 197, 66, .3); } 50% { box-shadow: 0 0 0 1px rgba(245, 197, 66, .55), 0 0 12px -6px var(--gold); } }
 
 /* ---- spell target previews (hover an ability) ---- */
 .card.tgtsure { box-shadow: 0 0 0 3px var(--red), 0 0 18px -4px var(--red); }
