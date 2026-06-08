@@ -77,6 +77,8 @@ interface View {
   classId: string
   loadout: string[] // the chosen class's ability ids (the active grid)
   coach: boolean // affordance arrows on (Training / Tutorial dungeons)
+  coachCue: 'moves' | 'mana' | null // the guided stage's card cue (Move glow / mana-colour glow)
+  manaColor: number // the colour the loadout needs most (dominant total cost) — glowed in the mana stage
   paused: boolean // coaching/briefing freeze gate — the clock loop stops dispatching ticks
   hitstopUntil: number // performance.now() until which ticks are frozen (impact freeze)
   preview: number[] | null // board slots currently ringed by an ability hover
@@ -176,7 +178,7 @@ function begin(root: HTMLElement, dungeonId: string, foeVal: string, classId: st
   if (!foe) return
   const cls = classById(classId)
   const state = createCombat({ foe, gen: GEN, passives: cls.passives, sequence, seqIdx: 0, dungeonId }, rng)
-  V = { root, deps: { data: GAMEDATA, rng }, state, actions: [], classId: cls.id, loadout: cls.abilities.slice(), coach: !!dg.coach, paused: true, hitstopUntil: 0, preview: null, selected: [], raf: 0, lastT: 0, boardSig: '', refs: {} }
+  V = { root, deps: { data: GAMEDATA, rng }, state, actions: [], classId: cls.id, loadout: cls.abilities.slice(), coach: !!dg.coach, coachCue: null, manaColor: dominantManaColor(cls.abilities), paused: true, hitstopUntil: 0, preview: null, selected: [], raf: 0, lastT: 0, boardSig: '', refs: {} }
   buildPlay()
   renderBoard()
   updateBar()
@@ -422,30 +424,56 @@ function updateCastables(): void {
     el.classList.toggle('armed', s.running && s.tacticsArmed)
   })
   if (V.coach) {
-    // teach the Move → Tactics loop, but only once the Tactics section is in play (revealed)
-    const tacSec = document.querySelector('[data-sec="tactics"]')
-    const tacLive = s.running && !!tacSec && !tacSec.classList.contains('coach-locked')
-    const building = tacLive && !s.tacticsArmed
-    // building → STRONG cue on the Move cards (match these) + a LIGHT pulse on the filling meter;
-    // armed → drop the card cue and HARD-beckon the tactic buttons.
-    updateMoveHints(building)
-    tacSec?.querySelector('.tacmeter')?.classList.toggle('meterhint', building)
-    setCoachArrow(V.refs.tactics, tacLive && s.tacticsArmed)
+    // general affordance: HARD-beckon the tactic buttons the moment the meter arms
+    setCoachArrow(V.refs.tactics, s.running && s.tacticsArmed)
+    // staged tutorial cues — teach how to GET there, scoped to the current guided stage:
+    const cue = V.coachCue
+    // Tactics stage: STRONG glow on Move cards + LIGHT pulse on the filling meter (until armed).
+    const moveGlow = cue === 'moves' && !s.tacticsArmed
+    updateMoveHints(moveGlow)
+    document.querySelector('[data-sec="tactics"] .tacmeter')?.classList.toggle('meterhint', moveGlow)
+    // Abilities stage: while nothing's affordable, glow the colour the loadout needs most; once an
+    // ability lights up, drop the card glow (its own ready-arrow takes over the focus).
+    const anyAfford = V.loadout.some((id) => { const a = ABILITIES[id]; return !!a && canAfford(s, a.cost) })
+    updateColorHints(cue === 'mana' && !anyAfford ? V.manaColor : null)
   }
 }
 
-/** Coach cue: lightly ring the live Move cards (matching them fills the Tactics meter). */
-function updateMoveHints(on: boolean): void {
+/** The colour the loadout needs most: sum each ability's [r,g,b] cost across the loadout, take the max. */
+function dominantManaColor(loadout: string[]): number {
+  const tot = [0, 0, 0]
+  for (const id of loadout) { const a = ABILITIES[id]; if (a) for (let i = 0; i < 3; i++) tot[i] += a.cost[i] }
+  return tot[0] >= tot[1] && tot[0] >= tot[2] ? 0 : tot[1] >= tot[2] ? 1 : 2
+}
+
+/** Coach cue: STRONG-glow only cards that can actually COMPLETE a matching set right now — i.e. each
+ *  glowed card belongs to a reachable valid set whose three cards all match the trait (all-Move, or
+ *  all-of-a-colour). No completable set → no glow (never lead the player to a dead end). Once a card is
+ *  selected, the cue narrows further to just the selection's set-mates. */
+function paintCardCue(cls: 'movehint' | 'colorhint', match: (c: Card) => boolean, on: boolean): void {
   if (!V) return
+  const s = V.state
   const want = new Set<number>()
-  if (on)
-    V.state.board.forEach((c, i) => {
-      if (c && c[1] === SHAPE_MOVE && !V!.state.locked.has(i) && !V!.state.pending.has(i) && !V!.selected.includes(i)) want.add(i)
-    })
+  if (on) {
+    const sets = findSets(s.board)
+    const reachable = (x: number) => s.board[x] != null && !s.locked.has(x) && !s.pending.has(x)
+    for (const t of sets) {
+      if (t.every((x) => reachable(x) && match(s.board[x] as Card))) for (const x of t) want.add(x)
+    }
+    for (const x of V.selected) want.delete(x) // the picked card wears the selection ring, not the cue
+    if (V.selected.length > 0) {
+      const g = glowSet(s, V.selected, sets)
+      const mates = new Set(g.set)
+      if (g.complete >= 0) mates.add(g.complete)
+      for (const i of [...want]) if (!mates.has(i)) want.delete(i)
+    }
+  }
   V.refs.board?.querySelectorAll<HTMLElement>('.card').forEach((el) => {
-    el.classList.toggle('movehint', el.dataset.i != null && want.has(+el.dataset.i))
+    el.classList.toggle(cls, el.dataset.i != null && want.has(+el.dataset.i))
   })
 }
+const updateMoveHints = (on: boolean) => paintCardCue('movehint', (c) => c[1] === SHAPE_MOVE, on)
+const updateColorHints = (color: number | null) => paintCardCue('colorhint', (c) => c[0] === color, color != null)
 
 /** A single beckoning arrow above an element (added on the transition into "usable", removed when not). */
 function setCoachArrow(el: HTMLElement | undefined, on: boolean): void {
@@ -745,6 +773,7 @@ interface GuidedStep {
   spot?: string | null // selector to ring (and, with `hold`, dim the rest)
   hold?: boolean // freeze + explain (Next to continue)
   dimBoard?: boolean // gently dim the board (the intro step, before it lights up to be played)
+  cue?: 'moves' | 'mana' // which board card-glow cue this stage teaches
   await?: 'match' | 'ability' | 'tactic' // un-freeze and wait for the player to DO it
   reveal?: string[] // section names to un-dim at this stage
   hint?: string
@@ -792,12 +821,12 @@ const GUIDED_STEPS: GuidedStep[] = [
     body: 'A <b>set</b> is three cards where each trait is <b>all the same</b> or <b>all different</b> across the three. Pick any card — the teal halos light up its set-mates. Complete a set now.' },
   { icon: '⚠️', title: 'Watch for traps', spot: '#strip', reveal: ['traps'], hold: true,
     body: "Tougher foes carry <b>traps</b> — rules that punish (or reward!) certain matches, shown in the <b>trap strip</b> above the board. This dummy has none, but the <b>Training · Gauntlet</b> has foes whose lines you must read, dodge, or deliberately spring." },
-  { icon: '🎯', title: 'Spend Tactics', reveal: ['tactics'], await: 'tactic',
+  { icon: '🎯', title: 'Spend Tactics', reveal: ['tactics'], await: 'tactic', cue: 'moves',
     hint: '▸ Match Moves (➤) to fill the meter; when the arrow appears, press a tactic.',
     body: 'Matching <b>Move</b> cards fills your <b>Tactics</b> meter. Full, it <b>arms</b> — a glowing arrow marks it — and you can spend it to reshape the whole board. Fill it and spend one.' },
-  { icon: '🔥', title: 'Cast an ability', spot: '[data-sec="abilities"]', reveal: ['abilities'], await: 'ability',
-    hint: '▸ Build mana from matches; when an ability lights up with an arrow, click it.',
-    body: 'Matches also generate <b>mana</b> by colour. When you can afford an ability it lights up (with a beckoning arrow, here in Training). Build mana and cast one.' },
+  { icon: '🔥', title: 'Cast an ability', reveal: ['abilities'], await: 'ability', cue: 'mana',
+    hint: '▸ Match the glowing colour to build mana; when an ability lights up, click it.',
+    body: 'Matches also generate <b>mana</b> by colour. Match the <b>glowing colour</b> to build what your spells need — when you can afford an ability it lights up with an arrow. Build mana and cast one.' },
   { icon: '🎓', title: "You're ready", spot: null, hold: true, finishLabel: 'Begin! ▸',
     body: "That's the whole loop: <b>find sets</b>, dodge traps, bank <b>Tactics</b>, spend <b>mana</b>. The clock resumes when you close this — good luck." },
 ]
@@ -817,7 +846,7 @@ function coachShowStep(i: number): void {
   COACH.idx = i
   COACH.await = s.await ?? null
   ;(s.reveal ?? []).forEach((n) => setSectionEnabled(n, true))
-  if (V) V.paused = !!s.hold // hold = freeze; await = let them play
+  if (V) { V.paused = !!s.hold; V.coachCue = s.cue ?? null } // hold = freeze; await = let them play
   document.getElementById('boardwrap')?.classList.toggle('coach-dim', !!s.dimBoard)
   coachSpotlight(s.spot ?? null, !!s.hold)
   const set = (id: string, html: string) => { const el = document.getElementById(id); if (el) el.innerHTML = html }
@@ -836,19 +865,19 @@ function coachAdvance(): void {
   if (COACH.idx >= COACH.steps.length - 1) { coachFinish(); return }
   coachShowStep(COACH.idx + 1)
 }
-/** Engine event points call this; if the current step awaits this event, satisfy it + advance. */
+/** Engine event points call this; if the current step awaits this event, mark it satisfied and
+ *  un-dim Next (the player clicks to advance — we never auto-advance). */
 function coachNotify(event: 'match' | 'ability' | 'tactic'): void {
   if (!COACH.active || COACH.await !== event) return
-  COACH.await = null
+  COACH.await = null // cp-next now advances on click
   document.getElementById('coachpop')?.classList.remove('awaiting')
   document.getElementById('cp-next')?.classList.remove('await')
-  setTimeout(coachAdvance, 700) // a beat so the player sees their action land
 }
 function coachFinish(): void {
   if (!COACH.active && !document.getElementById('coachpop')) return
   COACH.active = false
   COACH.await = null
-  if (V) V.paused = false
+  if (V) { V.paused = false; V.coachCue = null }
   coachSpotlight(null, false)
   document.getElementById('boardwrap')?.classList.remove('coach-dim')
   unlockAllSections()

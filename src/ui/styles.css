@@ -182,6 +182,8 @@ button.cta:hover { background: var(--phos); color: #062b27; }
 @keyframes movehint { 0%, 100% { box-shadow: 0 0 0 3px var(--gold), 0 0 18px -5px var(--gold); } 50% { box-shadow: 0 0 0 3px var(--gold), 0 0 34px -1px var(--gold); } }
 .tacmeter.meterhint { animation: meterhint 1.6s ease-in-out infinite; }
 @keyframes meterhint { 0%, 100% { box-shadow: 0 0 0 1px rgba(245, 197, 66, .3); } 50% { box-shadow: 0 0 0 1px rgba(245, 197, 66, .55), 0 0 12px -6px var(--gold); } }
+.card.colorhint { position: relative; z-index: 1; animation: colorhint 1.05s ease-in-out infinite; }
+@keyframes colorhint { 0%, 100% { box-shadow: 0 0 0 3px var(--cc), 0 0 18px -5px var(--cc); } 50% { box-shadow: 0 0 0 3px var(--cc), 0 0 34px -1px var(--cc); } }
 
 /* ---- spell target previews (hover an ability) ---- */
 .card.tgtsure { box-shadow: 0 0 0 3px var(--red), 0 0 18px -4px var(--red); }
