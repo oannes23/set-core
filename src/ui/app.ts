@@ -807,6 +807,7 @@ interface GuidedStep {
   hold?: boolean // freeze + explain (Next to continue)
   cue?: 'moves' | 'mana' // which board card-glow cue this stage teaches
   await?: 'match' | 'ability' | 'tactic' // un-freeze and wait for the player to DO it
+  done?: string // the "why" payoff — replaces the body once the criteria is met (what/how → why)
   reveal?: string[] // section names to un-dim at this stage
   hint?: string
   finishLabel?: string
@@ -849,15 +850,18 @@ const GUIDED_STEPS: GuidedStep[] = [
     body: 'Every card shows three traits — a <b>colour</b>, a <b>shape</b>, and a <b>number</b> (1–3). The clock is frozen; take your time looking them over.' },
   { icon: '✨', title: 'Make your first set', spot: '#board', await: 'match',
     hint: '▸ Pick a card, watch the teal halos, then complete a set.',
-    body: 'A <b>set</b> is three cards where each trait is <b>all the same</b> or <b>all different</b> across the three. Pick any card — the teal halos light up its set-mates. Complete a set now.' },
+    body: 'A <b>set</b> is three cards where each trait is <b>all the same</b> or <b>all different</b> across the three. Pick any card — the teal halos light up its set-mates. Complete a set now.',
+    done: 'Nice. A set resolves all three cards at once — that one act does several things together: <b>Attacks</b> deal damage, <b>Defends</b> raise <b>Block</b> that soaks the enemy\'s next hit, and <b>Moves</b> shove the attack timer back. The <b>colours</b> feed mana too: three of one colour banks a big chunk of that element, one-of-each banks a little of all three. Every match is offence, defence, tempo, and resources in one move.' },
   { icon: '⚠️', title: 'Watch for traps', spot: '#strip', reveal: ['traps'], hold: true,
     body: "Tougher foes carry <b>traps</b> — rules that punish (or reward!) certain matches, shown in the <b>trap strip</b> above the board. This dummy has none, but the <b>Training · Gauntlet</b> has foes whose lines you must read, dodge, or deliberately spring." },
   { icon: '🎯', title: 'Spend Tactics', reveal: ['tactics'], await: 'tactic', cue: 'moves',
     hint: '▸ Match Moves (➤) to fill the meter; when the arrow appears, press a tactic.',
-    body: 'Matching <b>Move</b> cards fills your <b>Tactics</b> meter. Full, it <b>arms</b> — a glowing arrow marks it — and you can spend it to reshape the whole board. Fill it and spend one.' },
+    body: 'Matching <b>Move</b> cards fills your <b>Tactics</b> meter. Full, it <b>arms</b> — a glowing arrow marks it — and you can spend it to reshape the whole board. Fill it and spend one.',
+    done: 'That is your reset button. When the board has nothing useful — no damage, no blocks, wrong colours — a tactic reshapes it on demand: <b>Strike</b> floods Attacks, <b>Dodge</b> floods Defends, <b>Heat / Chill / Wild</b> recolour everything toward an element. You earned it by playing Moves, so steady tempo always buys you a way out of a bad board.' },
   { icon: '🔥', title: 'Cast an ability', reveal: ['abilities'], await: 'ability', cue: 'mana',
     hint: '▸ Match the glowing colour to build mana; when an ability lights up, click it.',
-    body: 'Matches also generate <b>mana</b> by colour. Match the <b>glowing colour</b> to build what your spells need — when you can afford an ability it lights up with an arrow. Build mana and cast one.' },
+    body: 'Matches also generate <b>mana</b> by colour. Match the <b>glowing colour</b> to build what your spells need — when you can afford an ability it lights up with an arrow. Build mana and cast one.',
+    done: 'Abilities are your burst — far bigger than a single match: heavy damage, healing, board-warping floods, hard enemy slows. Banking the right colour and spending it at the right moment is how you swing a fight, so read your spells and aim your matches at the mana they need.' },
   { icon: '🎓', title: "You're ready", spot: null, hold: true, finishLabel: 'Begin! ▸',
     body: "That's the whole loop: <b>find sets</b>, dodge traps, bank <b>Tactics</b>, spend <b>mana</b>. The clock resumes when you close this — good luck." },
 ]
@@ -902,6 +906,14 @@ function coachNotify(event: 'match' | 'ability' | 'tactic'): void {
   COACH.await = null // cp-next now advances on click
   if (V) V.paused = true // criteria met → freeze the world until they hit Next
   coachSpotlight(null) // the field-wide shade takes over; drop the per-target ring
+  // swap the body to the "why" payoff — the first panel said what/how, this one says why it mattered
+  const step = COACH.steps[COACH.idx]
+  if (step?.done) {
+    const body = document.getElementById('cp-body')
+    if (body) body.innerHTML = step.done
+    const icon = document.getElementById('cp-icon')
+    if (icon) icon.textContent = '✅'
+  }
   document.getElementById('coachpop')?.classList.remove('awaiting')
   const next = document.getElementById('cp-next')
   next?.classList.remove('await')
