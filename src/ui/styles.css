@@ -70,6 +70,11 @@ button.cta.bob { animation: ctabob 1.6s ease-in-out infinite; }
 
 /* foe header — tall (room for foe art); also the stage for popup messaging (the tutorial) */
 .headpanel { min-height: 150px; position: relative; }
+/* any-time Flee — a low-emphasis meta action pinned to the header corner; reddens on hover */
+.fleebtn { position: absolute; top: 14px; right: 14px; font-family: inherit; font-size: 11px; letter-spacing: .03em;
+  color: var(--ink-faint); background: transparent; border: 1px solid var(--line2); border-radius: 8px;
+  padding: 5px 10px; cursor: pointer; transition: color .12s ease, border-color .12s ease; }
+.fleebtn:hover { color: var(--red); border-color: var(--red); }
 
 /* enemy attack timer — full-width emptying meter below the HP gauges, above the board */
 .timerbar { width: 100%; }

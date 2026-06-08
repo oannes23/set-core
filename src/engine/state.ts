@@ -69,4 +69,4 @@ export function clockCapMs(s: CombatState): number {
 export const TACTICS_GOAL = 10
 export const TACTICS_DRAIN = 1 // levels/sec while armed
 export const DMG_REGEN_MS = 10000 // a shattered (wounded) card reforms after this
-export const START_GRACE_MS = 3000 // extra time before the FIRST strike of each encounter — read the board
+export const START_GRACE_MS = 3000 // UI freezes the clock this long after Engage (read the board, no ticks advance)

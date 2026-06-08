@@ -18,7 +18,7 @@ import { PASSIVES } from '../engine/passives'
 import { assembleFoe, pickWeightedFoe } from '../engine/foe'
 import { createCombat, reduce, colsForN, COMBAT_GEN, type Deps, type CombatAction } from '../engine/combat'
 import type { CombatState } from '../engine/state'
-import { TACTICS_GOAL } from '../engine/state'
+import { TACTICS_GOAL, START_GRACE_MS } from '../engine/state'
 import type { CombatEvent } from '../engine/events'
 import { bumpTurn, pick, strikeWord, healWord, drainWord, magicLead, tierOf, joinClauses, voiceOf, ABILITY_FLAVOR } from './flavor'
 
@@ -191,6 +191,7 @@ function begin(root: HTMLElement, dungeonId: string, foeVal: string, classId: st
     if (!V) return
     V.paused = false
     V.lastT = 0
+    hitstop(START_GRACE_MS) // freeze the clock for a beat after Engage — read the fresh board, no ticks advance
     loop(performance.now())
     // let the player SEE the board for a beat before the guided intro freezes it ("read the board").
     // capture V so a pending timer from a prior combat can't fire into a different one.
@@ -207,6 +208,7 @@ function buildPlay(): void {
   const head = $(`<div class="panel headpanel"></div>`)
   head.appendChild($(`<div class="foename" id="foename"></div>`))
   head.appendChild($(`<div class="foedesc" id="foedesc"></div>`))
+  head.appendChild($(`<button class="fleebtn" id="fleebtn" title="Forfeit this encounter">🏃 Flee</button>`)) // any-time flee
   wrap.appendChild(head)
 
   // play area: left 2/3 (combat bar embedded above the board) · right 1/3 (Tactics / Abilities / log)
@@ -245,11 +247,12 @@ function buildPlay(): void {
   if (!document.getElementById('ptint')) document.body.appendChild($(`<div id="ptint"></div>`)) // low-HP vignette (body-level)
 
   V.refs = {}
-  for (const id of ['foename', 'foedesc', 'enemylab', 'phpv', 'ehpv', 'php', 'ehp', 'clock', 'atkfill', 'tacv', 'tac', 'm0', 'm1', 'm2', 'block', 'strip', 'boardwrap', 'board', 'log', 'abilities', 'tactics', 'passives', 'floatlayer']) {
+  for (const id of ['foename', 'foedesc', 'fleebtn', 'enemylab', 'phpv', 'ehpv', 'php', 'ehp', 'clock', 'atkfill', 'tacv', 'tac', 'm0', 'm1', 'm2', 'block', 'strip', 'boardwrap', 'board', 'log', 'abilities', 'tactics', 'passives', 'floatlayer']) {
     const el = wrap.querySelector('#' + id)
     if (el) V.refs[id] = el as HTMLElement
   }
   board.addEventListener('click', onBoardClick)
+  V.refs.fleebtn?.addEventListener('click', onFlee)
   V.refs.abilities?.addEventListener('click', onAbilityClick)
   V.refs.abilities?.addEventListener('mouseover', onAbilityHover)
   V.refs.abilities?.addEventListener('mouseout', clearPreview)
@@ -499,6 +502,13 @@ function onAbilityClick(e: Event): void {
   dispatch({ type: 'castAbility', abilityId: id })
 }
 
+/** Flee — forfeit the encounter. Available any time the fight is live (not gated by the Tactics meter). */
+function onFlee(): void {
+  if (!V || !V.state.running || V.paused) return
+  if (!confirm('Flee combat?\n\nYou forfeit this encounter.')) return
+  dispatch({ type: 'flee' })
+}
+
 function onTacticClick(e: Event): void {
   if (!V || !V.state.running || V.paused || !V.state.tacticsArmed) return // input frozen during a pause
   const el = (e.target as HTMLElement).closest('.tac-btn') as HTMLElement | null
@@ -732,7 +742,7 @@ function interpret(events: CombatEvent[]): void {
         renderBoard()
         // brief the next foe (freeze until Engage)
         V.paused = true
-        showBriefing(() => { if (V) { V.paused = false; V.lastT = 0 } })
+        showBriefing(() => { if (V) { V.paused = false; V.lastT = 0; hitstop(START_GRACE_MS) } }) // grace on each gauntlet foe too
         break
       case 'won':
         log(`The ${foe} collapses. <b>Victory!</b>`, 'win')
@@ -956,6 +966,7 @@ function endScreen(result: 'win' | 'lose' | 'flee'): void {
   if (!V) return
   coachFinish() // close any open guided step before the end banner
   cancelAnimationFrame(V.raf)
+  if (V.refs.fleebtn) V.refs.fleebtn.style.display = 'none' // no fleeing a finished fight
   document.getElementById('ptint')?.classList.remove('low', 'crit') // drop the low-HP vignette on the end card
   const text = result === 'win' ? '★ Victory' : result === 'flee' ? '🏃 Fled' : '✖ Defeat'
   const banner = $(`<div class="banner ${result === 'win' ? 'win' : 'lose'}">${text}</div>`)

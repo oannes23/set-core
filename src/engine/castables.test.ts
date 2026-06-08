@@ -118,6 +118,14 @@ test('the Move tactic floods the board toward Move', () => {
   expect(r.state.tacticsArmed).toBe(false)
 })
 
+test('flee forfeits the encounter at any time (not gated by the meter)', () => {
+  const s = combat('training_dummy') // tactics 0, not armed
+  const r = reduce(s, { type: 'flee' }, deps())
+  expect(r.events.some((e) => e.type === 'fled')).toBe(true)
+  expect(r.state.running).toBe(false)
+  expect(r.state.result).toBe('flee')
+})
+
 // ---- determinism with casts in the mix ----
 test('determinism: same seed + ability/tactic actions → identical state', () => {
   const run = () => {
