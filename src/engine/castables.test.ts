@@ -140,26 +140,26 @@ test('a landed enemy hit shatters a board rune (a Wound)', () => {
   expect(t.state.pending.size).toBe(1) // it reforms after DMG_REGEN_MS
 })
 
-test('Defend overflow rolls a low-weighted slice over the block cap', () => {
+test('block never exceeds the cap — Defend overflow trickles into Tactics instead', () => {
   const s = combat('training_dummy')
   s.playerMax = 30
-  s.block = 28 // room for 2 before the cap
-  const sink = new EventSink()
-  gainBlock(s, 12, mulberry32(1), sink) // +2 to cap, then a rollover from the 10 overflow
-  expect(s.block).toBeGreaterThanOrEqual(30) // capped fill + a (possibly 0) rollover above the cap
-  expect(sink.events.some((e) => e.type === 'blockGained')).toBe(true)
+  s.block = 30 // full → the whole gain overflows
+  s.tactics = 0
+  for (let i = 0; i < 6; i++) gainBlock(s, 20, mulberry32(i + 1), new EventSink())
+  expect(s.block).toBe(30) // capped — never creeps past the limit (this was the bug)
+  expect(s.tactics).toBeGreaterThan(0) // the low-weighted overflow rolled into the Tactics meter
 })
 
-test('Sentinel (Overflow) stacks: the overflow becomes BOTH a weighted attack and the rollover', () => {
+test('Sentinel (Overflow) stacks: overflow becomes BOTH a weighted attack and a Tactics trickle', () => {
   const s = combat('limbless_zombie', { passives: ['overflow'] })
   s.enemyHP = 100
   s.playerMax = 30
   s.block = 30 // full → the whole gain overflows
-  const sink = new EventSink()
-  gainBlock(s, 10, mulberry32(2), sink)
-  expect(sink.events.some((e) => e.type === 'passiveProc' && e.id === 'overflow')).toBe(true) // the attack
-  expect(s.enemyHP).toBeLessThan(100) // it landed
-  expect(s.block).toBeGreaterThanOrEqual(30) // the rollover is independent (≥ cap)
+  s.tactics = 0
+  for (let i = 0; i < 4; i++) gainBlock(s, 12, mulberry32(i + 3), new EventSink())
+  expect(s.block).toBe(30) // block never exceeds the cap
+  expect(s.tactics).toBeGreaterThan(0) // the Tactics rollover happened
+  expect(s.enemyHP).toBeLessThan(100) // AND the Sentinel attack landed (both bonuses apply)
 })
 
 // ---- determinism with casts in the mix ----

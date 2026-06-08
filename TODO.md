@@ -36,8 +36,8 @@ Traffic-light: green = pursue · yellow = consequence · red = wounded.
   end-of-combat summary chart, lock stripes + live countdown, trap-armed chip pulse, low-HP vignette.
 - **Balance pass.** Slower enemies (≈12s average; bands 8/10/12/15/20), a 3s start-grace clock
   freeze (read the board before the first strike), Tactics renamed to **Attack / Defend / Move**
-  (Flee is now a standalone any-time button), Defend overflow rollover (low-weighted, stacks with
-  the Sentinel passive).
+  (Flee is now a standalone any-time button), Defend overflow → a low-weighted Tactics trickle
+  (block stays capped; stacks with the Sentinel attack).
 
 ---
 

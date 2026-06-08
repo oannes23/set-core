@@ -457,8 +457,11 @@ by its number (magnitude 1–3), typed by its color:
   of each. (The speed-vs-value routing tradeoff falls out for free.)
 
 **Resource caps (and the adaptive deal).**
-- **Block ≤ max HP.** The barrier can hold up to your HP; excess is lost → generation
-  steers the shape axis away from Defend (only Defend is throttled when Block is full).
+- **Block ≤ max HP.** The barrier can hold up to your HP (block never exceeds the cap) →
+  generation steers the shape axis away from Defend when Block is full. The excess isn't
+  fully wasted: a **low-weighted slice of the overflow trickles into the Tactics meter**
+  (symmetric with the Move/clock overflow below), and the **Sentinel** passive *also*
+  spills the full overflow into a weighted attack — both stack.
 - **Enemy clock ≤ 20s.** Move can't push the next attack more than 20s out — but the
   overflow seconds are **no longer wasted**: they dump into the Tactics meter (below),
   so a maxed clock keeps Move a fair, useful draw. Distinctness still caps realized
