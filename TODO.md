@@ -79,11 +79,12 @@ to live in → build the Hub scene + persistence first.** (`CRAWL-DESIGN.md` §2
 - `[ ]` **HP-only intra-run persistence** (§6) — everything but HP resets each room; HP carries as the
   run's attrition clock. *Replaces* the full-heal-between-gauntlet-foes behavior (`combat.ts` `onWin`).
   (The cross-room **HP-carry banner** feel idea rides here.)
-- `[ ]` **Consumables — the low-hanging first loot** (`CRAWL-DESIGN.md` §4). ~3 consumable slots,
-  common drops; **potions** (insta-heal / block / tempo, regen-bias refill, gradual regen) + **scrolls**
-  (one-use class ability). A new **"use consumable"** combat action; most effects reuse existing ops
-  (`healPlayer`/`gainBlock`/`pushClock`/`transmute`/`castAbility`) — the only new bit is a player
-  heal-over-time (a friendly mirror of the enemy `condition` tick).
+- `[~]` **Consumables — DONE as a system; loot acquisition pending the run loop** (`CRAWL-DESIGN.md` §4).
+  Built (`engine/consumables.ts`): heal potion, 9 colour×shape combo brews, 3 mana potions, haste,
+  stoneskin, and a free one-shot **scroll for every ability**; a `useConsumable` action; a 3-slot
+  **loadout** equipped in the Hub + used (art chips) in combat. For now the loadout is re-equippable
+  (refreshes each delve); a consumed **inventory + common drops** arrives with the run loop. (Still
+  open: a player heal-over-time — the friendly mirror of the enemy `condition` tick.)
 - `[ ]` **Run-state model** — seed + room chain + run gold/XP/inventory; reuse the `session.ts` shape.
 - `[ ]` **Loss / retreat** — death ends the run (penalty TBD); the Flee button already retreats.
 

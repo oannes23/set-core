@@ -9,18 +9,23 @@ export interface SavedChar {
   classId: string
   hp: number
   maxHp: number
-  // grows later: level/xp, gold, abilities[], gear{}, consumables[]
+  consumables: string[] // the 3-slot consumable loadout (re-equippable in the hub; refreshes each delve)
+  // grows later: level/xp, gold, abilities[], gear{}
 }
 
 const KEY = 'setcore.roster.v1'
 export const DEFAULT_MAX_HP = 30 // matches createCombat's default playerMax
+export const CONSUMABLE_SLOTS = 3
+export const STARTER_CONSUMABLES = ['heal_potion', 'speed_potion', 'stoneskin'] // a class-agnostic opener
 
 /** Load the saved roster (best-effort; never throws). */
 export function loadRoster(): SavedChar[] {
   try {
     const raw = localStorage.getItem(KEY)
     const arr = raw ? (JSON.parse(raw) as unknown) : []
-    return Array.isArray(arr) ? (arr as SavedChar[]) : []
+    if (!Array.isArray(arr)) return []
+    // normalize: older saves predate the consumables field
+    return (arr as SavedChar[]).map((c) => ({ ...c, consumables: Array.isArray(c.consumables) ? c.consumables : STARTER_CONSUMABLES.slice() }))
   } catch {
     return []
   }
@@ -47,7 +52,7 @@ export function remove(roster: SavedChar[], id: string): SavedChar[] {
   return roster.filter((c) => c.id !== id)
 }
 export function makeChar(name: string, classId: string, id: string, maxHp = DEFAULT_MAX_HP): SavedChar {
-  return { id, name, classId, hp: maxHp, maxHp }
+  return { id, name, classId, hp: maxHp, maxHp, consumables: STARTER_CONSUMABLES.slice() }
 }
 
 // ---- convenience wrappers (load → transform → save) ----

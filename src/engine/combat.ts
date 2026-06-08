@@ -17,6 +17,7 @@ import { gainBlock, addTactics } from './ops'
 import { firePassives } from './passives'
 import { castAbility } from './abilities'
 import { useTactic } from './tactics'
+import { useConsumable } from './consumables'
 import { assembleFoe } from './foe'
 
 export type CombatAction =
@@ -24,6 +25,7 @@ export type CombatAction =
   | { type: 'tick'; dtMs: number }
   | { type: 'castAbility'; abilityId: string }
   | { type: 'useTactic'; key: string }
+  | { type: 'useConsumable'; slot: number } // spend a carried potion/scroll
   | { type: 'flee' } // forfeit the encounter — available any time (not gated by the Tactics meter)
 
 export interface Deps {
@@ -42,6 +44,7 @@ export interface NewCombatOpts {
   gen: GenConfig
   playerMax?: number
   passives?: string[] // the chosen class's always-on passive ids
+  consumables?: string[] // carried potions/scrolls for this run
   sequence?: string[] | null
   seqIdx?: number
   dungeonId?: string | null
@@ -66,6 +69,7 @@ export function createCombat(opts: NewCombatOpts, rng: Rng): CombatState {
     locked: new Map(),
     pendingRegenBias: null,
     passives: opts.passives ? opts.passives.slice() : [],
+    consumables: opts.consumables ? opts.consumables.slice() : [],
     foe: opts.foe,
     now: 0,
     nextAttackAt: opts.foe.cadence * 1000,
@@ -246,6 +250,9 @@ export function reduce(state: CombatState, action: CombatAction, deps: Deps): { 
     case 'useTactic':
       if (useTactic(s, action.key, deps.rng, sink) && s.running && s.enemyHP <= 0) onWin(s, deps, sink)
       break
+    case 'useConsumable':
+      if (useConsumable(s, action.slot, deps.rng, sink) && s.running && s.enemyHP <= 0) onWin(s, deps, sink)
+      break
     case 'flee':
       if (s.running) { s.running = false; s.result = 'flee'; sink.emit({ type: 'fled' }) }
       break
@@ -262,6 +269,7 @@ export function cloneState(s: CombatState): CombatState {
     locked: new Map(s.locked),
     pendingRegenBias: s.pendingRegenBias ? { ...s.pendingRegenBias } : null,
     passives: s.passives.slice(),
+    consumables: s.consumables.slice(),
     tickAccum: { ...s.tickAccum },
     foe: s.foe, // immutable per encounter
     gen: s.gen,

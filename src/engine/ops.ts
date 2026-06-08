@@ -48,6 +48,15 @@ export function addTactics(s: CombatState, amt: number, sink: EventSink, source?
   }
 }
 
+/** Grant the player mana of one colour (no cap). */
+export function grantMana(s: CombatState, color: number, amount: number, sink: EventSink): void {
+  if (amount <= 0) return
+  s.mana[color] += amount
+  const m: [number, number, number] = [0, 0, 0]
+  m[color] = amount
+  sink.emit({ type: 'manaGained', mana: m })
+}
+
 /** Heal the player (capped at max HP). */
 export function healPlayer(s: CombatState, amt: number, sink: EventSink): number {
   if (amt <= 0) return 0

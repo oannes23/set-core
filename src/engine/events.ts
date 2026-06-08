@@ -31,6 +31,7 @@ export type CombatEvent =
   | { type: 'abilityFizzled'; id: string } // ability found nothing to act on
   | { type: 'passiveProc'; id: string; label: string } // an always-on passive fired off a match/cast
   | { type: 'tacticUsed'; key: string } // a Tactics button spent the meter
+  | { type: 'consumableUsed'; id: string; name: string } // a potion/scroll was spent
   | { type: 'fled' } // the player fled combat (Flee tactic)
   | { type: 'foeChanged'; name: string; rules: FoeRules } // gauntlet advanced to a new foe
   | { type: 'won' }

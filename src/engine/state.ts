@@ -43,6 +43,7 @@ export interface CombatState {
   pendingRegenBias: FavorBias | null // a passive (e.g. Momentum) may steer THIS match's refill
   // character
   passives: string[] // active passive ids (always-on triggers — fire on the bus)
+  consumables: string[] // carried one-use items (potions/scrolls); spent via the useConsumable action
   // foe
   foe: FoeRuntime
   // clock (all ms, on the `now` timeline)

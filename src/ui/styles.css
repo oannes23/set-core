@@ -174,6 +174,20 @@ button.cta.bob { animation: ctabob 1.6s ease-in-out infinite; }
 .pchip.proc { animation: pproc .55s ease; }
 @keyframes pproc { 0% { box-shadow: 0 0 0 2px var(--gold), 0 0 18px -6px var(--gold); transform: scale(1.06); border-color: var(--gold); } 100% { box-shadow: none; transform: scale(1); } }
 
+/* consumables — colour-tinted art chips (potion = vial, scroll = parchment); used one-shot in combat */
+.cons-row { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; align-items: center; min-height: 40px; }
+.cons-empty { font-size: 11px; color: var(--ink-faint); }
+.cons-slot { width: 38px; height: 38px; border-radius: 10px; border: 1px solid var(--cc); background: #0e1118;
+  box-shadow: inset 0 0 14px -6px var(--cc); display: inline-flex; align-items: center; justify-content: center;
+  padding: 0; cursor: pointer; transition: transform .1s ease, box-shadow .12s ease; }
+.cons-row .cons-slot:hover { transform: translateY(-2px); box-shadow: inset 0 0 14px -6px var(--cc), 0 0 0 1px var(--cc), 0 0 16px -8px var(--cc); }
+.cons-slot.scroll { border-radius: 4px; border-style: dashed; } /* scrolls read as little parchments */
+.cons-ic { font-size: 19px; line-height: 1; }
+.cons-loadout { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; }
+.cons-edit { display: flex; align-items: center; gap: 8px; }
+.cons-edit select { flex: 1; }
+.cons-edit .cons-slot { cursor: default; }
+
 /* hub — character roster + new-hero form */
 .roster { display: flex; flex-direction: column; gap: 8px; margin-top: 6px; }
 .charcard { display: flex; align-items: center; gap: 11px; border: 1px solid var(--line2); border-radius: 10px;

@@ -17,11 +17,12 @@ import { condMet } from '../engine/triggers'
 import { PASSIVES } from '../engine/passives'
 import { assembleFoe, pickWeightedFoe } from '../engine/foe'
 import { createCombat, reduce, colsForN, COMBAT_GEN, type Deps, type CombatAction } from '../engine/combat'
+import { CONSUMABLES } from '../engine/consumables'
 import type { CombatState } from '../engine/state'
 import { TACTICS_GOAL, START_GRACE_MS } from '../engine/state'
 import type { CombatEvent } from '../engine/events'
 import { bumpTurn, pick, strikeWord, healWord, drainWord, magicLead, tierOf, joinClauses, voiceOf, ABILITY_FLAVOR } from './flavor'
-import { type SavedChar, loadRoster, upsertChar, deleteChar, makeChar, freshId } from './save'
+import { type SavedChar, loadRoster, upsertChar, deleteChar, makeChar, freshId, CONSUMABLE_SLOTS } from './save'
 
 const GEN: GenConfig = COMBAT_GEN
 const $ = <T extends HTMLElement>(html: string): T => {
@@ -235,6 +236,38 @@ function hubScene(root: HTMLElement): void {
       fSel.value = dg.sequence?.length ? 'sequence' : dg.default_foe ? `foe:${dg.default_foe}` : fSel.options[0]?.value ?? ''
     }
     dSel.addEventListener('change', fillFoes); fillFoes()
+    // consumable loadout — 3 slots, equip any potion/scroll (re-equippable; refreshes each delve)
+    panel.appendChild($(`<label style="margin-top:12px">Consumables · ${CONSUMABLE_SLOTS} slots</label>`))
+    const consWrap = $(`<div class="cons-loadout"></div>`)
+    const allIds = Object.keys(CONSUMABLES)
+    const potions = allIds.filter((id) => CONSUMABLES[id].kind === 'potion')
+    const scrolls = allIds.filter((id) => CONSUMABLES[id].kind === 'scroll')
+    for (let slot = 0; slot < CONSUMABLE_SLOTS; slot++) {
+      const cur = sel.consumables[slot] ?? ''
+      const cc = CONSUMABLES[cur]
+      const tint = cc?.color != null ? `var(--c${cc.color})` : 'var(--line2)'
+      const row = $(`<div class="cons-edit"></div>`)
+      row.appendChild($(`<span class="cons-slot${cc?.kind === 'scroll' ? ' scroll' : ''}" style="--cc:${tint}">${cc ? `<span class="cons-ic">${cc.icon}</span>` : ''}</span>`))
+      const seln = $<HTMLSelectElement>(`<select></select>`)
+      seln.appendChild($(`<option value="">(empty)</option>`))
+      const pg = $(`<optgroup label="Potions"></optgroup>`)
+      for (const id of potions) pg.appendChild($(`<option value="${id}">${CONSUMABLES[id].name}</option>`))
+      seln.appendChild(pg)
+      const sg = $(`<optgroup label="Scrolls"></optgroup>`)
+      for (const id of scrolls) sg.appendChild($(`<option value="${id}">${CONSUMABLES[id].name}</option>`))
+      seln.appendChild(sg)
+      seln.value = cur
+      seln.addEventListener('change', () => {
+        const arr = sel.consumables.slice()
+        while (arr.length < CONSUMABLE_SLOTS) arr.push('')
+        arr[slot] = seln.value
+        sel.consumables = arr
+        upsertChar(sel); roster = loadRoster(); render()
+      })
+      row.appendChild(seln)
+      consWrap.appendChild(row)
+    }
+    panel.appendChild(consWrap)
     const enter = $<HTMLButtonElement>(`<button class="cta bob"${sel.hp <= 0 ? ' disabled title="Rest first — 0 HP"' : ''}>▶ Enter dungeon</button>`)
     enter.addEventListener('click', () => { if (sel.hp > 0) begin(root, sel, dSel.value, fSel.value) })
     panel.appendChild(enter)
@@ -272,7 +305,7 @@ function begin(root: HTMLElement, char: SavedChar, dungeonId: string, foeVal: st
   const foe = assembleFoe(foeId, dg, GAMEDATA, rng)
   if (!foe) return
   const cls = classById(char.classId)
-  const state = createCombat({ foe, gen: GEN, playerMax: char.maxHp, passives: cls.passives, sequence, seqIdx: 0, dungeonId }, rng)
+  const state = createCombat({ foe, gen: GEN, playerMax: char.maxHp, passives: cls.passives, consumables: char.consumables, sequence, seqIdx: 0, dungeonId }, rng)
   state.playerHP = Math.max(0, Math.min(char.maxHp, char.hp)) // the hero enters at their persisted HP, not full
   V = { root, deps: { data: GAMEDATA, rng }, state, char, actions: [], classId: cls.id, loadout: cls.abilities.slice(), coach: !!dg.coach, coachCue: null, manaColor: dominantManaColor(cls.abilities), paused: true, hitstopUntil: 0, preview: null, selected: [], raf: 0, lastT: 0, boardSig: '', refs: {}, stats: { dealt: 0, taken: 0, blocked: 0, healed: 0, sets: 0, traps: 0 } }
   buildPlay()
@@ -339,7 +372,7 @@ function buildPlay(): void {
   if (!document.getElementById('ptint')) document.body.appendChild($(`<div id="ptint"></div>`)) // low-HP vignette (body-level)
 
   V.refs = {}
-  for (const id of ['foename', 'foedesc', 'fleebtn', 'enemylab', 'phpv', 'ehpv', 'php', 'ehp', 'clock', 'atkfill', 'tacv', 'tac', 'm0', 'm1', 'm2', 'block', 'strip', 'boardwrap', 'board', 'log', 'abilities', 'tactics', 'passives', 'floatlayer']) {
+  for (const id of ['foename', 'foedesc', 'fleebtn', 'enemylab', 'phpv', 'ehpv', 'php', 'ehp', 'clock', 'atkfill', 'tacv', 'tac', 'm0', 'm1', 'm2', 'block', 'strip', 'boardwrap', 'board', 'log', 'abilities', 'tactics', 'passives', 'consumables', 'floatlayer']) {
     const el = wrap.querySelector('#' + id)
     if (el) V.refs[id] = el as HTMLElement
   }
@@ -349,7 +382,9 @@ function buildPlay(): void {
   V.refs.abilities?.addEventListener('mouseover', onAbilityHover)
   V.refs.abilities?.addEventListener('mouseout', clearPreview)
   V.refs.tactics?.addEventListener('click', onTacticClick)
+  V.refs.consumables?.addEventListener('click', onConsumableClick)
   renderStrip()
+  renderConsumables()
   updateCastables()
   V.refs.foename.textContent = V.state.foe.name + (V.state.sequence ? `  ·  ${V.state.seqIdx + 1}/${V.state.sequence.length}` : '')
   V.refs.foedesc.innerHTML = V.state.foe.desc ?? ''
@@ -391,7 +426,33 @@ function buildCastPanel(): HTMLElement {
   }
   if (V!.state.passives.length) abSec.appendChild(pas)
   panel.appendChild(abSec)
+  // CONSUMABLES section — the carried potions/scrolls, used one-shot
+  const consSec = $(`<div style="margin-top:14px"><div class="panelhd"><label>Consumables</label></div><div class="cons-row" id="consumables"></div></div>`)
+  panel.appendChild(consSec)
   return panel
+}
+
+/** Render the carried consumables as art buttons (colour tint + icon). Re-run after each use. */
+function renderConsumables(): void {
+  if (!V) return
+  const el = V.refs.consumables
+  if (!el) return
+  el.innerHTML = ''
+  if (!V.state.consumables.length) { el.appendChild($(`<div class="cons-empty">— none —</div>`)); return }
+  V.state.consumables.forEach((id, slot) => {
+    const c = CONSUMABLES[id]
+    if (!c) return
+    const tint = c.color != null ? `var(--c${c.color})` : 'var(--line2)'
+    const btn = $(`<button class="cons-slot${c.kind === 'scroll' ? ' scroll' : ''}" data-slot="${slot}" style="--cc:${tint}" data-tip-title="${c.name}" data-tip="${c.desc}"><span class="cons-ic">${c.icon}</span></button>`)
+    el.appendChild(btn)
+  })
+}
+
+function onConsumableClick(e: Event): void {
+  if (!V || !V.state.running || V.paused) return
+  const el = (e.target as HTMLElement).closest('.cons-slot') as HTMLElement | null
+  if (!el || el.dataset.slot == null) return
+  dispatch({ type: 'useConsumable', slot: +el.dataset.slot })
 }
 
 function renderStrip(): void {
@@ -738,6 +799,7 @@ function dispatch(action: CombatAction): void {
   V.selected = V.selected.filter((i) => state.board[i] != null && !state.locked.has(i))
   interpret(events)
   if (boardSignature(state) !== V.boardSig) renderBoard(verbsFromEvents(events))
+  if (events.some((e) => e.type === 'consumableUsed')) renderConsumables() // a slot was spent
   updateBar()
 }
 
@@ -817,6 +879,9 @@ function interpret(events: CombatEvent[]): void {
         coachNotify('tactic') // guided intro: "spend Tactics" step
         break
       }
+      case 'consumableUsed':
+        log(`You use <b>${e.name}</b>.`, 'you')
+        break
       case 'fled':
         endScreen('flee')
         break
