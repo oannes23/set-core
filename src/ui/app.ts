@@ -9,7 +9,7 @@ import { type Card, isSet, third, keyOf } from '../core/affine'
 import { findSets } from '../core/sets'
 import type { GenConfig } from '../core/generate'
 import { GAMEDATA } from '../data/game-data'
-import type { Dungeon, Trigger } from '../data/schema'
+import type { Dungeon, Trigger, Condition } from '../data/schema'
 import { CLASSES, classById } from '../data/classes'
 import { ABILITIES, canAfford, ABILITY_PREVIEW } from '../engine/abilities'
 import { SHAPE_MOVE, matchDescriptor } from '../engine/resolve'
@@ -20,6 +20,7 @@ import { createCombat, reduce, colsForN, COMBAT_GEN, type Deps, type CombatActio
 import type { CombatState } from '../engine/state'
 import { TACTICS_GOAL } from '../engine/state'
 import type { CombatEvent } from '../engine/events'
+import { bumpTurn, pick, strikeWord, healWord, drainWord, magicLead, tierOf, joinClauses, voiceOf, ABILITY_FLAVOR } from './flavor'
 
 const GEN: GenConfig = COMBAT_GEN
 const $ = <T extends HTMLElement>(html: string): T => {
@@ -138,7 +139,7 @@ function startScreen(root: HTMLElement): void {
   const cta = $<HTMLButtonElement>(`<button class="cta bob">▶ Begin combat</button>`)
   panel.appendChild(cta)
   wrap.appendChild(panel)
-  wrap.appendChild($(`<div class="sub" style="margin-top:18px">Click cards to build a set (same-or-all-different on every trait). Teal halos show set-mates.</div>`))
+  wrap.appendChild($(`<div class="sub" style="margin-top:18px">Click cards to build a set (same-or-all-different on every trait). Gold halos show set-mates.</div>`))
   wrap.appendChild($(`<div class="sub" style="margin-top:10px;text-transform:none;letter-spacing:0;color:var(--ink-faint)">Archived single-file prototypes (the migration oracle): <a href="${import.meta.env.BASE_URL}prototype/" style="color:var(--phos);text-decoration:none">▸ /prototype/</a></div>`))
   root.appendChild(wrap)
 
@@ -347,6 +348,11 @@ function renderBoard(verbs?: Map<number, CardVerb>): void {
   board.innerHTML = ''
   const sets = findSets(s.board)
   const mates = glowSet(s, V.selected, sets)
+  // value heat: how many sets each card anchors right now (reads CARDS, not sets → keeps §2.5 intact)
+  const setCount = new Array(s.board.length).fill(0)
+  for (const t of sets) for (const j of t) setCount[j]++
+  const maxCount = Math.max(1, ...setCount)
+  const bait = driftColor(s) // the dungeon-drift colour: those cards shimmer temptingly (the lure to resist)
   s.board.forEach((c, i) => {
     if (!c) {
       // a damage-shattered (or transmuting) hole reads as a Wound — dashed gap, not a neutral empty slot
@@ -356,16 +362,50 @@ function renderBoard(verbs?: Map<number, CardVerb>): void {
     const locked = s.locked.has(i)
     const key = String(keyOf(c))
     const cls = ['card']
-    if (V!.selected.includes(i)) cls.push('sel')
+    if (V!.selected.includes(i)) cls.push(mates.deadPair ? 'badpair' : 'sel') // dead pair → red picks, no other glow
     else if (mates.complete === i) cls.push('complete')
-    else if (mates.set.has(i)) cls.push(V!.selected.length === 2 ? 'matedim' : 'mate')
+    else if (mates.set.has(i)) cls.push('mate')
     if (locked) cls.push('locked')
+    else if (bait != null && c[0] === bait && !V!.selected.includes(i) && mates.complete !== i && !mates.set.has(i)) cls.push('bait')
     if (!firstRender && oldKeys[i] !== key) { cls.push('enter'); if (verbs?.get(i) === 'reform') cls.push('reform') } // new/changed → fade in (reform = materialize)
-    const el = $(`<div class="${cls.join(' ')}" data-i="${i}" data-key="${key}" style="--cc:var(--c${c[0]})">${cardSVG(c)}${locked ? '<span class="lock">🔒</span><span class="lockcd"></span>' : ''}</div>`)
+    const heat = (setCount[i] / maxCount).toFixed(2)
+    const el = $(`<div class="${cls.join(' ')}" data-i="${i}" data-key="${key}" style="--cc:var(--c${c[0]});--heat:${heat}">${cardSVG(c)}${locked ? '<span class="lock">🔒</span><span class="lockcd"></span>' : ''}</div>`)
     board.appendChild(el)
   })
   V.boardSig = boardSignature(s)
   updateTrickLines() // coach-only: surface makeable trick lines (no-op outside coach dungeons)
+  updateTrapArmed() // §2.5-safe: pulse a trap/trick chip when a line that springs it is on the board
+}
+
+const COLOR_TOK: Record<string, number> = { red: 0, green: 1, blue: 2 }
+/** Does a trap condition punish the colour the player's loadout needs most? → the briefing "counters you" flag. */
+function countersBuild(when: Condition | undefined): boolean {
+  if (!V || !when) return false
+  const hit = (c: Condition): boolean => ('all' in c ? c.all.some(hit) : c.axis === 'color' && c.value != null && COLOR_TOK[c.value] === V!.manaColor)
+  return hit(when)
+}
+/** The dungeon-drift target colour — cards of it are being herded toward (the bait to resist). */
+function driftColor(s: CombatState): number | null {
+  const d = s.foe.drift
+  if (!d) return null
+  for (const e of d.do) if (e.effect === 'transmute' && e.bias?.axis === 'color') return COLOR_TOK[e.bias.value]
+  return null
+}
+
+/** Pulse a trap/trick chip when the board currently CONTAINS a set that would spring it — "danger/opportunity
+ *  is live now," while keeping WHICH line a reading challenge (the §2.5 sweet spot; safe for real play). */
+function updateTrapArmed(): void {
+  if (!V) return
+  const s = V.state
+  if (!s.foe.triggers.length) return
+  const reachable = (x: number) => s.board[x] != null && !s.locked.has(x) && !s.pending.has(x)
+  const descs = s.running
+    ? findSets(s.board).filter((t) => t.every(reachable)).map((t) => matchDescriptor([s.board[t[0]]!, s.board[t[1]]!, s.board[t[2]]!]))
+    : []
+  s.foe.triggers.forEach((t, i) => {
+    const armed = t.on === 'match' && descs.some((d) => condMet(t.when, d))
+    V!.refs.strip?.querySelector(`[data-trig="${i}"]`)?.classList.toggle('armed', armed)
+  })
 }
 
 /** Coach-only teaching cue — glow makeable sets that would spring a favorable TRICK (green line +
@@ -391,10 +431,12 @@ function updateTrickLines(): void {
   }
 }
 
-/** Which board slots are set-mates of the current selection (for the teal glow). */
-function glowSet(s: CombatState, sel: number[], sets: [number, number, number][]): { set: Set<number>; complete: number } {
+/** Set-mate glow for the current selection: 1 pick → its mates (gold); 2 picks → the completer (bright)
+ *  or, if the finishing third isn't reachable, `deadPair` (the two picks glow red, nothing else). */
+function glowSet(s: CombatState, sel: number[], sets: [number, number, number][]): { set: Set<number>; complete: number; deadPair: boolean } {
   const out = new Set<number>()
   let complete = -1
+  let deadPair = false
   if (sel.length === 1) {
     for (const t of sets) if (t.includes(sel[0])) for (const j of t) if (j !== sel[0]) out.add(j)
   } else if (sel.length === 2) {
@@ -405,11 +447,10 @@ function glowSet(s: CombatState, sel: number[], sets: [number, number, number][]
       s.board.forEach((c, i) => {
         if (c && !sel.includes(i) && !s.locked.has(i) && keyOf(c) === want) complete = i
       })
+      deadPair = complete < 0 // the finishing third isn't on the board → this pair can't make a set
     }
-    // dim glow on the other still-open set-mates of either picked card (bright completer stands out)
-    for (const t of sets) if (t.includes(sel[0]) || t.includes(sel[1])) for (const j of t) if (!sel.includes(j) && j !== complete) out.add(j)
   }
-  return { set: out, complete }
+  return { set: out, complete, deadPair }
 }
 
 // ---- input ----
@@ -576,47 +617,61 @@ function verbsFromEvents(events: CombatEvent[]): Map<number, CardVerb> {
 
 /** Full-screen feedback priority — a wound out-shouts a trap spring (TRAPS layering scheme). */
 const FLASH_PRI: Record<string, number> = { wound: 3, trap: 2, trick: 2 }
+/** Per-tactic flavour tail for the combat log (the board-reshape it triggers). */
+const TAC_TAIL: Record<string, string> = { strike: 'the board snaps to Attacks', dodge: 'the board hardens to Defends', heat: 'everything kindles to Fire', chill: 'everything glazes to Frost', wild: 'everything greens to Nature' }
 function interpret(events: CombatEvent[]): void {
   if (!V) return
   const MANA = ['Fire', 'Nature', 'Frost']
+  bumpTurn() // advance the flavour-variety counter once per batch (verbs rotate, stable across re-renders)
+  const foe = V.state.foe.name
+  const voice = voiceOf(GAMEDATA.creatures[V.state.foe.id]?.voice)
   // collect full-screen feedback and flush once: one flash (highest priority), one hitstop, staggered bursts
   let flashKind: 'trap' | 'trick' | 'wound' | null = null
+  let flashPow = 1
   let hs = 0
+  let matchSlots: number[] | null = null // the set just played (for the reactive-transmute ripple)
   const bursts: [string, string, string, string, ('trick' | 'wound')?][] = []
-  const queueFlash = (k: 'trap' | 'trick' | 'wound') => { if (!flashKind || FLASH_PRI[k] > FLASH_PRI[flashKind]) flashKind = k }
+  const queueFlash = (k: 'trap' | 'trick' | 'wound', pow = 1) => { if (!flashKind || FLASH_PRI[k] > FLASH_PRI[flashKind]) { flashKind = k; flashPow = pow } }
   for (const e of events) {
     switch (e.type) {
-      case 'enemyDamaged':
-        if (e.immune) { log('Swords pass through — only magic bites this foe.', 'foe'); floatBoard('blocked', 'var(--ink-faint)', 'enemy') }
-        else if (e.magic) { log(`Your magic drains <b>${e.amount}</b>.`, 'you'); floatBoard(`-${e.amount}`, 'var(--gold)', 'enemy'); flashStat('ehpv') }
-        else { log(`You strike for <b>${e.amount}</b>.`, 'you'); floatBoard(`-${e.amount}`, 'var(--red)', 'enemy'); flashStat('ehpv') }
-        if (!e.immune) V.stats.dealt += e.amount
+      case 'enemyDamaged': {
+        if (e.immune) { log('Swords pass through — only magic bites this foe.', 'foe'); floatBoard('blocked', 'var(--ink-faint)', 'enemy'); break } // fixed rule line — never varied
+        const tier = tierOf(e.amount, 12)
+        if (e.magic) { log(`${magicLead()} — drains <b>${e.amount}</b>.`, 'you'); floatBoard(`-${e.amount}`, 'var(--gold)', 'enemy') }
+        else { log(`You land ${strikeWord(tier)} — <b>−${e.amount}</b>.`, tier === 'heavy' ? 'you big' : 'you'); floatBoard(`-${e.amount}`, 'var(--red)', 'enemy') }
+        flashStat('ehpv')
+        V.stats.dealt += e.amount
         break
+      }
       case 'enemyHealed':
-        log(`The ${V.state.foe.name} heals <b>${e.amount}</b>.`, 'foe')
+        log(`The ${foe} ${pick(voice.heal)} — <b>+${e.amount}</b>.`, 'foe')
         floatBoard(`+${e.amount}`, 'var(--red)', 'enemy')
         break
       case 'playerHealed':
-        log(`You recover <b>${e.amount}</b> HP.`, 'you')
+        log(`You ${healWord()} — <b>+${e.amount}</b> HP.`, 'you')
         floatBoard(`+${e.amount}`, 'var(--green)', 'you')
         V.stats.healed += e.amount
         break
       case 'blockGained':
         floatBoard(`+${e.amount}🛡`, 'var(--blue)', 'you')
         break
+      case 'playerBlocked':
+        log(`The ${foe} ${pick(voice.hit)} you — your guard holds, <b>no damage</b>.`, 'foe')
+        break
       case 'abilityCast':
-        log(`You cast <b>${ABILITIES[e.id]?.name ?? e.id}</b>.`, 'you')
+        log(`${ABILITY_FLAVOR[e.id] ?? `You cast <b>${ABILITIES[e.id]?.name ?? e.id}</b>`}.`, 'you')
         coachNotify('ability') // guided intro: "cast an ability" step
         break
       case 'abilityFizzled':
-        log(`<b>${ABILITIES[e.id]?.name ?? e.id}</b> fizzles — no target.`, 'foe')
+        log(`<b>${ABILITIES[e.id]?.name ?? e.id}</b> fizzles — no target.`, 'foe') // fixed rule line
         break
       case 'passiveProc':
         pulsePassive(e.id)
         break
       case 'tacticUsed':
         if (e.key !== 'flee') {
-          log(`Tactic — <b>${e.key[0].toUpperCase()}${e.key.slice(1)}</b>!`, 'you')
+          const tail = TAC_TAIL[e.key]
+          log(`Tactic — <b>${e.key[0].toUpperCase()}${e.key.slice(1)}</b>!${tail ? ` ${tail}.` : ''}`, 'you')
           coachNotify('tactic') // guided intro: "spend Tactics" step
         }
         break
@@ -624,31 +679,39 @@ function interpret(events: CombatEvent[]): void {
         endScreen('flee')
         break
       case 'manaDrained':
-        log(`The foe drains your ${['Fire', 'Nature', 'Frost'][e.color]} mana.`, 'foe')
+        log(`The ${foe} ${drainWord()} your ${MANA[e.color]} — <b>−${e.amount}</b>.`, 'foe')
+        break
+      case 'clockChanged':
+        if (e.deltaSeconds > 0) kickClock() // a Move shoved the strike back → the timer bar recoils
         break
       case 'setResolved': {
         V.stats.sets++
+        matchSlots = e.slots
+        manaSparks(e.mana, e.slots) // fly colour sparks to the mana pips — makes match→mana visible
         coachNotify('match') // guided intro: "make your first set" step
         // give every match a line; a damaging match already logged its strike (enemyDamaged)
         if (e.damage > 0) break
         const parts: string[] = []
-        if (e.block > 0) parts.push(`+${e.block} block`)
-        if (e.boot > 0) parts.push(`+${e.boot}s clock`)
+        if (e.block > 0) parts.push(`<b>+${e.block}</b> block`)
+        if (e.boot > 0) parts.push(`<b>+${e.boot}s</b> clock`)
         const m = e.mana.findIndex((x) => x === 3)
-        if (m >= 0) parts.push(`+3 ${MANA[m]}`)
-        else if (e.mana.some((x) => x > 0)) parts.push('+1 each mana')
-        log(`Set — ${parts.join(' · ') || 'resolved'}.`, 'you')
+        if (m >= 0) parts.push(`<b>+3 ${MANA[m]}</b>`)
+        else if (e.mana.some((x) => x > 0)) parts.push('<b>+1</b> each essence')
+        log(`Set — ${joinClauses(parts) || 'resolved'}.`, 'you') // natural clauses, data bolded
         break
       }
-      case 'playerDamaged':
-        log(`The ${V.state.foe.name} hits you for <b>${e.amount}</b>${e.absorbed ? ` (${e.absorbed} blocked)` : ''}.`, 'foe')
+      case 'playerDamaged': {
+        const tier = tierOf(e.amount, V.state.foe.damage)
+        const data = `<b>−${e.amount}</b>${e.absorbed ? ` (${e.absorbed} blocked)` : ''}`
+        log(`The ${foe} ${pick(voice.hit)} you — ${strikeWord(tier, 1)}, ${data}.`, tier === 'heavy' ? 'foe big' : 'foe')
         V.stats.taken += e.amount; V.stats.blocked += e.absorbed
-        queueFlash('wound')
+        queueFlash('wound', 0.8 + Math.min(1.2, e.amount / Math.max(1, V.state.foe.damage))) // severity-scaled flash
         floatBoard(`-${e.amount} HP`, 'var(--red)', 'you')
         flashStat('phpv')
-        bursts.push(['💥', '✷ struck', V.state.foe.name, e.absorbed ? `−${e.amount} HP · ${e.absorbed} blocked` : `−${e.amount} HP`, 'wound'])
+        bursts.push(['💥', '✷ struck', foe, e.absorbed ? `−${e.amount} HP · ${e.absorbed} blocked` : `−${e.amount} HP`, 'wound'])
         hs = Math.max(hs, 150)
         break
+      }
       case 'triggerSprung': {
         const trick = e.trigger.kind === 'trick'
         pulseTrig(e.trigger) // light up the named chip in the strip — builds the rule→flash association
@@ -674,24 +737,29 @@ function interpret(events: CombatEvent[]): void {
         showBriefing(() => { if (V) { V.paused = false; V.lastT = 0 } })
         break
       case 'won':
+        log(`The ${foe} collapses. <b>Victory!</b>`, 'win')
         endScreen('win')
         break
       case 'lost':
+        log(`You fall in battle. <b>Defeat.</b>`, 'foe')
         endScreen('lose')
         break
     }
   }
   // flush coalesced full-screen feedback: one flash (loudest wins), one hitstop, bursts staggered so a
   // multi-effect instant (wound + trap in the same match) sequences legibly instead of compositing.
-  if (flashKind) flash(flashKind)
+  if (flashKind) flash(flashKind, flashPow)
   if (hs) hitstop(hs)
   bursts.forEach((b, k) => { if (k === 0) burst(...b); else setTimeout(() => burst(...b), k * 80) })
+  // reactive herding: a foe transmute that fired in response to your match ripples out FROM your match
+  if (matchSlots && events.some((e) => e.type === 'cardsTransmuted')) ripple(matchSlots)
 }
 
-function flash(kind: 'trap' | 'trick' | 'wound'): void {
+function flash(kind: 'trap' | 'trick' | 'wound', pow = 1): void {
   if (!V) return
   const w = V.refs.boardwrap
   w.classList.remove('flash-trap', 'flash-trick', 'flash-wound')
+  w.style.setProperty('--fp', String(pow)) // severity → flash radius/intensity (nibble vs bite)
   void w.offsetWidth
   w.classList.add('flash-' + kind)
 }
@@ -727,6 +795,64 @@ function burst(icon: string, label: string, name: string, eff: string, kind?: 't
   void b.offsetWidth
   b.classList.add('go')
   setTimeout(() => { b.classList.remove('go'); setTimeout(() => b.remove(), 240) }, 2200)
+}
+
+/** Centroid of board slots in viewport coords (for spark/ripple origins); falls back to board center. */
+function slotsCentroid(slots: number[]): { x: number; y: number } | null {
+  if (!V) return null
+  const bw = V.refs.boardwrap?.getBoundingClientRect()
+  if (!bw) return null
+  const rects = slots.map((i) => V!.refs.board.querySelector(`[data-i="${i}"]`)?.getBoundingClientRect()).filter(Boolean) as DOMRect[]
+  if (!rects.length) return { x: bw.left + bw.width / 2, y: bw.top + bw.height / 2 }
+  return { x: rects.reduce((a, r) => a + r.left + r.width / 2, 0) / rects.length, y: rects.reduce((a, r) => a + r.top + r.height / 2, 0) / rects.length }
+}
+
+/** Fly a few colour sparks from a resolved set to the matching mana pip — the match→mana economy, made visible. */
+function manaSparks(mana: [number, number, number], slots: number[]): void {
+  if (!V) return
+  const o = slotsCentroid(slots)
+  if (!o) return
+  const PIP = ['m0', 'm1', 'm2']
+  const COL = ['var(--c0)', 'var(--c1)', 'var(--c2)']
+  for (let c = 0; c < 3; c++) {
+    if (mana[c] <= 0) continue
+    const pip = V.refs[PIP[c]]?.getBoundingClientRect()
+    if (!pip) continue
+    const tx = pip.left + pip.width / 2, ty = pip.top + pip.height / 2
+    for (let k = 0; k < Math.min(2, mana[c]); k++) {
+      const sp = $(`<div class="mspark"></div>`)
+      sp.style.cssText = `left:${o.x + (k - .5) * 10}px;top:${o.y}px;color:${COL[c]};background:${COL[c]}`
+      document.body.appendChild(sp)
+      void sp.offsetWidth
+      sp.style.transform = `translate(${tx - o.x - (k - .5) * 10}px,${ty - o.y}px) scale(.3)`
+      sp.style.opacity = '0'
+      sp.addEventListener('transitionend', () => sp.remove())
+      setTimeout(() => sp.remove(), 900) // safety net if transitionend is missed
+    }
+  }
+}
+
+/** A one-shot ring expanding from the played set — shows the foe's reactive warp was CAUSED by your match. */
+function ripple(slots: number[]): void {
+  if (!V) return
+  const o = slotsCentroid(slots)
+  const bw = V.refs.boardwrap?.getBoundingClientRect()
+  const layer = V.refs.floatlayer
+  if (!o || !bw || !layer) return
+  const r = $(`<div class="ripple"></div>`)
+  r.style.left = `${o.x - bw.left}px`
+  r.style.top = `${o.y - bw.top}px`
+  layer.appendChild(r)
+  r.addEventListener('animationend', () => r.remove())
+}
+
+/** Recoil the attack-timer bar when a Move shoves the strike back — tempo, made tactile. */
+function kickClock(): void {
+  const el = document.querySelector('.timerbar')
+  if (!el) return
+  el.classList.remove('shove')
+  void (el as HTMLElement).offsetWidth
+  el.classList.add('shove')
 }
 
 /** A brief impact freeze — pause the engine clock for `ms` so a hit/spring lands with weight. */
@@ -804,6 +930,8 @@ function updateBar(): void {
   }
   // dim the board during a briefing freeze (but NOT during coaching, where the board is the lesson)
   V.refs.board?.classList.toggle('idle', !!V.paused && !COACH.active)
+  V.refs.board?.classList.toggle('teachmates', COACH.active) // tutorial: brighter gold set-mate halos
+
   updateCastables()
   // a tutorial popup that needs acknowledgement steps OUTSIDE the game: freeze ALL in-game motion
   // (the engine clock is already frozen via the tick gate) and shade the field, leaving only the popover.
@@ -872,12 +1000,14 @@ function showBriefing(onEngage: () => void): void {
   if (f.drift) stats.push(['Drift', `${f.drift.icon ?? ''} ${f.drift.name.replace(/ Drift$/, '')}`])
   const statsHTML = stats.map(([l, v]) => `<div class="bs"><div class="l">${l}</div><div class="v">${v}</div></div>`).join('')
   const tier = f.tier
+  // threats reveal in sequence (composition stagger); a trap that punishes the colour you most need is flagged
   const trapsHTML = f.triggers.length
-    ? `<div class="btrapshd">Threats</div><div class="btraps">${f.triggers.map((t) => `<div class="btrap${t.kind === 'trick' ? ' trick' : ''}"><span class="bi">${t.icon ?? (t.kind === 'trick' ? '✦' : '⚠')}</span><div><div class="bn">${t.name}</div><div class="bd">${t.desc ?? ''}</div></div></div>`).join('')}</div>`
+    ? `<div class="btrapshd">Threats</div><div class="btraps">${f.triggers.map((t, i) => `<div class="btrap${t.kind === 'trick' ? ' trick' : ''}" style="animation-delay:${0.12 + i * 0.09}s"><span class="bi">${t.icon ?? (t.kind === 'trick' ? '✦' : '⚠')}</span><div><div class="bn">${t.name}</div><div class="bd">${t.desc ?? ''}</div></div></div>`).join('')}</div>`
     : `<div class="btraps" style="margin-top:14px"><div class="briefnote">No traps — a plain foe. Hit it until it falls.</div></div>`
+  const counters = f.triggers.some((t) => t.kind !== 'trick' && countersBuild(t.when))
   const modal = $(`<div id="briefing" class="show"><div class="briefcard">
     ${seq ? `<div class="bseq">Gauntlet · ${V.state.seqIdx + 1} of ${seq.length}</div>` : ''}
-    <div class="bhead">${tier ? `<span class="btier ${tier}">${tier}</span>` : ''}<h2 class="bname">${f.name}</h2></div>
+    <div class="bhead">${tier ? `<span class="btier ${tier}">${tier}</span>` : ''}<h2 class="bname">${f.name}</h2>${counters ? '<span class="bcounter">⚔ counters your build</span>' : ''}</div>
     ${f.desc ? `<div class="bdesc">${f.desc}</div>` : ''}
     <div class="bstats">${statsHTML}</div>
     ${trapsHTML}
@@ -968,8 +1098,8 @@ const GUIDED_STEPS: GuidedStep[] = [
   { icon: '🃏', title: 'Read the board', hold: true,
     body: 'Every card shows three traits — a <b>colour</b>, a <b>shape</b>, and a <b>number</b> (1–3). The clock is frozen; take your time looking them over.' },
   { icon: '✨', title: 'Make your first set', spot: '#board', await: 'match',
-    hint: '▸ Pick a card, watch the teal halos, then complete a set.',
-    body: 'A <b>set</b> is three cards where each trait is <b>all the same</b> or <b>all different</b> across the three. Pick any card — the teal halos light up its set-mates. Complete a set now.',
+    hint: '▸ Click cards on and off to watch the gold set-mates light up, then complete a set.',
+    body: 'A <b>set</b> is three cards where each trait is <b>all the same</b> or <b>all different</b> across the three. Pick any card — its <b>set-mates light up gold</b>. Try clicking a few cards on and off to see how the possibilities shift; pick a second and the card that <b>finishes the set</b> glows brightest. (If a pair can’t finish, both turn <b>red</b>.) Complete a set now.',
     done: 'Nice. A set resolves all three cards at once — that one act does several things together: <b>Attacks</b> deal damage, <b>Defends</b> raise <b>Block</b> that soaks the enemy\'s next hit, and <b>Moves</b> shove the attack timer back. The <b>colours</b> feed mana too: three of one colour banks a big chunk of that element, one-of-each banks a little of all three. Every match is offence, defence, tempo, and resources in one move.' },
   { icon: '⚠️', title: 'Watch for traps', spot: '#strip', reveal: ['traps'], hold: true,
     body: "Tougher foes carry <b>traps</b> — rules that punish (or reward!) certain matches, shown in the <b>trap strip</b> above the board. This dummy has none, but the <b>Training · Gauntlet</b> has foes whose lines you must read, dodge, or deliberately spring." },

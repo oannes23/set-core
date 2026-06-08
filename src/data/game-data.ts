@@ -127,17 +127,20 @@ export const GAMEDATA: GameData = {
     limbless_zombie: {
       name: 'Limbless Zombie', tier: 'minion', hp: 30, speed: 'lumbering', damage: 3,
       desc: 'A zombie with no limbs, chin-crawling across the floor toward you. Harmless — until it gathers itself for a sudden lurch.',
+      voice: { hit: ['gnaws at', 'claws at', 'paws at'], zero: 'flops against you, harmless' },
       traps: ['limbless'], variants: [], xp: 5, loot_tier: 1,
     },
     dread_behemoth: {
       name: 'Dread Behemoth', tier: 'elite', hp: 50, speed: 120, damage: 100,
       desc: 'A mountain that walks. Its blow is <b>certain death</b>, so blocking is futile — but it is <i>ponderously</i> slow. Its tremors shake your useless <b>Defend</b> cards loose into <b>Moves</b>; spend a <b>Move</b> set and you dance aside, leaving it a step behind. Stay mobile, bank <b>Tactics</b>, and break it with a decisive strike.',
+      voice: { hit: ['hammers', 'crushes down on', 'flattens'], zero: 'misses — its bulk too slow' },
       traps: ['tremor', 'outmaneuvered'], variants: [], xp: 30, loot_tier: 3,
     },
     unstable_ethereal_goblin: {
       name: 'Unstable Ethereal Goblin', tier: 'minion', hp: 15, speed: 'steady', damage: 6,
       desc: 'A goblin who gulped a Potion of Etherealness <i>and</i> a Potion of Polymorph at once — now a flickering wisp of raw magic. <b>Swords pass right through him</b> (Attack cards deal no damage). Only <b>magic</b> bites: every <b>ability</b> you cast drains him by the <b>mana you spent</b>. Spend 15 mana of spells to dispel him.',
       rules: { immune_card_damage: true, ability_damage: 'mana_spent' },
+      voice: { hit: ['flickers through', 'phases into', 'wisps across'], heal: ['reknits from mist'], zero: 'shimmers past you' },
       traps: ['ethereal_cackle'], variants: [], xp: 25, loot_tier: 3,
     },
     goblin: {

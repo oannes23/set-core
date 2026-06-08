@@ -204,3 +204,33 @@ Curated from the design pass + my own. `S/M/L` = rough cost. ★ = my top picks.
 - **Run-level contribution chart (L).** Extend #15 across a whole run, emphasizing
   build *shape* over rising numbers — makes a deep run feel like a refined engine, not
   a bigger one (supports no-power-creep design).
+
+---
+
+## Build status — combat-feel pass 2
+
+**Bug fixed:** the HUD bars (HP / Tactics / attack timer) were empty — `.fill` spans
+were `display:inline`, so width/height were ignored. Now `display:block`.
+
+**Shipped enhancements:** ★ mana-gain spark trail · ★ severity-scaled flash (wound
+radius ∝ damage; non-damaging traps stay a nibble) · value heat on card border
+(subtle inset, reads cards not sets) · trap/trick-armed chip pulse (§2.5-safe) ·
+★ reactive-transmute ripple · bait shimmer on the drift colour · ★ clock-shove
+kickback · "almost" breath on the completer · foe-composition reveal stagger
+(briefing) · "counters your build" briefing sting.
+
+**Combat-log facelift:** new pure `src/ui/flavor.ts` (varied verbs, foe voice,
+tiers, `joinClauses`) on a "flavour clause — data clause" anatomy; data-driven
+`voice` on creatures (zombie/behemoth/goblin); bespoke ability cast lines; rule-lines
+(immune/fizzle) stay fixed; quiet drift stays hushed; heavy hits get `.big` emphasis.
+
+**Set-mate glow rework:** halos are now **gold** (dim in normal play, bright in the
+tutorial via `.board.teachmates`); 1-pick mates → 2-pick completer is tiered; a pair
+whose finishing third isn't on the board glows **red** (dead end, nothing else lit);
+tutorial text now coaches clicking cards on/off to explore set-mates.
+
+**Deferred (need set.crawl run loop or deep engine work):** cross-room HP-carry
+banner · run-level contribution chart (the end chart is already cumulative per
+gauntlet) · dread accumulation fog (needs a clear dread-DoT foe + per-room model) ·
+saturation-cap fizzle (needs engine "wanted to warp but couldn't" introspection) ·
+herding connector flash (niche, coach-only).

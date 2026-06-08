@@ -29,7 +29,7 @@ button.cta.bob { animation: ctabob 1.6s ease-in-out infinite; }
 #phpv.hit, #ehpv.hit { animation: stathit .42s ease; }
 @keyframes stathit { 0%, 100% { transform: scale(1); } 35% { transform: scale(1.28); } }
 .track { height: 10px; background: #0e1118; border-radius: 6px; overflow: hidden; border: 1px solid var(--line); }
-.fill { height: 100%; transition: width .25s ease; }
+.fill { display: block; height: 100%; transition: width .25s ease; } /* block: width/height are ignored on inline spans */
 .fill.php { background: var(--green); } .fill.ehp { background: var(--red); }
 .fill.php.low { background: var(--warn); box-shadow: 0 0 8px -1px var(--warn); } /* HP-band glow (folded #6) */
 .fill.php.crit { background: var(--red); box-shadow: 0 0 10px 0 var(--red); }
@@ -43,7 +43,12 @@ button.cta.bob { animation: ctabob 1.6s ease-in-out infinite; }
 /* trap/trick strip */
 .strip { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin: 14px 0 0; }
 .strip .lab { font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: var(--red); font-weight: 700; }
-.trig { display: flex; align-items: center; gap: 6px; background: #1a1216; border: 1px solid #5a2a2e; border-radius: 9px; padding: 5px 10px; font-size: 11.5px; color: #f0c2c4; }
+.trig { position: relative; display: flex; align-items: center; gap: 6px; background: #1a1216; border: 1px solid #5a2a2e; border-radius: 9px; padding: 5px 10px; font-size: 11.5px; color: #f0c2c4; }
+/* a chip whose line is on the board RIGHT NOW pulses "live" (rule legible, instance still earned — §2.5) */
+.trig.armed::after { content: ''; position: absolute; inset: -2px; border-radius: 11px; pointer-events: none; animation: trigarmed 1.4s ease-in-out infinite; }
+.trig.trick.armed::after { animation-name: trigarmedk; }
+@keyframes trigarmed { 0%, 100% { box-shadow: 0 0 0 1px transparent; } 50% { box-shadow: 0 0 0 1px var(--red), 0 0 11px -4px var(--red); } }
+@keyframes trigarmedk { 0%, 100% { box-shadow: 0 0 0 1px transparent; } 50% { box-shadow: 0 0 0 1px var(--trick), 0 0 11px -4px var(--trick); } }
 .trig .tn { font-weight: 700; color: var(--red); }
 .trig.trick { background: #0f1f1a; border-color: #2f6b56; color: #bfe9da; }
 .trig.trick .tn { color: var(--trick); }
@@ -71,6 +76,8 @@ button.cta.bob { animation: ctabob 1.6s ease-in-out infinite; }
 .fill.atk.low { background: var(--warn); }
 .fill.atk.crit { background: var(--red); animation: atkpulse .5s ease-in-out infinite; }
 @keyframes atkpulse { 0%, 100% { opacity: 1; } 50% { opacity: .45; } }
+.timerbar.shove { animation: barshove .4s ease; } /* recoil when a Move shoves the strike back — tempo, tactile */
+@keyframes barshove { 0%, 100% { transform: translateX(0); } 30% { transform: translateX(7px); } }
 #clock.low { color: var(--warn); } #clock.crit { color: var(--red); font-weight: 700; }
 .rail { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
 .rail .panel { margin: 0; }
@@ -88,13 +95,22 @@ button.cta.bob { animation: ctabob 1.6s ease-in-out infinite; }
 .board.idle { filter: saturate(.5) brightness(.62); pointer-events: none; } /* dimmed behind a briefing freeze */
 .card { aspect-ratio: 3/4; border: 2px solid var(--cc); border-radius: 12px; background: #0f131b;
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; cursor: pointer;
-  box-shadow: 0 0 0 1px #0006 inset; transition: transform .1s ease, box-shadow .12s ease, filter .12s ease; user-select: none; }
+  box-shadow: 0 0 0 1px #0006 inset, inset 0 0 calc(11px * var(--heat, 0)) -2px var(--cc); transition: transform .1s ease, box-shadow .12s ease, filter .12s ease; user-select: none; }
 .card:hover { transform: translateY(-2px); }
 .card .cardsvg { width: 82%; height: 82%; display: block; pointer-events: none; }
 .card.sel { box-shadow: 0 0 0 3px var(--phos), 0 0 22px -4px var(--phos); transform: translateY(-3px); }
-.card.mate { filter: drop-shadow(0 0 7px rgba(94,234,212,.55)); }
-.card.matedim { filter: drop-shadow(0 0 5px rgba(94,234,212,.28)); } /* 2-pick: dim the open mates so the completer reads */
-.card.complete { filter: drop-shadow(0 0 10px rgba(94,234,212,.95)); }
+/* set-mate halos are GOLD (the "set hint"): dim in normal play, bright in the tutorial. Selection stays teal. */
+.card.mate { filter: drop-shadow(0 0 6px rgba(245,197,66,.5)); }
+.card.complete { animation: completebreath 1.1s ease-in-out infinite; } /* the completer (3rd finisher) breathes — micro-anticipation */
+@keyframes completebreath { 0%, 100% { filter: drop-shadow(0 0 7px rgba(245,197,66,.75)); } 50% { filter: drop-shadow(0 0 15px rgba(245,197,66,1)); } }
+/* tutorial: unmistakable — brighter mates (2nd possibilities) + a bolder completer (3rd finisher) */
+.board.teachmates .card.mate { filter: drop-shadow(0 0 11px rgba(245,197,66,.95)); }
+.board.teachmates .card.complete { animation: completebreathbig 1.1s ease-in-out infinite; }
+@keyframes completebreathbig { 0%, 100% { filter: drop-shadow(0 0 13px rgba(245,197,66,1)); } 50% { filter: drop-shadow(0 0 26px rgba(245,197,66,1)) drop-shadow(0 0 9px rgba(245,197,66,.85)); } }
+/* two picks whose finishing third isn't on the board → a dead end: the picks glow red, nothing else does */
+.card.badpair { box-shadow: 0 0 0 3px var(--red), 0 0 22px -4px var(--red); transform: translateY(-3px); }
+.card.bait { animation: baitshimmer 2.3s ease-in-out infinite; } /* drift-colour cards tempt you (the lure to resist) */
+@keyframes baitshimmer { 0%, 100% { filter: brightness(1) saturate(1); } 50% { filter: brightness(1.16) saturate(1.28); } }
 .card.empty { opacity: .25; border-style: dashed; cursor: default; }
 .card.empty:hover { transform: none; }
 /* lock — the rune STAYS readable (read it, can't take it): iron stripes + 🔒 + a live countdown */
@@ -115,7 +131,8 @@ button.cta.bob { animation: ctabob 1.6s ease-in-out infinite; }
 /* trap/trick = a light shake (a priced event); wound = a heavy shake (a hit) — kinetic weight ∝ severity */
 @keyframes ft { 0%,100% { box-shadow: none; transform: translateX(0); } 20% { box-shadow: 0 0 0 3px var(--warn), 0 0 60px -6px var(--warn); transform: translateX(-3px); } 55% { transform: translateX(2px); } }
 @keyframes fk { 0%,100% { box-shadow: none; transform: translateX(0); } 20% { box-shadow: 0 0 0 3px var(--trick), 0 0 60px -6px var(--trick); transform: translateX(-3px); } 55% { transform: translateX(2px); } }
-@keyframes fw { 0%,100% { box-shadow: none; } 25% { box-shadow: 0 0 0 4px var(--red), 0 0 70px -4px var(--red); transform: translateX(-7px); } 45% { transform: translateX(6px); } 70% { transform: translateX(-3px); } }
+/* wound flash radius/intensity scales with --fp (severity ∝ rarity: a nibble barely tints, a bite whites out) */
+@keyframes fw { 0%,100% { box-shadow: none; } 25% { box-shadow: 0 0 0 calc(4px * var(--fp,1)) var(--red), 0 0 calc(70px * var(--fp,1)) -4px var(--red); transform: translateX(calc(-7px * var(--fp,1))); } 45% { transform: translateX(calc(6px * var(--fp,1))); } 70% { transform: translateX(-3px); } }
 
 /* abilities / tactics / passives — the live castable panels (migration step 5) */
 .panelhd { display: flex; justify-content: space-between; align-items: baseline; }
@@ -171,7 +188,9 @@ button.cta.bob { animation: ctabob 1.6s ease-in-out infinite; }
 .bs .l { font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-faint); }
 .bs .v { font-size: 15px; font-weight: 700; margin-top: 3px; font-variant-numeric: tabular-nums; } .bs .v small { font-size: 10px; color: var(--ink-faint); font-weight: 400; }
 .btrapshd { font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--red); margin: 18px 0 8px; }
-.btrap { display: flex; gap: 9px; align-items: flex-start; background: #1a1216; border: 1px solid #5a2a2e; border-radius: 9px; padding: 8px 10px; margin-bottom: 6px; }
+.btrap { display: flex; gap: 9px; align-items: flex-start; background: #1a1216; border: 1px solid #5a2a2e; border-radius: 9px; padding: 8px 10px; margin-bottom: 6px; animation: briefin .4s ease backwards; }
+@keyframes briefin { from { opacity: 0; transform: translateY(7px); } to { opacity: 1; transform: translateY(0); } } /* threats reveal in sequence */
+.bcounter { margin-left: auto; align-self: center; font-size: 9.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--red); border: 1px solid var(--red); border-radius: 6px; padding: 3px 7px; white-space: nowrap; }
 .btrap.trick { background: #0f1f1a; border-color: #2f6b56; }
 .btrap .bi { font-size: 15px; line-height: 1.2; } .btrap .bn { font-weight: 700; font-size: 12.5px; color: var(--red); } .btrap.trick .bn { color: var(--trick); }
 .btrap .bd { font-size: 11px; color: var(--ink-dim); line-height: 1.45; margin-top: 2px; }
@@ -188,6 +207,13 @@ button.cta.bob { animation: ctabob 1.6s ease-in-out infinite; }
   transition: opacity .6s ease, background .6s ease; }
 #ptint.low { opacity: 1; background: radial-gradient(120% 100% at 50% 50%, transparent 52%, rgba(245,165,36,.34) 100%); }
 #ptint.crit { opacity: 1; background: radial-gradient(115% 95% at 50% 50%, transparent 44%, rgba(240,86,91,.46) 100%); }
+/* mana-gain sparks: fly from a resolved set to the matching mana pip (the match→mana economy made visible) */
+.mspark { position: fixed; width: 9px; height: 9px; border-radius: 50%; z-index: 39; pointer-events: none;
+  box-shadow: 0 0 8px currentColor; transition: transform .6s cubic-bezier(.4, .5, .2, 1), opacity .6s ease; }
+/* reactive-transmute ripple: a ring expanding from your played set (your match CAUSED the foe's warp) */
+.ripple { position: absolute; width: 12px; height: 12px; transform: translate(-50%, -50%); pointer-events: none;
+  border-radius: 50%; border: 2px solid var(--phos); animation: rippleout .55s ease-out forwards; }
+@keyframes rippleout { 0% { opacity: .8; width: 12px; height: 12px; } 100% { opacity: 0; width: 260px; height: 260px; } }
 #burstlayer { position: fixed; left: 0; right: 0; top: 0; bottom: 0; pointer-events: none; z-index: 38; }
 .burst { position: absolute; left: 50%; top: 42%; transform: translate(-50%, -50%) scale(.8); opacity: 0;
   display: flex; align-items: center; gap: 11px; background: var(--panel); border: 1px solid var(--warn); border-radius: 13px;
@@ -299,6 +325,8 @@ button.cta.bob { animation: ctabob 1.6s ease-in-out infinite; }
 /* log */
 .log { font-size: 12px; line-height: 1.7; max-height: 220px; overflow-y: auto; color: var(--ink-dim); }
 .log .you { color: var(--phos); } .log .foe { color: var(--red); } .log .win { color: var(--gold); } .log .trick { color: var(--trick); }
+.log .big { font-weight: 700; animation: lognudge .25s ease; } /* heavy hits read louder */
+@keyframes lognudge { 0%, 100% { transform: translateX(0); } 45% { transform: translateX(3px); } }
 .banner { font-family: "Syne", sans-serif; font-weight: 800; font-size: 20px; text-align: center; padding: 14px 14px 4px; }
 .banner.win { color: var(--gold); } .banner.lose { color: var(--red); }
 /* end-of-combat contribution chart — what you actually did this fight */

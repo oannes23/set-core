@@ -106,6 +106,13 @@ export interface FoeRules {
   immune_card_damage?: boolean // set/Attack damage does nothing
   ability_damage?: 'mana_spent' // each ability cast drains the foe by the mana spent
 }
+/** Combat-log voice: swappable verbs so a foe reads in character (the zombie gnaws, the behemoth booms).
+ *  Pure flavour — the UI's combat log consumes it; absent fields fall back to a neutral default. */
+export interface Voice {
+  hit?: string[] // "the X <hit> you" — e.g. ['claws at', 'gnaws']
+  heal?: string[] // "the X <heal>" — e.g. ['festers whole']
+  zero?: string // the harmless-attack lead — e.g. 'flops against you'
+}
 export interface Creature {
   name: string
   tier: Tier
@@ -113,6 +120,7 @@ export interface Creature {
   speed: Speed
   damage: number
   desc?: string
+  voice?: Voice // combat-log character (optional; neutral default otherwise)
   traps?: string[] // authored signature trap ids (bosses / special foes)
   variants?: string[] // variant ids to roll one from (minions / elites)
   rules?: FoeRules

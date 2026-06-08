@@ -20,7 +20,11 @@ const has = (rec: Record<string, unknown>, id: string): boolean =>
   Object.prototype.hasOwnProperty.call(rec, id)
 
 test('typed data matches the prototype oracle (game-data.js) exactly', () => {
-  expect(GAMEDATA).toEqual(oracle)
+  // `voice` is a deliberate post-migration addition (combat-log flavour, UI-only) with no oracle
+  // counterpart — strip it so this guard still catches *unintended* drift but allows the new field.
+  const g = structuredClone(GAMEDATA)
+  for (const cr of Object.values(g.creatures)) delete (cr as { voice?: unknown }).voice
+  expect(g).toEqual(oracle)
 })
 
 test('every creature trap / variant id resolves', () => {
