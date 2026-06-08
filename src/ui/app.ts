@@ -188,7 +188,9 @@ function begin(root: HTMLElement, dungeonId: string, foeVal: string, classId: st
     V.paused = false
     V.lastT = 0
     loop(performance.now())
-    if (dg.guided) coachStartGuided()
+    // let the player SEE the board for a beat before the guided intro freezes it ("read the board").
+    // capture V so a pending timer from a prior combat can't fire into a different one.
+    if (dg.guided) { const v = V; setTimeout(() => { if (V === v) coachStartGuided() }, 650) }
   })
 }
 
@@ -335,6 +337,7 @@ function renderBoard(): void {
       layer.appendChild(ghost)
     }
   })
+  const firstRender = V.boardSig === '' // the opening board just appears; no fade-in to freeze mid-animation
   board.innerHTML = ''
   const sets = findSets(s.board)
   const mates = glowSet(s, V.selected, sets)
@@ -350,7 +353,7 @@ function renderBoard(): void {
     else if (mates.complete === i) cls.push('complete')
     else if (mates.set.has(i)) cls.push('mate')
     if (locked) cls.push('locked')
-    if (oldKeys[i] !== key) cls.push('enter') // new or changed → fade in
+    if (!firstRender && oldKeys[i] !== key) cls.push('enter') // new or changed → fade in
     const el = $(`<div class="${cls.join(' ')}" data-i="${i}" data-key="${key}" style="--cc:var(--c${c[0]})">${cardSVG(c)}${locked ? '<span class="lock">🔒</span>' : ''}</div>`)
     board.appendChild(el)
   })
@@ -867,6 +870,9 @@ const GUIDED_STEPS: GuidedStep[] = [
 ]
 
 function coachStartGuided(): void {
+  // start from a guaranteed-clean slate so a replay can't inherit a prior run's step/await state
+  document.getElementById('coachscrim')?.remove()
+  document.getElementById('coachpop')?.remove()
   buildCoachUI()
   COACH.active = true
   COACH.steps = GUIDED_STEPS
