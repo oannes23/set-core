@@ -98,8 +98,51 @@ interface View {
 let V: View | null = null
 
 export function mountApp(root: HTMLElement): void {
+  initTooltips()
   hubScene(root)
 }
+
+/* ============================================================
+   TOOLTIPS — one shared, styled, fast hover tooltip (replaces native `title`, which is slow + ugly).
+   Any element with `data-tip` (body) and/or `data-tip-title` (header) gets it, via one delegated
+   listener. Anchored above the element (flips below if no room), pointer-events-none, snappy delay.
+   ============================================================ */
+let tipEl: HTMLElement | null = null
+let tipTimer = 0
+const TIP_SEL = '[data-tip],[data-tip-title]'
+function initTooltips(): void {
+  if (tipEl) return // once
+  tipEl = $(`<div id="tooltip"></div>`)
+  document.body.appendChild(tipEl)
+  document.addEventListener('mouseover', (e) => {
+    const el = (e.target as HTMLElement).closest?.(TIP_SEL) as HTMLElement | null
+    if (!el) return
+    clearTimeout(tipTimer)
+    tipTimer = window.setTimeout(() => showTip(el), 80) // pops far quicker than native title
+  })
+  document.addEventListener('mouseout', (e) => {
+    const el = (e.target as HTMLElement).closest?.(TIP_SEL) as HTMLElement | null
+    if (el && !el.contains((e as MouseEvent).relatedTarget as Node)) { clearTimeout(tipTimer); hideTip() }
+  })
+  document.addEventListener('mousedown', hideTip) // never let a tip linger over a click/scene change
+}
+function showTip(el: HTMLElement): void {
+  if (!tipEl || !el.isConnected) return
+  const title = el.dataset.tipTitle ?? ''
+  const body = el.dataset.tip ?? ''
+  if (!title && !body) return
+  tipEl.innerHTML = `${title ? `<div class="tt-title">${title}</div>` : ''}${body ? `<div class="tt-body">${body}</div>` : ''}`
+  tipEl.classList.add('show') // measurable now
+  const r = el.getBoundingClientRect()
+  const tr = tipEl.getBoundingClientRect()
+  const left = Math.max(8, Math.min(r.left + r.width / 2 - tr.width / 2, window.innerWidth - tr.width - 8))
+  const above = r.top - tr.height - 8
+  const below = above < 8
+  tipEl.style.left = `${left}px`
+  tipEl.style.top = `${below ? r.bottom + 8 : above}px`
+  tipEl.classList.toggle('below', below)
+}
+function hideTip(): void { tipEl?.classList.remove('show') }
 
 /* ============================================================
    HUB SCENE (town / menu) — the default place between matches: the character roster
@@ -132,7 +175,7 @@ function hubScene(root: HTMLElement): void {
     if (!roster.length) list.appendChild($(`<div class="sub" style="text-transform:none;letter-spacing:0">No heroes yet — create one below.</div>`))
     for (const c of roster) {
       const cls = classById(c.classId)
-      const card = $(`<div class="charcard${c.id === selId ? ' sel' : ''}" data-id="${c.id}"><span class="ci">${cls.icon}</span><div class="cmeta"><div class="cn">${c.name}</div><div class="cc">${cls.name} · ${c.hp}/${c.maxHp} HP</div></div><button class="charx" title="Delete">✕</button></div>`)
+      const card = $(`<div class="charcard${c.id === selId ? ' sel' : ''}" data-id="${c.id}"><span class="ci">${cls.icon}</span><div class="cmeta"><div class="cn">${c.name}</div><div class="cc">${cls.name} · ${c.hp}/${c.maxHp} HP</div></div><button class="charx" data-tip="Delete this hero">✕</button></div>`)
       card.addEventListener('click', (e) => {
         if ((e.target as HTMLElement).closest('.charx')) {
           if (confirm(`Delete ${c.name}?`)) { deleteChar(c.id); roster = loadRoster(); if (selId === c.id) selId = roster[0]?.id ?? null; render() }
@@ -255,7 +298,7 @@ function buildPlay(): void {
   const head = $(`<div class="panel headpanel"></div>`)
   head.appendChild($(`<div class="foename" id="foename"></div>`))
   head.appendChild($(`<div class="foedesc" id="foedesc"></div>`))
-  head.appendChild($(`<button class="fleebtn" id="fleebtn" title="Forfeit this encounter">🏃 Flee</button>`)) // any-time flee
+  head.appendChild($(`<button class="fleebtn" id="fleebtn" data-tip-title="Flee" data-tip="Forfeit this encounter and retreat to town. Available any time.">🏃 Flee</button>`)) // any-time flee
   wrap.appendChild(head)
 
   // play area: left 2/3 (combat bar embedded above the board) · right 1/3 (Tactics / Abilities / log)
@@ -325,24 +368,24 @@ function buildCastPanel(): HTMLElement {
   tacSec.appendChild($(`<div class="panelhd"><label>Tactics</label><span class="stub-note" id="tacv">0/${TACTICS_GOAL}</span></div>`))
   tacSec.appendChild($(`<div class="track tacmeter"><span class="fill tac" id="tac"></span></div>`))
   const row = $(`<div class="tactics-row" id="tactics"></div>`)
-  for (const t of TAC_BTNS) row.appendChild($(`<div class="tac-btn" data-tac="${t.k}">${t.label}</div>`))
+  for (const t of TAC_BTNS) row.appendChild($(`<div class="tac-btn" data-tac="${t.k}" data-tip-title="${t.label}" data-tip="Armed Tactic — ${TAC_TAIL[t.k] ?? 'reshape the board'}. Fill the meter with Move matches to arm it.">${t.label}</div>`))
   tacSec.appendChild(row)
   panel.appendChild(tacSec)
   // ABILITIES section (mana display built into the header) + grid + passive chips
   const abSec = $(`<div class="coach-sec" data-sec="abilities" style="margin-top:14px"></div>`)
-  abSec.appendChild($(`<div class="panelhd"><label>Abilities · ${cls.name}</label><span class="manabar"><span style="color:var(--c0)">🔥<b id="m0">0</b></span><span style="color:var(--c1)">🌿<b id="m1">0</b></span><span style="color:var(--c2)">❄<b id="m2">0</b></span></span></div>`))
+  abSec.appendChild($(`<div class="panelhd"><label>Abilities · ${cls.name}</label><span class="manabar"><span style="color:var(--c0)" data-tip-title="Fire mana" data-tip="Spent on Fire abilities. Bank it by matching red cards (all-red set → 3, one-of-each → 1).">🔥<b id="m0">0</b></span><span style="color:var(--c1)" data-tip-title="Nature mana" data-tip="Spent on Nature abilities. Bank it by matching green cards.">🌿<b id="m1">0</b></span><span style="color:var(--c2)" data-tip-title="Frost mana" data-tip="Spent on Frost abilities. Bank it by matching blue cards.">❄<b id="m2">0</b></span></span></div>`))
   const grid = $(`<div class="ability-grid" id="abilities"></div>`)
   for (const id of V!.loadout) {
     const a = ABILITIES[id]
     if (!a) continue
     const cost = a.cost.map((c, i) => (c > 0 ? `${MANA_ICON[i]}${c}` : '')).filter(Boolean).join(' ')
-    grid.appendChild($(`<div class="ab-slot" data-ab="${id}" title="${a.name} — ${a.desc}"><div class="abi">${a.icon}</div><div class="abn">${a.name}</div><div class="abc">${cost}</div></div>`))
+    grid.appendChild($(`<div class="ab-slot" data-ab="${id}" data-tip-title="${a.name}${cost ? ` · ${cost}` : ''}" data-tip="${a.desc}"><div class="abi">${a.icon}</div><div class="abn">${a.name}</div><div class="abc">${cost}</div></div>`))
   }
   abSec.appendChild(grid)
   const pas = $(`<div class="passives" id="passives"></div>`)
   for (const id of V!.state.passives) {
     const p = PASSIVES[id]
-    if (p) pas.appendChild($(`<div class="pchip" data-passive="${id}" title="${p.name} — ${p.desc}"><span class="pi">${p.icon}</span>${p.name}</div>`))
+    if (p) pas.appendChild($(`<div class="pchip" data-passive="${id}" data-tip-title="${p.name}" data-tip="${p.desc}"><span class="pi">${p.icon}</span>${p.name}</div>`))
   }
   if (V!.state.passives.length) abSec.appendChild(pas)
   panel.appendChild(abSec)
