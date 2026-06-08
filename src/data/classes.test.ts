@@ -25,10 +25,13 @@ test('every class passive id resolves against the engine PASSIVES registry', () 
   }
 })
 
-test('every class has a green-mana sink (the rebalance invariant — green was a dead resource)', () => {
+test('every class has a mana sink for ALL THREE colours (no dead resource)', () => {
+  const COL = ['red', 'green', 'blue']
   for (const c of CLASSES) {
-    const greenSink = c.abilities.some((a) => (ABILITIES[a]?.cost[1] ?? 0) > 0)
-    expect(greenSink, `${c.id} has no ability that spends green mana`).toBe(true)
+    for (let i = 0; i < 3; i++) {
+      const sink = c.abilities.some((a) => (ABILITIES[a]?.cost[i] ?? 0) > 0)
+      expect(sink, `${c.id} has no ability that spends ${COL[i]} mana`).toBe(true)
+    }
   }
 })
 

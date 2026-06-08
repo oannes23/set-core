@@ -9,12 +9,12 @@ export const CLASSES: ClassDef[] = [
   { id: 'pyromancer', name: 'Pyromancer', icon: '🔥', blurb: 'Flood the board with fire and burn through anything.', abilities: ['firebolt', 'fireball', 'callflames'], passives: ['flameshield'] },
   { id: 'cryomancer', name: 'Cryomancer', icon: '❄️', blurb: "Freeze the enemy's tempo and grind them out.", abilities: ['frostbolt', 'glaciate', 'callfrost'], passives: ['permafrost'] },
   { id: 'druid', name: 'Druid', icon: '🌿', blurb: 'Outlast everything on relentless healing.', abilities: ['heal', 'wildgrowth', 'callwilds'], passives: ['photosynthesis'] },
-  { id: 'berserker', name: 'Berserker', icon: '⚔️', blurb: 'Turn the whole board into blades, then swing.', abilities: ['cleave', 'berserk', 'thornwall'], passives: ['bloodlust'] },
-  { id: 'sentinel', name: 'Sentinel', icon: '🛡️', blurb: 'An immovable wall that wins by attrition.', abilities: ['bulwark', 'thornwall', 'heal'], passives: ['overflow'] },
-  { id: 'rogue', name: 'Rogue', icon: '🗡️', blurb: 'Spend Attacks for damage, flow back into Moves.', abilities: ['quickstrike', 'smokebomb', 'venomstrike'], passives: ['momentum'] },
+  { id: 'berserker', name: 'Berserker', icon: '⚔️', blurb: 'Turn the whole board into blades, then swing.', abilities: ['cleave', 'berserk', 'rampage'], passives: ['bloodlust'] },
+  { id: 'sentinel', name: 'Sentinel', icon: '🛡️', blurb: 'An immovable wall that wins by attrition.', abilities: ['bulwark', 'riposte', 'heal'], passives: ['overflow'] },
+  { id: 'rogue', name: 'Rogue', icon: '🗡️', blurb: 'Spend Attacks for damage, flow back into Moves.', abilities: ['quickstrike', 'smokebomb', 'coldblade'], passives: ['momentum'] },
   { id: 'spellblade', name: 'Spellblade', icon: '⚡', blurb: 'A caster whose every spell cuts twice.', abilities: ['firebolt', 'frostbolt', 'venomstrike'], passives: ['spellecho'] },
   { id: 'chronomancer', name: 'Chronomancer', icon: '⏳', blurb: 'Bend the enemy clock until it never strikes.', abilities: ['timewarp', 'glaciate', 'frostbolt'], passives: ['quicken'] },
-  { id: 'warlord', name: 'Warlord', icon: '🎯', blurb: 'Fuel the Tactics meter and never stop acting.', abilities: ['berserk', 'venomstrike', 'cleave'], passives: ['tactician'] },
+  { id: 'warlord', name: 'Warlord', icon: '🎯', blurb: 'A tactical strategist who leads from the front — strike, rally the line, hold fast.', abilities: ['cleave', 'rally', 'bulwark'], passives: ['tactician'] },
 ]
 
 export function classById(id: string): ClassDef {

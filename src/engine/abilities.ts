@@ -12,7 +12,7 @@ import { weightedRoll } from './resolve'
 import { SHAPE_ATTACK, SHAPE_DEFEND, SHAPE_MOVE } from './resolve'
 import { transmute, reformSlots } from './triggers'
 import { firePassives } from './passives'
-import { gainBlock, healPlayer, dealAbilityDamage, castDamageHook, pushClock } from './ops'
+import { gainBlock, healPlayer, dealAbilityDamage, castDamageHook, pushClock, addTactics } from './ops'
 import {
   COLOR_RED, COLOR_GREEN, COLOR_BLUE, BIAS_W,
   cardColor, cardShape, cardMag, liveSlots, woundedSlots, deadestCandidates,
@@ -181,6 +181,19 @@ export const ABILITIES: Record<string, Ability> = {
       const pick = randOf(deadestCandidates(s, COLOR_GREEN), rng)
       if (pick != null) transmute(s, [pick], { bias: { color: COLOR_GREEN, colorW: BIAS_W, shape: SHAPE_ATTACK, shapeW: BIAS_W } }, sink)
     },
+  },
+  // ---- BLUE sinks (control/tempo, not just frost-caster) so martial classes can spend Frost too ----
+  rally: {
+    id: 'rally', name: 'Rally', icon: '📯', cost: [0, 0, 4], desc: 'command the line: +6s clock · bank 4 Tactics',
+    cast(s, _rng, sink) { pushClock(s, 6, sink); addTactics(s, 4, sink) },
+  },
+  coldblade: {
+    id: 'coldblade', name: 'Cold Blade', icon: '🥶', cost: [0, 0, 3], desc: '10 dmg · +4s tempo (a frigid strike)',
+    cast(s, rng, sink) { dealRolled(s, 10, rng, sink); pushClock(s, 4, sink) },
+  },
+  riposte: {
+    id: 'riposte', name: 'Riposte', icon: '🤺', cost: [0, 0, 4], desc: '+6 block · 8 dmg counter',
+    cast(s, rng, sink) { gainBlock(s, 6, rng, sink); dealRolled(s, 8, rng, sink) },
   },
   timewarp: {
     id: 'timewarp', name: 'Time Warp', icon: '⏳', cost: [2, 2, 2], desc: 'slam enemy clock to its cap + 6 dmg',
