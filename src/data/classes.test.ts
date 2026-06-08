@@ -25,6 +25,13 @@ test('every class passive id resolves against the engine PASSIVES registry', () 
   }
 })
 
+test('every class has a green-mana sink (the rebalance invariant — green was a dead resource)', () => {
+  for (const c of CLASSES) {
+    const greenSink = c.abilities.some((a) => (ABILITIES[a]?.cost[1] ?? 0) > 0)
+    expect(greenSink, `${c.id} has no ability that spends green mana`).toBe(true)
+  }
+})
+
 test('classById resolves a known id and falls back to the first class', () => {
   expect(classById('rogue').name).toBe('Rogue')
   expect(classById('nope').id).toBe(CLASSES[0].id)

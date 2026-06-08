@@ -33,7 +33,7 @@ test('castAbility spends mana, damages a non-immune foe, and transmutes the boar
   const s = combat('training_dummy')
   const r = reduce(s, { type: 'castAbility', abilityId: 'firebolt' }, deps(mulberry32(3)))
   expect(r.events.some((e) => e.type === 'abilityCast' && e.id === 'firebolt')).toBe(true)
-  expect(r.state.mana).toEqual([5, 10, 10]) // firebolt costs [5,0,0]
+  expect(r.state.mana).toEqual([6, 10, 10]) // firebolt costs [4,0,0]
   expect(r.events.some((e) => e.type === 'enemyDamaged')).toBe(true)
   expect(r.state.enemyHP).toBeLessThan(1000)
   expect(r.events.some((e) => e.type === 'cardsTransmuted')).toBe(true)
@@ -51,11 +51,11 @@ test('an unaffordable ability is a no-op (no mana spent, no events)', () => {
 test('ethereal rule: intrinsic ability damage is replaced by mana-spent drain', () => {
   const s = combat('unstable_ethereal_goblin')
   const r = reduce(s, { type: 'castAbility', abilityId: 'firebolt' }, deps(mulberry32(2)))
-  // firebolt's 15-dmg roll is nullified; the foe loses exactly the 5 mana spent (magic), nothing more
+  // firebolt's 15-dmg roll is nullified; the foe loses exactly the 4 mana spent (magic), nothing more
   const dmg = r.events.filter((e) => e.type === 'enemyDamaged') as Array<{ amount: number; magic?: boolean }>
   expect(dmg).toHaveLength(1)
-  expect(dmg[0]).toMatchObject({ amount: 5, magic: true })
-  expect(r.state.enemyHP).toBe(995)
+  expect(dmg[0]).toMatchObject({ amount: 4, magic: true })
+  expect(r.state.enemyHP).toBe(996)
 })
 
 // ---- passives ----

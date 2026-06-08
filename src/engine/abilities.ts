@@ -37,7 +37,7 @@ const fizzle = (sink: EventSink, id: string) => sink.emit({ type: 'abilityFizzle
 export const ABILITIES: Record<string, Ability> = {
   // ---- AUTO-TARGET bolts: aim at a random deadest off-colour card, reforge it toward colour + verb ----
   firebolt: {
-    id: 'firebolt', name: 'Firebolt', icon: '🔥', cost: [5, 0, 0], desc: '15 dmg · burns a deadest off-red card → Fire/Attack',
+    id: 'firebolt', name: 'Firebolt', icon: '🔥', cost: [4, 0, 0], desc: '15 dmg · burns a deadest off-red card → Fire/Attack',
     cast(s, rng, sink) {
       dealRolled(s, 15, rng, sink)
       const pick = randOf(deadestCandidates(s, COLOR_RED), rng)
@@ -48,8 +48,7 @@ export const ABILITIES: Record<string, Ability> = {
     id: 'frostbolt', name: 'Frostbolt', icon: '❄️', cost: [0, 0, 5], desc: '8 dmg · 5 slow · freezes a deadest off-blue card → Frost/Move',
     cast(s, rng, sink) {
       dealRolled(s, 8, rng, sink)
-      s.nextAttackAt += 5000 // a flat, UNCAPPED 5s slow (faithful to the prototype)
-      sink.emit({ type: 'clockChanged', deltaSeconds: 5 })
+      pushClock(s, 5, sink) // a 5s slow, now CAPPED at the clock ceiling (respects the clock-cap invariant)
       const pick = randOf(deadestCandidates(s, COLOR_BLUE), rng)
       if (pick != null) transmute(s, [pick], { bias: { color: COLOR_BLUE, colorW: BIAS_W, shape: SHAPE_MOVE, shapeW: BIAS_W } }, sink)
     },
@@ -80,7 +79,7 @@ export const ABILITIES: Record<string, Ability> = {
   },
   // ---- SPATIAL AoE that auto-aims like Firebolt: catches neighbours; damage scales with what it razes ----
   fireball: {
-    id: 'fireball', name: 'Fireball', icon: '💥', cost: [8, 0, 0], desc: '13-tile blast on a deadest card (catches neighbors) → Fire/Attack',
+    id: 'fireball', name: 'Fireball', icon: '💥', cost: [7, 0, 0], desc: '13-tile blast on a deadest card (catches neighbors) → Fire/Attack',
     cast(s, rng, sink) {
       const center = randOf(deadestCandidates(s, COLOR_RED), rng)
       const hits = center == null ? [] : offsetSlots(s, center, FIREBALL_BLAST).filter((i) => s.board[i] && !s.pending.has(i) && !s.locked.has(i))
@@ -113,20 +112,20 @@ export const ABILITIES: Record<string, Ability> = {
   },
   // ---- COLOUR FLOODS: off-colour mana dump → reforge the whole board to one element at max magnitude ----
   callflames: {
-    id: 'callflames', name: 'Call Flames', icon: '🔥', cost: [0, 5, 5], desc: 'every non-red card → max-magnitude Fire',
+    id: 'callflames', name: 'Call Flames', icon: '🔥', cost: [0, 4, 4], desc: 'every non-red card → max-magnitude Fire',
     cast(s, _rng, sink) { transmute(s, liveSlots(s, (c) => cardColor(c) !== COLOR_RED), { bias: { color: COLOR_RED, colorW: BIAS_W, mag: 2, magW: BIAS_W } }, sink) },
   },
   callfrost: {
-    id: 'callfrost', name: 'Call Frost', icon: '❄️', cost: [5, 5, 0], desc: 'every non-blue card → max-magnitude Frost',
+    id: 'callfrost', name: 'Call Frost', icon: '❄️', cost: [4, 4, 0], desc: 'every non-blue card → max-magnitude Frost',
     cast(s, _rng, sink) { transmute(s, liveSlots(s, (c) => cardColor(c) !== COLOR_BLUE), { bias: { color: COLOR_BLUE, colorW: BIAS_W, mag: 2, magW: BIAS_W } }, sink) },
   },
   callwilds: {
-    id: 'callwilds', name: 'Call Wilds', icon: '🌿', cost: [5, 0, 5], desc: 'every non-green card → max-magnitude Nature',
+    id: 'callwilds', name: 'Call Wilds', icon: '🌿', cost: [4, 0, 4], desc: 'every non-green card → max-magnitude Nature',
     cast(s, _rng, sink) { transmute(s, liveSlots(s, (c) => cardColor(c) !== COLOR_GREEN), { bias: { color: COLOR_GREEN, colorW: BIAS_W, mag: 2, magW: BIAS_W } }, sink) },
   },
   // ---- SHAPE FLOODS / consumers: reshape the board along the verb axis ----
   cleave: {
-    id: 'cleave', name: 'Cleave', icon: '🪓', cost: [3, 0, 0], desc: '15 dmg · razes a deadest card → heavy Attack',
+    id: 'cleave', name: 'Cleave', icon: '🪓', cost: [4, 0, 0], desc: '15 dmg · razes a deadest card → heavy Attack',
     cast(s, rng, sink) {
       dealRolled(s, 15, rng, sink)
       const pick = randOf(deadestCandidates(s, COLOR_RED), rng)
@@ -166,6 +165,22 @@ export const ABILITIES: Record<string, Ability> = {
   smokebomb: {
     id: 'smokebomb', name: 'Smoke Bomb', icon: '💨', cost: [0, 3, 0], desc: '+6 block · big enemy slow',
     cast(s, rng, sink) { gainBlock(s, 6, rng, sink); pushClock(s, 8, sink) },
+  },
+  // ---- GREEN sinks (a mono-green defensive + a mono-green strike) so every class can spend Nature ----
+  thornwall: {
+    id: 'thornwall', name: 'Thornwall', icon: '🌵', cost: [0, 4, 0], desc: '+8 block · every Attack → heavy Defend (briars)',
+    cast(s, rng, sink) {
+      gainBlock(s, 8, rng, sink)
+      transmute(s, liveSlots(s, (c) => cardShape(c) === SHAPE_ATTACK), { bias: { shape: SHAPE_DEFEND, shapeW: BIAS_W, mag: 2, magW: BIAS_W } }, sink)
+    },
+  },
+  venomstrike: {
+    id: 'venomstrike', name: 'Venom Strike', icon: '🐍', cost: [0, 4, 0], desc: '12 dmg · poisons a deadest off-green card → Nature/Attack',
+    cast(s, rng, sink) {
+      dealRolled(s, 12, rng, sink)
+      const pick = randOf(deadestCandidates(s, COLOR_GREEN), rng)
+      if (pick != null) transmute(s, [pick], { bias: { color: COLOR_GREEN, colorW: BIAS_W, shape: SHAPE_ATTACK, shapeW: BIAS_W } }, sink)
+    },
   },
   timewarp: {
     id: 'timewarp', name: 'Time Warp', icon: '⏳', cost: [2, 2, 2], desc: 'slam enemy clock to its cap + 6 dmg',
@@ -211,6 +226,8 @@ export const ABILITY_PREVIEW: Record<string, (s: CombatState) => Preview> = {
   rampage: (s) => ({ sure: liveSlots(s, (c) => cardShape(c) === SHAPE_ATTACK), maybe: [] }),
   quickstrike: (s) => ({ sure: liveSlots(s, (c) => cardShape(c) === SHAPE_ATTACK), maybe: [] }),
   bulwark: (s) => ({ sure: liveSlots(s, (c) => cardShape(c) !== SHAPE_DEFEND), maybe: [] }),
+  thornwall: (s) => ({ sure: liveSlots(s, (c) => cardShape(c) === SHAPE_ATTACK), maybe: [] }),
+  venomstrike: (s) => oneOf(deadestCandidates(s, COLOR_GREEN)),
   // smokebomb / timewarp: no board target
 }
 
