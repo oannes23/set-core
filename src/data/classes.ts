@@ -8,7 +8,7 @@ import type { ClassDef } from './schema'
 export const CLASSES: ClassDef[] = [
   { id: 'pyromancer', name: 'Pyromancer', icon: '🔥', blurb: 'Flood the board with fire and burn through anything.', abilities: ['firebolt', 'fireball', 'callflames'], passives: ['flameshield'] },
   { id: 'cryomancer', name: 'Cryomancer', icon: '❄️', blurb: "Freeze the enemy's tempo and grind them out.", abilities: ['frostbolt', 'glaciate', 'callfrost'], passives: ['permafrost'] },
-  { id: 'druid', name: 'Druid', icon: '🌿', blurb: 'Outlast everything on relentless healing.', abilities: ['heal', 'wildgrowth', 'callwilds'], passives: ['photosynthesis'] },
+  { id: 'druid', name: 'Druid', icon: '🌿', blurb: 'Outlast on relentless growth, then strangle the foe in thorns.', abilities: ['thornvines', 'wildgrowth', 'callwilds'], passives: ['photosynthesis'] },
   { id: 'berserker', name: 'Berserker', icon: '⚔️', blurb: 'Turn the whole board into blades, then swing.', abilities: ['cleave', 'berserk', 'rampage'], passives: ['bloodlust'] },
   { id: 'sentinel', name: 'Sentinel', icon: '🛡️', blurb: 'An immovable wall that wins by attrition.', abilities: ['bulwark', 'riposte', 'heal'], passives: ['overflow'] },
   { id: 'rogue', name: 'Rogue', icon: '🗡️', blurb: 'Spend Attacks for damage, flow back into Moves.', abilities: ['quickstrike', 'smokebomb', 'coldblade'], passives: ['momentum'] },

@@ -182,6 +182,10 @@ export const ABILITIES: Record<string, Ability> = {
       if (pick != null) transmute(s, [pick], { bias: { color: COLOR_GREEN, colorW: BIAS_W, shape: SHAPE_ATTACK, shapeW: BIAS_W } }, sink)
     },
   },
+  thornvines: {
+    id: 'thornvines', name: 'Thorn Vines', icon: '🌹', cost: [0, 4, 0], desc: '10 dmg · roots the foe +5s (thorns ensnare)',
+    cast(s, rng, sink) { dealRolled(s, 10, rng, sink); pushClock(s, 5, sink) }, // green offence + crowd control
+  },
   // ---- BLUE sinks (control/tempo, not just frost-caster) so martial classes can spend Frost too ----
   rally: {
     id: 'rally', name: 'Rally', icon: '📯', cost: [0, 0, 4], desc: 'command the line: +6s clock · bank 4 Tactics',
