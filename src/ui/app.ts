@@ -446,11 +446,12 @@ function dominantManaColor(loadout: string[]): number {
   return tot[0] >= tot[1] && tot[0] >= tot[2] ? 0 : tot[1] >= tot[2] ? 1 : 2
 }
 
-/** Coach cue: STRONG-glow only cards that can actually COMPLETE a matching set right now — i.e. each
- *  glowed card belongs to a reachable valid set whose three cards all match the trait (all-Move, or
- *  all-of-a-colour). No completable set → no glow (never lead the player to a dead end). Once a card is
- *  selected, the cue narrows further to just the selection's set-mates. */
-function paintCardCue(cls: 'movehint' | 'colorhint', match: (c: Card) => boolean, on: boolean): void {
+/** Coach cue: STRONG-glow only cards that can actually COMPLETE a set right now (never a dead end).
+ *  `requireWholeSet` = glow a card only when its whole reachable set matches the trait (colour cue:
+ *  an all-of-that-colour set builds that mana); otherwise glow any matching card that sits in any
+ *  reachable set (Move cue: a Move in any set adds tactics). Once a card is picked, the cue narrows
+ *  to just the selection's set-mates. */
+function paintCardCue(cls: 'movehint' | 'colorhint', match: (c: Card) => boolean, on: boolean, requireWholeSet: boolean): void {
   if (!V) return
   const s = V.state
   const want = new Set<number>()
@@ -458,7 +459,12 @@ function paintCardCue(cls: 'movehint' | 'colorhint', match: (c: Card) => boolean
     const sets = findSets(s.board)
     const reachable = (x: number) => s.board[x] != null && !s.locked.has(x) && !s.pending.has(x)
     for (const t of sets) {
-      if (t.every((x) => reachable(x) && match(s.board[x] as Card))) for (const x of t) want.add(x)
+      if (!t.every(reachable)) continue
+      if (requireWholeSet) {
+        if (t.every((x) => match(s.board[x] as Card))) for (const x of t) want.add(x)
+      } else {
+        for (const x of t) if (match(s.board[x] as Card)) want.add(x) // any matching card in a completable set
+      }
     }
     for (const x of V.selected) want.delete(x) // the picked card wears the selection ring, not the cue
     if (V.selected.length > 0) {
@@ -472,8 +478,8 @@ function paintCardCue(cls: 'movehint' | 'colorhint', match: (c: Card) => boolean
     el.classList.toggle(cls, el.dataset.i != null && want.has(+el.dataset.i))
   })
 }
-const updateMoveHints = (on: boolean) => paintCardCue('movehint', (c) => c[1] === SHAPE_MOVE, on)
-const updateColorHints = (color: number | null) => paintCardCue('colorhint', (c) => c[0] === color, color != null)
+const updateMoveHints = (on: boolean) => paintCardCue('movehint', (c) => c[1] === SHAPE_MOVE, on, false) // any set with a Move
+const updateColorHints = (color: number | null) => paintCardCue('colorhint', (c) => c[0] === color, color != null, true) // all-of-colour sets
 
 /** A single beckoning arrow above an element (added on the transition into "usable", removed when not). */
 function setCoachArrow(el: HTMLElement | undefined, on: boolean): void {
