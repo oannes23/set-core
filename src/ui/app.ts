@@ -21,6 +21,7 @@ import type { CombatState } from '../engine/state'
 import { TACTICS_GOAL, START_GRACE_MS } from '../engine/state'
 import type { CombatEvent } from '../engine/events'
 import { bumpTurn, pick, strikeWord, healWord, drainWord, magicLead, tierOf, joinClauses, voiceOf, ABILITY_FLAVOR } from './flavor'
+import { type SavedChar, loadRoster, upsertChar, deleteChar, makeChar, freshId } from './save'
 
 const GEN: GenConfig = COMBAT_GEN
 const $ = <T extends HTMLElement>(html: string): T => {
@@ -74,6 +75,8 @@ interface View {
   root: HTMLElement
   deps: Deps
   state: CombatState
+  /** the persisted character playing this run (HP is written back on combat end) */
+  char: SavedChar
   /** the session action log — every mutation goes through here (the step-6 seam) */
   actions: CombatAction[]
   classId: string
@@ -95,65 +98,108 @@ interface View {
 let V: View | null = null
 
 export function mountApp(root: HTMLElement): void {
-  startScreen(root)
+  hubScene(root)
 }
 
-// ---- start screen ----
-function startScreen(root: HTMLElement): void {
+/* ============================================================
+   HUB SCENE (town / menu) — the default place between matches: the character roster
+   (create / select / delete / rest) + dungeon select. Persistence lives here (the saved
+   character carries HP across the hub↔combat boundary). The seed of the eventual town
+   (loadout / shop come later — TODO §B). Combat returns here on end.
+   ============================================================ */
+function hubScene(root: HTMLElement): void {
   coachTeardown() // clear any lingering scrim/popover from a prior guided run
+  V = null
   root.innerHTML = ''
   const wrap = $(`<div class="wrap"></div>`)
   wrap.appendChild($(`<h1>set.core</h1>`))
-  wrap.appendChild($(`<div class="sub">action-resolution prototype · new client</div>`))
+  wrap.appendChild($(`<div class="sub">town · choose a hero & delve</div>`))
   const panel = $(`<div class="panel"></div>`)
-  const rowEl = $(`<div class="row"></div>`)
-  const dCol = $(`<div><label>Dungeon</label></div>`)
-  const dSel = $<HTMLSelectElement>(`<select id="dungeon"></select>`)
-  for (const id in GAMEDATA.dungeons) dSel.appendChild($(`<option value="${id}">${GAMEDATA.dungeons[id].name}</option>`))
-  dCol.appendChild(dSel)
-  const fCol = $(`<div><label>Foe</label></div>`)
-  const fSel = $<HTMLSelectElement>(`<select id="foe"></select>`)
-  fCol.appendChild(fSel)
-  rowEl.appendChild(dCol)
-  rowEl.appendChild(fCol)
-  panel.appendChild(rowEl)
-
-  // class picker
-  let classId = CLASSES[0].id
-  panel.appendChild($(`<label style="margin-top:14px">Class</label>`))
-  const cgrid = $(`<div class="classgrid"></div>`)
-  const blurb = $(`<div class="classblurb"></div>`)
-  const paintClass = () => {
-    cgrid.querySelectorAll('.classcard').forEach((el) => el.classList.toggle('sel', (el as HTMLElement).dataset.cid === classId))
-    blurb.innerHTML = classBlurbHTML(classId)
-  }
-  for (const c of CLASSES) {
-    const card = $(`<div class="classcard" data-cid="${c.id}"><div class="ci">${c.icon}</div><div class="cn">${c.name}</div></div>`)
-    card.addEventListener('click', () => { classId = c.id; paintClass() })
-    cgrid.appendChild(card)
-  }
-  panel.appendChild(cgrid)
-  panel.appendChild(blurb)
-  paintClass()
-
-  const cta = $<HTMLButtonElement>(`<button class="cta bob">▶ Begin combat</button>`)
-  panel.appendChild(cta)
   wrap.appendChild(panel)
-  wrap.appendChild($(`<div class="sub" style="margin-top:18px">Click cards to build a set (same-or-all-different on every trait). Gold halos show set-mates.</div>`))
+  wrap.appendChild($(`<div class="sub" style="margin-top:18px">Click cards to build a set (same-or-all-different on every trait). Teal halos show set-mates.</div>`))
   wrap.appendChild($(`<div class="sub" style="margin-top:10px;text-transform:none;letter-spacing:0;color:var(--ink-faint)">Archived single-file prototypes (the migration oracle): <a href="${import.meta.env.BASE_URL}prototype/" style="color:var(--phos);text-decoration:none">▸ /prototype/</a></div>`))
   root.appendChild(wrap)
 
-  const fillFoes = () => {
-    const dg = GAMEDATA.dungeons[dSel.value]
-    fSel.innerHTML = ''
-    if (dg.sequence?.length) fSel.appendChild($(`<option value="sequence">▶ Run the gauntlet · ${dg.sequence.length} foes</option>`))
-    dg.enemy_table.forEach((e) => fSel.appendChild($(`<option value="foe:${e.foe}">${GAMEDATA.creatures[e.foe]?.name ?? e.foe}</option>`)))
-    if (dg.boss) fSel.appendChild($(`<option value="foe:${dg.boss}">☠ ${GAMEDATA.creatures[dg.boss]?.name}</option>`))
-    fSel.value = dg.sequence?.length ? 'sequence' : dg.default_foe ? `foe:${dg.default_foe}` : fSel.options[0]?.value ?? ''
+  let roster = loadRoster()
+  let selId: string | null = roster[0]?.id ?? null
+  let newClassId = CLASSES[0].id
+
+  const render = (): void => {
+    panel.innerHTML = ''
+    // --- roster ---
+    panel.appendChild($(`<label>Your heroes</label>`))
+    const list = $(`<div class="roster"></div>`)
+    if (!roster.length) list.appendChild($(`<div class="sub" style="text-transform:none;letter-spacing:0">No heroes yet — create one below.</div>`))
+    for (const c of roster) {
+      const cls = classById(c.classId)
+      const card = $(`<div class="charcard${c.id === selId ? ' sel' : ''}" data-id="${c.id}"><span class="ci">${cls.icon}</span><div class="cmeta"><div class="cn">${c.name}</div><div class="cc">${cls.name} · ${c.hp}/${c.maxHp} HP</div></div><button class="charx" title="Delete">✕</button></div>`)
+      card.addEventListener('click', (e) => {
+        if ((e.target as HTMLElement).closest('.charx')) {
+          if (confirm(`Delete ${c.name}?`)) { deleteChar(c.id); roster = loadRoster(); if (selId === c.id) selId = roster[0]?.id ?? null; render() }
+        } else { selId = c.id; render() }
+      })
+      list.appendChild(card)
+    }
+    panel.appendChild(list)
+
+    // --- create a hero ---
+    panel.appendChild($(`<label style="margin-top:16px">New hero</label>`))
+    const nameIn = $<HTMLInputElement>(`<input class="nameinput" maxlength="18" placeholder="Name…">`)
+    panel.appendChild(nameIn)
+    const cgrid = $(`<div class="classgrid"></div>`)
+    const blurb = $(`<div class="classblurb"></div>`)
+    const paintClass = (): void => {
+      cgrid.querySelectorAll('.classcard').forEach((el) => el.classList.toggle('sel', (el as HTMLElement).dataset.cid === newClassId))
+      blurb.innerHTML = classBlurbHTML(newClassId)
+    }
+    for (const c of CLASSES) {
+      const cc = $(`<div class="classcard" data-cid="${c.id}"><div class="ci">${c.icon}</div><div class="cn">${c.name}</div></div>`)
+      cc.addEventListener('click', () => { newClassId = c.id; paintClass() })
+      cgrid.appendChild(cc)
+    }
+    panel.appendChild(cgrid)
+    panel.appendChild(blurb)
+    paintClass()
+    const createBtn = $<HTMLButtonElement>(`<button class="cta">＋ Create hero</button>`)
+    createBtn.addEventListener('click', () => {
+      const nm = nameIn.value.trim() || classById(newClassId).name
+      const ch = makeChar(nm, newClassId, freshId())
+      upsertChar(ch); roster = loadRoster(); selId = ch.id; render()
+    })
+    panel.appendChild(createBtn)
+
+    // --- delve (only with a hero selected) ---
+    const sel = roster.find((c) => c.id === selId)
+    if (!sel) return
+    panel.appendChild($(`<label style="margin-top:18px">Delve — ${sel.name} <span style="color:var(--ink-faint)">(${sel.hp}/${sel.maxHp} HP)</span></label>`))
+    const rowEl = $(`<div class="row"></div>`)
+    const dCol = $(`<div><label>Dungeon</label></div>`)
+    const dSel = $<HTMLSelectElement>(`<select id="dungeon"></select>`)
+    for (const id in GAMEDATA.dungeons) dSel.appendChild($(`<option value="${id}">${GAMEDATA.dungeons[id].name}</option>`))
+    dCol.appendChild(dSel)
+    const fCol = $(`<div><label>Foe</label></div>`)
+    const fSel = $<HTMLSelectElement>(`<select id="foe"></select>`)
+    fCol.appendChild(fSel)
+    rowEl.appendChild(dCol); rowEl.appendChild(fCol); panel.appendChild(rowEl)
+    const fillFoes = (): void => {
+      const dg = GAMEDATA.dungeons[dSel.value]
+      fSel.innerHTML = ''
+      if (dg.sequence?.length) fSel.appendChild($(`<option value="sequence">▶ Run the gauntlet · ${dg.sequence.length} foes</option>`))
+      dg.enemy_table.forEach((e) => fSel.appendChild($(`<option value="foe:${e.foe}">${GAMEDATA.creatures[e.foe]?.name ?? e.foe}</option>`)))
+      if (dg.boss) fSel.appendChild($(`<option value="foe:${dg.boss}">☠ ${GAMEDATA.creatures[dg.boss]?.name}</option>`))
+      fSel.value = dg.sequence?.length ? 'sequence' : dg.default_foe ? `foe:${dg.default_foe}` : fSel.options[0]?.value ?? ''
+    }
+    dSel.addEventListener('change', fillFoes); fillFoes()
+    const enter = $<HTMLButtonElement>(`<button class="cta bob"${sel.hp <= 0 ? ' disabled title="Rest first — 0 HP"' : ''}>▶ Enter dungeon</button>`)
+    enter.addEventListener('click', () => { if (sel.hp > 0) begin(root, sel, dSel.value, fSel.value) })
+    panel.appendChild(enter)
+    if (sel.hp < sel.maxHp) {
+      const rest = $<HTMLButtonElement>(`<button class="cta ghost">🌙 Rest (heal to full)</button>`)
+      rest.addEventListener('click', () => { sel.hp = sel.maxHp; upsertChar(sel); roster = loadRoster(); render() })
+      panel.appendChild(rest)
+    }
   }
-  dSel.addEventListener('change', fillFoes)
-  fillFoes()
-  cta.addEventListener('click', () => begin(root, dSel.value, fSel.value, classId))
+  render()
 }
 
 /** Loadout summary for the class blurb: tagline + ability names + passive name. */
@@ -165,7 +211,7 @@ function classBlurbHTML(id: string): string {
 }
 
 // ---- begin combat ----
-function begin(root: HTMLElement, dungeonId: string, foeVal: string, classId: string): void {
+function begin(root: HTMLElement, char: SavedChar, dungeonId: string, foeVal: string): void {
   const rng: Rng = systemRng
   const dg: Dungeon = GAMEDATA.dungeons[dungeonId]
   let foeId: string
@@ -180,9 +226,10 @@ function begin(root: HTMLElement, dungeonId: string, foeVal: string, classId: st
   }
   const foe = assembleFoe(foeId, dg, GAMEDATA, rng)
   if (!foe) return
-  const cls = classById(classId)
-  const state = createCombat({ foe, gen: GEN, passives: cls.passives, sequence, seqIdx: 0, dungeonId }, rng)
-  V = { root, deps: { data: GAMEDATA, rng }, state, actions: [], classId: cls.id, loadout: cls.abilities.slice(), coach: !!dg.coach, coachCue: null, manaColor: dominantManaColor(cls.abilities), paused: true, hitstopUntil: 0, preview: null, selected: [], raf: 0, lastT: 0, boardSig: '', refs: {}, stats: { dealt: 0, taken: 0, blocked: 0, healed: 0, sets: 0, traps: 0 } }
+  const cls = classById(char.classId)
+  const state = createCombat({ foe, gen: GEN, playerMax: char.maxHp, passives: cls.passives, sequence, seqIdx: 0, dungeonId }, rng)
+  state.playerHP = Math.max(0, Math.min(char.maxHp, char.hp)) // the hero enters at their persisted HP, not full
+  V = { root, deps: { data: GAMEDATA, rng }, state, char, actions: [], classId: cls.id, loadout: cls.abilities.slice(), coach: !!dg.coach, coachCue: null, manaColor: dominantManaColor(cls.abilities), paused: true, hitstopUntil: 0, preview: null, selected: [], raf: 0, lastT: 0, boardSig: '', refs: {}, stats: { dealt: 0, taken: 0, blocked: 0, healed: 0, sets: 0, traps: 0 } }
   buildPlay()
   renderBoard()
   updateBar()
@@ -980,6 +1027,9 @@ function endScreen(result: 'win' | 'lose' | 'flee'): void {
   cancelAnimationFrame(V.raf)
   if (V.refs.fleebtn) V.refs.fleebtn.style.display = 'none' // no fleeing a finished fight
   document.getElementById('ptint')?.classList.remove('low', 'crit') // drop the low-HP vignette on the end card
+  // persist the hero's HP across the hub↔combat boundary (the seed of the run-attrition layer)
+  V.char.hp = Math.max(0, Math.min(V.char.maxHp, V.state.playerHP))
+  upsertChar(V.char)
   const text = result === 'win' ? '★ Victory' : result === 'flee' ? '🏃 Fled' : '✖ Defeat'
   const banner = $(`<div class="banner ${result === 'win' ? 'win' : 'lose'}">${text}</div>`)
   const st = V.stats
@@ -995,12 +1045,12 @@ function endScreen(result: 'win' | 'lose' | 'flee'): void {
   const summary = $(`<div class="summary">${rows
     .map(([l, v, c]) => `<div class="feat"><span class="fl">${l}</span><span class="fbar"><span style="width:${(v / max) * 100}%;background:${c}"></span></span><span class="fv">${v}</span></div>`)
     .join('')}</div>`)
-  const again = $<HTMLButtonElement>(`<button class="cta" style="display:block;margin:0 auto">▶ Back to start</button>`)
+  const again = $<HTMLButtonElement>(`<button class="cta" style="display:block;margin:0 auto">▶ Back to town</button>`)
   const root = V.root
   V.refs.boardwrap.replaceChildren(banner, summary, again)
   again.addEventListener('click', () => {
     V = null
-    startScreen(root)
+    hubScene(root)
   })
 }
 

@@ -64,14 +64,15 @@ archived HTML.
 Dependency chain that sets the order: **equipment & loot need persistence, persistence needs a home
 to live in → build the Hub scene + persistence first.** (`CRAWL-DESIGN.md` §2 "Scenes & persistence".)
 
-### Phase B1 — Hub scene + persistence (the between-runs home) ⭐ start here
-- `[ ]` **Scene router** — two top-level scenes, **Hub** (town/menu) and **Combat**, with a clean
-  transition. Today's start screen + play screen become these two; combat returns to the Hub on end.
-- `[ ]` **Hub v1** — grow the start screen into the Hub: **character create / select** + **dungeon
-  select** live here (the default place between matches; loadout/shop come later).
-- `[ ]` **Persistence v1** — save/load a **character** (`localStorage`): start with the chosen
-  character + **HP**, structured to grow (inventory / gear / progression). The `session.ts` seam keeps
-  a *run* replayable; the character save is the *meta* layer on top.
+### Phase B1 — Hub scene + persistence (the between-runs home) — first slice DONE
+- `[x]` **Scene router** — `hubScene` (town/menu) ⇄ `begin`/combat; combat returns to the Hub on end.
+- `[x]` **Hub v1** — a **character roster** (create with name + class · select · delete · free Rest
+  placeholder) + **dungeon select**; the start screen grown into the town. (Loadout / shop come later.)
+- `[x]` **Persistence v1** — `src/ui/save.ts`: a `localStorage`-backed `SavedChar` roster; HP carries
+  across the hub↔combat boundary (enter at saved HP; final HP written back on combat end). Structured
+  to grow (inventory / gear / progression). Pure roster transforms are unit-tested.
+- `[ ]` **Next within B1:** Rest economy (gold-cost heal instead of free) once gold exists; the loadout
+  (equip abilities / gear / consumables) once those layers land.
 
 ### Phase B2 — run loop + first loot (consumables)
 - `[ ]` **Room = encounter + reward** — on win, roll loot / gold / XP (`CRAWL-DESIGN.md` §3).

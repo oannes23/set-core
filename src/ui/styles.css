@@ -174,6 +174,25 @@ button.cta.bob { animation: ctabob 1.6s ease-in-out infinite; }
 .pchip.proc { animation: pproc .55s ease; }
 @keyframes pproc { 0% { box-shadow: 0 0 0 2px var(--gold), 0 0 18px -6px var(--gold); transform: scale(1.06); border-color: var(--gold); } 100% { box-shadow: none; transform: scale(1); } }
 
+/* hub — character roster + new-hero form */
+.roster { display: flex; flex-direction: column; gap: 8px; margin-top: 6px; }
+.charcard { display: flex; align-items: center; gap: 11px; border: 1px solid var(--line2); border-radius: 10px;
+  padding: 9px 11px; background: #0e1118; cursor: pointer; transition: border-color .12s ease, box-shadow .12s ease; }
+.charcard:hover { border-color: var(--ink-dim); }
+.charcard.sel { border-color: var(--phos); box-shadow: 0 0 0 1px var(--phos), 0 0 16px -10px var(--phos); }
+.charcard .ci { font-size: 22px; line-height: 1; }
+.charcard .cmeta { flex: 1; min-width: 0; }
+.charcard .cn { font-weight: 700; font-size: 13px; }
+.charcard .cc { font-size: 11px; color: var(--ink-dim); margin-top: 2px; font-variant-numeric: tabular-nums; }
+.charcard .charx { background: transparent; border: 0; color: var(--ink-faint); font-size: 13px; cursor: pointer; padding: 4px 6px; border-radius: 6px; }
+.charcard .charx:hover { color: var(--red); background: #0006; }
+.nameinput { width: 100%; margin-top: 6px; background: #0e1118; color: var(--ink); border: 1px solid var(--line2);
+  border-radius: 9px; padding: 8px 10px; font-family: inherit; font-size: 13px; }
+.nameinput:focus { outline: none; border-color: var(--phos); }
+button.cta.ghost { border-color: var(--line2); color: var(--ink-dim); display: block; width: 100%; }
+button.cta.ghost:hover { border-color: var(--ink-dim); color: var(--ink); background: transparent; }
+button.cta:disabled { opacity: .4; cursor: not-allowed; }
+
 /* start-screen class picker */
 .classgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(94px, 1fr)); gap: 8px; margin-top: 6px; }
 .classcard { border: 1px solid var(--line2); border-radius: 10px; padding: 10px 6px; text-align: center; cursor: pointer; background: #0e1118; transition: border-color .12s ease, box-shadow .12s ease; }
