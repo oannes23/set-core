@@ -9,7 +9,7 @@ import type { Rng } from '../core/rng'
 import { patch, patchFavor, type FavorBias } from '../core/generate'
 import type { Condition, Selector, Bias, Effect, Trigger } from '../data/schema'
 import type { CombatState, Pending } from './state'
-import { clockCapMs } from './state'
+import { clockCapMs, DMG_REGEN_MS } from './state'
 import type { EventSink } from './events'
 import { type MatchDescriptor, weightedRoll } from './resolve'
 import { cardColor, cardShape, cardMag, isLive, liveSlots, pickRandom } from './select'
@@ -144,7 +144,7 @@ function biasFromSpec(b: Bias | undefined): FavorBias | undefined {
 // ---- board verbs (pure: mutate state.board / pending / locked, emit events) ----
 
 /** Transmute slots: destroy now, reform after `gapMs` (0 = next reform tick). Regen optionally biased. */
-export function transmute(s: CombatState, slots: number[], opts: { bias?: FavorBias; gapMs?: number }, sink: EventSink): void {
+export function transmute(s: CombatState, slots: number[], opts: { bias?: FavorBias; gapMs?: number; hostile?: boolean }, sink: EventSink): void {
   const live = slots.filter((i) => isLive(s, i))
   if (!live.length) return
   for (const i of live) {
@@ -153,7 +153,7 @@ export function transmute(s: CombatState, slots: number[], opts: { bias?: FavorB
     if (opts.bias) p.bias = opts.bias
     s.pending.set(i, p)
   }
-  sink.emit({ type: 'cardsTransmuted', slots: live, gapMs: opts.gapMs ?? 0 })
+  sink.emit({ type: 'cardsTransmuted', slots: live, gapMs: opts.gapMs ?? 0, hostile: opts.hostile })
 }
 
 /** Makeable sets that don't use any locked slot — the lock floor (never lock below FLOOR makeable). */
@@ -183,7 +183,7 @@ export function lockSlots(s: CombatState, slots: number[], durationMs: number, s
 
 // ---- effects ----
 
-function runEffect(s: CombatState, e: Effect, desc: MatchDescriptor, rng: Rng, sink: EventSink): string | null {
+function runEffect(s: CombatState, e: Effect, desc: MatchDescriptor, rng: Rng, sink: EventSink, hostile: boolean): string | null {
   if (e.chance != null && rng() >= e.chance) return null
   switch (e.effect) {
     case 'damage': {
@@ -242,7 +242,7 @@ function runEffect(s: CombatState, e: Effect, desc: MatchDescriptor, rng: Rng, s
       let slots = e.select ? selectSlots(s, e.select, rng) : []
       if (e.count != null && slots.length > e.count) slots = pickRandom(slots, e.count, rng)
       if (!slots.length) return null
-      transmuteFor(s, slots, biasFromSpec(e.bias), e.gap ?? 0, sink)
+      transmuteFor(s, slots, biasFromSpec(e.bias), e.gap ?? 0, hostile, sink)
       return `↯${slots.length}`
     }
     case 'lock': {
@@ -258,15 +258,17 @@ function runEffect(s: CombatState, e: Effect, desc: MatchDescriptor, rng: Rng, s
 
 /** transmute with a regen that may favour a bias — the actual reform happens on a tick (gap), but we
  *  precompute the reform via patch/patchFavor at reform time. Here we just mark pending (see tick). */
-function transmuteFor(s: CombatState, slots: number[], bias: FavorBias | undefined, gapMs: number, sink: EventSink): void {
-  transmute(s, slots, bias ? { bias, gapMs } : { gapMs }, sink)
+function transmuteFor(s: CombatState, slots: number[], bias: FavorBias | undefined, gapMs: number, hostile: boolean, sink: EventSink): void {
+  transmute(s, slots, { gapMs, hostile, ...(bias ? { bias } : {}) }, sink)
 }
 
 /** Apply a single trigger's effects; emit `triggerSprung` if anything landed. */
 export function runTrigger(s: CombatState, trigger: Trigger, desc: MatchDescriptor, rng: Rng, sink: EventSink): void {
+  // a trap razing your cards reads as aggression (boom); a favorable trick or ambient drift stays calm (morph)
+  const hostile = trigger.kind !== 'trick' && !trigger.quiet
   const labels: string[] = []
   for (const eff of trigger.do) {
-    const r = runEffect(s, eff, desc, rng, sink)
+    const r = runEffect(s, eff, desc, rng, sink, hostile)
     if (r != null) labels.push(r)
   }
   if (labels.length) sink.emit({ type: 'triggerSprung', trigger, label: labels.join(' · ') })
@@ -302,13 +304,25 @@ export function hurtPlayer(s: CombatState, raw: number, source: string, sink: Ev
   }
 }
 
-/** The enemy's scheduled (or instant) attack. 0-damage foes (the dummy) can't hurt you. */
+/** A landed standard attack shatters a live rune — a Wound: that slot can't reform for DMG_REGEN_MS. */
+export function shatterCard(s: CombatState, rng: Rng, sink: EventSink): void {
+  const [i] = pickRandom(liveSlots(s), 1, rng)
+  if (i == null) return
+  s.board[i] = null
+  s.pending.set(i, { reformAt: s.now + DMG_REGEN_MS })
+  sink.emit({ type: 'cardsShattered', slots: [i] })
+}
+
+/** The enemy's scheduled (or instant) attack. 0-damage foes (the dummy) can't hurt you. A hit that
+ *  beats Block and bites actual HP also shatters a rune (a Wound) — traps that deal damage do not. */
 export function enemyAttack(s: CombatState, rng: Rng, sink: EventSink): void {
   const raw = s.foe.damage > 0 ? weightedRoll(s.foe.damage, rng) : 0
   if (raw === 0) {
     sink.emit({ type: 'playerBlocked' })
   } else {
+    const hpBefore = s.playerHP
     hurtPlayer(s, raw, s.foe.name, sink)
+    if (s.running && s.playerHP < hpBefore) shatterCard(s, rng, sink)
   }
   s.nextAttackAt = s.now + s.foe.cadence * 1000
 }

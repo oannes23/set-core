@@ -313,11 +313,13 @@ function renderStrip(): void {
 function boardSignature(s: CombatState): string {
   return s.board.map((c) => (c ? keyOf(c) : -1)).join(',') + '|' + [...s.locked.keys()].sort((a, b) => a - b).join(',')
 }
-function renderBoard(): void {
+// the ghost class for a card LEAVING its slot, by the verb that emptied it (default = plain fade)
+const LEAVE_CLASS: Record<CardVerb, string> = { resolve: 'card pop', transmute: 'card morph', boom: 'card boom', reform: 'card leave' }
+function renderBoard(verbs?: Map<number, CardVerb>): void {
   if (!V) return
   const s = V.state
   const board = V.refs.board
-  // crossfade: snapshot current cards; ghost-out (fade) any whose content is about to change
+  // crossfade: snapshot current cards; ghost-out any whose content is about to change (verb picks the motion)
   const oldKeys: Record<number, string> = {}
   const layer = V.refs.floatlayer
   const bw = V.refs.boardwrap?.getBoundingClientRect()
@@ -330,7 +332,7 @@ function renderBoard(): void {
     if (layer && bw && old.dataset.key && old.dataset.key !== newKey) {
       const r = old.getBoundingClientRect()
       const ghost = old.cloneNode(true) as HTMLElement
-      ghost.className = 'card leave'
+      ghost.className = LEAVE_CLASS[verbs?.get(i) as CardVerb] ?? 'card leave'
       ghost.removeAttribute('data-i')
       ghost.style.cssText = `position:absolute;margin:0;left:${r.left - bw.left}px;top:${r.top - bw.top}px;width:${r.width}px;height:${r.height}px`
       ghost.addEventListener('animationend', () => ghost.remove()) // not a timer → it freezes with the pause
@@ -343,7 +345,8 @@ function renderBoard(): void {
   const mates = glowSet(s, V.selected, sets)
   s.board.forEach((c, i) => {
     if (!c) {
-      board.appendChild($(`<div class="card empty"></div>`))
+      // a damage-shattered (or transmuting) hole reads as a Wound — dashed gap, not a neutral empty slot
+      board.appendChild($(`<div class="card ${s.pending.has(i) ? 'gap' : 'empty'}"></div>`))
       return
     }
     const locked = s.locked.has(i)
@@ -353,7 +356,7 @@ function renderBoard(): void {
     else if (mates.complete === i) cls.push('complete')
     else if (mates.set.has(i)) cls.push('mate')
     if (locked) cls.push('locked')
-    if (!firstRender && oldKeys[i] !== key) cls.push('enter') // new or changed → fade in
+    if (!firstRender && oldKeys[i] !== key) { cls.push('enter'); if (verbs?.get(i) === 'reform') cls.push('reform') } // new/changed → fade in (reform = materialize)
     const el = $(`<div class="${cls.join(' ')}" data-i="${i}" data-key="${key}" style="--cc:var(--c${c[0]})">${cardSVG(c)}${locked ? '<span class="lock">🔒</span>' : ''}</div>`)
     board.appendChild(el)
   })
@@ -520,20 +523,43 @@ function dispatch(action: CombatAction): void {
   const { state, events } = reduce(V.state, action, V.deps)
   V.state = state
   V.actions.push(action) // record the session log (the seam): a server could replay these
+  // drop any selected slot a board verb just removed (transmute/shatter), so the glow can't dangle
+  V.selected = V.selected.filter((i) => state.board[i] != null && !state.locked.has(i))
   interpret(events)
-  if (boardSignature(state) !== V.boardSig) renderBoard()
+  if (boardSignature(state) !== V.boardSig) renderBoard(verbsFromEvents(events))
   updateBar()
 }
 
+/** Per-dispatch slot→verb map: lets the crossfade pick a verb-specific motion (resolve pop / transmute
+ *  morph / destruction boom / reform materialize) instead of one generic fade. Motion = which verb. */
+type CardVerb = 'resolve' | 'transmute' | 'boom' | 'reform'
+function verbsFromEvents(events: CombatEvent[]): Map<number, CardVerb> {
+  const m = new Map<number, CardVerb>()
+  for (const e of events) {
+    if (e.type === 'setResolved') for (const i of e.slots) m.set(i, 'resolve')
+    else if (e.type === 'cardsTransmuted') for (const i of e.slots) m.set(i, e.hostile ? 'boom' : 'transmute') // enemy razed it → boom; your/trick/drift transmute → calm morph
+    else if (e.type === 'cardsShattered') for (const i of e.slots) m.set(i, 'boom')
+    else if (e.type === 'cardsReformed') for (const i of e.slots) m.set(i, 'reform')
+  }
+  return m
+}
+
+/** Full-screen feedback priority — a wound out-shouts a trap spring (TRAPS layering scheme). */
+const FLASH_PRI: Record<string, number> = { wound: 3, trap: 2, trick: 2 }
 function interpret(events: CombatEvent[]): void {
   if (!V) return
   const MANA = ['Fire', 'Nature', 'Frost']
+  // collect full-screen feedback and flush once: one flash (highest priority), one hitstop, staggered bursts
+  let flashKind: 'trap' | 'trick' | 'wound' | null = null
+  let hs = 0
+  const bursts: [string, string, string, string, ('trick' | 'wound')?][] = []
+  const queueFlash = (k: 'trap' | 'trick' | 'wound') => { if (!flashKind || FLASH_PRI[k] > FLASH_PRI[flashKind]) flashKind = k }
   for (const e of events) {
     switch (e.type) {
       case 'enemyDamaged':
         if (e.immune) { log('Swords pass through — only magic bites this foe.', 'foe'); floatBoard('blocked', 'var(--ink-faint)', 'enemy') }
-        else if (e.magic) { log(`Your magic drains <b>${e.amount}</b>.`, 'you'); floatBoard(`-${e.amount}`, 'var(--gold)', 'enemy') }
-        else { log(`You strike for <b>${e.amount}</b>.`, 'you'); floatBoard(`-${e.amount}`, 'var(--red)', 'enemy') }
+        else if (e.magic) { log(`Your magic drains <b>${e.amount}</b>.`, 'you'); floatBoard(`-${e.amount}`, 'var(--gold)', 'enemy'); flashStat('ehpv') }
+        else { log(`You strike for <b>${e.amount}</b>.`, 'you'); floatBoard(`-${e.amount}`, 'var(--red)', 'enemy'); flashStat('ehpv') }
         break
       case 'enemyHealed':
         log(`The ${V.state.foe.name} heals <b>${e.amount}</b>.`, 'foe')
@@ -583,17 +609,18 @@ function interpret(events: CombatEvent[]): void {
       }
       case 'playerDamaged':
         log(`The ${V.state.foe.name} hits you for <b>${e.amount}</b>${e.absorbed ? ` (${e.absorbed} blocked)` : ''}.`, 'foe')
-        flash('wound')
+        queueFlash('wound')
         floatBoard(`-${e.amount} HP`, 'var(--red)', 'you')
-        burst('💥', '✷ struck', V.state.foe.name, e.absorbed ? `−${e.amount} HP · ${e.absorbed} blocked` : `−${e.amount} HP`, 'wound')
-        hitstop(150)
+        flashStat('phpv')
+        bursts.push(['💥', '✷ struck', V.state.foe.name, e.absorbed ? `−${e.amount} HP · ${e.absorbed} blocked` : `−${e.amount} HP`, 'wound'])
+        hs = Math.max(hs, 150)
         break
       case 'triggerSprung': {
         const trick = e.trigger.kind === 'trick'
         log(`<b>${e.trigger.name}</b> — ${e.label}.`, trick ? 'trick' : 'foe')
-        flash(trick ? 'trick' : 'trap')
-        burst(e.trigger.icon ?? (trick ? '✦' : '⚠'), trick ? '✦ trick' : '⚠ trap', e.trigger.name, e.label, trick ? 'trick' : undefined)
-        hitstop(120)
+        queueFlash(trick ? 'trick' : 'trap')
+        bursts.push([e.trigger.icon ?? (trick ? '✦' : '⚠'), trick ? '✦ trick' : '⚠ trap', e.trigger.name, e.label, trick ? 'trick' : undefined])
+        hs = Math.max(hs, 120)
         break
       }
       case 'tacticsArmed':
@@ -617,6 +644,11 @@ function interpret(events: CombatEvent[]): void {
         break
     }
   }
+  // flush coalesced full-screen feedback: one flash (loudest wins), one hitstop, bursts staggered so a
+  // multi-effect instant (wound + trap in the same match) sequences legibly instead of compositing.
+  if (flashKind) flash(flashKind)
+  if (hs) hitstop(hs)
+  bursts.forEach((b, k) => { if (k === 0) burst(...b); else setTimeout(() => burst(...b), k * 80) })
 }
 
 function flash(kind: 'trap' | 'trick' | 'wound'): void {
@@ -663,6 +695,15 @@ function burst(icon: string, label: string, name: string, eff: string, kind?: 't
 /** A brief impact freeze — pause the engine clock for `ms` so a hit/spring lands with weight. */
 function hitstop(ms: number): void {
   if (V) V.hitstopUntil = Math.max(V.hitstopUntil, performance.now() + ms)
+}
+
+/** Punch a HUD number (HP) when it changes — directs the eye to where the cost/hit landed. */
+function flashStat(ref: string): void {
+  const el = V?.refs[ref]
+  if (!el) return
+  el.classList.remove('hit')
+  void el.offsetWidth
+  el.classList.add('hit')
 }
 
 /** Re-trigger the gold pulse on a passive chip when it fires. */

@@ -21,7 +21,7 @@ export type CombatEvent =
   | { type: 'tacticsReset' }
   | { type: 'clockChanged'; deltaSeconds: number } // + = pushed later (good), − = sooner (bad)
   | { type: 'enemyStrikes' } // an instant attack was pulled to now
-  | { type: 'cardsTransmuted'; slots: number[]; gapMs: number }
+  | { type: 'cardsTransmuted'; slots: number[]; gapMs: number; hostile?: boolean } // hostile = an enemy trap razed these (UI booms it); player/trick/drift transmutes are calm
   | { type: 'cardsReformed'; slots: number[] }
   | { type: 'cardsLocked'; slots: number[]; untilMs: number }
   | { type: 'cardsUnlocked'; slots: number[] }

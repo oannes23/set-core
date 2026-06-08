@@ -23,6 +23,9 @@ button.cta:hover { background: var(--phos); color: #062b27; }
 .bar { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
 .gauge { flex: 1; min-width: 200px; }
 .gauge .lab { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 4px; }
+#phpv, #ehpv { display: inline-block; transform-origin: right center; font-variant-numeric: tabular-nums; }
+#phpv.hit, #ehpv.hit { animation: stathit .42s ease; }
+@keyframes stathit { 0%, 100% { transform: scale(1); } 35% { transform: scale(1.28); } }
 .track { height: 10px; background: #0e1118; border-radius: 6px; overflow: hidden; border: 1px solid var(--line); }
 .fill { height: 100%; transition: width .25s ease; }
 .fill.php { background: var(--green); } .fill.ehp { background: var(--red); }
@@ -93,9 +96,10 @@ button.cta:hover { background: var(--phos); color: #062b27; }
 .boardwrap.flash-trap { animation: ft .4s ease; }
 .boardwrap.flash-trick { animation: fk .4s ease; }
 .boardwrap.flash-wound { animation: fw .5s ease; }
-@keyframes ft { 0%,100% { box-shadow: none; } 30% { box-shadow: 0 0 0 3px var(--warn), 0 0 60px -6px var(--warn); } }
-@keyframes fk { 0%,100% { box-shadow: none; } 30% { box-shadow: 0 0 0 3px var(--trick), 0 0 60px -6px var(--trick); } }
-@keyframes fw { 0%,100% { box-shadow: none; } 25% { box-shadow: 0 0 0 4px var(--red), 0 0 70px -4px var(--red); transform: translateX(-6px); } 60% { transform: translateX(4px); } }
+/* trap/trick = a light shake (a priced event); wound = a heavy shake (a hit) — kinetic weight ∝ severity */
+@keyframes ft { 0%,100% { box-shadow: none; transform: translateX(0); } 20% { box-shadow: 0 0 0 3px var(--warn), 0 0 60px -6px var(--warn); transform: translateX(-3px); } 55% { transform: translateX(2px); } }
+@keyframes fk { 0%,100% { box-shadow: none; transform: translateX(0); } 20% { box-shadow: 0 0 0 3px var(--trick), 0 0 60px -6px var(--trick); transform: translateX(-3px); } 55% { transform: translateX(2px); } }
+@keyframes fw { 0%,100% { box-shadow: none; } 25% { box-shadow: 0 0 0 4px var(--red), 0 0 70px -4px var(--red); transform: translateX(-7px); } 45% { transform: translateX(6px); } 70% { transform: translateX(-3px); } }
 
 /* abilities / tactics / passives — the live castable panels (migration step 5) */
 .panelhd { display: flex; justify-content: space-between; align-items: baseline; }
@@ -176,11 +180,43 @@ button.cta:hover { background: var(--phos); color: #062b27; }
 .burst.trick .bun { color: var(--trick); } .burst.wound .bun { color: var(--red); }
 .burst .bue { font-size: 11px; color: var(--ink-dim); margin-top: 2px; }
 
-/* ---- card crossfade: outgoing cards ghost out, incoming fade in (paused mid-state when frozen) ---- */
+/* ---- card crossfade: motion encodes the VERB (resolve / transmute / destroy / reform) ---- */
 .card.enter { animation: cardin .26s ease; }
 @keyframes cardin { from { opacity: 0; transform: scale(.82); } to { opacity: 1; transform: scale(1); } }
 .card.leave { animation: cardout .26s ease forwards; }
 @keyframes cardout { from { opacity: 1; transform: scale(1); } to { opacity: 0; transform: scale(.78); } }
+/* resolve — you cashed in a set: a green pop UP, then dissolve (success) */
+.card.pop { animation: cardpop .34s ease forwards; }
+@keyframes cardpop {
+  0% { opacity: 1; transform: scale(1) translateY(0); filter: drop-shadow(0 0 0 var(--green)); }
+  30% { transform: scale(1.12) translateY(-6px); filter: drop-shadow(0 0 12px var(--green)) drop-shadow(0 0 5px var(--green)); }
+  100% { opacity: 0; transform: scale(.86) translateY(-14px); filter: drop-shadow(0 0 0 var(--green)); }
+}
+/* transmute — same slot, rewritten value: a calm in-place morph (dissolve + blur, not a launch) */
+.card.morph { animation: cardmorph .34s ease forwards; }
+@keyframes cardmorph {
+  0% { opacity: 1; transform: scale(1) rotate(0); filter: blur(0) saturate(1); }
+  100% { opacity: 0; transform: scale(1.03) rotate(3deg); filter: blur(4px) saturate(.35) brightness(1.3); }
+}
+/* destroy — a card taken from you: violent brightness surge → burst OUTWARD (loss, not success) */
+.card.boom { animation: cardboom .42s ease forwards; }
+@keyframes cardboom {
+  0% { opacity: 1; transform: scale(1); filter: brightness(1); box-shadow: 0 0 0 0 var(--red); }
+  28% { transform: scale(1.2); filter: brightness(2.6); box-shadow: 0 0 0 3px var(--red), 0 0 26px 2px var(--red); }
+  100% { opacity: 0; transform: scale(.5) rotate(7deg); filter: brightness(3.2); }
+}
+/* reform — a wound/transmute hole closing: the new rune materializes with a brief flare */
+.card.enter.reform { animation: cardreform .42s ease; }
+@keyframes cardreform {
+  0% { opacity: 0; transform: scale(.7); filter: brightness(2.4); }
+  60% { opacity: 1; filter: brightness(1.4); }
+  100% { opacity: 1; transform: scale(1); filter: brightness(1); }
+}
+/* wound — a damage-shattered slot on its reform cooldown: a dashed red gap, not a neutral empty */
+.card.gap { opacity: .4; border-style: dashed; border-color: var(--red); cursor: default;
+  box-shadow: 0 0 0 1px #0006 inset; animation: woundpulse 1.4s ease-in-out infinite; }
+.card.gap:hover { transform: none; }
+@keyframes woundpulse { 0%, 100% { box-shadow: 0 0 0 1px #0006 inset; } 50% { box-shadow: 0 0 14px -4px var(--red), 0 0 0 1px #0006 inset; } }
 /* a tutorial popup that needs acknowledgement freezes ALL in-game motion (the engine clock is already
    frozen via the tick gate); the popover + scrim live outside .wrap so they keep animating. */
 .wrap.frozen * { animation-play-state: paused !important; }
@@ -193,8 +229,8 @@ button.cta:hover { background: var(--phos); color: #062b27; }
 .card.colorhint { position: relative; z-index: 1; animation: colorhint 1.05s ease-in-out infinite; }
 @keyframes colorhint { 0%, 100% { box-shadow: 0 0 0 3px var(--cc), 0 0 18px -5px var(--cc); } 50% { box-shadow: 0 0 0 3px var(--cc), 0 0 34px -1px var(--cc); } }
 
-/* ---- spell target previews (hover an ability) ---- */
-.card.tgtsure { box-shadow: 0 0 0 3px var(--red), 0 0 18px -4px var(--red); }
+/* ---- spell target previews (hover an ability) — gold/warn (intent), NOT red (red = damage) ---- */
+.card.tgtsure { box-shadow: 0 0 0 3px var(--gold), 0 0 18px -4px var(--gold); }
 .card.tgtmaybe { box-shadow: 0 0 0 2px var(--warn); animation: tgtpulse 1s ease-in-out infinite; }
 @keyframes tgtpulse { 0%, 100% { box-shadow: 0 0 0 2px var(--warn); } 50% { box-shadow: 0 0 0 2px var(--warn), 0 0 16px -3px var(--warn); } }
 
