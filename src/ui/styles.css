@@ -222,6 +222,8 @@ button.cta:hover { background: var(--phos); color: #062b27; }
 #coachpop button.primary { border-color: var(--gold); color: var(--gold); }
 #coachpop button.primary:hover { background: var(--gold); color: #2b1f02; }
 #coachpop button.primary.await { opacity: .45; cursor: not-allowed; }
+#coachpop button.primary.lit { animation: nextlit 1s ease-in-out infinite; }
+@keyframes nextlit { 0%, 100% { box-shadow: 0 0 0 1px var(--gold); } 50% { box-shadow: 0 0 0 1px var(--gold), 0 0 16px -2px var(--gold); } }
 
 /* log */
 .log { font-size: 12px; line-height: 1.7; max-height: 220px; overflow-y: auto; color: var(--ink-dim); }

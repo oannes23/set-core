@@ -388,7 +388,7 @@ function onBoardClick(e: Event): void {
 }
 
 function onAbilityClick(e: Event): void {
-  if (!V || !V.state.running) return
+  if (!V || !V.state.running || V.paused) return // input frozen during a coaching/briefing pause
   const el = (e.target as HTMLElement).closest('.ab-slot') as HTMLElement | null
   const id = el?.dataset.ab
   if (!id) return
@@ -401,7 +401,7 @@ function onAbilityClick(e: Event): void {
 }
 
 function onTacticClick(e: Event): void {
-  if (!V || !V.state.running || !V.state.tacticsArmed) return
+  if (!V || !V.state.running || V.paused || !V.state.tacticsArmed) return // input frozen during a pause
   const el = (e.target as HTMLElement).closest('.tac-btn') as HTMLElement | null
   const key = el?.dataset.tac
   if (!key) return
@@ -857,7 +857,7 @@ function coachShowStep(i: number): void {
   set('cp-step', `Step ${i + 1} / ${COACH.steps.length}`)
   const next = document.getElementById('cp-next') as HTMLButtonElement | null
   const pop = document.getElementById('coachpop')
-  if (next) { next.textContent = s.finishLabel ?? (i === COACH.steps.length - 1 ? 'Finish' : 'Next ▸'); next.classList.toggle('await', !!COACH.await) }
+  if (next) { next.textContent = s.finishLabel ?? (i === COACH.steps.length - 1 ? 'Finish' : 'Next ▸'); next.classList.toggle('await', !!COACH.await); next.classList.remove('lit') }
   pop?.classList.toggle('awaiting', !!COACH.await)
   pop?.classList.add('show')
 }
@@ -865,13 +865,16 @@ function coachAdvance(): void {
   if (COACH.idx >= COACH.steps.length - 1) { coachFinish(); return }
   coachShowStep(COACH.idx + 1)
 }
-/** Engine event points call this; if the current step awaits this event, mark it satisfied and
- *  un-dim Next (the player clicks to advance — we never auto-advance). */
+/** Engine event points call this; if the current step awaits this event, mark it satisfied: freeze
+ *  time (clock + tactics drain) and block play input, then light Next so the player advances at will. */
 function coachNotify(event: 'match' | 'ability' | 'tactic'): void {
   if (!COACH.active || COACH.await !== event) return
   COACH.await = null // cp-next now advances on click
+  if (V) V.paused = true // criteria met → freeze the world until they hit Next
   document.getElementById('coachpop')?.classList.remove('awaiting')
-  document.getElementById('cp-next')?.classList.remove('await')
+  const next = document.getElementById('cp-next')
+  next?.classList.remove('await')
+  next?.classList.add('lit')
 }
 function coachFinish(): void {
   if (!COACH.active && !document.getElementById('coachpop')) return
