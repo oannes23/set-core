@@ -230,7 +230,8 @@ function hubScene(root: HTMLElement): void {
       fSel.innerHTML = ''
       if (dg.sequence?.length) fSel.appendChild($(`<option value="sequence">▶ Run the gauntlet · ${dg.sequence.length} foes</option>`))
       dg.enemy_table.forEach((e) => fSel.appendChild($(`<option value="foe:${e.foe}">${GAMEDATA.creatures[e.foe]?.name ?? e.foe}</option>`)))
-      if (dg.boss) fSel.appendChild($(`<option value="foe:${dg.boss}">☠ ${GAMEDATA.creatures[dg.boss]?.name}</option>`))
+      dg.elite_pool.forEach((id) => fSel.appendChild($(`<option value="foe:${id}">★ ${GAMEDATA.creatures[id]?.name ?? id} (elite)</option>`)))
+      if (dg.boss) fSel.appendChild($(`<option value="foe:${dg.boss}">☠ ${GAMEDATA.creatures[dg.boss]?.name} (boss)</option>`))
       fSel.value = dg.sequence?.length ? 'sequence' : dg.default_foe ? `foe:${dg.default_foe}` : fSel.options[0]?.value ?? ''
     }
     dSel.addEventListener('change', fillFoes); fillFoes()
