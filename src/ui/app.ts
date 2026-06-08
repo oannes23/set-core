@@ -9,10 +9,11 @@ import { type Card, isSet, third, keyOf } from '../core/affine'
 import { findSets } from '../core/sets'
 import type { GenConfig } from '../core/generate'
 import { GAMEDATA } from '../data/game-data'
-import type { Dungeon } from '../data/schema'
+import type { Dungeon, Trigger } from '../data/schema'
 import { CLASSES, classById } from '../data/classes'
 import { ABILITIES, canAfford, ABILITY_PREVIEW } from '../engine/abilities'
-import { SHAPE_MOVE } from '../engine/resolve'
+import { SHAPE_MOVE, matchDescriptor } from '../engine/resolve'
+import { condMet } from '../engine/triggers'
 import { PASSIVES } from '../engine/passives'
 import { assembleFoe, pickWeightedFoe } from '../engine/foe'
 import { createCombat, reduce, colsForN, COMBAT_GEN, type Deps, type CombatAction } from '../engine/combat'
@@ -87,6 +88,8 @@ interface View {
   lastT: number
   boardSig: string
   refs: Record<string, HTMLElement>
+  /** running combat tallies for the end-of-combat contribution chart (UI-only, replay-safe) */
+  stats: { dealt: number; taken: number; blocked: number; healed: number; sets: number; traps: number }
 }
 let V: View | null = null
 
@@ -132,7 +135,7 @@ function startScreen(root: HTMLElement): void {
   panel.appendChild(blurb)
   paintClass()
 
-  const cta = $<HTMLButtonElement>(`<button class="cta">▶ Begin combat</button>`)
+  const cta = $<HTMLButtonElement>(`<button class="cta bob">▶ Begin combat</button>`)
   panel.appendChild(cta)
   wrap.appendChild(panel)
   wrap.appendChild($(`<div class="sub" style="margin-top:18px">Click cards to build a set (same-or-all-different on every trait). Teal halos show set-mates.</div>`))
@@ -178,7 +181,7 @@ function begin(root: HTMLElement, dungeonId: string, foeVal: string, classId: st
   if (!foe) return
   const cls = classById(classId)
   const state = createCombat({ foe, gen: GEN, passives: cls.passives, sequence, seqIdx: 0, dungeonId }, rng)
-  V = { root, deps: { data: GAMEDATA, rng }, state, actions: [], classId: cls.id, loadout: cls.abilities.slice(), coach: !!dg.coach, coachCue: null, manaColor: dominantManaColor(cls.abilities), paused: true, hitstopUntil: 0, preview: null, selected: [], raf: 0, lastT: 0, boardSig: '', refs: {} }
+  V = { root, deps: { data: GAMEDATA, rng }, state, actions: [], classId: cls.id, loadout: cls.abilities.slice(), coach: !!dg.coach, coachCue: null, manaColor: dominantManaColor(cls.abilities), paused: true, hitstopUntil: 0, preview: null, selected: [], raf: 0, lastT: 0, boardSig: '', refs: {}, stats: { dealt: 0, taken: 0, blocked: 0, healed: 0, sets: 0, traps: 0 } }
   buildPlay()
   renderBoard()
   updateBar()
@@ -238,6 +241,7 @@ function buildPlay(): void {
   play.appendChild(rail)
   wrap.appendChild(play)
   V.root.appendChild(wrap)
+  if (!document.getElementById('ptint')) document.body.appendChild($(`<div id="ptint"></div>`)) // low-HP vignette (body-level)
 
   V.refs = {}
   for (const id of ['foename', 'foedesc', 'enemylab', 'phpv', 'ehpv', 'php', 'ehp', 'clock', 'atkfill', 'tacv', 'tac', 'm0', 'm1', 'm2', 'block', 'strip', 'boardwrap', 'board', 'log', 'abilities', 'tactics', 'passives', 'floatlayer']) {
@@ -302,11 +306,11 @@ function renderStrip(): void {
   if (!trigs.length) return
   const hasTrick = trigs.some((t) => t.kind === 'trick')
   strip.appendChild($(`<span class="lab">${hasTrick ? '⚠ Traps · ✦ Tricks' : '⚠ Enemy traps'}</span>`))
-  for (const t of trigs) {
+  trigs.forEach((t, i) => {
     const trick = t.kind === 'trick'
-    const d = $(`<div class="trig${trick ? ' trick' : ''}"><span>${t.icon ?? (trick ? '✦' : '⚠')}</span><span class="tn">${t.name}</span>${t.desc ? `<span class="td">${trick ? 'aim: ' : ''}${t.desc}</span>` : ''}</div>`)
+    const d = $(`<div class="trig${trick ? ' trick' : ''}" data-trig="${i}"><span>${t.icon ?? (trick ? '✦' : '⚠')}</span><span class="tn">${t.name}</span>${t.desc ? `<span class="td">${trick ? 'aim: ' : ''}${t.desc}</span>` : ''}</div>`)
     strip.appendChild(d)
-  }
+  })
 }
 
 // ---- board rendering ----
@@ -354,13 +358,37 @@ function renderBoard(verbs?: Map<number, CardVerb>): void {
     const cls = ['card']
     if (V!.selected.includes(i)) cls.push('sel')
     else if (mates.complete === i) cls.push('complete')
-    else if (mates.set.has(i)) cls.push('mate')
+    else if (mates.set.has(i)) cls.push(V!.selected.length === 2 ? 'matedim' : 'mate')
     if (locked) cls.push('locked')
     if (!firstRender && oldKeys[i] !== key) { cls.push('enter'); if (verbs?.get(i) === 'reform') cls.push('reform') } // new/changed → fade in (reform = materialize)
-    const el = $(`<div class="${cls.join(' ')}" data-i="${i}" data-key="${key}" style="--cc:var(--c${c[0]})">${cardSVG(c)}${locked ? '<span class="lock">🔒</span>' : ''}</div>`)
+    const el = $(`<div class="${cls.join(' ')}" data-i="${i}" data-key="${key}" style="--cc:var(--c${c[0]})">${cardSVG(c)}${locked ? '<span class="lock">🔒</span><span class="lockcd"></span>' : ''}</div>`)
     board.appendChild(el)
   })
   V.boardSig = boardSignature(s)
+  updateTrickLines() // coach-only: surface makeable trick lines (no-op outside coach dungeons)
+}
+
+/** Coach-only teaching cue — glow makeable sets that would spring a favorable TRICK (green line +
+ *  chevron). Strictly gated behind V.coach so real play keeps TRAPS §2.5 (spotting the line is the skill).
+ *  Off while the player has a selection (teal mate-glow owns the board then) and during guided cue stages. */
+function updateTrickLines(): void {
+  if (!V) return
+  const board = V.refs.board
+  board?.querySelectorAll('.trickline').forEach((e) => e.classList.remove('trickline'))
+  board?.querySelectorAll('.trickchev').forEach((e) => e.remove())
+  const s = V.state
+  if (!V.coach || V.coachCue || !s.running || V.selected.length) return
+  const tricks = s.foe.triggers.filter((t) => t.kind === 'trick')
+  if (!tricks.length) return
+  const reachable = (x: number) => s.board[x] != null && !s.locked.has(x) && !s.pending.has(x)
+  for (const t of findSets(s.board)) {
+    if (!t.every(reachable)) continue
+    const desc = matchDescriptor([s.board[t[0]]!, s.board[t[1]]!, s.board[t[2]]!])
+    if (!tricks.some((tr) => condMet(tr.when, desc))) continue
+    for (const x of t) board?.querySelector(`[data-i="${x}"]`)?.classList.add('trickline')
+    const mid = board?.querySelector(`[data-i="${t[1]}"]`)
+    if (mid && !mid.querySelector('.trickchev')) mid.appendChild($(`<span class="trickchev">▼</span>`))
+  }
 }
 
 /** Which board slots are set-mates of the current selection (for the teal glow). */
@@ -378,6 +406,8 @@ function glowSet(s: CombatState, sel: number[], sets: [number, number, number][]
         if (c && !sel.includes(i) && !s.locked.has(i) && keyOf(c) === want) complete = i
       })
     }
+    // dim glow on the other still-open set-mates of either picked card (bright completer stands out)
+    for (const t of sets) if (t.includes(sel[0]) || t.includes(sel[1])) for (const j of t) if (!sel.includes(j) && j !== complete) out.add(j)
   }
   return { set: out, complete }
 }
@@ -560,6 +590,7 @@ function interpret(events: CombatEvent[]): void {
         if (e.immune) { log('Swords pass through — only magic bites this foe.', 'foe'); floatBoard('blocked', 'var(--ink-faint)', 'enemy') }
         else if (e.magic) { log(`Your magic drains <b>${e.amount}</b>.`, 'you'); floatBoard(`-${e.amount}`, 'var(--gold)', 'enemy'); flashStat('ehpv') }
         else { log(`You strike for <b>${e.amount}</b>.`, 'you'); floatBoard(`-${e.amount}`, 'var(--red)', 'enemy'); flashStat('ehpv') }
+        if (!e.immune) V.stats.dealt += e.amount
         break
       case 'enemyHealed':
         log(`The ${V.state.foe.name} heals <b>${e.amount}</b>.`, 'foe')
@@ -568,6 +599,7 @@ function interpret(events: CombatEvent[]): void {
       case 'playerHealed':
         log(`You recover <b>${e.amount}</b> HP.`, 'you')
         floatBoard(`+${e.amount}`, 'var(--green)', 'you')
+        V.stats.healed += e.amount
         break
       case 'blockGained':
         floatBoard(`+${e.amount}🛡`, 'var(--blue)', 'you')
@@ -595,6 +627,7 @@ function interpret(events: CombatEvent[]): void {
         log(`The foe drains your ${['Fire', 'Nature', 'Frost'][e.color]} mana.`, 'foe')
         break
       case 'setResolved': {
+        V.stats.sets++
         coachNotify('match') // guided intro: "make your first set" step
         // give every match a line; a damaging match already logged its strike (enemyDamaged)
         if (e.damage > 0) break
@@ -609,6 +642,7 @@ function interpret(events: CombatEvent[]): void {
       }
       case 'playerDamaged':
         log(`The ${V.state.foe.name} hits you for <b>${e.amount}</b>${e.absorbed ? ` (${e.absorbed} blocked)` : ''}.`, 'foe')
+        V.stats.taken += e.amount; V.stats.blocked += e.absorbed
         queueFlash('wound')
         floatBoard(`-${e.amount} HP`, 'var(--red)', 'you')
         flashStat('phpv')
@@ -617,7 +651,10 @@ function interpret(events: CombatEvent[]): void {
         break
       case 'triggerSprung': {
         const trick = e.trigger.kind === 'trick'
+        pulseTrig(e.trigger) // light up the named chip in the strip — builds the rule→flash association
+        if (e.trigger.quiet) { log(`<span style="opacity:.7">${e.trigger.icon ?? '◦'} ${e.trigger.name}.</span>`, 'foe'); break } // ambient drift: calm, no flourish
         log(`<b>${e.trigger.name}</b> — ${e.label}.`, trick ? 'trick' : 'foe')
+        if (!trick) V.stats.traps++
         queueFlash(trick ? 'trick' : 'trap')
         bursts.push([e.trigger.icon ?? (trick ? '✦' : '⚠'), trick ? '✦ trick' : '⚠ trap', e.trigger.name, e.label, trick ? 'trick' : undefined])
         hs = Math.max(hs, 120)
@@ -706,6 +743,16 @@ function flashStat(ref: string): void {
   el.classList.add('hit')
 }
 
+/** Re-trigger the proc pulse on the strip chip that just fired (drift has no chip → no-op). */
+function pulseTrig(trigger: Trigger): void {
+  const idx = V?.state.foe.triggers.indexOf(trigger) ?? -1
+  const el = idx >= 0 ? (V?.refs.strip?.querySelector(`[data-trig="${idx}"]`) as HTMLElement | null) : null
+  if (!el) return
+  el.classList.remove('proc')
+  void el.offsetWidth
+  el.classList.add('proc')
+}
+
 /** Re-trigger the gold pulse on a passive chip when it fires. */
 function pulsePassive(id: string): void {
   const el = V?.refs.passives?.querySelector(`[data-passive="${id}"]`) as HTMLElement | null
@@ -743,6 +790,20 @@ function updateBar(): void {
   V.refs.atkfill.style.width = `${s.running ? frac * 100 : 100}%`
   V.refs.atkfill.classList.toggle('low', remain <= 5 && remain > 2.5)
   V.refs.atkfill.classList.toggle('crit', remain <= 2.5)
+  // ambient dread: a low-HP vignette + HP-bar glow band (transitions, not animations → survive the pause)
+  const hpf = s.playerMax > 0 ? s.playerHP / s.playerMax : 1
+  const band = !s.running ? '' : hpf <= 0.35 ? 'crit' : hpf <= 0.7 ? 'low' : ''
+  const tint = document.getElementById('ptint')
+  if (tint) { tint.classList.toggle('low', band === 'low'); tint.classList.toggle('crit', band === 'crit') }
+  V.refs.php.classList.toggle('low', band === 'low')
+  V.refs.php.classList.toggle('crit', band === 'crit')
+  // live lock countdowns — patch text only (the board is NOT re-rendered per frame); s.now holds in a pause
+  if (s.locked.size) for (const [slot, until] of s.locked) {
+    const cd = V.refs.board?.querySelector(`[data-i="${slot}"] .lockcd`)
+    if (cd) cd.textContent = `${Math.max(0, Math.ceil((until - s.now) / 1000))}s`
+  }
+  // dim the board during a briefing freeze (but NOT during coaching, where the board is the lesson)
+  V.refs.board?.classList.toggle('idle', !!V.paused && !COACH.active)
   updateCastables()
   // a tutorial popup that needs acknowledgement steps OUTSIDE the game: freeze ALL in-game motion
   // (the engine clock is already frozen via the tick gate) and shade the field, leaving only the popover.
@@ -769,11 +830,25 @@ function endScreen(result: 'win' | 'lose' | 'flee'): void {
   if (!V) return
   coachFinish() // close any open guided step before the end banner
   cancelAnimationFrame(V.raf)
+  document.getElementById('ptint')?.classList.remove('low', 'crit') // drop the low-HP vignette on the end card
   const text = result === 'win' ? '★ Victory' : result === 'flee' ? '🏃 Fled' : '✖ Defeat'
   const banner = $(`<div class="banner ${result === 'win' ? 'win' : 'lose'}">${text}</div>`)
+  const st = V.stats
+  const rows: [string, number, string][] = [
+    ['Damage dealt', st.dealt, 'var(--red)'],
+    ['Damage taken', st.taken, 'var(--warn)'],
+    ['Damage blocked', st.blocked, 'var(--blue)'],
+    ['HP healed', st.healed, 'var(--green)'],
+    ['Sets made', st.sets, 'var(--phos)'],
+    ['Traps sprung', st.traps, 'var(--gold)'],
+  ]
+  const max = Math.max(1, ...rows.map((r) => r[1]))
+  const summary = $(`<div class="summary">${rows
+    .map(([l, v, c]) => `<div class="feat"><span class="fl">${l}</span><span class="fbar"><span style="width:${(v / max) * 100}%;background:${c}"></span></span><span class="fv">${v}</span></div>`)
+    .join('')}</div>`)
   const again = $<HTMLButtonElement>(`<button class="cta" style="display:block;margin:0 auto">▶ Back to start</button>`)
   const root = V.root
-  V.refs.boardwrap.replaceChildren(banner, again)
+  V.refs.boardwrap.replaceChildren(banner, summary, again)
   again.addEventListener('click', () => {
     V = null
     startScreen(root)
@@ -806,7 +881,7 @@ function showBriefing(onEngage: () => void): void {
     ${f.desc ? `<div class="bdesc">${f.desc}</div>` : ''}
     <div class="bstats">${statsHTML}</div>
     ${trapsHTML}
-    <button class="cta" id="b-engage">▶ Engage</button>
+    <button class="cta bob" id="b-engage">▶ Engage</button>
   </div></div>`)
   document.body.appendChild(modal)
   modal.querySelector('#b-engage')!.addEventListener('click', () => { modal.remove(); onEngage() })
@@ -985,6 +1060,7 @@ function coachTeardown(): void {
   document.getElementById('coachpop')?.remove()
   document.getElementById('briefing')?.remove()
   document.getElementById('burstlayer')?.remove()
+  document.getElementById('ptint')?.remove()
   document.querySelectorAll('.coach-spot').forEach((e) => e.classList.remove('coach-spot'))
-  document.querySelectorAll('.coach-arrow').forEach((e) => e.remove())
+  document.querySelectorAll('.coach-arrow, .trickchev').forEach((e) => e.remove())
 }

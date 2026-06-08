@@ -32,65 +32,55 @@ The moment-to-moment feedback that makes an action *land*. Highest impact.
 ## Tier 2 — Ambient danger / pressure (the "I'm in trouble" feel)
 Background cues that build dread as HP drops, independent of any single hit.
 
-- [ ] **5. Low-HP playfield vignette** — playfield never tints as you get low.
-  *Prototype:* radial gradient overlay fades in — yellow at 35–70% HP, red below
-  35%. `.ptint` (~L460), set in JS by HP band.
-- [ ] **6. Health gems (pulse + color shift)** — corner gems that recolor by HP
-  band (blue→green→yellow→red) and pulse faster as HP drops. Absent entirely.
-  `@keyframes gempulse`, `.gem`, `body.hp-danger/.hp-crit` (~L471).
-  *(May overlap with #5 + the HP bar — decide if both are wanted.)*
+- [x] **5. Low-HP playfield vignette** — DONE. body-level `#ptint` radial overlay,
+  warn at ≤70% / red at ≤35% HP, driven by band in `updateBar` (transition-based →
+  survives the pause).
+- [x] **6. Health gems** — FOLDED into #5: HP-bar glow tints by band (`.fill.php.low/
+  .crit`) instead of separate corner gems. (Gems filed for set.crawl town/map.)
 
 ## Tier 3 — Card-state nuance
 Reads on individual cards beyond the generic crossfade.
 
-- [ ] **7. Locked card: stripes + live countdown** — new app shows desaturate +
-  🔒, but no diagonal-stripe overlay and **no countdown** of remaining lock time.
-  *Prototype:* stripe overlay + `.lockcd` countdown span (~L129).
-- [ ] **8. Empty / "wound" slot during reform** — when a card is destroyed and
-  reforming, new app just refills via crossfade. *Prototype:* dashed faded gap
-  shows the hole during the cooldown. `.card.gap` (~L138).
-- [ ] **9. Transmute its own motion** — transmute reuses the generic crossfade;
-  no verb-specific tell that a card *changed* rather than *left*. (No prototype
-  keyframe — flagged as a design opportunity, since transmute is a headline verb.)
-- [ ] **10. Set-mate glow third tier** — new app has 2 glow levels (`mate`,
-  `complete`); prototype has 3: faint on 1-card pick, dim mates + bright completer
-  on 2-card pick (`setGlow` slight/dim/bright, ~L1207). Minor refinement.
-- [ ] **11. Card exit spin** — prototype's leaving card rotates ~4°; new exit is
-  scale+fade only. Cosmetic.
+- [x] **7. Locked card: stripes + live countdown** — DONE. iron diagonal stripes
+  (`.card.locked::before`, card stays legible) + `.lockcd` span patched each frame
+  in `updateBar`.
+- [x] **8. Empty / "wound" slot during reform** — DONE (rode along with the engine
+  wound mechanic). `.card.gap` dashed red pulse while a shattered/transmuting slot
+  is on cooldown.
+- [x] **9. Transmute its own motion** — DONE. `.card.morph` (calm in-place dissolve)
+  for your/trick/drift transmute; enemy-hostile transmute booms instead (⚑B).
+- [x] **10. Set-mate glow third tier** — DONE. `.matedim` (dim open mates) added on
+  the 2-pick case so the bright completer stands out.
+- [x] **11. Card exit spin** — DONE. `cardout` keyframe now rotates ~4° on exit.
 
 ## Tier 4 — Coaching / discovery (teaching the trick layer)
 Surfacing the threat/trick system so players learn to read the board.
 
-- [ ] **12. Trick-line glow + coach chevron** — in coaching mode the prototype
-  highlights *makeable sets that would spring a favorable trick* with a green
-  pulsing line + bobbing ▼ over the middle card. New app coaching never points at
-  tricks on the board. `@keyframes tricklinepulse`/`coachbob`, `.card.trickline`,
-  `.coach-arrow` (~L526, L377).
-- [ ] **13. On-demand Hint button** — prototype has a Hint button that pulses a
-  valid set yellow. New app has no on-demand hint (only scripted tutorial text).
-  `@keyframes hintpulse`, `.card.hint` (~L120). *Decide if this belongs in the
-  real game or was a prototype-only crutch.*
+- [x] **12. Trick-line glow + coach chevron** — DONE, **gated behind `V.coach`**
+  (real play keeps TRAPS §2.5). `updateTrickLines()` glows makeable trick sets
+  (`.card.trickline`) + a `.trickchev` ▼; off while you have a selection.
+- [N] **13. On-demand Hint button** — CUT (design call): the flooded board never
+  asks "find any set"; tutorial cues teach value-finding instead.
 
 ## Tier 5 — Proc flourishes & framing
 Smaller polish; cheap wins that add readability.
 
-- [ ] **14. Trap/trick strip proc pulse** — when a trap fires, its chip in the
-  strip should pulse so the player connects the flash to the named trap. New
-  strip is static. `@keyframes trapproc/trickproc`, `.trap.proc` (~L352, L524).
-- [ ] **15. End-of-combat summary chart** — new end screen is just
-  "★ Victory / ✖ Defeat" (`app.ts:731`). Prototype shows a per-feature
-  contribution bar chart with swatches. `.summary`, `.feat .bar` (~L540).
-- [ ] **16. "Begin combat" CTA bob** — prototype's start CTA bobs to draw the eye.
-  `@keyframes bob` (~L158). Cosmetic.
-- [ ] **17. Board idle desaturate** — prototype dims/desaturates the board when
-  combat isn't running (setup/end). `.board.idle` (~L149). Cosmetic.
+- [x] **14. Trap/trick strip proc pulse** — DONE. `data-trig` index + `pulseTrig()`
+  flashes the named chip on `triggerSprung`; quiet drift stays calm (no flash/burst).
+- [x] **15. End-of-combat summary chart** — DONE. `View.stats` tallied in `interpret`,
+  rendered as a `.summary` contribution chart in `endScreen` (dealt/taken/blocked/
+  healed/sets/traps).
+- [x] **16. "Begin combat" CTA bob** — DONE. `.cta.bob` on the begin + engage buttons.
+- [x] **17. Board idle desaturate** — DONE. `.board.idle` during a briefing freeze
+  (not during coaching, where the board is the lesson).
 
-## Flagged as likely N/A (confirm)
-- **Spell arming pulse** (`.slot.spell.arming`, `armpulse`, ~L145) — the prototype
-  had a click-to-target *arm* step. The new app auto-targets abilities
-  deterministically (`engine/abilities.ts`) and already shows `tgtsure`/`tgtmaybe`
-  hover previews, so the armed-slot pulse is probably moot. **Confirm there's no
-  click-to-target path you still want.**
+## Flagged as N/A — confirmed deferred
+- **Spell arming pulse** — N/A: the app auto-targets deterministically and shows
+  `tgtsure`/`tgtmaybe` hover previews. Revive when Fireball click-to-target lands.
+
+## All parity items resolved.
+Built: #1–#12, #14–#17 · folded: #6→#5 · cut: #13 · deferred: arming pulse.
+Remaining future work = the 16 enhancement ideas in `UX-FEEL-PLAN.md` (unscheduled).
 
 ---
 
