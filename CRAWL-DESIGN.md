@@ -442,13 +442,14 @@ core" TOP PRIORITY). Move was the weak, fiddly verb (Defend and Move were both
   already-maxed clock) dump on top — so feeding Moves into a capped clock builds
   Tactics fast. The once-wasted overcap is now the *point*.
 - **Full meter → ARMS** a row of one-shot **Tactic** buttons and then **drains**
-  `TACTICS_DRAIN`/sec (use-it-or-lose-it). The armed Tactics are universal board
-  transmutes: **Strike** (→ heavy Attacks), **Dodge** (→ heavy Defends), **Heat Up /
-  Chill Out / Go Wild** (→ red / blue / green flood), and **Flee** (the retreat —
-  see below). Firing any Tactic empties the meter.
+  `TACTICS_DRAIN`/sec (use-it-or-lose-it). **Built:** the six armed Tactics are universal
+  board transmutes — the three shape tactics mirror the card types: **Attack** (→ heavy
+  Attacks), **Defend** (→ heavy Defends), **Move** (→ Moves), plus **Heat Up / Chill Out /
+  Go Wild** (→ red / blue / green flood). Firing any Tactic empties the meter. (Flee is no
+  longer here — it's a standalone any-time button; see below.)
 - **Tactics' lane — resolved: keep the overlap.** The armed transmutes deliberately
-  echo class floods (Strike ≈ Berserk, Heat Up ≈ Call Flames). In play this is a
-  *feature*: it lets any class run a control loop — **Call Flames + Strike** ping-pongs
+  echo class floods (Attack ≈ Berserk, Heat Up ≈ Call Flames). In play this is a
+  *feature*: it lets any class run a control loop — **Call Flames + Attack** ping-pongs
   the board between lots-of-red and lots-of-Attacks; **Glaciate + Chill Out** plays
   extremely control-heavy on Cryomancer. More board-shaping options is good, especially
   now that enemy transmutes create constant back-and-forth over the board. (Generic
@@ -458,11 +459,11 @@ core" TOP PRIORITY). Move was the weak, fiddly verb (Defend and Move were both
 
 **Flee — the retreat mechanic** (resolves the §6 loss-condition retreat path). The
 old standalone Flee *meter* (toggle Fleeing mode, farm Moves to 10, decay + lockout)
-is **superseded**: Flee is now simply **one of the armed Tactics**. Fill the Tactics
-meter, then spend it on **Flee** to retreat to town (sandbox: a flee-success end
-screen). Confirm-gated, since it forfeits the encounter. Build-expressiveness is
-preserved — Move-trigger classes (Rogue's Move→Attack passive) fill Tactics fast and
-choose between offense (Strike) and escape (Flee) with the same resource.
+is **superseded**. **Built:** Flee is a **standalone, any-time button** (top-right of the
+foe header) — *not* gated by the Tactics meter, so retreat is always available; confirm-gated
+since it forfeits the encounter (sandbox: a flee-success end screen). It was briefly an armed
+Tactic during the feel pass, then pulled out so escape never depends on first banking Tactics.
+The retreat *penalty* (what fleeing costs) is still an open §6 question.
 
 ---
 
@@ -476,12 +477,12 @@ choose between offense (Strike) and escape (Flee) with the same resource.
   feature, §5.5). The Move *affixes* (§7 Windstep / Stalker's) now re-anchor on
   **Tactics** ("a fraction of Move tempo → Block", "+dmg scaled by banked Tactics")
   instead of the unreachable clock cap.
-- **⭐ NEXT — build the enemy-trap half of the trigger bus** (`TRAPS.md`). Combat is
-  still solitaire against a metronome; the design thesis (read the board *against the
-  enemy's traps*, `GAME-DESIGN.md` §0) is unbuilt. Minimal first build: generalize the
-  passive bus to fire enemy `traps[]`, render traps as visible tags, ship ~3 traps
-  spanning the consequence types (reflect, enemy-transmute, heal/armor). Test: *does a
-  visible trap change which sets you hunt?*
+- ~~**⭐ NEXT — build the enemy-trap half of the trigger bus**~~ — **DONE** (`src/engine`,
+  `TRAPS.md`). Enemy traps/tricks fire on the bus, render as the trap strip (with an
+  "armed" pulse when a springing line is on the board), and the four board verbs
+  (destroy / transmute / lock / conditions) are live. Combat now reads the board *against*
+  the enemy's traps — the design thesis (`GAME-DESIGN.md` §0) is built. The **NEXT** build
+  is the crawl shell around combat (run loop / second screens — see `TODO.md`).
 - **Loss condition** — death = permadeath/run-over? The *retreat* path is now defined
   (the Flee mechanic, §5.5); still open is the **penalty** for fleeing and what death
   itself costs (roguelike vs. roguelite framing).

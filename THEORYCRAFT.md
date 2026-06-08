@@ -332,8 +332,9 @@ this one verb. And the math hands us the **balance for free**:
   *sub-unity* so no infinite engine emerges.
 - **The Tactics meter** is the resolved rework of the "Move" verb: Move matches
   (and overflow from the capped enemy clock) fill a meter to a goal; a full meter
-  arms one-shot board-transmute "Tactics" (Strike, Dodge, color floods, and
-  **Flee**), then drains use-it-or-lose-it. Prototyped constants:
+  arms one-shot board-transmute "Tactics" — the three shape tactics mirror the card
+  types (Attack, Defend, Move) plus the color floods — then drains use-it-or-lose-it.
+  (Flee was pulled out into a standalone any-time button.) Prototyped constants:
   `TACTICS_GOAL = 10`, `TACTICS_DRAIN = 1/sec`, `CLOCK_CAP = 20s`.
 - **Passives** are always-on triggers on the bus (Flame Shield: *all-red match →
   +block*; Bloodlust: *all-Attack match → +damage*; etc.).
@@ -668,7 +669,7 @@ These are the "don't break this in a refactor" rules, stated precisely:
 - **setup bias vs runtime bias** — locked-at-round-start deal bias vs. a transient
   bias applied to a single ability-driven refill.
 - **Tactics** — the meter Move matches fill; arms one-shot board transmutes
-  (Strike, Dodge, floods, Flee).
+  (Attack, Defend, Move, color floods). Flee is a separate any-time button.
 
 ---
 

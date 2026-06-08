@@ -6,7 +6,7 @@ action-resolution layer of a web RPG.
 ## Start here
 1. **`CLAUDE.md`** — fast orientation for a Claude Code session.
 2. **`PROJECT.md`** — full design context and rationale (the source of truth).
-3. **`TODO.md` §A** — the foundation-migration log (prototype → modular `src/`).
+3. **`TODO.md`** — the live backlog: what's built + the **set.crawl** build plan.
 
 ## Run the game (modular client)
 The live game is the modular TypeScript client under `src/` (engine + UI). Dev tooling

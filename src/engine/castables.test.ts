@@ -9,6 +9,8 @@ import { GAMEDATA } from '../data/game-data'
 import { assembleFoe } from './foe'
 import { createCombat, reduce } from './combat'
 import { SHAPE_ATTACK, SHAPE_MOVE } from './resolve'
+import { gainBlock } from './ops'
+import { EventSink } from './events'
 import { TACTICS_GOAL } from './state'
 import type { CombatState } from './state'
 
@@ -124,6 +126,40 @@ test('flee forfeits the encounter at any time (not gated by the meter)', () => {
   expect(r.events.some((e) => e.type === 'fled')).toBe(true)
   expect(r.state.running).toBe(false)
   expect(r.state.result).toBe('flee')
+})
+
+// ---- wound (shatter) + Defend overflow ----
+test('a landed enemy hit shatters a board rune (a Wound)', () => {
+  const s = combat('limbless_zombie') // damage 3, no variants, lumbering 20s — survives, deterministic
+  s.block = 0
+  const before = s.board.filter(Boolean).length
+  const t = reduce(s, { type: 'tick', dtMs: 21000 }, deps()) // past the cadence → it attacks
+  expect(t.events.some((e) => e.type === 'playerDamaged')).toBe(true)
+  expect(t.events.some((e) => e.type === 'cardsShattered')).toBe(true)
+  expect(t.state.board.filter(Boolean).length).toBe(before - 1) // one slot emptied (wounded)
+  expect(t.state.pending.size).toBe(1) // it reforms after DMG_REGEN_MS
+})
+
+test('Defend overflow rolls a low-weighted slice over the block cap', () => {
+  const s = combat('training_dummy')
+  s.playerMax = 30
+  s.block = 28 // room for 2 before the cap
+  const sink = new EventSink()
+  gainBlock(s, 12, mulberry32(1), sink) // +2 to cap, then a rollover from the 10 overflow
+  expect(s.block).toBeGreaterThanOrEqual(30) // capped fill + a (possibly 0) rollover above the cap
+  expect(sink.events.some((e) => e.type === 'blockGained')).toBe(true)
+})
+
+test('Sentinel (Overflow) stacks: the overflow becomes BOTH a weighted attack and the rollover', () => {
+  const s = combat('limbless_zombie', { passives: ['overflow'] })
+  s.enemyHP = 100
+  s.playerMax = 30
+  s.block = 30 // full → the whole gain overflows
+  const sink = new EventSink()
+  gainBlock(s, 10, mulberry32(2), sink)
+  expect(sink.events.some((e) => e.type === 'passiveProc' && e.id === 'overflow')).toBe(true) // the attack
+  expect(s.enemyHP).toBeLessThan(100) // it landed
+  expect(s.block).toBeGreaterThanOrEqual(30) // the rollover is independent (≥ cap)
 })
 
 // ---- determinism with casts in the mix ----

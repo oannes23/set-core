@@ -5,9 +5,11 @@
 > effect, three owners) and `CRAWL-DESIGN.md` §4 (the YAML trigger schema). This
 > doc owns the **trap vocabulary**, the **board-state effects** enemies (and
 > abilities) can apply, and the laws that keep them fair and fun.
-> **Status: design capture, not yet built.** The player-side half of the bus
-> (class passives) is prototyped in `set-combat.html`; enemy traps and the
-> enemy-side board verbs are the next build.
+> **Status: built in `src/engine`.** The full reactive bus — enemy traps/tricks,
+> the four board verbs (destroy / transmute / lock / conditions), named geometry
+> selectors, compound conditions, and dungeon drift — is live (`triggers.ts`,
+> `foe.ts`, `game-data.ts`). This doc remains the design source of truth for the
+> vocabulary and fairness laws; per-foe consequence *numbers* are still tuned in play.
 
 ---
 

@@ -1,9 +1,11 @@
 # GAME-DESIGN.md — SET.core → the real game
 
 > Forward-looking design notes for the actual RPG built on the SET.core skill
-> engine. **Status: design capture, not yet built.** `PROJECT.md` remains the
-> source of truth for the *prototype* and the generation/tuning math; this doc
-> is where the *game* on top of it is specified. When something here contradicts
+> engine. **Status: the combat layer specced here is built in `src/`** (the locked
+> f=3 / N=15 5×3 board, the trigger bus, the transmute verb, classes / abilities /
+> tactics); the full RPG / dungeon-crawler shell around it is in progress
+> (`CRAWL-DESIGN.md`, `TODO.md`). `PROJECT.md` remains the source of truth for the
+> generation/tuning math; this doc is where the *game* on top of it is specified. When something here contradicts
 > the prototype's defaults, this doc wins for the real build (and `PROJECT.md`'s
 > reasoning explains *why* the lever exists).
 
