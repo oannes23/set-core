@@ -176,8 +176,16 @@ button.cta:hover { background: var(--phos); color: #062b27; }
 .burst.trick .bun { color: var(--trick); } .burst.wound .bun { color: var(--red); }
 .burst .bue { font-size: 11px; color: var(--ink-dim); margin-top: 2px; }
 
-/* ---- coach: dim the board (intro step); ring Move cards STRONG + the meter LIGHT while building ---- */
-.boardwrap.coach-dim { opacity: .45; filter: grayscale(.4); pointer-events: none; transition: opacity .35s ease, filter .35s ease; }
+/* ---- card crossfade: outgoing cards ghost out, incoming fade in (paused mid-state when frozen) ---- */
+.card.enter { animation: cardin .26s ease; }
+@keyframes cardin { from { opacity: 0; transform: scale(.82); } to { opacity: 1; transform: scale(1); } }
+.card.leave { animation: cardout .26s ease forwards; }
+@keyframes cardout { from { opacity: 1; transform: scale(1); } to { opacity: 0; transform: scale(.78); } }
+/* a tutorial popup that needs acknowledgement freezes ALL in-game motion (the engine clock is already
+   frozen via the tick gate); the popover + scrim live outside .wrap so they keep animating. */
+.wrap.frozen * { animation-play-state: paused !important; }
+
+/* ---- coach: ring Move cards STRONG + the meter LIGHT while building ---- */
 .card.movehint { position: relative; z-index: 1; animation: movehint 1.05s ease-in-out infinite; }
 @keyframes movehint { 0%, 100% { box-shadow: 0 0 0 3px var(--gold), 0 0 18px -5px var(--gold); } 50% { box-shadow: 0 0 0 3px var(--gold), 0 0 34px -1px var(--gold); } }
 .tacmeter.meterhint { animation: meterhint 1.6s ease-in-out infinite; }

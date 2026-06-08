@@ -315,6 +315,26 @@ function renderBoard(): void {
   if (!V) return
   const s = V.state
   const board = V.refs.board
+  // crossfade: snapshot current cards; ghost-out (fade) any whose content is about to change
+  const oldKeys: Record<number, string> = {}
+  const layer = V.refs.floatlayer
+  const bw = V.refs.boardwrap?.getBoundingClientRect()
+  board.querySelectorAll<HTMLElement>('.card').forEach((old) => {
+    if (old.dataset.i == null) return
+    const i = +old.dataset.i
+    oldKeys[i] = old.dataset.key ?? ''
+    const c = s.board[i]
+    const newKey = c ? String(keyOf(c)) : ''
+    if (layer && bw && old.dataset.key && old.dataset.key !== newKey) {
+      const r = old.getBoundingClientRect()
+      const ghost = old.cloneNode(true) as HTMLElement
+      ghost.className = 'card leave'
+      ghost.removeAttribute('data-i')
+      ghost.style.cssText = `position:absolute;margin:0;left:${r.left - bw.left}px;top:${r.top - bw.top}px;width:${r.width}px;height:${r.height}px`
+      ghost.addEventListener('animationend', () => ghost.remove()) // not a timer → it freezes with the pause
+      layer.appendChild(ghost)
+    }
+  })
   board.innerHTML = ''
   const sets = findSets(s.board)
   const mates = glowSet(s, V.selected, sets)
@@ -324,12 +344,14 @@ function renderBoard(): void {
       return
     }
     const locked = s.locked.has(i)
+    const key = String(keyOf(c))
     const cls = ['card']
     if (V!.selected.includes(i)) cls.push('sel')
     else if (mates.complete === i) cls.push('complete')
     else if (mates.set.has(i)) cls.push('mate')
     if (locked) cls.push('locked')
-    const el = $(`<div class="${cls.join(' ')}" data-i="${i}" style="--cc:var(--c${c[0]})">${cardSVG(c)}${locked ? '<span class="lock">🔒</span>' : ''}</div>`)
+    if (oldKeys[i] !== key) cls.push('enter') // new or changed → fade in
+    const el = $(`<div class="${cls.join(' ')}" data-i="${i}" data-key="${key}" style="--cc:var(--c${c[0]})">${cardSVG(c)}${locked ? '<span class="lock">🔒</span>' : ''}</div>`)
     board.appendChild(el)
   })
   V.boardSig = boardSignature(s)
@@ -370,21 +392,21 @@ function onBoardClick(e: Event): void {
     if (isSet(s.board[a]!, s.board[b]!, s.board[c]!)) {
       const sel = V.selected.slice() as [number, number, number]
       V.selected = []
-      dispatch({ type: 'completeSet', slots: sel })
-    } else {
-      // misread — shake + clear
-      V.selected.forEach((j) => V!.refs.board.querySelector(`[data-i="${j}"]`)?.classList.add('bad'))
-      log('A misread — those three are not a set.', 'foe')
-      setTimeout(() => {
-        if (V) {
-          V.selected = []
-          renderBoard()
-        }
-      }, 320)
+      dispatch({ type: 'completeSet', slots: sel }) // dispatch renders (with the crossfade) — don't double-render
       return
     }
+    // misread — shake + clear
+    V.selected.forEach((j) => V!.refs.board.querySelector(`[data-i="${j}"]`)?.classList.add('bad'))
+    log('A misread — those three are not a set.', 'foe')
+    setTimeout(() => {
+      if (V) {
+        V.selected = []
+        renderBoard()
+      }
+    }, 320)
+    return
   }
-  renderBoard()
+  renderBoard() // selection changed (1st/2nd pick) → repaint set-mate glow
 }
 
 function onAbilityClick(e: Event): void {
@@ -678,6 +700,11 @@ function updateBar(): void {
   V.refs.atkfill.classList.toggle('low', remain <= 5 && remain > 2.5)
   V.refs.atkfill.classList.toggle('crit', remain <= 2.5)
   updateCastables()
+  // a tutorial popup that needs acknowledgement steps OUTSIDE the game: freeze ALL in-game motion
+  // (the engine clock is already frozen via the tick gate) and shade the field, leaving only the popover.
+  const paused = !!V.paused
+  document.querySelector('.wrap')?.classList.toggle('frozen', paused)
+  document.getElementById('coachscrim')?.classList.toggle('show', paused)
 }
 
 // ---- the clock loop ----
@@ -778,7 +805,6 @@ interface GuidedStep {
   body: string
   spot?: string | null // selector to ring (and, with `hold`, dim the rest)
   hold?: boolean // freeze + explain (Next to continue)
-  dimBoard?: boolean // gently dim the board (the intro step, before it lights up to be played)
   cue?: 'moves' | 'mana' // which board card-glow cue this stage teaches
   await?: 'match' | 'ability' | 'tactic' // un-freeze and wait for the player to DO it
   reveal?: string[] // section names to un-dim at this stage
@@ -796,12 +822,11 @@ function setSectionEnabled(name: string, on: boolean): void {
 const lockAllSections = () => { for (const n in COACH_SECTIONS) setSectionEnabled(n, false) }
 const unlockAllSections = () => { for (const n in COACH_SECTIONS) setSectionEnabled(n, true) }
 
-// ring the target(s); `dim` also drops a click-blocking scrim (hold/explain steps)
-function coachSpotlight(sel: string | null, dim: boolean): void {
+// ring the target(s) — a highlight on interactive (await) steps. The field-wide shade is the pause
+// scrim (driven in updateBar), so rings are only used while the player can act (never during a freeze).
+function coachSpotlight(sel: string | null): void {
   document.querySelectorAll('.coach-spot').forEach((e) => e.classList.remove('coach-spot'))
-  const els = sel ? [...document.querySelectorAll(sel)] : []
-  els.forEach((e) => e.classList.add('coach-spot'))
-  document.getElementById('coachscrim')?.classList.toggle('show', dim && els.length > 0)
+  if (sel) document.querySelectorAll(sel).forEach((e) => e.classList.add('coach-spot'))
 }
 
 // build the scrim + popover once, lazily (kept out of the static markup)
@@ -820,7 +845,7 @@ function buildCoachUI(): void {
 
 // the guided intro script (3b): a gradual reveal, ONE play-element per stage
 const GUIDED_STEPS: GuidedStep[] = [
-  { icon: '🃏', title: 'Read the board', dimBoard: true, hold: true,
+  { icon: '🃏', title: 'Read the board', hold: true,
     body: 'Every card shows three traits — a <b>colour</b>, a <b>shape</b>, and a <b>number</b> (1–3). The clock is frozen; take your time looking them over.' },
   { icon: '✨', title: 'Make your first set', spot: '#board', await: 'match',
     hint: '▸ Pick a card, watch the teal halos, then complete a set.',
@@ -853,8 +878,7 @@ function coachShowStep(i: number): void {
   COACH.await = s.await ?? null
   ;(s.reveal ?? []).forEach((n) => setSectionEnabled(n, true))
   if (V) { V.paused = !!s.hold; V.coachCue = s.cue ?? null } // hold = freeze; await = let them play
-  document.getElementById('boardwrap')?.classList.toggle('coach-dim', !!s.dimBoard)
-  coachSpotlight(s.spot ?? null, !!s.hold)
+  coachSpotlight(s.hold ? null : (s.spot ?? null)) // rings only while interactive; a frozen step shades all
   const set = (id: string, html: string) => { const el = document.getElementById(id); if (el) el.innerHTML = html }
   set('cp-icon', s.icon)
   set('cp-title', s.title)
@@ -877,6 +901,7 @@ function coachNotify(event: 'match' | 'ability' | 'tactic'): void {
   if (!COACH.active || COACH.await !== event) return
   COACH.await = null // cp-next now advances on click
   if (V) V.paused = true // criteria met → freeze the world until they hit Next
+  coachSpotlight(null) // the field-wide shade takes over; drop the per-target ring
   document.getElementById('coachpop')?.classList.remove('awaiting')
   const next = document.getElementById('cp-next')
   next?.classList.remove('await')
@@ -887,8 +912,9 @@ function coachFinish(): void {
   COACH.active = false
   COACH.await = null
   if (V) { V.paused = false; V.coachCue = null }
-  coachSpotlight(null, false)
-  document.getElementById('boardwrap')?.classList.remove('coach-dim')
+  coachSpotlight(null)
+  document.getElementById('coachscrim')?.classList.remove('show')
+  document.querySelector('.wrap')?.classList.remove('frozen')
   unlockAllSections()
   document.getElementById('coachpop')?.classList.remove('show')
 }
