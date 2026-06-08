@@ -109,11 +109,13 @@ button.cta.bob { animation: ctabob 1.6s ease-in-out infinite; }
 .card.sel { box-shadow: var(--moat), 0 0 0 6px var(--phos), 0 0 22px -3px var(--phos); transform: translateY(-3px); }
 /* set-mate hints (2nd possibilities — often MANY at once) are an INNER gold FRAME: it stays inside the card,
    so adjacent lit cards never bleed across the 8px gap. Gold ≠ card colours, so it reads on red/green/blue. */
-.card.mate { box-shadow: inset 0 0 0 3px rgba(245,197,66,.58); }
-.board.teachmates .card.mate { box-shadow: inset 0 0 0 3px var(--gold), inset 0 0 11px -2px var(--gold); } /* tutorial: fuller */
-/* the completer (3rd finisher) is a single card, so it gets an OUTER breathing ring (with moat) to POP out */
+/* normal play: TEAL inner frame, brightness scaled HARD by --gimme (obvious sets glow, camo sets barely) */
+.card.mate { box-shadow: inset 0 0 0 3px rgba(94,234,212, calc(.2 + .62 * var(--gimme, .5))), inset 0 0 calc(16px * var(--gimme, 0)) -2px rgba(94,234,212,.85); }
+/* tutorial: uniform bright GOLD so every set-mate is unmistakable (teaching, not difficulty-grading) */
+.board.teachmates .card.mate { box-shadow: inset 0 0 0 3px var(--gold), inset 0 0 11px -2px var(--gold); }
+/* the completer (3rd finisher) is a single card → an OUTER breathing ring (with moat) to POP out */
 .card.complete { animation: completebreath 1.1s ease-in-out infinite; }
-@keyframes completebreath { 0%, 100% { box-shadow: var(--moat), 0 0 0 6px var(--gold), 0 0 9px -3px var(--gold); } 50% { box-shadow: var(--moat), 0 0 0 6px var(--gold), 0 0 18px -2px var(--gold); } }
+@keyframes completebreath { 0%, 100% { box-shadow: var(--moat), 0 0 0 6px var(--phos), 0 0 9px -3px var(--phos); } 50% { box-shadow: var(--moat), 0 0 0 6px var(--phos), 0 0 18px -2px var(--phos); } }
 .board.teachmates .card.complete { animation: completebreathbig 1.1s ease-in-out infinite; }
 @keyframes completebreathbig { 0%, 100% { box-shadow: var(--moat), 0 0 0 7px var(--gold), 0 0 13px -3px var(--gold); } 50% { box-shadow: var(--moat), 0 0 0 8px var(--gold), 0 0 22px -1px var(--gold); } }
 /* two picks whose finishing third isn't on the board → a dead end: the picks glow red, nothing else does */

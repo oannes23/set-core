@@ -365,14 +365,16 @@ function renderBoard(verbs?: Map<number, CardVerb>): void {
     const locked = s.locked.has(i)
     const key = String(keyOf(c))
     const cls = ['card']
+    let gimme = -1
     if (V!.selected.includes(i)) cls.push(mates.deadPair ? 'badpair' : 'sel') // dead pair → red picks, no other glow
     else if (mates.complete === i) cls.push('complete')
-    else if (mates.set.has(i)) cls.push('mate')
+    else if (mates.set.has(i)) { cls.push('mate'); gimme = mates.set.get(i)! } // brightness scales with this set's gimme value
     if (locked) cls.push('locked')
     else if (bait != null && c[0] === bait && !V!.selected.includes(i) && mates.complete !== i && !mates.set.has(i)) cls.push('bait')
     if (!firstRender && oldKeys[i] !== key) { cls.push('enter'); if (verbs?.get(i) === 'reform') cls.push('reform') } // new/changed → fade in (reform = materialize)
     const heat = (setCount[i] / maxCount).toFixed(2)
-    const el = $(`<div class="${cls.join(' ')}" data-i="${i}" data-key="${key}" style="--cc:var(--c${c[0]});--heat:${heat}">${cardSVG(c)}${locked ? '<span class="lock">🔒</span><span class="lockcd"></span>' : ''}</div>`)
+    const gimmeVar = gimme >= 0 ? `;--gimme:${(gimme / 2).toFixed(2)}` : ''
+    const el = $(`<div class="${cls.join(' ')}" data-i="${i}" data-key="${key}" style="--cc:var(--c${c[0]});--heat:${heat}${gimmeVar}">${cardSVG(c)}${locked ? '<span class="lock">🔒</span><span class="lockcd"></span>' : ''}</div>`)
     board.appendChild(el)
   })
   V.boardSig = boardSignature(s)
@@ -434,14 +436,24 @@ function updateTrickLines(): void {
   }
 }
 
-/** Set-mate glow for the current selection: 1 pick → its mates (gold); 2 picks → the completer (bright)
- *  or, if the finishing third isn't reachable, `deadPair` (the two picks glow red, nothing else). */
-function glowSet(s: CombatState, sel: number[], sets: [number, number, number][]): { set: Set<number>; complete: number; deadPair: boolean } {
-  const out = new Set<number>()
+/** How "gimme" a set reads: the count of all-same traits (0–2 on the active axes). All-same on an axis
+ *  is a visual cluster (obvious); all-different on every axis is camo. Higher = easier to spot. */
+function gimmeScore(s: CombatState, t: [number, number, number]): number {
+  const d = matchDescriptor([s.board[t[0]] as Card, s.board[t[1]] as Card, s.board[t[2]] as Card])
+  return (d.sameColor != null ? 1 : 0) + (d.sameShape != null ? 1 : 0) + (d.sameNumber != null ? 1 : 0)
+}
+
+/** Set-mate glow for the current selection: 1 pick → its mates, each keyed by its best gimme score (the
+ *  brighter, the more obvious the set); 2 picks → the completer, or `deadPair` (red picks, nothing else). */
+function glowSet(s: CombatState, sel: number[], sets: [number, number, number][]): { set: Map<number, number>; complete: number; deadPair: boolean } {
+  const out = new Map<number, number>()
   let complete = -1
   let deadPair = false
   if (sel.length === 1) {
-    for (const t of sets) if (t.includes(sel[0])) for (const j of t) if (j !== sel[0]) out.add(j)
+    for (const t of sets) if (t.includes(sel[0])) {
+      const g = gimmeScore(s, t)
+      for (const j of t) if (j !== sel[0]) out.set(j, Math.max(out.get(j) ?? 0, g)) // a mate's brightness = its easiest set
+    }
   } else if (sel.length === 2) {
     const a = s.board[sel[0]]
     const b = s.board[sel[1]]
@@ -577,7 +589,7 @@ function paintCardCue(cls: 'movehint' | 'colorhint', match: (c: Card) => boolean
     for (const x of V.selected) want.delete(x) // the picked card wears the selection ring, not the cue
     if (V.selected.length > 0) {
       const g = glowSet(s, V.selected, sets)
-      const mates = new Set(g.set)
+      const mates = new Set(g.set.keys())
       if (g.complete >= 0) mates.add(g.complete)
       for (const i of [...want]) if (!mates.has(i)) want.delete(i)
     }
