@@ -25,7 +25,7 @@ export function gainBlock(s: CombatState, n: number, rng: Rng, sink: EventSink):
   if (overflow > 0) {
     // low-weighted triangular rollover (favours 0; range 0..overflow) — wasted Defend trickles into Tactics
     const rollover = overflow + 1 - weightedRoll(overflow + 1, rng)
-    if (rollover > 0) addTactics(s, rollover, sink)
+    if (rollover > 0) addTactics(s, rollover, sink, 'overflow')
     if (s.passives.includes('overflow')) {
       const dmg = weightedRoll(overflow, rng) // Sentinel: the full overflow ALSO becomes a weighted attack
       const dealt = dealAbilityDamage(s, dmg, sink)
@@ -38,10 +38,10 @@ export function gainBlock(s: CombatState, n: number, rng: Rng, sink: EventSink):
 }
 
 /** Fill the Tactics meter; arm it (begin draining) when it tops out. */
-export function addTactics(s: CombatState, amt: number, sink: EventSink): void {
+export function addTactics(s: CombatState, amt: number, sink: EventSink, source?: 'overflow'): void {
   if (amt <= 0) return
   s.tactics = Math.min(TACTICS_GOAL, s.tactics + amt)
-  sink.emit({ type: 'tacticsGained', amount: amt })
+  sink.emit({ type: 'tacticsGained', amount: amt, source })
   if (!s.tacticsArmed && s.tactics >= TACTICS_GOAL) {
     s.tacticsArmed = true
     sink.emit({ type: 'tacticsArmed' })

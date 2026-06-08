@@ -766,6 +766,9 @@ function interpret(events: CombatEvent[]): void {
       case 'blockGained':
         floatBoard(`+${e.amount}🛡`, 'var(--blue)', 'you')
         break
+      case 'tacticsGained':
+        if (e.source === 'overflow') floatBoard(`+${e.amount} ⚡`, 'var(--gold)', 'you') // Block past the cap → Tactics
+        break
       case 'playerBlocked':
         log(`The ${foe} ${pick(voice.hit)} you — your guard holds, <b>no damage</b>.`, 'foe')
         break
@@ -917,27 +920,34 @@ function slotsCentroid(slots: number[]): { x: number; y: number } | null {
   return { x: rects.reduce((a, r) => a + r.left + r.width / 2, 0) / rects.length, y: rects.reduce((a, r) => a + r.top + r.height / 2, 0) / rects.length }
 }
 
-/** Fly a few colour sparks from a resolved set to the matching mana pip — the match→mana economy, made visible. */
+/** Fly colour sparks from a resolved set to the matching mana pip — the match→mana economy, made visible.
+ *  Staggered + slow on purpose so the eye can follow each one (CSS does the ~1s flight). */
 function manaSparks(mana: [number, number, number], slots: number[]): void {
   if (!V) return
   const o = slotsCentroid(slots)
   if (!o) return
   const PIP = ['m0', 'm1', 'm2']
   const COL = ['var(--c0)', 'var(--c1)', 'var(--c2)']
+  let idx = 0 // global order across colours → an even, catchable stagger
   for (let c = 0; c < 3; c++) {
     if (mana[c] <= 0) continue
     const pip = V.refs[PIP[c]]?.getBoundingClientRect()
     if (!pip) continue
     const tx = pip.left + pip.width / 2, ty = pip.top + pip.height / 2
-    for (let k = 0; k < Math.min(2, mana[c]); k++) {
+    const count = Math.min(3, mana[c])
+    for (let k = 0; k < count; k++) {
       const sp = $(`<div class="mspark"></div>`)
-      sp.style.cssText = `left:${o.x + (k - .5) * 10}px;top:${o.y}px;color:${COL[c]};background:${COL[c]}`
+      const sx = o.x + (k - (count - 1) / 2) * 14
+      sp.style.cssText = `left:${sx}px;top:${o.y}px;color:${COL[c]};background:${COL[c]}`
       document.body.appendChild(sp)
-      void sp.offsetWidth
-      sp.style.transform = `translate(${tx - o.x - (k - .5) * 10}px,${ty - o.y}px) scale(.3)`
-      sp.style.opacity = '0'
-      sp.addEventListener('transitionend', () => sp.remove())
-      setTimeout(() => sp.remove(), 900) // safety net if transitionend is missed
+      const delay = 40 + idx * 110 // launch each spark a beat after the last
+      idx++
+      setTimeout(() => {
+        if (!sp.isConnected) return
+        sp.style.transform = `translate(${tx - sx}px,${ty - o.y}px) scale(.4)`
+        sp.style.opacity = '0'
+      }, delay)
+      setTimeout(() => sp.remove(), delay + 1300) // after the ~1.1s flight
     }
   }
 }

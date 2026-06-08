@@ -15,7 +15,7 @@ export type CombatEvent =
   | { type: 'blockOverflow'; amount: number } // block past the cap (wasted unless Overflow converts it)
   | { type: 'manaGained'; mana: [number, number, number] }
   | { type: 'manaDrained'; color: number; amount: number }
-  | { type: 'tacticsGained'; amount: number }
+  | { type: 'tacticsGained'; amount: number; source?: 'overflow' } // source='overflow' = Defend past the cap (UI floats it)
   | { type: 'tacticsDrained'; amount: number }
   | { type: 'tacticsArmed' }
   | { type: 'tacticsReset' }
