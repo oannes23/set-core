@@ -1,31 +1,14 @@
-/* Guards the typed data: (1) it stays byte-equivalent to the prototype oracle (game-data.js) so the
-   two copies can't silently drift during migration, and (2) every id reference resolves — the class
-   of "dangling foe/trap/drift id" bug the prototype only surfaces at runtime when you pick that foe. */
+/* Guards the typed data's REFERENTIAL INTEGRITY — every id a creature/dungeon points at resolves (the
+   "dangling foe/trap/variant id" bug the prototype only surfaces at runtime when you pick that foe).
+   (The migration-era byte-parity check against prototype/game-data.js is retired: the migration is
+   complete and the live `src/` content now intentionally evolves past the archived oracle — new foes,
+   elites, retuned dungeons. The prototype is a frozen snapshot, not a living mirror.) */
 
-import { test, expect, beforeAll } from 'vitest'
+import { test, expect } from 'vitest'
 import { GAMEDATA } from './game-data'
-import type { GameData } from './schema'
-
-let oracle: GameData
-beforeAll(async () => {
-  // prototype/game-data.js is a classic script that assigns window.GAMEDATA — stub window, then load
-  // it for side effects. A variable specifier keeps TS from resolving the untyped .js (it's not a module).
-  ;(globalThis as unknown as { window: { GAMEDATA?: GameData } }).window = {}
-  const oraclePath = '../../prototype/game-data.js'
-  await import(/* @vite-ignore */ oraclePath)
-  oracle = (globalThis as unknown as { window: { GAMEDATA: GameData } }).window.GAMEDATA
-})
 
 const has = (rec: Record<string, unknown>, id: string): boolean =>
   Object.prototype.hasOwnProperty.call(rec, id)
-
-test('typed data matches the prototype oracle (game-data.js) exactly', () => {
-  // `voice` is a deliberate post-migration addition (combat-log flavour, UI-only) with no oracle
-  // counterpart — strip it so this guard still catches *unintended* drift but allows the new field.
-  const g = structuredClone(GAMEDATA)
-  for (const cr of Object.values(g.creatures)) delete (cr as { voice?: unknown }).voice
-  expect(g).toEqual(oracle)
-})
 
 test('every creature trap / variant id resolves', () => {
   for (const [cid, c] of Object.entries(GAMEDATA.creatures)) {

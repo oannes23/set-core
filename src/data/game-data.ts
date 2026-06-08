@@ -4,9 +4,9 @@
    objects/arrays, numbers, booleans. NO functions, NO computed values. JSON is a YAML subset,
    so this whole object transcribes mechanically to YAML when the server ingests content.
 
-   Migration note: this is the typed successor to prototype/game-data.js (which the oracle still
-   loads as a classic `window.GAMEDATA` script). Keep the two in sync until the prototype is
-   retired (TODO.md §A, step 5); game-data.test.ts guards this copy's referential integrity. */
+   Migration note: this is the typed successor to prototype/game-data.js. The migration is complete,
+   so the two have INTENTIONALLY DIVERGED — this is the live source of truth and evolves past the
+   archived prototype (new foes/elites, retuned dungeons). game-data.test.ts guards referential integrity. */
 
 import type { GameData } from './schema'
 
@@ -102,6 +102,24 @@ export const GAMEDATA: GameData = {
       desc: 'all-Attack match → he cackles at your flailing and melts every sword into a Move',
       do: [{ effect: 'transmute', select: { axis: 'shape', mode: 'all_same', value: 'attack' }, bias: { axis: 'shape', value: 'move', intensity: 2 } }],
     },
+
+    // ELITE telegraphs (a weaker mirror of the boss's red theme) + a rare double-all-same boss-tier omen
+    war_cry_lesser: {
+      name: 'Lesser War Cry', icon: '🗣️', on: 'match', when: { axis: 'color', mode: 'all_same', value: 'red' },
+      desc: 'all-red match → 30%: 5 damage (a foretaste of the King’s War Cry)',
+      do: [{ effect: 'damage', chance: 0.3, amount: 5 }],
+    },
+    ember_sweep: {
+      name: 'Ember Sweep', icon: '🌅', on: 'match', when: { axis: 'color', mode: 'all_same', value: 'red' },
+      desc: 'all-red match → warp the bottom row toward Fire (an elite sweep)',
+      do: [{ effect: 'transmute', select: { geometry: 'row', which: 'bottom' }, bias: { axis: 'color', value: 'red', intensity: 1 } }],
+    },
+    red_threes_omen: {
+      name: 'Crimson Omen', icon: '🔱', on: 'match',
+      when: { all: [{ axis: 'color', mode: 'all_same', value: 'red' }, { axis: 'number', mode: 'all_same', value: 'three' }] },
+      desc: 'all-red + all-Threes match → 35%: the elite strikes at once',
+      do: [{ effect: 'instant_attack', chance: 0.35 }],
+    },
   },
 
   // --- dungeon DRIFTS: the global on:tick transmute that gives a dungeon its "feel" (TRAPS.md §7) ---
@@ -163,6 +181,50 @@ export const GAMEDATA: GameData = {
       name: 'The Goblin King', tier: 'boss', hp: 90, speed: 'steady', damage: 16,
       traps: ['molten_veins', 'confusion', 'dread_drums'], xp: 120, loot_tier: 5,
     },
+
+    // --- goblin_warren build-out: more minions + a proper elite roster (each elite = telegraph + rolled) ---
+    goblin_archer: {
+      name: 'Goblin Archer', tier: 'minion', hp: 16, speed: 'steady', damage: 9,
+      desc: 'A wiry goblin loosing crude arrows from a ledge — quick to panic, quicker to flee.',
+      voice: { hit: ['looses an arrow at', 'pelts', 'nicks'], zero: 'misses wide' },
+      variants: ['frenetic', 'cowardly'], xp: 11, loot_tier: 2,
+    },
+    goblin_sapper: {
+      name: 'Goblin Sapper', tier: 'minion', hp: 22, speed: 'slow', damage: 8,
+      desc: 'A grubby goblin lugging fire-bombs — more dangerous to your board than to you.',
+      voice: { hit: ['lobs a bomb at', 'scorches', 'singes'], zero: 'fumbles the fuse' },
+      variants: ['firebrand', 'greedy'], xp: 12, loot_tier: 2,
+    },
+    warren_rat: {
+      name: 'Warren Rat', tier: 'minion', hp: 12, speed: 'frenzied', damage: 5,
+      desc: 'A fat, fearless rat the size of a dog. It comes in a chittering rush.',
+      voice: { hit: ['bites', 'gnaws', 'scratches'], zero: 'squeaks and recoils' },
+      variants: ['nimble', 'sneaky'], xp: 7, loot_tier: 1,
+    },
+    goblin_warlord: {
+      name: 'Goblin Warlord', tier: 'elite', hp: 42, speed: 'steady', damage: 14,
+      desc: 'A scarred captain in looted plate, bellowing the King’s own war-cry. His red rage foretells the throne room.',
+      voice: { hit: ['cleaves', 'bludgeons', 'smashes'], zero: 'swings wide, roaring' },
+      traps: ['war_cry_lesser'], variants: ['bloodthirsty', 'cruel'], xp: 28, loot_tier: 3,
+    },
+    ember_shaman: {
+      name: 'Ember Shaman', tier: 'elite', hp: 36, speed: 'slow', damage: 11,
+      desc: 'A goblin mystic wreathed in cinders, dragging whole rows of your runes into the fire — the warren’s drift made a weapon.',
+      voice: { hit: ['scorches', 'immolates', 'sears'], heal: ['draws strength from the embers'], zero: 'fizzles out' },
+      traps: ['ember_sweep'], variants: ['scorched', 'hexer'], xp: 30, loot_tier: 3,
+    },
+    warren_butcher: {
+      name: 'The Warren Butcher', tier: 'elite', hp: 50, speed: 'lumbering', damage: 18,
+      desc: 'A hulking goblin gone to fat and cruelty, a cleaver in each hand. Slow, but every red blow lands like the King’s.',
+      voice: { hit: ['hacks', 'butchers', 'rends'], zero: 'is too slow, just missing' },
+      traps: ['war_cry_lesser'], variants: ['cruel', 'greedy'], xp: 34, loot_tier: 4,
+    },
+    goblin_oracle: {
+      name: 'Goblin Oracle', tier: 'elite', hp: 38, speed: 'swift', damage: 12,
+      desc: 'A wild-eyed seer who reads doom in the runes — crimson and threefold, and the strike comes at once.',
+      voice: { hit: ['hexes', 'curses', 'blights'], zero: 'mutters, the omen unbroken' },
+      traps: ['red_threes_omen'], variants: ['nimble', 'plagued'], xp: 30, loot_tier: 3,
+    },
   },
 
   // --- VARIANTS: an adjective = a themed trap (+ optional stat tweak). Rolled from the creature. ---
@@ -195,6 +257,26 @@ export const GAMEDATA: GameData = {
       name: 'Cruel', icon: '🔪', desc: 'all-Attack → reflect 6', stat_mod: { damage: 2 },
       trap: { on: 'match', when: { axis: 'shape', mode: 'all_same', value: 'attack' }, do: [{ effect: 'damage', amount: 6 }] },
     },
+    nimble: {
+      name: 'Nimble', icon: '🦶', desc: 'all-Move → drain 3 Tactics', stat_mod: { speed_band: 1 },
+      trap: { on: 'match', when: { axis: 'shape', mode: 'all_same', value: 'move' }, do: [{ effect: 'drain_tactics', amount: 3 }] },
+    },
+    frenetic: {
+      name: 'Frenetic', icon: '⚡', desc: 'rainbow colour → strikes 2s sooner',
+      trap: { on: 'match', when: { axis: 'color', mode: 'all_different' }, do: [{ effect: 'advance_timer', seconds: 2 }] },
+    },
+    greedy: {
+      name: 'Greedy', icon: '🪙', desc: 'all-red → lock 1 card 4s', stat_mod: { hp: 3 },
+      trap: { on: 'match', when: { axis: 'color', mode: 'all_same', value: 'red' }, do: [{ effect: 'lock', seconds: 4, select: { geometry: 'random', count: 1 } }] },
+    },
+    firebrand: {
+      name: 'Firebrand', icon: '🔥', desc: 'all-blue → warp 1 non-red card toward Fire',
+      trap: { on: 'match', when: { axis: 'color', mode: 'all_same', value: 'blue' }, do: [{ effect: 'transmute', count: 1, select: { axis: 'color', mode: 'not_value', value: 'red' }, bias: { axis: 'color', value: 'red', intensity: 1 } }] },
+    },
+    scorched: {
+      name: 'Scorched', icon: '🌶️', desc: 'all-red → burn 3 Fire mana', stat_mod: { damage: 1 },
+      trap: { on: 'match', when: { axis: 'color', mode: 'all_same', value: 'red' }, do: [{ effect: 'drain_mana', color: 'red', amount: 3 }] },
+    },
   },
 
   // --- TEMPLATES: a dungeon-global overlay stacked on EVERY foe (one-knob harder dungeon) ---
@@ -225,14 +307,14 @@ export const GAMEDATA: GameData = {
     goblin_warren: {
       name: 'The Goblin Warren', difficulty: 1,
       theme: { axis: 'color', value: 'red' }, drift: 'ember', boss_mirror: 'war_cry',
-      enemy_table: [{ foe: 'goblin', weight: 50 }, { foe: 'cave_bat', weight: 30 }, { foe: 'goblin_shaman', weight: 20 }],
-      elite_pool: ['goblin_brute'], boss: 'goblin_king', template: null,
+      enemy_table: [{ foe: 'goblin', weight: 35 }, { foe: 'cave_bat', weight: 20 }, { foe: 'goblin_shaman', weight: 15 }, { foe: 'goblin_archer', weight: 12 }, { foe: 'goblin_sapper', weight: 10 }, { foe: 'warren_rat', weight: 8 }],
+      elite_pool: ['goblin_warlord', 'ember_shaman', 'warren_butcher', 'goblin_oracle'], boss: 'goblin_king', template: null,
     },
     haunted_warren: {
       name: 'The Haunted Warren', difficulty: 3, extends: 'goblin_warren',
       theme: { axis: 'color', value: 'red' }, drift: 'ember', boss_mirror: 'war_cry',
-      enemy_table: [{ foe: 'goblin', weight: 50 }, { foe: 'cave_bat', weight: 30 }, { foe: 'goblin_shaman', weight: 20 }],
-      elite_pool: ['goblin_brute'], boss: 'goblin_king', template: 'undead',
+      enemy_table: [{ foe: 'goblin', weight: 35 }, { foe: 'cave_bat', weight: 20 }, { foe: 'goblin_shaman', weight: 15 }, { foe: 'goblin_archer', weight: 12 }, { foe: 'goblin_sapper', weight: 10 }, { foe: 'warren_rat', weight: 8 }],
+      elite_pool: ['goblin_warlord', 'ember_shaman', 'warren_butcher', 'goblin_oracle'], boss: 'goblin_king', template: 'undead',
     },
   },
 
