@@ -102,14 +102,15 @@ button.cta.bob { animation: ctabob 1.6s ease-in-out infinite; }
 .card:hover { transform: translateY(-2px); }
 .card .cardsvg { width: 82%; height: 82%; display: block; pointer-events: none; }
 .card.sel { box-shadow: var(--moat), 0 0 0 6px var(--phos), 0 0 22px -3px var(--phos); transform: translateY(-3px); }
-/* set-mate halos are GOLD (the "set hint"): dim in normal play, bright in the tutorial. Selection stays teal. */
-.card.mate { filter: drop-shadow(0 0 6px rgba(245,197,66,.5)); }
-.card.complete { animation: completebreath 1.1s ease-in-out infinite; } /* the completer (3rd finisher) breathes — micro-anticipation */
-@keyframes completebreath { 0%, 100% { filter: drop-shadow(0 0 7px rgba(245,197,66,.75)); } 50% { filter: drop-shadow(0 0 15px rgba(245,197,66,1)); } }
-/* tutorial: unmistakable — brighter mates (2nd possibilities) + a bolder completer (3rd finisher) */
-.board.teachmates .card.mate { filter: drop-shadow(0 0 11px rgba(245,197,66,.95)); }
+/* set-mate hints (2nd possibilities — often MANY at once) are an INNER gold FRAME: it stays inside the card,
+   so adjacent lit cards never bleed across the 8px gap. Gold ≠ card colours, so it reads on red/green/blue. */
+.card.mate { box-shadow: inset 0 0 0 3px rgba(245,197,66,.8); }
+.board.teachmates .card.mate { box-shadow: inset 0 0 0 3px var(--gold), inset 0 0 11px -2px var(--gold); } /* tutorial: fuller */
+/* the completer (3rd finisher) is a single card, so it gets an OUTER breathing ring (with moat) to POP out */
+.card.complete { animation: completebreath 1.1s ease-in-out infinite; }
+@keyframes completebreath { 0%, 100% { box-shadow: var(--moat), 0 0 0 6px var(--gold), 0 0 9px -3px var(--gold); } 50% { box-shadow: var(--moat), 0 0 0 6px var(--gold), 0 0 18px -2px var(--gold); } }
 .board.teachmates .card.complete { animation: completebreathbig 1.1s ease-in-out infinite; }
-@keyframes completebreathbig { 0%, 100% { filter: drop-shadow(0 0 13px rgba(245,197,66,1)); } 50% { filter: drop-shadow(0 0 26px rgba(245,197,66,1)) drop-shadow(0 0 9px rgba(245,197,66,.85)); } }
+@keyframes completebreathbig { 0%, 100% { box-shadow: var(--moat), 0 0 0 7px var(--gold), 0 0 13px -3px var(--gold); } 50% { box-shadow: var(--moat), 0 0 0 8px var(--gold), 0 0 22px -1px var(--gold); } }
 /* two picks whose finishing third isn't on the board → a dead end: the picks glow red, nothing else does */
 .card.badpair { box-shadow: var(--moat), 0 0 0 6px var(--red), 0 0 22px -3px var(--red); transform: translateY(-3px); } /* red ring stays visible on a red card thanks to the moat */
 .card.bait { animation: baitshimmer 2.3s ease-in-out infinite; } /* drift-colour cards tempt you (the lure to resist) */
@@ -273,20 +274,23 @@ button.cta.bob { animation: ctabob 1.6s ease-in-out infinite; }
 
 /* ---- coach: ring Move cards STRONG + the meter LIGHT while building ---- */
 .card.movehint { position: relative; z-index: 1; animation: movehint 1.05s ease-in-out infinite; }
-@keyframes movehint { 0%, 100% { box-shadow: var(--moat), 0 0 0 5px var(--gold), 0 0 18px -5px var(--gold); } 50% { box-shadow: var(--moat), 0 0 0 5px var(--gold), 0 0 34px -1px var(--gold); } }
+@keyframes movehint { 0%, 100% { box-shadow: inset 0 0 0 3px var(--gold); } 50% { box-shadow: inset 0 0 0 3px var(--gold), inset 0 0 13px -2px var(--gold); } }
 .tacmeter.meterhint { animation: meterhint 1.6s ease-in-out infinite; }
 @keyframes meterhint { 0%, 100% { box-shadow: 0 0 0 1px rgba(245, 197, 66, .3); } 50% { box-shadow: 0 0 0 1px rgba(245, 197, 66, .55), 0 0 12px -6px var(--gold); } }
 .card.colorhint { position: relative; z-index: 1; animation: colorhint 1.05s ease-in-out infinite; }
-@keyframes colorhint { 0%, 100% { box-shadow: var(--moat), 0 0 0 5px var(--cc), 0 0 18px -5px var(--cc); } 50% { box-shadow: var(--moat), 0 0 0 5px var(--cc), 0 0 34px -1px var(--cc); } }
+/* the mana cue is a GOLD inner frame ("the coach is pointing here"), NOT the mana's own colour — a red ring on
+   cards you're meant to COLLECT would read as "don't click." The cards' own borders still show the colour. */
+@keyframes colorhint { 0%, 100% { box-shadow: inset 0 0 0 3px var(--gold); } 50% { box-shadow: inset 0 0 0 3px var(--gold), inset 0 0 13px -2px var(--gold); } }
 
 /* ---- spell target previews (hover an ability) — gold/warn (intent), NOT red (red = damage) ---- */
-.card.tgtsure { box-shadow: var(--moat), 0 0 0 6px var(--gold), 0 0 18px -3px var(--gold); }
-.card.tgtmaybe { box-shadow: var(--moat), 0 0 0 5px var(--warn); animation: tgtpulse 1s ease-in-out infinite; }
-@keyframes tgtpulse { 0%, 100% { box-shadow: var(--moat), 0 0 0 5px var(--warn); } 50% { box-shadow: var(--moat), 0 0 0 5px var(--warn), 0 0 16px -3px var(--warn); } }
+/* target previews (AoE can light several) are inner frames too — gold = sure hit, warn = maybe */
+.card.tgtsure { box-shadow: inset 0 0 0 3px var(--gold), inset 0 0 12px -2px var(--gold); }
+.card.tgtmaybe { box-shadow: inset 0 0 0 3px var(--warn); animation: tgtpulse 1s ease-in-out infinite; }
+@keyframes tgtpulse { 0%, 100% { box-shadow: inset 0 0 0 3px var(--warn); } 50% { box-shadow: inset 0 0 0 3px var(--warn), inset 0 0 12px -2px var(--warn); } }
 
 /* ---- coach-only trick-line cue (gated behind V.coach; real play keeps TRAPS §2.5) ---- */
 .card.trickline { position: relative; z-index: 1; animation: tricklinepulse 1.1s ease-in-out infinite; }
-@keyframes tricklinepulse { 0%, 100% { box-shadow: var(--moat), 0 0 0 5px var(--trick), 0 0 12px -3px var(--trick); } 50% { box-shadow: var(--moat), 0 0 0 5px var(--trick), 0 0 24px 0 var(--trick); } }
+@keyframes tricklinepulse { 0%, 100% { box-shadow: var(--moat), 0 0 0 4px var(--trick), 0 0 8px -3px var(--trick); } 50% { box-shadow: var(--moat), 0 0 0 4px var(--trick), 0 0 16px -2px var(--trick); } }
 .trickchev { position: absolute; top: -18px; left: 50%; transform: translateX(-50%); color: var(--trick); font-size: 14px;
   text-shadow: 0 0 8px var(--trick); pointer-events: none; z-index: 3; animation: coachbob .8s ease-in-out infinite; }
 
