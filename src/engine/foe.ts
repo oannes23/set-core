@@ -55,7 +55,9 @@ export function assembleFoe(creatureId: string, dungeon: Dungeon | null, data: G
     }
   }
 
-  if (base.tier === 'elite' && dungeon?.boss_mirror) {
+  // an elite's telegraph: its OWN authored trap(s) if it has them, else the dungeon's generic boss_mirror.
+  // (Authoring traps overrides the mirror — otherwise an elite would carry both its telegraph AND the mirror.)
+  if (base.tier === 'elite' && dungeon?.boss_mirror && !(base.traps && base.traps.length)) {
     const m = data.traps[dungeon.boss_mirror]
     if (m) triggers.unshift(m)
   }

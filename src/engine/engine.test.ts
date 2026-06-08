@@ -85,6 +85,19 @@ test('assembleFoe resolves stats, triggers, rules', () => {
   expect(b.triggers.find((t) => t.name === 'Outmaneuvered')?.kind).toBe('trick')
 })
 
+test('an elite with an authored telegraph overrides the dungeon boss_mirror (no double trap)', () => {
+  const e = assembleFoe('goblin_warlord', GAMEDATA.dungeons.goblin_warren, GAMEDATA, mulberry32(3))!
+  const names = e.triggers.map((t) => t.name)
+  expect(names).toContain('Lesser War Cry') // its own telegraph
+  expect(names).not.toContain('War Cry') // NOT the generic boss_mirror stacked on top
+  expect(e.triggers).toHaveLength(2) // telegraph + one rolled variant
+})
+
+test('an elite without authored traps falls back to the dungeon boss_mirror', () => {
+  const e = assembleFoe('goblin_brute', GAMEDATA.dungeons.goblin_warren, GAMEDATA, mulberry32(3))!
+  expect(e.triggers.map((t) => t.name)).toContain('War Cry') // the boss_mirror telegraph
+})
+
 // ---- reducer: a real match + the enemy clock ----
 test('completeSet damages the foe / banks mana; tick fires the enemy attack', () => {
   const rng = mulberry32(42)
