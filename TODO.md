@@ -61,30 +61,41 @@ Source of truth: `CRAWL-DESIGN.md` (§2 run loop · §5 build sequence · §5.5 
 `src/engine`; what remains is the **run around the combat**. Build it on the modules, not the
 archived HTML.
 
-### Phase B1 — the run loop (turn the gauntlet into a real run)
-- `[ ]` **Room = encounter + reward.** On win, roll loot / gold / XP (`CRAWL-DESIGN.md` §3).
-- `[ ]` **HP-only cross-room persistence** (§6). Everything but HP resets each room; HP carries as
-  the run's attrition clock. This *replaces* the current forgiving full-heal-between-gauntlet-foes
-  behavior (`combat.ts` `onWin`).
-- `[ ]` **Run-state model** — seed + room chain + run gold/XP/inventory; reuse the `session.ts`
-  seam shape so a run stays deterministic/replayable.
-- `[ ]` **Loss / retreat** — death ends the run (penalty TBD); the Flee button already retreats —
-  decide its cost.
+Dependency chain that sets the order: **equipment & loot need persistence, persistence needs a home
+to live in → build the Hub scene + persistence first.** (`CRAWL-DESIGN.md` §2 "Scenes & persistence".)
 
-### Phase B2 — second screens (the "graduate the prototype" trigger)
-- `[ ]` **Run map** — the room chain with boss-chance + loot scaling (§2).
-- `[ ]` **Town** — buy/sell + loadout (§2/§3).
-- `[ ]` **Inventory / gear screen** + comparison UX.
-- `[ ]` **Persisted progression** — XP / levels / ability-slots; saved run + meta (localStorage first).
+### Phase B1 — Hub scene + persistence (the between-runs home) ⭐ start here
+- `[ ]` **Scene router** — two top-level scenes, **Hub** (town/menu) and **Combat**, with a clean
+  transition. Today's start screen + play screen become these two; combat returns to the Hub on end.
+- `[ ]` **Hub v1** — grow the start screen into the Hub: **character create / select** + **dungeon
+  select** live here (the default place between matches; loadout/shop come later).
+- `[ ]` **Persistence v1** — save/load a **character** (`localStorage`): start with the chosen
+  character + **HP**, structured to grow (inventory / gear / progression). The `session.ts` seam keeps
+  a *run* replayable; the character save is the *meta* layer on top.
 
-### Phase B3 — gear & items (`CRAWL-DESIGN.md` §7 taxonomy)
+### Phase B2 — run loop + first loot (consumables)
+- `[ ]` **Room = encounter + reward** — on win, roll loot / gold / XP (`CRAWL-DESIGN.md` §3).
+- `[ ]` **HP-only intra-run persistence** (§6) — everything but HP resets each room; HP carries as the
+  run's attrition clock. *Replaces* the full-heal-between-gauntlet-foes behavior (`combat.ts` `onWin`).
+  (The cross-room **HP-carry banner** feel idea rides here.)
+- `[ ]` **Consumables — the low-hanging first loot** (`CRAWL-DESIGN.md` §4). ~3 consumable slots,
+  common drops; **potions** (insta-heal / block / tempo, regen-bias refill, gradual regen) + **scrolls**
+  (one-use class ability). A new **"use consumable"** combat action; most effects reuse existing ops
+  (`healPlayer`/`gainBlock`/`pushClock`/`transmute`/`castAbility`) — the only new bit is a player
+  heal-over-time (a friendly mirror of the enemy `condition` tick).
+- `[ ]` **Run-state model** — seed + room chain + run gold/XP/inventory; reuse the `session.ts` shape.
+- `[ ]` **Loss / retreat** — death ends the run (penalty TBD); the Flee button already retreats.
+
+### Phase B3 — equipment / gear (`CRAWL-DESIGN.md` §7 taxonomy)
 - `[ ]` Gear slots + affixes (flat per-card scaling), armor/relic base-types, Move affixes re-anchored
-  on Tactics; rarity → affix count, loot-tier → affix power.
-- `[ ]` Consumables + spellbooks.
+  on Tactics; rarity → affix count, loot-tier → affix power. Equip in the Hub; gear drops in the loot roll.
 
-### Phase B4 — content & tuning
-- `[ ]` Author foes / variants / templates / dungeons beyond the teaching set.
-- `[ ]` Tune XP / HP / gold curves.
+### Phase B4 — deeper progression
+- `[ ]` XP / levels → +HP / +ability-slots; boss-gated ability picks; spellbooks (cross-class learn).
+- `[ ]` Gold economy + town shop (buy/sell); the **run-level contribution chart** feel idea fits here.
+
+### Phase B5 — content & tuning
+- `[ ]` Author foes / variants / templates / dungeons beyond the teaching set; tune XP / HP / gold curves.
 - `[ ]` Optional: crawler reskin/palette (§1); a YAML data loader **only if** external authoring is
   wanted — today's typed `game-data.ts` is the equivalent (and type-safe).
 

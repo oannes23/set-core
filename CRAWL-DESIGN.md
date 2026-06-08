@@ -109,6 +109,21 @@ f=3/N=15 grid; only the skin changes.
 - **Town** between dungeons: **sell** gear/spellbooks, **buy** from shop loot-table
   inventory (gear, consumables, spellbooks). Healing/restock happens here.
 
+### Scenes & persistence (the hub)
+The game is **two top-level scenes**, not one screen: the **Hub** (town/menu) and the
+**Combat** playfield. They're separate scenes with a clean transition between them.
+- **Hub** = the default place you sit *between* matches: **character create / select**,
+  **dungeon select**, **loadout** (equip gear / abilities / consumables), the **shop**
+  (buy/sell), and the jump into a run. It is today's start screen *grown up* — the
+  class+dungeon picker in `src/ui/app.ts` is the seed of it.
+- **Combat** = the SET playfield (one room/encounter). A run is a chain of Combat scenes;
+  on run end (win → Town, or flee/death) you return to the Hub.
+- **Persistence** is tied to the Hub: a saved **character** (class, level/XP, ability
+  loadout, inventory/gear/consumables, gold) plus run state. **Start minimal — the chosen
+  character + HP — and grow** into inventory/progression. `localStorage` first; the
+  `session.ts` seam keeps a *run* replayable, while the character save is the *meta* layer
+  on top. (Equipment, consumables, and loot all depend on this layer existing.)
+
 ---
 
 ## 3. Progression & economy
@@ -340,6 +355,22 @@ do:                  # one or more effects
   teaches: firebolt
   sell_price: 40
 ```
+
+**Consumables — the low-friction first loot type.** The player carries **~3 consumable
+slots**; consumables are **common drops** (gear/spellbooks are the rarer rolls). Two families,
+most of which **reuse engine ops we already have** — that's what makes them cheap to ship:
+- **Potions** = instant or over-time board/engine effects:
+  insta-heal (`healPlayer`), insta-block (`gainBlock`), insta-tempo / "Move" (`pushClock` +
+  Tactics), a **regen-bias refill** (`transmute` a slice with a `bias`), and **gradual
+  regeneration** (a *player-side heal-over-time*). All map to existing ops **except** the HoT,
+  which is the one genuinely-new bit — a small player-side `condition` tick (the conditions
+  framework already exists for enemies in `TRAPS.md`; this is the friendly mirror). Other
+  board/engine modifiers slot in here later.
+- **Scrolls** = any class **ability** baked into a single use — reuse the `ABILITIES` roster
+  (a scroll just `castAbility(id)` once, no mana cost). Trivial to author: **every ability is
+  already a scroll**, so the scroll pool comes free with the ability list.
+A consumable is used via a new **"use consumable"** combat action (one of the slots), dispatched
+like any other action so it stays replay-deterministic.
 
 ```yaml
 # dungeons.yaml + loot_tables.yaml
