@@ -178,7 +178,8 @@ function hubScene(root: HTMLElement): void {
       const card = $(`<div class="charcard${c.id === selId ? ' sel' : ''}" data-id="${c.id}"><span class="ci">${cls.icon}</span><div class="cmeta"><div class="cn">${c.name}</div><div class="cc">${cls.name} · ${c.hp}/${c.maxHp} HP</div></div><button class="charx" data-tip="Delete this hero">✕</button></div>`)
       card.addEventListener('click', (e) => {
         if ((e.target as HTMLElement).closest('.charx')) {
-          if (confirm(`Delete ${c.name}?`)) { deleteChar(c.id); roster = loadRoster(); if (selId === c.id) selId = roster[0]?.id ?? null; render() }
+          confirmModal({ title: `Delete ${c.name}?`, body: 'This hero is gone for good.', confirmLabel: 'Delete', danger: true,
+            onConfirm: () => { deleteChar(c.id); roster = loadRoster(); if (selId === c.id) selId = roster[0]?.id ?? null; render() } })
         } else { selId = c.id; render() }
       })
       list.appendChild(card)
@@ -604,11 +605,38 @@ function onAbilityClick(e: Event): void {
   dispatch({ type: 'castAbility', abilityId: id })
 }
 
+/** A small in-engine confirm dialog (replaces the browser confirm()). Cancel / confirm / click-scrim /
+ *  Esc(cancel) / Enter(confirm). The caller owns any pause/resume around it. */
+function confirmModal(opts: { title: string; body?: string; confirmLabel?: string; danger?: boolean; onConfirm: () => void; onCancel?: () => void }): void {
+  document.getElementById('confirmmodal')?.remove()
+  const m = $(`<div id="confirmmodal"><div class="confcard">
+    <h2 class="conftitle">${opts.title}</h2>
+    ${opts.body ? `<div class="confbody">${opts.body}</div>` : ''}
+    <div class="confbtns"><button class="confbtn" id="cm-no">Cancel</button><button class="confbtn ${opts.danger ? 'danger' : 'primary'}" id="cm-yes">${opts.confirmLabel ?? 'Confirm'}</button></div>
+  </div></div>`)
+  document.body.appendChild(m)
+  const cleanup = (): void => { m.remove(); document.removeEventListener('keydown', onKey) }
+  const cancel = (): void => { cleanup(); opts.onCancel?.() }
+  const accept = (): void => { cleanup(); opts.onConfirm() }
+  const onKey = (e: KeyboardEvent): void => { if (e.key === 'Escape') cancel(); else if (e.key === 'Enter') accept() }
+  m.querySelector('#cm-no')!.addEventListener('click', cancel)
+  m.querySelector('#cm-yes')!.addEventListener('click', accept)
+  m.addEventListener('click', (e) => { if (e.target === m) cancel() }) // click the scrim = cancel
+  document.addEventListener('keydown', onKey)
+  ;(m.querySelector('#cm-no') as HTMLElement).focus() // safe default (Cancel)
+}
+
 /** Flee — forfeit the encounter. Available any time the fight is live (not gated by the Tactics meter). */
 function onFlee(): void {
   if (!V || !V.state.running || V.paused) return
-  if (!confirm('Flee combat?\n\nYou forfeit this encounter.')) return
-  dispatch({ type: 'flee' })
+  V.paused = true // freeze the clock while the dialog is open (a custom modal doesn't block like confirm())
+  confirmModal({
+    title: 'Flee combat?',
+    body: 'You forfeit this encounter and retreat to town.',
+    confirmLabel: '🏃 Flee', danger: true,
+    onConfirm: () => { if (V) dispatch({ type: 'flee' }) },
+    onCancel: () => { if (V) V.paused = false },
+  })
 }
 
 function onTacticClick(e: Event): void {
