@@ -39,7 +39,7 @@ const TIERS = [
 TIERS.forEach((t, i) => {
   const hp = 10 * (i + 1) // 10 / 20 / 30
   reg({
-    id: `hp_${t.key}`, name: `${t.label}Healing Draught`, kind: 'potion', icon: '💗', color: COLOR_GREEN,
+    id: `hp_${t.key}`, name: `${t.label}Healing Potion`, kind: 'potion', icon: '💗', color: COLOR_GREEN,
     desc: `restore ${hp} HP`,
     use(s, _rng, sink) { healPlayer(s, hp, sink) },
   })
@@ -51,7 +51,7 @@ TIERS.forEach((t, i) => {
   })
   const secs = 10 * (i + 1) // 10s / 20s / 30s
   reg({
-    id: `speed_${t.key}`, name: `${t.label}Potion of Haste`, kind: 'potion', icon: '⏱️', color: COLOR_BLUE,
+    id: `speed_${t.key}`, name: `${t.label}Speed Potion`, kind: 'potion', icon: '⏱️', color: COLOR_BLUE,
     desc: `stall the enemy +${secs}s`,
     use(s, _rng, sink) { pushClock(s, secs, sink, true) }, // premium stall: bypass the Move clock cap
   })

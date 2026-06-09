@@ -825,6 +825,7 @@ const TAC_TAIL: Record<string, string> = { attack: 'the board snaps to Attacks',
 function interpret(events: CombatEvent[]): void {
   if (!V) return
   const MANA = ['Fire', 'Nature', 'Frost']
+  logGroup = $(`<div class="loggroup"></div>`) // collect this batch's log lines into one cascade unit
   bumpTurn() // advance the flavour-variety counter once per batch (verbs rotate, stable across re-renders)
   const foe = V.state.foe.name
   const voice = voiceOf(GAMEDATA.creatures[V.state.foe.id]?.voice)
@@ -961,6 +962,13 @@ function interpret(events: CombatEvent[]): void {
         break
     }
   }
+  // flush the log cascade: prepend the batch as one unit; mark multi-line groups so they get the tie rail
+  const grp = logGroup
+  logGroup = null
+  if (grp && grp.childElementCount) {
+    if (grp.childElementCount > 1) grp.classList.add('multi')
+    V.refs.log.prepend(grp)
+  }
   // flush coalesced full-screen feedback: one flash (loudest wins), one hitstop, bursts staggered so a
   // multi-effect instant (wound + trap in the same match) sequences legibly instead of compositing.
   if (flashKind) flash(flashKind, flashPow)
@@ -979,10 +987,14 @@ function flash(kind: 'trap' | 'trick' | 'wound', pow = 1): void {
   w.classList.add('flash-' + kind)
 }
 
+/** When a single dispatch (a Set, a tactic/ability/potion press) fans out into several log lines, they
+ *  are collected into one `.loggroup` so the cascade reads as a unit, visually split from other actions. */
+let logGroup: HTMLElement | null = null
 function log(html: string, cls: string): void {
   if (!V) return
   const line = $(`<div class="${cls}">${html}</div>`)
-  V.refs.log.prepend(line)
+  if (logGroup) logGroup.prepend(line) // keep within-batch order, group flushed as one unit
+  else V.refs.log.prepend(line)
 }
 
 /** A combat number that rises and fades over the board. `side` biases it left (you) / right (enemy). */
