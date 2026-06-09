@@ -70,6 +70,9 @@ export function createCombat(opts: NewCombatOpts, rng: Rng): CombatState {
     pendingRegenBias: null,
     passives: opts.passives ? opts.passives.slice() : [],
     consumables: opts.consumables ? opts.consumables.slice() : [],
+    attackFrozen: false,
+    nextSetDamageMult: 1,
+    tickSuppressedUntil: 0,
     foe: opts.foe,
     now: 0,
     nextAttackAt: opts.foe.cadence * 1000,
@@ -88,11 +91,14 @@ export function createCombat(opts: NewCombatOpts, rng: Rng): CombatState {
 function applyResolution(s: CombatState, res: Resolution, rng: Rng, sink: EventSink): void {
   // damage to enemy (immune foes — e.g. the ethereal goblin — take none from cards)
   if (res.damage > 0) {
+    // a pending Strength buff (nextSetDamageMult) multiplies this attacking set, then is spent
+    const dmg = res.damage * s.nextSetDamageMult
+    s.nextSetDamageMult = 1
     if (s.foe.rules.immune_card_damage) {
       sink.emit({ type: 'enemyDamaged', amount: 0, immune: true })
     } else {
-      s.enemyHP = Math.max(0, s.enemyHP - res.damage)
-      sink.emit({ type: 'enemyDamaged', amount: res.damage })
+      s.enemyHP = Math.max(0, s.enemyHP - dmg)
+      sink.emit({ type: 'enemyDamaged', amount: dmg })
     }
   }
   if (res.block > 0) gainBlock(s, res.block, rng, sink)
@@ -130,6 +136,9 @@ function onWin(s: CombatState, deps: Deps, sink: EventSink): void {
       s.pending = new Map()
       s.locked = new Map()
       s.pendingRegenBias = null
+      s.attackFrozen = false
+      s.nextSetDamageMult = 1
+      s.tickSuppressedUntil = 0
       s.tickAccum = {}
       s.board = genInitial(s.gen, deps.rng)
       s.now = 0
@@ -151,6 +160,7 @@ function completeSet(s: CombatState, slots: [number, number, number], deps: Deps
   if (!ca || !cb || !cc) return
   if (s.locked.has(a) || s.locked.has(b) || s.locked.has(c)) return
   if (!isSet(ca, cb, cc)) return // invalid pick — no-op (the UI handles misread feedback)
+  s.attackFrozen = false // a completed Set ends any "frozen until your next Set" effect (Invisibility)
   const cards: [Card, Card, Card] = [ca, cb, cc]
   const res = resolveSet(cards, deps.rng)
   applyResolution(s, res, deps.rng, sink)
@@ -175,6 +185,8 @@ function tick(s: CombatState, dtMs: number, deps: Deps, sink: EventSink): void {
   if (!s.running) return
   s.now += dtMs
   const dt = dtMs / 1000
+  // a frozen attack clock (Invisibility) advances with `now` so it never elapses until the player acts
+  if (s.attackFrozen) s.nextAttackAt += dtMs
   // tactics drain while armed
   if (s.tacticsArmed) {
     s.tactics = Math.max(0, s.tactics - TACTICS_DRAIN * dt)
@@ -183,12 +195,14 @@ function tick(s: CombatState, dtMs: number, deps: Deps, sink: EventSink): void {
       sink.emit({ type: 'tacticsReset' })
     }
   }
-  // on:tick triggers (drift + dread-DoTs), each on its own accumulator
+  // on:tick triggers (drift + dread-DoTs), each on its own accumulator — paused while suppressed (Hourglass)
   const tickers: { key: string; trig: typeof s.foe.triggers[number] }[] = []
-  s.foe.triggers.forEach((t, i) => {
-    if (t.on === 'tick') tickers.push({ key: `t${i}`, trig: t })
-  })
-  if (s.foe.drift) tickers.push({ key: 'drift', trig: s.foe.drift })
+  if (s.now >= s.tickSuppressedUntil) {
+    s.foe.triggers.forEach((t, i) => {
+      if (t.on === 'tick') tickers.push({ key: `t${i}`, trig: t })
+    })
+    if (s.foe.drift) tickers.push({ key: 'drift', trig: s.foe.drift })
+  }
   for (const { key, trig } of tickers) {
     s.tickAccum[key] = (s.tickAccum[key] ?? 0) + dt
     const period = trig.every || 5

@@ -44,6 +44,10 @@ export interface CombatState {
   // character
   passives: string[] // active passive ids (always-on triggers — fire on the bus)
   consumables: string[] // carried one-use items (potions/scrolls); spent via the useConsumable action
+  // transient effect flags (set by items/abilities, consumed by the reducer) — reusable buff slots
+  attackFrozen: boolean // enemy attack clock paused (e.g. Invisibility) until the player completes a Set
+  nextSetDamageMult: number // multiplier on the next attacking Set's damage (e.g. Strength); 1 = none
+  tickSuppressedUntil: number // on:tick effects (drift + dread DoTs) are paused while now < this (e.g. Hourglass)
   // foe
   foe: FoeRuntime
   // clock (all ms, on the `now` timeline)

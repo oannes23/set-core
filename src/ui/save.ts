@@ -16,7 +16,7 @@ export interface SavedChar {
 const KEY = 'setcore.roster.v1'
 export const DEFAULT_MAX_HP = 30 // matches createCombat's default playerMax
 export const CONSUMABLE_SLOTS = 3
-export const STARTER_CONSUMABLES = ['heal_potion', 'speed_potion', 'stoneskin'] // a class-agnostic opener
+export const STARTER_CONSUMABLES = ['hp_std', 'speed_std', 'stoneskin_std'] // a class-agnostic opener
 
 /** Load the saved roster (best-effort; never throws). */
 export function loadRoster(): SavedChar[] {

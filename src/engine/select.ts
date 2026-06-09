@@ -41,6 +41,32 @@ export function woundedSlots(s: CombatState): number[] {
   return out
 }
 
+// ---- grid geometry (row / column slot maps; rows = ceil(N / cols)) ----
+
+export function gridDims(s: CombatState): { cols: number; rows: number } {
+  return { cols: s.cols, rows: Math.ceil(s.board.length / s.cols) }
+}
+export function rowSlots(s: CombatState, r: number): number[] {
+  const { cols, rows } = gridDims(s)
+  if (r < 0 || r >= rows) return []
+  const o: number[] = []
+  for (let c = 0; c < cols; c++) {
+    const j = r * cols + c
+    if (j < s.board.length) o.push(j)
+  }
+  return o
+}
+export function colSlots(s: CombatState, c: number): number[] {
+  const { cols, rows } = gridDims(s)
+  if (c < 0 || c >= cols) return []
+  const o: number[] = []
+  for (let r = 0; r < rows; r++) {
+    const j = r * cols + c
+    if (j < s.board.length) o.push(j)
+  }
+  return o
+}
+
 // ---- randomized picks (Rng-injected) ----
 
 /** Up to n slots from a pool, uniformly at random, without replacement (capped by availability). */

@@ -1,5 +1,6 @@
-/* Consumables over the reducer: potions (heal/mana/stoneskin/combo brews) + scrolls (free ability casts),
-   spent via the useConsumable action. Deterministic (seeded rng), DOM-free. */
+/* Consumables over the reducer: tiered staples (hp/armor/speed/mana), special potions (invisibility,
+   strength, the elemental cascades) + scrolls (free ability casts), spent via the useConsumable action.
+   Deterministic (seeded rng), DOM-free. */
 
 import { test, expect } from 'vitest'
 import { mulberry32 } from '../core/rng'
@@ -21,39 +22,117 @@ function combat(consumables: string[]): CombatState {
   return s
 }
 
-test('the registry has 9 colour×shape brews + a scroll for every ability', () => {
-  expect(Object.keys(CONSUMABLES).filter((id) => id.startsWith('brew_'))).toHaveLength(9)
+test('the registry has tiered staples (no combo brews) + a scroll for every ability', () => {
+  expect(Object.keys(CONSUMABLES).filter((id) => id.startsWith('brew_'))).toHaveLength(0)
+  for (const base of ['hp', 'stoneskin', 'speed', 'mana_red', 'mana_green', 'mana_blue', 'mana_rainbow']) {
+    for (const tier of ['minor', 'std', 'major']) expect(CONSUMABLES[`${base}_${tier}`]?.kind).toBe('potion')
+  }
   expect(CONSUMABLES.scroll_firebolt?.kind).toBe('scroll')
-  expect(CONSUMABLES.heal_potion?.kind).toBe('potion')
+  expect(CONSUMABLES.hp_std?.kind).toBe('potion')
 })
 
-test('a heal potion restores HP and is spent from the slot', () => {
-  const s = combat(['heal_potion'])
-  s.playerHP = 10
+test('healing draughts restore HP by tier (10/20/30) and are spent from the slot', () => {
+  for (const [tier, amt] of [['minor', 10], ['std', 20], ['major', 30]] as const) {
+    const s = combat([`hp_${tier}`])
+    s.playerMax = 99 // above the major amount so nothing caps
+    s.playerHP = 1
+    const r = reduce(s, { type: 'useConsumable', slot: 0 }, deps())
+    expect(r.state.playerHP).toBe(1 + amt)
+    expect(r.events.some((e) => e.type === 'consumableUsed' && e.id === `hp_${tier}`)).toBe(true)
+    expect(r.state.consumables).toHaveLength(0) // consumed
+  }
+})
+
+test('mana potions grant their colour by tier (5/10/15)', () => {
+  for (const [tier, amt] of [['minor', 5], ['std', 10], ['major', 15]] as const) {
+    const s = combat([`mana_red_${tier}`])
+    s.mana = [0, 0, 0]
+    const r = reduce(s, { type: 'useConsumable', slot: 0 }, deps())
+    expect(r.state.mana[0]).toBe(amt)
+  }
+})
+
+test('stoneskin grants Block by tier (10/20/30)', () => {
+  for (const [tier, amt] of [['minor', 10], ['std', 20], ['major', 30]] as const) {
+    const s = combat([`stoneskin_${tier}`])
+    s.block = 0
+    s.playerMax = 99 // above the major amount so nothing caps
+    const r = reduce(s, { type: 'useConsumable', slot: 0 }, deps())
+    expect(r.state.block).toBe(amt)
+  }
+})
+
+test('a haste potion stalls the enemy clock (uncapped by tier)', () => {
+  const s = combat(['speed_major'])
+  const before = s.nextAttackAt
   const r = reduce(s, { type: 'useConsumable', slot: 0 }, deps())
-  expect(r.state.playerHP).toBeGreaterThan(10)
-  expect(r.events.some((e) => e.type === 'consumableUsed' && e.id === 'heal_potion')).toBe(true)
-  expect(r.state.consumables).toHaveLength(0) // consumed
+  expect(r.state.nextAttackAt).toBe(before + 30_000)
 })
 
-test('a mana potion grants its colour', () => {
-  const s = combat(['mana_red'])
-  s.mana = [0, 0, 0]
+test('invisibility fills Tactics and freezes the enemy attack until the next Set', () => {
+  const s = combat(['invisibility'])
+  s.tactics = 0
   const r = reduce(s, { type: 'useConsumable', slot: 0 }, deps())
-  expect(r.state.mana[0]).toBe(5)
+  expect(r.state.tactics).toBe(10) // TACTICS_GOAL
+  expect(r.state.attackFrozen).toBe(true)
+  // ticking far past the attack interval does NOT trigger an enemy attack while frozen
+  const t = reduce(r.state, { type: 'tick', dtMs: 60_000 }, deps())
+  expect(t.events.some((e) => e.type === 'playerDamaged' || e.type === 'enemyStrikes')).toBe(false)
+  expect(t.state.attackFrozen).toBe(true)
 })
 
-test('stoneskin raises Block to full', () => {
-  const s = combat(['stoneskin'])
-  s.block = 0
-  s.playerMax = 30
-  const r = reduce(s, { type: 'useConsumable', slot: 0 }, deps())
-  expect(r.state.block).toBe(30)
+test('strength triples the next attacking set, then is spent', () => {
+  // craft a board with a known all-attack set so damage is deterministic and non-zero
+  const base = combat(['strength'])
+  // find any existing set on the generated board to drive completeSet
+  const r0 = reduce(base, { type: 'useConsumable', slot: 0 }, deps())
+  expect(r0.state.nextSetDamageMult).toBe(3)
 })
 
-test('a combo brew warps the board toward its colour×shape', () => {
-  const r = reduce(combat(['brew_0_0']), { type: 'useConsumable', slot: 0 }, deps(mulberry32(2)))
+test('fire breathing burns the enemy for red cards on the board', () => {
+  const s = combat(['fire_breathing'])
+  const r = reduce(s, { type: 'useConsumable', slot: 0 }, deps(mulberry32(2)))
+  expect(r.events.some((e) => e.type === 'enemyDamaged')).toBe(true)
   expect(r.events.some((e) => e.type === 'cardsTransmuted')).toBe(true)
+})
+
+test('regeneration heals from green cards on the board', () => {
+  const s = combat(['regeneration'])
+  s.playerHP = 1
+  const r = reduce(s, { type: 'useConsumable', slot: 0 }, deps(mulberry32(2)))
+  expect(r.state.playerHP).toBeGreaterThan(1)
+})
+
+test('hourglass resets the enemy clock to full and arms tick-suppression', () => {
+  const s = combat(['hourglass'])
+  s.now = 5000
+  s.nextAttackAt = 5500 // about to attack
+  const r = reduce(s, { type: 'useConsumable', slot: 0 }, deps())
+  expect(r.state.nextAttackAt).toBe(s.now + s.foe.cadence * 1000)
+  expect(r.state.tickSuppressedUntil).toBe(s.now + 6000)
+})
+
+test('rainbow mana grants every colour by tier (2/4/6)', () => {
+  for (const [tier, amt] of [['minor', 2], ['std', 4], ['major', 6]] as const) {
+    const s = combat([`mana_rainbow_${tier}`])
+    s.mana = [0, 0, 0]
+    const r = reduce(s, { type: 'useConsumable', slot: 0 }, deps())
+    expect(r.state.mana).toEqual([amt, amt, amt])
+  }
+})
+
+test('prismatic vial paints the rows and grants mana per painted card', () => {
+  const s = combat(['prismatic'])
+  s.mana = [0, 0, 0]
+  const r = reduce(s, { type: 'useConsumable', slot: 0 }, deps(mulberry32(2)))
+  expect(r.events.some((e) => e.type === 'cardsTransmuted')).toBe(true)
+  expect(r.state.mana[0] + r.state.mana[1] + r.state.mana[2]).toBeGreaterThan(0)
+})
+
+test('saboteur destroys the 3 lightest cards', () => {
+  const r = reduce(combat(['saboteur']), { type: 'useConsumable', slot: 0 }, deps(mulberry32(2)))
+  const ev = r.events.find((e) => e.type === 'cardsTransmuted')
+  expect(ev && ev.type === 'cardsTransmuted' && ev.slots.length).toBe(3)
 })
 
 test('a scroll casts the ability for FREE (no mana spent)', () => {

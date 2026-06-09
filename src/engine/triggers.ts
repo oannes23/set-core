@@ -12,7 +12,7 @@ import type { CombatState, Pending } from './state'
 import { clockCapMs, DMG_REGEN_MS } from './state'
 import type { EventSink } from './events'
 import { type MatchDescriptor, weightedRoll } from './resolve'
-import { cardColor, cardShape, cardMag, isLive, liveSlots, pickRandom } from './select'
+import { cardColor, cardShape, cardMag, isLive, liveSlots, pickRandom, gridDims, rowSlots, colSlots } from './select'
 
 const TOKEN_COLOR: Record<string, number> = { red: 0, green: 1, blue: 2 }
 const TOKEN_SHAPE: Record<string, number> = { attack: 0, defend: 1, move: 2 }
@@ -53,29 +53,6 @@ export function condMet(when: Condition | undefined, desc: MatchDescriptor): boo
 }
 
 // ---- selectors ----
-function gridDims(s: CombatState): { cols: number; rows: number } {
-  return { cols: s.cols, rows: Math.ceil(s.board.length / s.cols) }
-}
-function rowSlots(s: CombatState, r: number): number[] {
-  const { cols, rows } = gridDims(s)
-  if (r < 0 || r >= rows) return []
-  const o: number[] = []
-  for (let c = 0; c < cols; c++) {
-    const j = r * cols + c
-    if (j < s.board.length) o.push(j)
-  }
-  return o
-}
-function colSlots(s: CombatState, c: number): number[] {
-  const { cols, rows } = gridDims(s)
-  if (c < 0 || c >= cols) return []
-  const o: number[] = []
-  for (let r = 0; r < rows; r++) {
-    const j = r * cols + c
-    if (j < s.board.length) o.push(j)
-  }
-  return o
-}
 function liveAt(s: CombatState, idxs: number[]): number[] {
   return idxs.filter((i) => isLive(s, i))
 }
