@@ -836,15 +836,20 @@ function interpret(events: CombatEvent[]): void {
   let matchSlots: number[] | null = null // the set just played (for the reactive-transmute ripple)
   const bursts: [string, string, string, string, ('trick' | 'wound')?][] = []
   const queueFlash = (k: 'trap' | 'trick' | 'wound', pow = 1) => { if (!flashKind || FLASH_PRI[k] > FLASH_PRI[flashKind]) { flashKind = k; flashPow = pow } }
+  // a player-initiated action (ability/potion) owns its line; its damage/heal/block/mana fold INTO it
+  // rather than spawning a separate, generic "you land a blow" line afterward
+  let actor: { el: HTMLElement; base: string; dmg: number; magic: boolean; heal: number; block: number; mana: [number, number, number] } | null = null
   for (const e of events) {
     switch (e.type) {
       case 'enemyDamaged': {
         if (e.immune) { log('Swords pass through — only magic bites this foe.', 'foe'); floatBoard('blocked', 'var(--ink-faint)', 'enemy'); break } // fixed rule line — never varied
-        const tier = tierOf(e.amount, 12)
-        if (e.magic) { log(`${magicLead()} — drains <b>${e.amount}</b>.`, 'you'); floatBoard(`-${e.amount}`, 'var(--gold)', 'enemy') }
-        else { log(`You land ${strikeWord(tier)} — <b>−${e.amount}</b>.`, tier === 'heavy' ? 'you big' : 'you'); floatBoard(`-${e.amount}`, 'var(--red)', 'enemy') }
+        floatBoard(`-${e.amount}`, e.magic ? 'var(--gold)' : 'var(--red)', 'enemy')
         flashStat('ehpv')
         V.stats.dealt += e.amount
+        if (actor) { actor.dmg += e.amount; if (e.magic) actor.magic = true; break } // fold into the action's own line
+        const tier = tierOf(e.amount, 12)
+        if (e.magic) log(`${magicLead()} — drains <b>${e.amount}</b>.`, 'you')
+        else log(`You land ${strikeWord(tier)} — <b>−${e.amount}</b>.`, tier === 'heavy' ? 'you big' : 'you')
         break
       }
       case 'enemyHealed':
@@ -852,13 +857,18 @@ function interpret(events: CombatEvent[]): void {
         floatBoard(`+${e.amount}`, 'var(--red)', 'enemy')
         break
       case 'playerHealed':
-        log(`You ${healWord()} — <b>+${e.amount}</b> HP.`, 'you')
         floatBoard(`+${e.amount}`, 'var(--green)', 'you')
         V.stats.healed += e.amount
+        if (actor) { actor.heal += e.amount; break }
+        log(`You ${healWord()} — <b>+${e.amount}</b> HP.`, 'you')
         break
       case 'blockGained':
-        log(`You brace — <b>+${e.amount}</b> Defend.`, 'you')
         floatBoard(`+${e.amount}🛡`, 'var(--blue)', 'you')
+        if (actor) { actor.block += e.amount; break }
+        log(`You brace — <b>+${e.amount}</b> Defend.`, 'you')
+        break
+      case 'manaGained':
+        if (actor) for (let i = 0; i < 3; i++) actor.mana[i] += e.mana[i] // fold potion/ability mana into its line
         break
       case 'tacticsGained':
         if (e.source === 'overflow') { // Block past the cap spills into the Tactics meter — call it out
@@ -872,10 +882,12 @@ function interpret(events: CombatEvent[]): void {
       case 'playerBlocked':
         log(`The ${foe} ${pick(voice.hit)} you — your guard holds, <b>no damage</b>.`, 'foe')
         break
-      case 'abilityCast':
-        log(`${ABILITY_FLAVOR[e.id] ?? `You cast <b>${ABILITIES[e.id]?.name ?? e.id}</b>`}.`, 'you')
+      case 'abilityCast': {
+        const base = ABILITY_FLAVOR[e.id] ?? `You cast <b>${ABILITIES[e.id]?.name ?? e.id}</b>`
+        actor = { el: log(base, 'you')!, base, dmg: 0, magic: false, heal: 0, block: 0, mana: [0, 0, 0] }
         coachNotify('ability') // guided intro: "cast an ability" step
         break
+      }
       case 'abilityFizzled':
         log(`<b>${ABILITIES[e.id]?.name ?? e.id}</b> fizzles — no target.`, 'foe') // fixed rule line
         break
@@ -888,9 +900,11 @@ function interpret(events: CombatEvent[]): void {
         coachNotify('tactic') // guided intro: "spend Tactics" step
         break
       }
-      case 'consumableUsed':
-        log(`You use <b>${e.name}</b>.`, 'you')
+      case 'consumableUsed': {
+        const base = `You use <b>${e.name}</b>`
+        actor = { el: log(base, 'you')!, base, dmg: 0, magic: false, heal: 0, block: 0, mana: [0, 0, 0] }
         break
+      }
       case 'fled':
         endScreen('flee')
         break
@@ -962,13 +976,24 @@ function interpret(events: CombatEvent[]): void {
         break
     }
   }
-  // flush the log cascade: prepend the batch as one unit; mark multi-line groups so they get the tie rail
+  // render the folded action line: "You use Fire Breathing Potion — −16." / "You Cleave — ... — −4 damage."
+  if (actor) {
+    const fx: string[] = []
+    if (actor.dmg) fx.push(actor.magic ? `drains <b>−${actor.dmg}</b>` : `<b>−${actor.dmg}</b> damage`)
+    if (actor.heal) fx.push(`<b>+${actor.heal}</b> HP`)
+    if (actor.block) fx.push(`<b>+${actor.block}</b> Block`)
+    const mt = actor.mana
+    if (mt[0] || mt[1] || mt[2]) {
+      if (mt[0] === mt[1] && mt[1] === mt[2]) fx.push(`<b>+${mt[0]}</b> each essence`)
+      else mt.forEach((v, i) => { if (v) fx.push(`<b>+${v}</b> ${MANA[i]}`) })
+    }
+    actor.el.innerHTML = actor.base + (fx.length ? ` — ${fx.join(', ')}` : '') + '.'
+  }
+  // flush the log cascade: the batch is prepended as one unit (newest action on top); within it the action
+  // reads first, its consequences indented below
   const grp = logGroup
   logGroup = null
-  if (grp && grp.childElementCount) {
-    if (grp.childElementCount > 1) grp.classList.add('multi')
-    V.refs.log.prepend(grp)
-  }
+  if (grp && grp.childElementCount) V.refs.log.prepend(grp)
   // flush coalesced full-screen feedback: one flash (loudest wins), one hitstop, bursts staggered so a
   // multi-effect instant (wound + trap in the same match) sequences legibly instead of compositing.
   if (flashKind) flash(flashKind, flashPow)
@@ -990,11 +1015,12 @@ function flash(kind: 'trap' | 'trick' | 'wound', pow = 1): void {
 /** When a single dispatch (a Set, a tactic/ability/potion press) fans out into several log lines, they
  *  are collected into one `.loggroup` so the cascade reads as a unit, visually split from other actions. */
 let logGroup: HTMLElement | null = null
-function log(html: string, cls: string): void {
-  if (!V) return
+function log(html: string, cls: string): HTMLElement | null {
+  if (!V) return null
   const line = $(`<div class="${cls}">${html}</div>`)
-  if (logGroup) logGroup.prepend(line) // keep within-batch order, group flushed as one unit
+  if (logGroup) logGroup.appendChild(line) // event order within the action; the group is flushed as one unit
   else V.refs.log.prepend(line)
+  return line
 }
 
 /** A combat number that rises and fades over the board. `side` biases it left (you) / right (enemy). */
