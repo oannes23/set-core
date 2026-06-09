@@ -35,6 +35,7 @@ export interface CombatState {
   mana: [number, number, number]
   tactics: number
   tacticsArmed: boolean
+  tacticsDrainMult: number // scales the armed-meter drain rate; 1 = normal, <1 = slower (e.g. the tutorial)
   // board
   board: Board
   cols: number // grid width (for geometry selectors); rows = ceil(board.length / cols)
@@ -72,6 +73,6 @@ export function clockCapMs(s: CombatState): number {
 }
 
 export const TACTICS_GOAL = 10
-export const TACTICS_DRAIN = 1 // levels/sec while armed
+export const TACTICS_DRAIN = 0.5 // levels/sec while armed → a 20s window to spend a Tactic (eased from 10s)
 export const DMG_REGEN_MS = 10000 // a shattered (wounded) card reforms after this
 export const START_GRACE_MS = 3000 // UI freezes the clock this long after Engage (read the board, no ticks advance)

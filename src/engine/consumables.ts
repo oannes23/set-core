@@ -83,9 +83,10 @@ reg({
   use(s, _rng, _sink) { s.nextSetDamageMult = 3 },
 })
 
-/** Elemental cascade (Fire Breathing / Regeneration / Mind Reading): each round floods a region toward
- *  `color` (transmute-to-bias is folded into the clear, so it's instant), pays out once per same-colour
- *  card that results, then clears those cards (neutral reform). 50% chance to repeat — a compounding burn. */
+/** Elemental cascade (Fire Breathing / Regeneration / Mind Reading): each round transmutes ONLY the
+ *  targeted region (a row / two columns / the deadest cards) toward `color`, biased so it keeps that
+ *  vibe — the rest of the board is left intact. The Damage/Heal/Block payoff scales with every card
+ *  that's `color` after the flood, but does NOT consume those cards. 50% chance to repeat (compounding). */
 function cascade(
   s: CombatState, rng: Rng, sink: EventSink, color: number,
   region: (s: CombatState) => number[],
@@ -97,8 +98,7 @@ function cascade(
     const flood = region(s).filter((i) => isLive(s, i) && cardColor(s.board[i] as Card) !== color)
     const n = colored.length + flood.length // every card that's `color` after the flood
     if (n > 0) payoff(s, n, rng, sink)
-    const clear = [...new Set([...colored, ...flood])]
-    if (clear.length) transmute(s, clear, {}, sink) // burn them off → neutral reform on the next tick
+    if (flood.length) transmute(s, flood, { bias: { color, colorW: BIAS_W } }, sink) // only the region reshapes
   } while (rng() < 0.5 && guard++ < 8)
 }
 

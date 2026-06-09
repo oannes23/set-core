@@ -109,6 +109,34 @@ test('a tactic is a no-op unless the meter is armed', () => {
   expect(r.events).toHaveLength(0)
 })
 
+test('the armed meter drains at the eased 0.5/sec rate (~20s window)', () => {
+  const s = combat('training_dummy')
+  s.tactics = TACTICS_GOAL
+  s.tacticsArmed = true
+  const r = reduce(s, { type: 'tick', dtMs: 4000 }, deps())
+  expect(r.state.tactics).toBeCloseTo(TACTICS_GOAL - 0.5 * 4, 5) // 8 after 4s
+})
+
+test('tacticsDrainMult slows the drain (tutorial 60s window)', () => {
+  const rng = mulberry32(1)
+  const f = assembleFoe('training_dummy', GAMEDATA.dungeons.training, GAMEDATA, rng)!
+  const s = createCombat({ foe: f, gen: GEN, dungeonId: 'training', tacticsDrainMult: 1 / 3 }, rng)
+  s.tactics = TACTICS_GOAL
+  s.tacticsArmed = true
+  const r = reduce(s, { type: 'tick', dtMs: 6000 }, deps())
+  expect(r.state.tactics).toBeCloseTo(TACTICS_GOAL - 0.5 * (1 / 3) * 6, 5) // 1/3 speed
+})
+
+test('the armed meter does NOT drain while the attack clock is frozen (Invisibility)', () => {
+  const s = combat('training_dummy')
+  s.tactics = TACTICS_GOAL
+  s.tacticsArmed = true
+  s.attackFrozen = true
+  const r = reduce(s, { type: 'tick', dtMs: 8000 }, deps())
+  expect(r.state.tactics).toBe(TACTICS_GOAL) // held
+  expect(r.state.tacticsArmed).toBe(true)
+})
+
 test('the Move tactic floods the board toward Move', () => {
   const s = combat('training_dummy')
   s.tactics = TACTICS_GOAL

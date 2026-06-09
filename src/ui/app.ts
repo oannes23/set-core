@@ -305,7 +305,8 @@ function begin(root: HTMLElement, char: SavedChar, dungeonId: string, foeVal: st
   const foe = assembleFoe(foeId, dg, GAMEDATA, rng)
   if (!foe) return
   const cls = classById(char.classId)
-  const state = createCombat({ foe, gen: GEN, playerMax: char.maxHp, passives: cls.passives, consumables: char.consumables, sequence, seqIdx: 0, dungeonId }, rng)
+  // the guided tutorial eases the Tactics drain to a 60s window (1/3 of the normal 20s) while it teaches the meter
+  const state = createCombat({ foe, gen: GEN, playerMax: char.maxHp, passives: cls.passives, consumables: char.consumables, sequence, seqIdx: 0, dungeonId, tacticsDrainMult: dg.guided ? 1 / 3 : 1 }, rng)
   state.playerHP = Math.max(0, Math.min(char.maxHp, char.hp)) // the hero enters at their persisted HP, not full
   V = { root, deps: { data: GAMEDATA, rng }, state, char, actions: [], classId: cls.id, loadout: cls.abilities.slice(), coach: !!dg.coach, coachCue: null, manaColor: dominantManaColor(cls.abilities), paused: true, hitstopUntil: 0, preview: null, selected: [], raf: 0, lastT: 0, boardSig: '', refs: {}, stats: { dealt: 0, taken: 0, blocked: 0, healed: 0, sets: 0, traps: 0 } }
   buildPlay()
@@ -342,7 +343,7 @@ function buildPlay(): void {
   const left = $(`<div class="panel leftcol"></div>`)
   left.appendChild($(`
     <div class="bar combatbar">
-      <div class="gauge you"><div class="lab"><span class="youname">You <span class="blockbadge" id="block"></span></span><span id="phpv"></span></div><div class="track"><span class="fill php" id="php"></span></div></div>
+      <div class="gauge you"><div class="lab"><span class="youname">You <span class="blockbadge" id="block"></span><span class="buffbadge" id="buffind"></span></span><span id="phpv"></span></div><div class="track"><span class="fill php" id="php"></span></div></div>
       <div class="gauge"><div class="lab"><span id="enemylab">Enemy</span><span id="ehpv"></span></div><div class="track"><span class="fill ehp" id="ehp"></span></div></div>
     </div>`))
   // enemy attack timer — a full-width meter that empties toward the next strike
@@ -372,7 +373,7 @@ function buildPlay(): void {
   if (!document.getElementById('ptint')) document.body.appendChild($(`<div id="ptint"></div>`)) // low-HP vignette (body-level)
 
   V.refs = {}
-  for (const id of ['foename', 'foedesc', 'fleebtn', 'enemylab', 'phpv', 'ehpv', 'php', 'ehp', 'clock', 'atkfill', 'tacv', 'tac', 'm0', 'm1', 'm2', 'block', 'strip', 'boardwrap', 'board', 'log', 'abilities', 'tactics', 'passives', 'consumables', 'floatlayer']) {
+  for (const id of ['foename', 'foedesc', 'fleebtn', 'enemylab', 'phpv', 'ehpv', 'php', 'ehp', 'clock', 'atkfill', 'tacv', 'tac', 'm0', 'm1', 'm2', 'block', 'buffind', 'strip', 'boardwrap', 'board', 'log', 'abilities', 'tactics', 'passives', 'consumables', 'floatlayer']) {
     const el = wrap.querySelector('#' + id)
     if (el) V.refs[id] = el as HTMLElement
   }
@@ -855,10 +856,17 @@ function interpret(events: CombatEvent[]): void {
         V.stats.healed += e.amount
         break
       case 'blockGained':
+        log(`You brace — <b>+${e.amount}</b> Defend.`, 'you')
         floatBoard(`+${e.amount}🛡`, 'var(--blue)', 'you')
         break
       case 'tacticsGained':
-        if (e.source === 'overflow') floatBoard(`+${e.amount} ⚡`, 'var(--gold)', 'you') // Block past the cap → Tactics
+        if (e.source === 'overflow') { // Block past the cap spills into the Tactics meter — call it out
+          log(`Defend overflows — <b>+${e.amount}</b> Tactics.`, 'you')
+          floatBoard(`+${e.amount} ⚡`, 'var(--gold)', 'you')
+        }
+        break
+      case 'buffFaded':
+        log(`<span style="opacity:.85">✧ ${e.label}.</span>`, 'you')
         break
       case 'playerBlocked':
         log(`The ${foe} ${pick(voice.hit)} you — your guard holds, <b>no damage</b>.`, 'foe')
@@ -1120,6 +1128,13 @@ function updateBar(): void {
   V.refs.m2.textContent = String(s.mana[2])
   V.refs.block.textContent = s.block > 0 ? `🛡 ${s.block}` : ''
   V.refs.block.classList.toggle('on', s.block > 0)
+  // active transient buffs — persist on the bar while live, vanish as each fades (logged separately)
+  const buffs: string[] = []
+  if (s.attackFrozen) buffs.push('👻 Invisible')
+  if (s.nextSetDamageMult > 1) buffs.push(`💪 ×${s.nextSetDamageMult}`)
+  if (s.tickSuppressedUntil > s.now) buffs.push(`⏳ ${Math.ceil((s.tickSuppressedUntil - s.now) / 1000)}s`)
+  V.refs.buffind.textContent = buffs.join('  ')
+  V.refs.buffind.classList.toggle('on', buffs.length > 0)
   const remain = Math.max(0, (s.nextAttackAt - s.now) / 1000)
   const clk = V.refs.clock
   clk.textContent = s.running ? `${Math.ceil(remain)}s` : '—'

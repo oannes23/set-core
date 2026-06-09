@@ -79,6 +79,7 @@ test('invisibility fills Tactics and freezes the enemy attack until the next Set
   const t = reduce(r.state, { type: 'tick', dtMs: 60_000 }, deps())
   expect(t.events.some((e) => e.type === 'playerDamaged' || e.type === 'enemyStrikes')).toBe(false)
   expect(t.state.attackFrozen).toBe(true)
+  expect(t.state.tactics).toBe(10) // the filled meter also held — its drain is paused while frozen
 })
 
 test('strength triples the next attacking set, then is spent', () => {
@@ -110,6 +111,10 @@ test('hourglass resets the enemy clock to full and arms tick-suppression', () =>
   const r = reduce(s, { type: 'useConsumable', slot: 0 }, deps())
   expect(r.state.nextAttackAt).toBe(s.now + s.foe.cadence * 1000)
   expect(r.state.tickSuppressedUntil).toBe(s.now + 6000)
+  // once the window elapses, suppression clears and a buffFaded note fires
+  const t = reduce(r.state, { type: 'tick', dtMs: 7000 }, deps())
+  expect(t.state.tickSuppressedUntil).toBe(0)
+  expect(t.events.some((e) => e.type === 'buffFaded' && e.id === 'hourglass')).toBe(true)
 })
 
 test('rainbow mana grants every colour by tier (2/4/6)', () => {

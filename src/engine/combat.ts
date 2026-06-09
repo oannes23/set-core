@@ -45,6 +45,7 @@ export interface NewCombatOpts {
   playerMax?: number
   passives?: string[] // the chosen class's always-on passive ids
   consumables?: string[] // carried potions/scrolls for this run
+  tacticsDrainMult?: number // slow the Tactics drain (e.g. 1/3 in the tutorial); default 1
   sequence?: string[] | null
   seqIdx?: number
   dungeonId?: string | null
@@ -63,6 +64,7 @@ export function createCombat(opts: NewCombatOpts, rng: Rng): CombatState {
     mana: [0, 0, 0],
     tactics: 0,
     tacticsArmed: false,
+    tacticsDrainMult: opts.tacticsDrainMult ?? 1,
     board,
     cols: colsForN(opts.gen.n),
     pending: new Map(),
@@ -92,8 +94,9 @@ function applyResolution(s: CombatState, res: Resolution, rng: Rng, sink: EventS
   // damage to enemy (immune foes — e.g. the ethereal goblin — take none from cards)
   if (res.damage > 0) {
     // a pending Strength buff (nextSetDamageMult) multiplies this attacking set, then is spent
-    const dmg = res.damage * s.nextSetDamageMult
-    s.nextSetDamageMult = 1
+    const mult = s.nextSetDamageMult
+    const dmg = res.damage * mult
+    if (mult !== 1) { s.nextSetDamageMult = 1; sink.emit({ type: 'buffFaded', id: 'strength', label: `Strength surges — that blow strikes ×${mult}` }) }
     if (s.foe.rules.immune_card_damage) {
       sink.emit({ type: 'enemyDamaged', amount: 0, immune: true })
     } else {
@@ -160,7 +163,7 @@ function completeSet(s: CombatState, slots: [number, number, number], deps: Deps
   if (!ca || !cb || !cc) return
   if (s.locked.has(a) || s.locked.has(b) || s.locked.has(c)) return
   if (!isSet(ca, cb, cc)) return // invalid pick — no-op (the UI handles misread feedback)
-  s.attackFrozen = false // a completed Set ends any "frozen until your next Set" effect (Invisibility)
+  if (s.attackFrozen) { s.attackFrozen = false; sink.emit({ type: 'buffFaded', id: 'invisibility', label: 'Invisibility fades — the enemy sees you again' }) }
   const cards: [Card, Card, Card] = [ca, cb, cc]
   const res = resolveSet(cards, deps.rng)
   applyResolution(s, res, deps.rng, sink)
@@ -187,9 +190,14 @@ function tick(s: CombatState, dtMs: number, deps: Deps, sink: EventSink): void {
   const dt = dtMs / 1000
   // a frozen attack clock (Invisibility) advances with `now` so it never elapses until the player acts
   if (s.attackFrozen) s.nextAttackAt += dtMs
-  // tactics drain while armed
-  if (s.tacticsArmed) {
-    s.tactics = Math.max(0, s.tactics - TACTICS_DRAIN * dt)
+  // a Hourglass tick-suppression window that has now elapsed fades (one-shot)
+  if (s.tickSuppressedUntil > 0 && s.now >= s.tickSuppressedUntil) {
+    s.tickSuppressedUntil = 0
+    sink.emit({ type: 'buffFaded', id: 'hourglass', label: 'The hourglass empties — drift resumes' })
+  }
+  // tactics drain while armed — paused during Invisibility; the tutorial slows it via tacticsDrainMult
+  if (s.tacticsArmed && !s.attackFrozen) {
+    s.tactics = Math.max(0, s.tactics - TACTICS_DRAIN * s.tacticsDrainMult * dt)
     if (s.tactics <= 0) {
       s.tacticsArmed = false
       sink.emit({ type: 'tacticsReset' })

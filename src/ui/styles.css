@@ -96,6 +96,9 @@ button.cta.bob { animation: ctabob 1.6s ease-in-out infinite; }
 .blockbadge { display: none; margin-left: 8px; font-size: 13px; font-weight: 800; color: var(--blue);
   background: rgba(91, 148, 245, .16); border: 1px solid var(--blue); border-radius: 7px; padding: 1px 8px; font-variant-numeric: tabular-nums; }
 .blockbadge.on { display: inline-block; }
+.buffbadge { display: none; margin-left: 6px; font-size: 12px; font-weight: 800; color: var(--gold);
+  background: rgba(245, 197, 66, .14); border: 1px solid var(--gold); border-radius: 7px; padding: 1px 8px; font-variant-numeric: tabular-nums; }
+.buffbadge.on { display: inline-block; }
 .gauge.you .track { box-shadow: none; }
 
 /* board */
