@@ -71,8 +71,40 @@ to live in → build the Hub scene + persistence first.** (`CRAWL-DESIGN.md` §2
 - `[x]` **Persistence v1** — `src/ui/save.ts`: a `localStorage`-backed `SavedChar` roster; HP carries
   across the hub↔combat boundary (enter at saved HP; final HP written back on combat end). Structured
   to grow (inventory / gear / progression). Pure roster transforms are unit-tested.
-- `[ ]` **Next within B1:** Rest economy (gold-cost heal instead of free) once gold exists; the loadout
-  (equip abilities / gear / consumables) once those layers land.
+- `[ ]` **Next within B1 — scene split (planned, ready to build):** break the single-panel `hubScene`
+  into two scenes via a small router. **`characterSelectScene`** (two columns): roster list + a pinned
+  **"＋ New Character"** entry on the left; the selected hero's **sheet** on the right (name/class/HP,
+  Abilities w/ costs, Passive, a **Gear** placeholder, Consumables) — or the **creator** when New
+  Character is active. One context button at the bottom: hero selected → "Choose a dungeon ▶"; New
+  Character → "＋ Create hero" (creates → auto-selects → flips to "Choose a dungeon ▶"). Delete + Rest
+  become per-hero sheet actions. **`dungeonSelectScene(char)`**: dungeon summary (difficulty/theme, the
+  persistent dungeon-level trap = `drift` + `boss_mirror`, the **boss**, elite pool, foe/gauntlet picker),
+  the consumable loadout picker (moves here), a "◀ Back" + "▶ Enter dungeon". Combat-end → character
+  select. Pure UI refactor — reuses `.charcard/.classgrid/.row/.cons-loadout/.panel`; no engine change.
+- `[ ]` **Rest economy** (gold-cost heal instead of free) once gold exists.
+
+### Town economy + inventory — PLAN (settled 2026-06-09; spans B1→B4)
+Decisions (locked): **shared town bank** (one Gold pool + one Storage for the whole roster, its own
+localStorage key — survives a hero's death) · **unified item bag** (consumables *and* gear share slots) ·
+inventory-full during a run → **swap-or-discard prompt** · consumables are **finite**, seeded by a
+**starter stash + loot + shop** (the current free "pick any potion" loadout is retired).
+
+- Data model: a new account-level store `{ gold, storage: Item[], storageCap /* 20, gold-expandable */ }`
+  separate from the `SavedChar` roster. An `Item` model `{ uid, kind:'consumable'|'gear', refId, … }`;
+  both Storage (20) and the run inventory (10) hold `Item[]`. **`SavedChar.consumables` is removed** — the
+  3-slot delve loadout (drawn from Storage) is **run-state**, not character-state; gear equip-slots
+  (B3) are character-state but pull items from the shared bag.
+- `[ ]` **B2 — economy core:** the account store + `Item` model + **starter-stash seeding once per
+  account** (not per new hero, else create/delete farms it) + Storage UI; dungeon-select loadout becomes
+  "load 3 from Storage."
+- `[ ]` **B2/B3 — run loop:** run-state (seed + room chain + **10-slot run inventory**); loot on win;
+  **swap-or-discard** when full; between-room refill of the 3 active slots from run loot; HP-only
+  attrition (replaces `onWin` full-heal); **return triage** (keep → Storage / sell → Gold; *keep* greyed
+  when Storage is full; sell-from-Storage to make room; unused brought-in consumables auto-return).
+- `[ ]` **B4 — shop + expansion:** spend Gold to buy consumables and expand Storage slots (the buy-side
+  to triage's sell-side).
+- Sequencing note: keep the current free-pick loadout live as the interim potion source and **flip it off
+  only once the loot+shop loop exists** (B3/B4) — same end state, no dead-air gap.
 
 ### Phase B2 — run loop + first loot (consumables)
 - `[ ]` **Room = encounter + reward** — on win, roll loot / gold / XP (`CRAWL-DESIGN.md` §3).
