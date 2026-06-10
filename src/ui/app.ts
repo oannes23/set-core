@@ -104,7 +104,40 @@ let V: View | null = null
 
 export function mountApp(root: HTMLElement): void {
   initTooltips()
-  characterSelectScene(root)
+  ROOT = root
+  goScene(characterSelectScene)
+}
+
+/* ============================================================
+   SCENE ROUTER — every scene transition goes through goScene(): unmount the previous scene
+   (cancel its rAF, flush every scene-scoped timer, sweep body-level singletons), clear the
+   root, then mount. THE CONTRACT: anything a scene appends to document.body (not root) must
+   be in BODY_SINGLETONS, and any scene-scoped delay must use sceneTimeout — then no scene
+   can paint, tick, or burst over the next one.
+   ============================================================ */
+let ROOT: HTMLElement | null = null
+// the briefing/coach/FX/vignette layers live on <body>; #tooltip is app-global (hidden, not swept)
+const BODY_SINGLETONS = ['coachscrim', 'coachpop', 'briefing', 'burstlayer', 'ptint']
+let sceneTimers: number[] = []
+/** A setTimeout whose callback dies with the scene — use for ALL scene-scoped delays/FX. */
+function sceneTimeout(fn: () => void, ms: number): number {
+  const id = window.setTimeout(fn, ms)
+  sceneTimers.push(id)
+  return id
+}
+function goScene(mount: (root: HTMLElement) => void): void {
+  if (!ROOT) return
+  if (V) { cancelAnimationFrame(V.raf); V = null } // stop the combat loop before its DOM goes away
+  for (const id of sceneTimers) clearTimeout(id)
+  sceneTimers = []
+  clearTimeout(tipTimer)
+  hideTip()
+  ;(document.getElementById('confirmmodal') as (HTMLElement & { _cancel?: () => void }) | null)?._cancel?.() // full cleanup (keydown listener)
+  coachTeardown()
+  for (const id of BODY_SINGLETONS) document.getElementById(id)?.remove()
+  document.querySelectorAll('.mspark').forEach((e) => e.remove()) // body-level FX strays (their cleanup timers died above)
+  ROOT.innerHTML = ''
+  mount(ROOT)
 }
 
 /* ============================================================
@@ -129,7 +162,7 @@ function initTooltips(): void {
     const el = (e.target as HTMLElement).closest?.(TIP_SEL) as HTMLElement | null
     if (el && !el.contains((e as MouseEvent).relatedTarget as Node)) { clearTimeout(tipTimer); hideTip() }
   })
-  document.addEventListener('mousedown', hideTip) // never let a tip linger over a click/scene change
+  document.addEventListener('mousedown', () => { clearTimeout(tipTimer); hideTip() }) // never let a tip (or a pending one) linger over a click
 }
 function showTip(el: HTMLElement): void {
   if (!tipEl || !el.isConnected) return
@@ -162,9 +195,6 @@ function hideTip(): void { tipEl?.classList.remove('show') }
 let selectedCharId: string | null = null // persists the chosen hero across scene + combat transitions
 
 function characterSelectScene(root: HTMLElement): void {
-  coachTeardown() // clear any lingering scrim/popover from a prior guided run
-  V = null
-  root.innerHTML = ''
   const wrap = $(`<div class="wrap"></div>`)
   wrap.appendChild($(`<h1>set.core</h1>`))
   wrap.appendChild($(`<div class="sub">town · choose your hero</div>`))
@@ -280,7 +310,7 @@ function characterSelectScene(root: HTMLElement): void {
       footer.appendChild(createBtn)
     } else if (selectedCharId) {
       const go = $<HTMLButtonElement>(`<button class="cta bob">Choose a dungeon ▶</button>`)
-      go.addEventListener('click', () => { const sel = roster.find((c) => c.id === selectedCharId); if (sel) dungeonSelectScene(root, sel) })
+      go.addEventListener('click', () => { const sel = roster.find((c) => c.id === selectedCharId); if (sel) goScene((r) => dungeonSelectScene(r, sel)) })
       footer.appendChild(go)
     }
   }
@@ -288,9 +318,6 @@ function characterSelectScene(root: HTMLElement): void {
 }
 
 function dungeonSelectScene(root: HTMLElement, char: SavedChar): void {
-  coachTeardown()
-  V = null
-  root.innerHTML = ''
   const wrap = $(`<div class="wrap"></div>`)
   wrap.appendChild($(`<h1>set.core</h1>`))
   wrap.appendChild($(`<div class="sub">delve · ${char.name} — ${char.hp}/${char.maxHp} HP</div>`))
@@ -382,10 +409,10 @@ function dungeonSelectScene(root: HTMLElement, char: SavedChar): void {
 
   // FOOTER: back to the roster, or enter the dungeon
   const back = $<HTMLButtonElement>(`<button class="cta ghost">◀ Back</button>`)
-  back.addEventListener('click', () => characterSelectScene(root))
+  back.addEventListener('click', () => goScene(characterSelectScene))
   footer.appendChild(back)
   const enter = $<HTMLButtonElement>(`<button class="cta bob"${char.hp <= 0 ? ' disabled' : ''}>▶ Enter dungeon</button>`)
-  enter.addEventListener('click', () => { if (char.hp > 0) begin(root, char, dungeonId, foeVal) })
+  enter.addEventListener('click', () => { if (char.hp > 0) goScene((r) => begin(r, char, dungeonId, foeVal)) })
   footer.appendChild(enter)
   if (char.hp <= 0) footer.appendChild($(`<span class="sub" style="align-self:center;text-transform:none;letter-spacing:0">0 HP — Rest first (◀ Back).</span>`))
 }
@@ -431,7 +458,7 @@ function begin(root: HTMLElement, char: SavedChar, dungeonId: string, foeVal: st
     loop(performance.now())
     // let the player SEE the board for a beat before the guided intro freezes it ("read the board").
     // capture V so a pending timer from a prior combat can't fire into a different one.
-    if (dg.guided) { const v = V; setTimeout(() => { if (V === v) coachStartGuided() }, 650) }
+    if (dg.guided) sceneTimeout(() => coachStartGuided(), 650)
   })
 }
 
@@ -757,7 +784,7 @@ function onBoardClick(e: Event): void {
     V.selected = []
     bad.forEach((j) => V!.refs.board.querySelector(`[data-i="${j}"]`)?.classList.add('bad'))
     log('A misread — those three are not a set.', 'foe')
-    setTimeout(() => {
+    sceneTimeout(() => {
       if (V) renderBoard()
     }, 320)
     return
@@ -1114,7 +1141,7 @@ function interpret(events: CombatEvent[]): void {
   // multi-effect instant (wound + trap in the same match) sequences legibly instead of compositing.
   if (flashKind) flash(flashKind, flashPow)
   if (hs) hitstop(hs)
-  bursts.forEach((b, k) => { if (k === 0) burst(...b); else setTimeout(() => burst(...b), k * 80) })
+  bursts.forEach((b, k) => { if (k === 0) burst(...b); else sceneTimeout(() => burst(...b), k * 80) })
   // reactive herding: a foe transmute that fired in response to your match ripples out FROM your match
   if (matchSlots && events.some((e) => e.type === 'cardsTransmuted')) ripple(matchSlots)
 }
@@ -1198,12 +1225,12 @@ function manaSparks(mana: [number, number, number], slots: number[]): void {
       document.body.appendChild(sp)
       const delay = 40 + idx * 110 // launch each spark a beat after the last
       idx++
-      setTimeout(() => {
+      sceneTimeout(() => {
         if (!sp.isConnected) return
         sp.style.transform = `translate(${tx - sx}px,${ty - o.y}px) scale(.4)`
         sp.style.opacity = '0'
       }, delay)
-      setTimeout(() => sp.remove(), delay + 1300) // after the ~1.1s flight
+      sceneTimeout(() => sp.remove(), delay + 1300) // after the ~1.1s flight
     }
   }
 }
@@ -1365,10 +1392,7 @@ function endScreen(result: 'win' | 'lose' | 'flee'): void {
   const again = $<HTMLButtonElement>(`<button class="cta" style="display:block;margin:0 auto">▶ Back to town</button>`)
   const root = V.root
   V.refs.boardwrap.replaceChildren(banner, summary, again)
-  again.addEventListener('click', () => {
-    V = null
-    characterSelectScene(root)
-  })
+  again.addEventListener('click', () => goScene(characterSelectScene))
 }
 
 /* ---- pre-combat briefing ---- */

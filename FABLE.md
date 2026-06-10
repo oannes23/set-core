@@ -859,11 +859,18 @@ Durable facts surfaced in this review that aren't (yet) in any doc:
    ✅ SETTLED 2026-06-09: inverse-CDF draw (one seeded R against the triangular
    running total); fled rooms count; the throne room, once found, stays found;
    dread meter = thematic bands. Spec in CRAWL §2.
-8. Save-system envelope `{v, chars}` + validation + migration table — before the
-   first progression field lands.
-9. Extract the run reducer from `onWin` (A5) and a scene router with a
-   mount/unmount contract in the UI — the two seams all of set.crawl sits on.
-10. Close I1 (lock-aware reform floor) + add T1/T2 invariant fuzz.
+8. ~~Save-system envelope `{v, chars}` + validation + migration table.~~
+   ✅ LANDED 2026-06-09 (`save.ts`: stable key, payload version, legacy migration,
+   per-char sanitize, MIGRATIONS table; E8 hardening rode along).
+9. ~~Extract the run reducer from `onWin` (A5) and a scene router with a
+   mount/unmount contract in the UI.~~ ✅ LANDED 2026-06-09 (`engine/run.ts`
+   RunState/runReduce — sequence/seqIdx/dungeonId out of CombatState, session
+   replay through the run layer; UI `goScene()` router: rAF cancel + sceneTimeout
+   flush + BODY_SINGLETONS sweep; U7/U8 fixed alongside).
+10. ~~Close I1 (lock-aware reform floor) + add T1/T2 invariant fuzz.~~
+    ✅ LANDED 2026-06-09 (patch/patchFavor take `excluded`; reform floor counts
+    only makeable sets; weighted-path invariant tests + engine-loop fuzz across
+    foes/traps/locks/drift).
 
 **Design debt (before/while authoring crawl content):**
 11. Structural anti-stall (universal soft-enrage) — the #1 threat to the fun.
