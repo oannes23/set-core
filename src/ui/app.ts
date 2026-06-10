@@ -519,6 +519,7 @@ function buildPlay(): void {
   V.refs.abilities?.addEventListener('mouseover', onAbilityHover)
   V.refs.abilities?.addEventListener('mouseout', clearPreview)
   V.refs.tactics?.addEventListener('click', onTacticClick)
+  V.refs.biasrow?.addEventListener('click', onTacticClick) // the bias chips are a SIBLING row, not inside #tactics
   V.refs.consumables?.addEventListener('click', onConsumableClick)
   renderStrip()
   renderConsumables()
@@ -897,7 +898,9 @@ function updateCastables(): void {
     el.classList.toggle('on', !!b && el.dataset.axis === b.axis && +el.dataset.value! === b.value)
   })
   if (V.coach) {
-    // guided Tactics stage: beckon the bias row once a charge is banked (pick what to do with it)
+    // guided Tactics stage: beckon the Maneuver button while on Stand Ground (the default), then
+    // the bias row once a charge is banked (pick what to do with it)
+    setCoachArrow(V.refs.tactics, COACH.await === 'tactic' && !maneuver)
     setCoachArrow(V.refs.biasrow, COACH.await === 'tactic' && s.charges > 0 && maneuver)
     // staged tutorial cues — teach how to GET there, scoped to the current guided stage:
     const cue = V.coachCue
@@ -1556,9 +1559,9 @@ const GUIDED_STEPS: GuidedStep[] = [
   { icon: '⚠️', title: 'Watch for traps', spot: '#strip', reveal: ['traps'], hold: true,
     body: "Tougher foes carry <b>traps</b> — rules that punish (or reward!) certain matches, shown in the <b>trap strip</b> above the board. This dummy has none, but the <b>Training · Gauntlet</b> has foes whose lines you must read, dodge, or deliberately spring." },
   { icon: '🎯', title: 'Use Tactics', reveal: ['tactics'], await: 'tactic', cue: 'moves',
-    hint: '▸ Match a set with a Move (➤) to bank a charge, then pick a bias chip under Maneuver.',
-    body: 'Matching <b>Move</b> cards banks <b>Tactics charges</b>. Under <b>Maneuver</b>, pick a <b>bias</b> — what you want more of — and your charges spend themselves, steadily morphing the deadest card toward it. Bank a charge and set your bias now.',
-    done: 'That is your tide. <b>Maneuver</b> pulls the board toward your build one card at a time, while the dungeon pulls it the other way — a tug-of-war you fund with Moves. Its twin, <b>Stand Ground</b>, banks the same charges as a shield that eats enemy board-meddling (warps, locks, wounds). Swapping tactics resets your charges — pick a stance and commit.' },
+    hint: '▸ Press ⚔ Maneuver, match a set with a Move (➤) to bank a charge, then pick a bias chip.',
+    body: 'Matching <b>Move</b> cards banks <b>Tactics charges</b>. You start in <b>Stand Ground</b> — charges shield your board from enemy meddling. Press <b>⚔ Maneuver</b> to go on the offensive instead: pick a <b>bias</b> — what you want more of — and your charges spend themselves, steadily morphing the deadest card toward it. Swap, bank a charge, and set your bias now.',
+    done: 'That is your tide. <b>Maneuver</b> pulls the board toward your build one card at a time, while the dungeon pulls it the other way — a tug-of-war you fund with Moves. <b>Stand Ground</b> banks the same charges as a shield that eats enemy board-meddling (warps, locks, wounds). Swapping tactics resets your charges — pick a stance and commit.' },
   { icon: '🔥', title: 'Cast an ability', reveal: ['abilities'], await: 'ability', cue: 'mana',
     hint: '▸ Match the highlighted cards (all one colour) to bank that mana; when an ability lights up, click it.',
     body: 'Matches also generate <b>mana</b> by colour. The cards of the colour your spells need most are <b>highlighted</b> — match them to bank that mana. When you can afford an ability it lights up with an arrow. Build mana and cast one.',

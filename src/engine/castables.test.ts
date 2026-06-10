@@ -93,6 +93,7 @@ test('Overflow (Sentinel) spills block past the cap into the enemy', () => {
 // ---- Tactics v2: the charge queue + Maneuver / Stand Ground ----
 test('Maneuver churn: one charge spends per CHURN_MS, morphing the deadest card toward the bias', () => {
   const s = combat('training_dummy')
+  s.tactic = 'maneuver' // Stand Ground is the default — churn tests opt into Maneuver
   s.charges = 3
   s.maneuverBias = { axis: 'shape', value: SHAPE_ATTACK }
   s.board = s.board.map((_, i) => card(i % 3, SHAPE_MOVE, i % 3)) // nothing conforms → plenty to churn
@@ -109,6 +110,7 @@ test('Maneuver churn: one charge spends per CHURN_MS, morphing the deadest card 
 
 test('Maneuver holds charges with no bias set (queue and wait, no waste)', () => {
   const s = combat('training_dummy')
+  s.tactic = 'maneuver'
   s.charges = 2
   const r = reduce(s, { type: 'tick', dtMs: 2000 }, deps())
   expect(r.state.charges).toBe(2)
@@ -116,10 +118,10 @@ test('Maneuver holds charges with no bias set (queue and wait, no waste)', () =>
 })
 
 test('setTactic swaps the verb, RESETS charges, and spins up (income lost meanwhile)', () => {
-  const s = combat('training_dummy')
+  const s = combat('training_dummy') // default tactic = stand
   s.charges = 4
-  const r = reduce(s, { type: 'setTactic', tactic: 'stand' }, deps())
-  expect(r.events.some((e) => e.type === 'tacticChanged' && e.tactic === 'stand')).toBe(true)
+  const r = reduce(s, { type: 'setTactic', tactic: 'maneuver' }, deps())
+  expect(r.events.some((e) => e.type === 'tacticChanged' && e.tactic === 'maneuver')).toBe(true)
   expect(r.state.charges).toBe(0) // the commitment cost
   expect(r.state.tacticReadyAt).toBe(r.state.now + SWAP_SPINUP_MS)
   // income during the spin-up is lost
@@ -132,7 +134,7 @@ test('setTactic swaps the verb, RESETS charges, and spins up (income lost meanwh
 test('Adaptive Tactics (Warlord): charges persist through a swap, no spin-up', () => {
   const s = combat('training_dummy', { passives: ['adaptive'] })
   s.charges = 4
-  const r = reduce(s, { type: 'setTactic', tactic: 'stand' }, deps())
+  const r = reduce(s, { type: 'setTactic', tactic: 'maneuver' }, deps())
   expect(r.state.charges).toBe(4)
   expect(r.state.tacticReadyAt).toBe(0)
 })

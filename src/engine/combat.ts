@@ -58,7 +58,7 @@ export function createCombat(opts: NewCombatOpts, rng: Rng): CombatState {
     enemyMax: opts.foe.hp,
     block: 0,
     mana: [0, 0, 0],
-    tactic: 'maneuver',
+    tactic: 'stand', // the defensive default — you OPT INTO Maneuver's greed (swap is ~free at 0 charges)
     maneuverBias: null,
     charges: 0,
     nextChurnAt: 0,

@@ -71,6 +71,7 @@ test('a haste potion stalls the enemy clock (uncapped by tier)', () => {
 
 test('invisibility fills the charge queue and freezes the enemy attack until the next Set', () => {
   const s = combat(['invisibility'])
+  s.tactic = 'maneuver' // hold the queue (default Stand Ground would SPEND charges warding board verbs)
   s.charges = 0
   const r = reduce(s, { type: 'useConsumable', slot: 0 }, deps())
   expect(r.state.charges).toBe(5) // CHARGE_CAP
