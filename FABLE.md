@@ -849,7 +849,12 @@ Durable facts surfaced in this review that aren't (yet) in any doc:
 5. ~~sw.js: network-first navigations + gate SW registration on PROD.~~ ✅
 
 **Before Phase B2 (decisions + foundations):**
-6. Settle the death/flee/Rest cost triad — load-bearing for the whole loot loop.
+6. ~~Settle the death/flee/Rest cost triad — load-bearing for the whole loot loop.~~
+   ✅ SETTLED 2026-06-09 as the **exit ladder** (`CRAWL-DESIGN.md` §6 / TODO.md):
+   cash-out between rooms only (delving commits); flee = parting blow + room reward,
+   falls back to the fork (reroll, elite reset) — run continues; death = carried
+   loot + gold + a banked-gold tithe, XP always banks; Rest free forever (gold
+   sinks: amenities/shop/abilities). Note: raises §8.1 anti-stall to a B2 companion.
 7. Pin the boss-hazard formula (one line of math, doc it in CRAWL §2).
 8. Save-system envelope `{v, chars}` + validation + migration table — before the
    first progression field lands.

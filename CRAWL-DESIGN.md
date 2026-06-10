@@ -74,7 +74,8 @@ f=3/N=15 grid; only the skin changes.
   template** (built like an item; `TRAPS.md` §7.1), with **Speed** named in bands
   (Lumbering → Frenzied, §7.2).
 - **Rooms** are fought one enemy at a time (a SET combat encounter). Win → a roll on
-  the loot table. Lose → run ends (death/retreat — TBD, see §6).
+  the loot table. Lose → the **exit ladder** (settled — §6): flee falls back to the
+  between-rooms fork at a price; death ends the run and costs the carried loot + a tithe.
 - **Boss chance per room** is cumulative (the running probability the boss has
   appeared rises each room). Each room *n* adds *n%* to the running total:
   `cumulative(n) = n·(n+1)/2 %` (triangular).
@@ -489,7 +490,8 @@ core" TOP PRIORITY). Move was the weak, fiddly verb (Defend and Move were both
   now that enemy transmutes create constant back-and-forth over the board. (Generic
   board tools — shuffle/peek/floor-boost/lock — remain available as *additional*
   Tactics later, not a replacement.)
-- Prototyped constants: `TACTICS_GOAL=10`, `TACTICS_DRAIN=1`/sec, `CLOCK_CAP=20s`.
+- Live constants (code is source of truth, `src/engine/state.ts`): `TACTICS_GOAL=10`,
+  `TACTICS_DRAIN=0.5`/sec (eased from 1 — a 20s spend window), `CLOCK_CAP=20s`.
 
 **Flee — the retreat mechanic** (resolves the §6 loss-condition retreat path). The
 old standalone Flee *meter* (toggle Fleeing mode, farm Moves to 10, decay + lockout)
@@ -497,7 +499,9 @@ is **superseded**. **Built:** Flee is a **standalone, any-time button** (top-rig
 foe header) — *not* gated by the Tactics meter, so retreat is always available; confirm-gated
 since it forfeits the encounter (sandbox: a flee-success end screen). It was briefly an armed
 Tactic during the feel pass, then pulled out so escape never depends on first banking Tactics.
-The retreat *penalty* (what fleeing costs) is still an open §6 question.
+The retreat *penalty* is **settled (2026-06-09)** — see **§6 "Loss condition / the exit
+ladder"**: a parting blow + the room's reward forfeited, falling back to the between-rooms
+fork (run continues; encounter rerolled, elite counter reset) rather than ending the run.
 
 ---
 
@@ -517,9 +521,35 @@ The retreat *penalty* (what fleeing costs) is still an open §6 question.
   (destroy / transmute / lock / conditions) are live. Combat now reads the board *against*
   the enemy's traps — the design thesis (`GAME-DESIGN.md` §0) is built. The **NEXT** build
   is the crawl shell around combat (run loop / second screens — see `TODO.md`).
-- **Loss condition** — death = permadeath/run-over? The *retreat* path is now defined
-  (the Flee mechanic, §5.5); still open is the **penalty** for fleeing and what death
-  itself costs (roguelike vs. roguelite framing).
+- ~~**Loss condition**~~ — **RESOLVED (2026-06-09): the exit ladder.** A run's four
+  exits are strictly ordered — each rung clearly worse than the one above, so "one
+  room deeper?" is always a live gamble:
+  1. **Cash out (between rooms only).** After clearing a room you may leave with
+     everything — run inventory and gold carried this run bank, XP banks. **Delving
+     commits you to room 1**: there is no free back-out once you enter (this is what
+     structurally kills the scout-and-reroll loop, so honest play needs no penalty).
+  2. **Flee (mid-fight) — the run does NOT end.** You take a **parting blow** (the
+     foe's pending attack resolves as you turn your back; clamped so flee can never
+     kill — min 1 HP), you **forfeit the room's reward**, and you fall back to the
+     between-rooms fork: the next room's encounter is **rerolled** and the **elite
+     sawtooth counter resets to base**. From the fork: press on or cash out home.
+     *Intended play:* a timid player can duck an elite and farm minions for early
+     gold/XP — paying HP per duck, since the parting blow scales with the foe.
+  3. **Death.** The run inventory and all gold carried this run are **lost**, plus a
+     **tithe: a % of banked gold** (a recovery fee; % is a tuning number). **XP always
+     banks, even on death** — the struggling player still inches forward. Equipped
+     gear and the hero survive. True permadeath is deferred to a future *opt-in*
+     hardcore flag (the roster already supports it cheaply).
+  - Corollaries: **gold found mid-run is carried, not banked** — it banks on any exit
+    except death (this rule is most of the dread-meter's teeth). **Town Rest stays
+    free, permanently** — gold's sinks live elsewhere (base-building amenities, shop
+    gear, consumables, learning abilities; see §6 economy note). Open micro-decisions:
+    the tithe %; whether a fled room still advances the boss running-total (lean yes —
+    key it to encounters *entered*, so flee-farming still walks toward the throne room).
+  - ⚠ Interaction flag: free Rest + flee-farming + in-combat sustain builds
+    (Druid/Sentinel healing loops) = unbounded minion farming with no attrition. This
+    raises the priority of a **structural anti-stall** (universal soft-enrage /
+    per-room time pressure — `FABLE.md` §8.1) from "balance concern" to "B2 companion."
 - ~~**Boss room**~~ — **resolved: the boss *replaces* the enemy that room would have
   generated** (its own fresh encounter), not an appended extra room (§2).
 - ~~**Resource mapping** for shape & number axes~~ — **working resolution: single

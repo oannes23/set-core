@@ -81,7 +81,10 @@ to live in → build the Hub scene + persistence first.** (`CRAWL-DESIGN.md` §2
   persistent dungeon-level trap = `drift` + `boss_mirror`, the **boss**, elite pool, foe/gauntlet picker),
   the consumable loadout picker (moves here), a "◀ Back" + "▶ Enter dungeon". Combat-end → character
   select. Pure UI refactor — reuses `.charcard/.classgrid/.row/.cons-loadout/.panel`; no engine change.
-- `[ ]` **Rest economy** (gold-cost heal instead of free) once gold exists.
+- `[x]` ~~**Rest economy** (gold-cost heal instead of free) once gold exists.~~ **SETTLED
+  (2026-06-09): Rest stays free, permanently.** Gold's sinks live elsewhere: town/base-building
+  **amenities** (persistent account-level construction), shop **gear** + **consumables**, and
+  **learning new abilities**. (See "Exit ladder" plan below.)
 
 ### Town economy + inventory — PLAN (settled 2026-06-09; spans B1→B4)
 Decisions (locked): **shared town bank** (one Gold pool + one Storage for the whole roster, its own
@@ -106,6 +109,24 @@ inventory-full during a run → **swap-or-discard prompt** · consumables are **
 - Sequencing note: keep the current free-pick loadout live as the interim potion source and **flip it off
   only once the loot+shop loop exists** (B3/B4) — same end state, no dead-air gap.
 
+### Exit ladder / cost triad — PLAN (settled 2026-06-09; full spec in `CRAWL-DESIGN.md` §6)
+The four run-exits are strictly ordered (each rung worse than the one above):
+**clear the boss > cash out > flee > die.**
+- **Cash out:** between rooms only, after a clear — keep everything. **Delving commits you to
+  room 1** (no free back-out → the scout-and-reroll loop is dead by structure, not by penalty).
+- **Flee (run does NOT end):** parting blow (foe's pending attack lands as you turn; clamped,
+  min 1 HP — flee never kills) + forfeit this room's reward → back to the between-rooms fork;
+  next encounter **rerolled**, elite sawtooth **reset to base**; press on or go home. Timid
+  minion-farming (duck the elite, pay HP) is *intended* play.
+- **Death:** lose the run inventory + all gold carried this run + a **tithe (% of banked gold,
+  % TBD)**; **XP always banks**; gear + hero survive. Permadeath → future opt-in hardcore flag.
+- **Rest: free forever** (gold sinks: amenities / shop / abilities — see B1 note above).
+- Corollaries: run gold is **carried, not banked** (banks on any exit except death). Open
+  micro-decisions: tithe %; does a fled room advance the boss running-total (lean **yes** —
+  key boss % to encounters *entered*). ⚠ Companion requirement: free Rest + flee-farming +
+  sustain builds = unbounded farming → the **structural anti-stall** (soft-enrage / per-room
+  pressure, `FABLE.md` §8.1) should land *with* B2, not after.
+
 ### Phase B2 — run loop + first loot (consumables)
 - `[ ]` **Room = encounter + reward** — on win, roll loot / gold / XP (`CRAWL-DESIGN.md` §3).
 - `[ ]` **HP-only intra-run persistence** (§6) — everything but HP resets each room; HP carries as the
@@ -118,7 +139,9 @@ inventory-full during a run → **swap-or-discard prompt** · consumables are **
   (refreshes each delve); a consumed **inventory + common drops** arrives with the run loop. (Still
   open: a player heal-over-time — the friendly mirror of the enemy `condition` tick.)
 - `[ ]` **Run-state model** — seed + room chain + run gold/XP/inventory; reuse the `session.ts` shape.
-- `[ ]` **Loss / retreat** — death ends the run (penalty TBD); the Flee button already retreats.
+- `[ ]` **Loss / retreat** — build the settled **exit ladder** (plan above / `CRAWL-DESIGN.md` §6):
+  between-rooms cash-out, flee → fork (parting blow, reroll, elite reset), death → carried loot
+  lost + tithe + XP banks. The Flee button's *engine* side exists; the run-loop side is new.
 
 ### Phase B3 — equipment / gear (`CRAWL-DESIGN.md` §7 taxonomy)
 - `[ ]` Gear slots + affixes (flat per-card scaling), armor/relic base-types, Move affixes re-anchored
@@ -134,7 +157,7 @@ inventory-full during a run → **swap-or-discard prompt** · consumables are **
   wanted — today's typed `game-data.ts` is the equivalent (and type-safe).
 
 ### Open design decisions (carry from `CRAWL-DESIGN.md` §6 — settle as each phase lands)
-- Loss-condition framing (roguelike permadeath vs roguelite) + the flee penalty.
+- ~~Loss-condition framing + the flee penalty~~ — **SETTLED 2026-06-09: the exit ladder** (above).
 - Ability slots vs. a known-ability library (implies a loadout screen in town).
 - Cooldowns vs. resource-only gating for actives.
-- Level / XP / HP / gold curves; inventory limits.
+- Level / XP / HP / gold curves; inventory limits; the death-tithe %.
