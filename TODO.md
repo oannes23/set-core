@@ -71,7 +71,7 @@ to live in → build the Hub scene + persistence first.** (`CRAWL-DESIGN.md` §2
 - `[x]` **Persistence v1** — `src/ui/save.ts`: a `localStorage`-backed `SavedChar` roster; HP carries
   across the hub↔combat boundary (enter at saved HP; final HP written back on combat end). Structured
   to grow (inventory / gear / progression). Pure roster transforms are unit-tested.
-- `[ ]` **Next within B1 — scene split (planned, ready to build):** break the single-panel `hubScene`
+- `[x]` **Scene split — DONE:** broke the single-panel `hubScene`
   into two scenes via a small router. **`characterSelectScene`** (two columns): roster list + a pinned
   **"＋ New Character"** entry on the left; the selected hero's **sheet** on the right (name/class/HP,
   Abilities w/ costs, Passive, a **Gear** placeholder, Consumables) — or the **creator** when New

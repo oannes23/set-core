@@ -192,6 +192,42 @@ button.cta.bob { animation: ctabob 1.6s ease-in-out infinite; }
 .cons-edit .cons-slot { cursor: default; }
 
 /* hub — character roster + new-hero form */
+/* two-column town layout (character select / dungeon select) + a button footer below */
+.hub2 { display: grid; grid-template-columns: minmax(220px, 300px) 1fr; gap: 16px; align-items: start; }
+.hub2 .panel { margin-bottom: 0; }
+.hubfoot { display: flex; gap: 12px; margin-top: 14px; }
+.hubfoot .cta { margin-top: 0; }
+@media (max-width: 640px) { .hub2 { grid-template-columns: 1fr; } }
+
+/* character sheet (right panel of character select) */
+.sheet-hd { display: flex; align-items: center; gap: 12px; }
+.sheet-hd .ci { font-size: 30px; line-height: 1; }
+.sheet-hd .cn { font-weight: 700; font-size: 16px; }
+.sheet-hd .cc { font-size: 12px; color: var(--ink-dim); margin-top: 2px; }
+.sheet-stat { font-size: 13px; color: var(--ink); margin-top: 4px; font-variant-numeric: tabular-nums; }
+.sheet-soon { font-size: 12px; color: var(--ink-faint); margin-top: 4px; }
+.sheet-abils { display: flex; flex-direction: column; gap: 6px; margin-top: 4px; }
+.sheet-abil { display: flex; align-items: center; gap: 8px; border: 1px solid var(--line2); border-radius: 8px; padding: 6px 9px; font-size: 12px; }
+.sheet-abil .abi { font-size: 16px; line-height: 1; }
+.sheet-abil .abn { flex: 1; font-weight: 600; }
+.sheet-abil .abc { color: var(--ink-dim); font-variant-numeric: tabular-nums; }
+.sheet-actions { display: flex; gap: 8px; margin-top: 16px; }
+.sheet-actions .cta { margin-top: 0; flex: 1; }
+.cta.ghost.danger:hover { border-color: var(--red); color: var(--red); }
+.charcard.newchar { border-style: dashed; }
+.charcard.newchar .ci { color: var(--phos); }
+
+/* dungeon summary (right panel of dungeon select) */
+.dgn-hd .cn { font-weight: 700; font-size: 16px; }
+.dgn-hd .cc { font-size: 12px; color: var(--ink-dim); margin-top: 2px; text-transform: capitalize; }
+.dgn-line { display: flex; gap: 8px; margin-top: 10px; font-size: 12px; line-height: 1.5; }
+.dgn-line .dgn-k { color: var(--ink-dim); white-space: nowrap; }
+.dgn-line .dgn-v { color: var(--ink); }
+.dgn-boss { margin-top: 14px; border-top: 1px solid var(--line); padding-top: 10px; }
+.dgn-boss .dgn-k { color: var(--red); font-size: 12px; }
+.dgn-boss .cn { font-weight: 700; font-size: 14px; margin-top: 2px; }
+.dgn-boss .cc { font-size: 12px; color: var(--ink-dim); margin-top: 2px; }
+
 .roster { display: flex; flex-direction: column; gap: 8px; margin-top: 6px; }
 .charcard { display: flex; align-items: center; gap: 11px; border: 1px solid var(--line2); border-radius: 10px;
   padding: 9px 11px; background: #0e1118; cursor: pointer; transition: border-color .12s ease, box-shadow .12s ease; }
