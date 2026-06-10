@@ -13,7 +13,7 @@ import type { CombatState } from './state'
 function snap(s: CombatState) {
   return {
     playerHP: s.playerHP, enemyHP: s.enemyHP, block: s.block, mana: s.mana,
-    tactics: Math.round(s.tactics * 1000), tacticsArmed: s.tacticsArmed,
+    charges: s.charges, tactic: s.tactic, bias: s.maneuverBias ? `${s.maneuverBias.axis}${s.maneuverBias.value}` : null,
     board: s.board.map((c) => (c ? c.join('') : 'x')).join('|'),
     locked: [...s.locked.entries()].sort((a, b) => a[0] - b[0]),
     pending: [...s.pending.keys()].sort((a, b) => a - b),

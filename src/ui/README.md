@@ -12,10 +12,10 @@ The new client — a clean, functional rebuild over the engine (TODO.md §A, ste
 - `styles.css` — the visual layer (cards tinted by colour, shape glyph + number pips; the castable
   panels; the coaching scrim/spotlight/popover/arrows).
 
-Playable today (full combat parity with the prototype's mechanics): board matching vs a foe, the full
-trap/trick system, the Tactics meter + buttons, the enemy clock, immune foes, gauntlet runs, **and the
-class/ability/passive layer** — pick a class, bank mana, cast mana-gated abilities, spend the armed
-Tactics meter — all driven by the engine via `castAbility` / `useTactic`.
+Playable today: board matching vs a foe, the full trap/trick system, **Tactics v2** (the charge
+queue + the Maneuver/Stand Ground toggle with its bias-picker sub-UI — CRAWL §5.5), the enemy
+clock, immune foes, gauntlet runs, **and the class/ability/passive layer** — pick a class, bank
+mana, cast mana-gated abilities — all driven by the engine via `castAbility` / `setTactic` / `setBias`.
 
 Coaching today: the **Tutorial · Guided Intro** dungeon (`guided:true`) runs the staged walkthrough
 (read board → make a set → traps → Tactics → ability → ready), and `coach:true` dungeons (Training)

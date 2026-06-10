@@ -13,7 +13,6 @@ import { keyOf } from '../core/affine'
 import { findSets, countSetsExcluding } from '../core/sets'
 import { GAMEDATA } from '../data/game-data'
 import { ABILITIES } from './abilities'
-import { TACTICS } from './tactics'
 import type { CombatState } from './state'
 import type { CombatAction } from './combat'
 import { runReduce } from './run'
@@ -34,7 +33,6 @@ function checkInvariants(s: CombatState, label: string, viol: string[]): void {
 }
 
 const ABILITY_IDS = Object.keys(ABILITIES)
-const TACTIC_KEYS = Object.keys(TACTICS)
 
 /** Random-play one session to completion (or maxSteps), asserting invariants every step. */
 function fuzzSession(setup: SessionSetup, maxSteps: number, viol: string[]): void {
@@ -52,8 +50,11 @@ function fuzzSession(setup: SessionSetup, maxSteps: number, viol: string[]): voi
       action = sets.length ? { type: 'completeSet', slots: sets[Math.floor(rng() * sets.length)] } : { type: 'tick', dtMs: 400 }
     } else if (roll < 0.55) {
       action = { type: 'castAbility', abilityId: ABILITY_IDS[Math.floor(rng() * ABILITY_IDS.length)] }
-    } else if (roll < 0.62 && s.tacticsArmed) {
-      action = { type: 'useTactic', key: TACTIC_KEYS[Math.floor(rng() * TACTIC_KEYS.length)] }
+    } else if (roll < 0.59) {
+      action = { type: 'setTactic', tactic: rng() < 0.5 ? 'stand' : 'maneuver' } // swap (resets charges)
+    } else if (roll < 0.64) {
+      const axes = ['color', 'shape', 'mag'] as const
+      action = { type: 'setBias', bias: { axis: axes[Math.floor(rng() * 3)], value: Math.floor(rng() * 3) } }
     } else {
       action = { type: 'tick', dtMs: 400 } // drift / dread / locks expire / wounds reform / attacks land
     }

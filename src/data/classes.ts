@@ -14,7 +14,7 @@ export const CLASSES: ClassDef[] = [
   { id: 'rogue', name: 'Rogue', icon: '🗡️', blurb: 'Spend Attacks for damage, flow back into Moves.', abilities: ['quickstrike', 'smokebomb', 'coldblade'], passives: ['momentum'] },
   { id: 'spellblade', name: 'Spellblade', icon: '⚡', blurb: 'A caster whose every spell cuts twice.', abilities: ['firebolt', 'frostbolt', 'venomstrike'], passives: ['spellecho'] },
   { id: 'chronomancer', name: 'Chronomancer', icon: '⏳', blurb: 'Bend the enemy clock until it never strikes.', abilities: ['timewarp', 'glaciate', 'frostbolt'], passives: ['quicken'] },
-  { id: 'warlord', name: 'Warlord', icon: '🎯', blurb: 'A tactical strategist who leads from the front — strike, rally the line, hold fast.', abilities: ['cleave', 'rally', 'bulwark'], passives: ['tactician'] },
+  { id: 'warlord', name: 'Warlord', icon: '🎯', blurb: 'A tactical strategist who leads from the front — strike, rally the line, hold fast.', abilities: ['cleave', 'rally', 'bulwark'], passives: ['adaptive'] },
 ]
 
 export function classById(id: string): ClassDef {

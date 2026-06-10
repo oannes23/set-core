@@ -12,12 +12,13 @@ import { weightedRoll } from './resolve'
 import { SHAPE_ATTACK, SHAPE_DEFEND, SHAPE_MOVE } from './resolve'
 import { transmute, reformSlots } from './triggers'
 import { firePassives } from './passives'
-import { gainBlock, healPlayer, dealAbilityDamage, castDamageHook, pushClock, addTactics } from './ops'
+import { gainBlock, healPlayer, dealAbilityDamage, castDamageHook, pushClock } from './ops'
 import {
   COLOR_RED, COLOR_GREEN, COLOR_BLUE, BIAS_W,
-  cardColor, cardShape, cardMag, liveSlots, woundedSlots, deadestCandidates,
+  cardColor, cardShape, cardMag, liveSlots, woundedSlots, deadestCandidates, comboCounts, pickAllLowest,
   randOf, pickPreferred, prefAll, prefLowMag, prefHighMag, prefColorDiverse, offsetSlots, FIREBALL_BLAST,
 } from './select'
+import { biasToFavor } from './tactics'
 
 export interface Ability {
   id: string
@@ -33,6 +34,19 @@ function dealRolled(s: CombatState, max: number, rng: Rng, sink: EventSink): num
   return dealAbilityDamage(s, weightedRoll(max, rng), sink)
 }
 const fizzle = (sink: EventSink, id: string) => sink.emit({ type: 'abilityFizzled', id })
+
+/** The n successively-deadest live cards (fewest match-mates, then lightest; rng breaks ties). */
+function deadestN(s: CombatState, n: number, rng: Rng): number[] {
+  const counts = comboCounts(s)
+  const out: number[] = []
+  while (out.length < n) {
+    const pool = liveSlots(s).filter((i) => !out.includes(i))
+    const pick = randOf(pickAllLowest(s, pool, (card, i) => counts[i] * 100 + cardMag(card)), rng)
+    if (pick == null) break
+    out.push(pick)
+  }
+  return out
+}
 
 export const ABILITIES: Record<string, Ability> = {
   // ---- AUTO-TARGET bolts: aim at a random deadest off-colour card, reforge it toward colour + verb ----
@@ -123,7 +137,21 @@ export const ABILITIES: Record<string, Ability> = {
     id: 'callwilds', name: 'Call Wilds', icon: '🌿', cost: [4, 0, 4], desc: 'every non-green card → max-magnitude Nature',
     cast(s, _rng, sink) { transmute(s, liveSlots(s, (c) => cardColor(c) !== COLOR_GREEN), { bias: { color: COLOR_GREEN, colorW: BIAS_W, mag: 2, magW: BIAS_W } }, sink) },
   },
-  // ---- SHAPE FLOODS / consumers: reshape the board along the verb axis ----
+  // ---- SHAPE FLOODS (Tier-1 generic Calls, CRAWL §5.5 v2): the burst layer, mirroring the color Calls.
+  // Costs weighted toward each shape's kin color (Attack↔red, Defend↔green, Move↔blue). ----
+  callarms: {
+    id: 'callarms', name: 'Call to Arms', icon: '⚔️', cost: [4, 2, 2], desc: 'every non-Attack card → max-magnitude Attack',
+    cast(s, _rng, sink) { transmute(s, liveSlots(s, (c) => cardShape(c) !== SHAPE_ATTACK), { bias: { shape: SHAPE_ATTACK, shapeW: BIAS_W, mag: 2, magW: BIAS_W } }, sink) },
+  },
+  callshields: {
+    id: 'callshields', name: 'Call the Shields', icon: '🛡️', cost: [2, 4, 2], desc: 'every non-Defend card → max-magnitude Defend',
+    cast(s, _rng, sink) { transmute(s, liveSlots(s, (c) => cardShape(c) !== SHAPE_DEFEND), { bias: { shape: SHAPE_DEFEND, shapeW: BIAS_W, mag: 2, magW: BIAS_W } }, sink) },
+  },
+  callhunt: {
+    id: 'callhunt', name: 'Call the Hunt', icon: '🏹', cost: [2, 2, 4], desc: 'every non-Move card → Move (feeds the charge queue)',
+    cast(s, _rng, sink) { transmute(s, liveSlots(s, (c) => cardShape(c) !== SHAPE_MOVE), { bias: { shape: SHAPE_MOVE, shapeW: BIAS_W } }, sink) },
+  },
+  // ---- SHAPE consumers: reshape the board along the verb axis ----
   cleave: {
     id: 'cleave', name: 'Cleave', icon: '🪓', cost: [4, 0, 0], desc: '15 dmg · razes a deadest card → heavy Attack',
     cast(s, rng, sink) {
@@ -188,8 +216,16 @@ export const ABILITIES: Record<string, Ability> = {
   },
   // ---- BLUE sinks (control/tempo, not just frost-caster) so martial classes can spend Frost too ----
   rally: {
-    id: 'rally', name: 'Rally', icon: '📯', cost: [0, 0, 4], desc: 'command the line: +6s clock · bank 4 Tactics',
-    cast(s, _rng, sink) { pushClock(s, 6, sink); addTactics(s, 4, sink) },
+    id: 'rally', name: 'Rally', icon: '📯', cost: [0, 0, 4],
+    desc: 'the 3 deadest cards answer the call — Maneuver: they churn to your bias now · Stand Ground: they dig in as heavy Defends',
+    cast(s, rng, sink) {
+      const picks = deadestN(s, 3, rng)
+      if (!picks.length) { fizzle(sink, 'rally'); return }
+      const bias = s.tactic === 'maneuver' && s.maneuverBias
+        ? biasToFavor(s.maneuverBias)
+        : { shape: SHAPE_DEFEND, shapeW: BIAS_W, mag: 2, magW: BIAS_W } // dig in
+      transmute(s, picks, { bias }, sink)
+    },
   },
   coldblade: {
     id: 'coldblade', name: 'Cold Blade', icon: '🥶', cost: [0, 0, 3], desc: '10 dmg · +4s tempo (a frigid strike)',
@@ -238,6 +274,10 @@ export const ABILITY_PREVIEW: Record<string, (s: CombatState) => Preview> = {
   glaciate: (s) => ({ sure: liveSlots(s, (c) => cardShape(c) === SHAPE_ATTACK), maybe: [] }),
   wildgrowth: (s) => ({ sure: [], maybe: liveSlots(s).sort((a, b) => cardMag(s.board[b]!) - cardMag(s.board[a]!)).slice(0, 5) }),
   callflames: (s) => ({ sure: liveSlots(s, (c) => cardColor(c) !== COLOR_RED), maybe: [] }),
+  callarms: (s) => ({ sure: liveSlots(s, (c) => cardShape(c) !== SHAPE_ATTACK), maybe: [] }),
+  callshields: (s) => ({ sure: liveSlots(s, (c) => cardShape(c) !== SHAPE_DEFEND), maybe: [] }),
+  callhunt: (s) => ({ sure: liveSlots(s, (c) => cardShape(c) !== SHAPE_MOVE), maybe: [] }),
+  rally: (s) => { const counts = comboCounts(s); return { sure: [], maybe: pickAllLowest(s, liveSlots(s), (card, i) => counts[i] * 100 + cardMag(card)) } },
   callfrost: (s) => ({ sure: liveSlots(s, (c) => cardColor(c) !== COLOR_BLUE), maybe: [] }),
   callwilds: (s) => ({ sure: liveSlots(s, (c) => cardColor(c) !== COLOR_GREEN), maybe: [] }),
   berserk: (s) => ({ sure: liveSlots(s, (c) => cardShape(c) === SHAPE_DEFEND), maybe: [] }),

@@ -36,7 +36,7 @@ button.cta.bob { animation: ctabob 1.6s ease-in-out infinite; }
 .fill.php { background: var(--green); } .fill.ehp { background: var(--red); }
 .fill.php.low { background: var(--warn); box-shadow: 0 0 8px -1px var(--warn); } /* HP-band glow (folded #6) */
 .fill.php.crit { background: var(--red); box-shadow: 0 0 10px 0 var(--red); }
-.fill.tac { background: var(--phos); } .fill.tac.armed { background: var(--gold); }
+.fill.tac { background: var(--phos); } .fill.tac.spinup { background: var(--ink-faint); opacity: .45; }
 .clock { font-variant-numeric: tabular-nums; font-size: 26px; font-weight: 700; min-width: 92px; text-align: center; }
 .clock.low { color: var(--warn); } .clock.crit { color: var(--red); }
 .mana { display: flex; gap: 12px; font-size: 14px; font-variant-numeric: tabular-nums; }
@@ -190,10 +190,17 @@ button.cta.bob { animation: ctabob 1.6s ease-in-out infinite; }
 .tactics-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
 .tac-btn { border: 1px solid var(--line2); border-radius: 8px; padding: 6px 9px; font-size: 11px; color: var(--ink-faint);
   background: #0e1118; opacity: .5; cursor: default; transition: transform .1s ease, background .12s ease; }
-.tac-btn.armed { opacity: 1; border-color: var(--gold); color: var(--gold); cursor: pointer; }
-.tac-btn.armed:hover { background: var(--gold); color: #2b1f02; transform: translateY(-1px); }
-.tac-btn.armed.flee { border-color: var(--phos); color: var(--phos); }
-.tac-btn.armed.flee:hover { background: var(--phos); color: #062b27; }
+.tac-btn { opacity: 1; cursor: pointer; }
+.tac-btn:hover { border-color: var(--ink-faint); transform: translateY(-1px); }
+.tac-btn.on { border-color: var(--gold); color: var(--gold); background: rgba(245, 197, 66, .08); }
+/* Maneuver's bias picker (sub-UI) — 9 chips: 3 colours · 3 shapes · 3 magnitudes */
+.bias-row { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 7px; }
+.bias-chip { border: 1px solid var(--line2); border-radius: 7px; min-width: 26px; text-align: center; padding: 4px 6px;
+  font-size: 12px; color: var(--ink-faint); cursor: pointer; user-select: none; }
+.bias-chip:hover { border-color: var(--ink-faint); transform: translateY(-1px); }
+.bias-chip.on { border-color: var(--phos); color: var(--phos); background: rgba(94, 234, 212, .08); }
+/* Stand Ground's sub-line (shown in place of the bias row) */
+.standnote { margin-top: 7px; font-size: 10.5px; color: var(--ink-faint); font-style: italic; }
 .passives { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
 .pchip { display: flex; align-items: center; gap: 5px; border: 1px solid var(--line2); border-radius: 8px; padding: 5px 8px;
   font-size: 10.5px; color: var(--ink-dim); background: #0e1118; }

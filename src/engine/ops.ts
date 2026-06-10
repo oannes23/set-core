@@ -4,15 +4,14 @@
 
 import type { Rng } from '../core/rng'
 import type { CombatState } from './state'
-import { TACTICS_GOAL, clockCapMs } from './state'
+import { CHARGE_CAP, MANA_CAP, clockCapMs } from './state'
 import type { EventSink } from './events'
 import { weightedRoll } from './resolve'
 
-/** Add to the persistent block barrier (capped at max HP — block NEVER exceeds the cap). Block past the
- *  cap gets a slight Defend bonus: a low-weighted triangular slice of the overflow **rolls over into the
- *  Tactics meter** (can be 0) — symmetric with Move/clock overflow feeding Tactics. This stacks with the
- *  Overflow passive (Sentinel), which independently spills the FULL overflow into a weighted attack — a
- *  Sentinel gets both the attack and the Tactics rollover. */
+/** Add to the persistent block barrier (capped at max HP — block NEVER exceeds the cap). Block past
+ *  the cap converts to **Tactics charges at 1 per 2 excess** (CRAWL §5.5 v2 income) — symmetric with
+ *  Move/clock overflow. This stacks with the Overflow passive (Sentinel), which independently spills
+ *  the FULL overflow into a weighted attack — a Sentinel gets both. */
 export function gainBlock(s: CombatState, n: number, rng: Rng, sink: EventSink): number {
   if (n <= 0) return 0
   const room = Math.max(0, s.playerMax - s.block)
@@ -23,37 +22,47 @@ export function gainBlock(s: CombatState, n: number, rng: Rng, sink: EventSink):
   }
   const overflow = n - applied
   if (overflow > 0) {
-    // low-weighted triangular rollover (favours 0; range 0..overflow) — wasted Defend trickles into Tactics
-    const rollover = overflow + 1 - weightedRoll(overflow + 1, rng)
-    if (rollover > 0) addTactics(s, rollover, sink, 'overflow')
+    const charges = Math.floor(overflow / 2)
+    if (charges > 0) addCharges(s, charges, sink, 'overflow')
     if (s.passives.includes('overflow')) {
       const dmg = weightedRoll(overflow, rng) // Sentinel: the full overflow ALSO becomes a weighted attack
       const dealt = dealAbilityDamage(s, dmg, sink)
       if (dealt > 0) sink.emit({ type: 'passiveProc', id: 'overflow', label: `⚔ +${dealt}` })
-    } else if (rollover < overflow) {
-      sink.emit({ type: 'blockOverflow', amount: overflow - rollover }) // the unsalvaged remainder is wasted
+    } else if (overflow - charges * 2 > 0) {
+      sink.emit({ type: 'blockOverflow', amount: overflow - charges * 2 }) // the unconverted remainder is wasted
     }
   }
   return applied
 }
 
-/** Fill the Tactics meter; arm it (begin draining) when it tops out. */
-export function addTactics(s: CombatState, amt: number, sink: EventSink, source?: 'overflow'): void {
+/** Queue Tactics charges (capped at CHARGE_CAP; overflow wasted). Income during a swap spin-up is
+ *  LOST — picking your tactic is a commitment (CRAWL §5.5 v2). */
+export function addCharges(s: CombatState, amt: number, sink: EventSink, source?: 'overflow'): void {
   if (amt <= 0) return
-  s.tactics = Math.min(TACTICS_GOAL, s.tactics + amt)
-  sink.emit({ type: 'tacticsGained', amount: amt, source })
-  if (!s.tacticsArmed && s.tactics >= TACTICS_GOAL) {
-    s.tacticsArmed = true
-    sink.emit({ type: 'tacticsArmed' })
-  }
+  if (s.now < s.tacticReadyAt) return // still spinning up after a swap — income is lost
+  const applied = Math.min(CHARGE_CAP - s.charges, amt)
+  if (applied <= 0) return
+  s.charges += applied
+  sink.emit({ type: 'chargesGained', amount: applied, source })
 }
 
-/** Grant the player mana of one colour (no cap). */
+/** Stand Ground interception: a hostile board verb fires → one banked charge eats it. Board verbs
+ *  only (drift / enemy transmute / lock / wound-shatter) — never raw damage (that's Block's lane). */
+export function tryWard(s: CombatState, what: 'transmute' | 'lock' | 'shatter', sink: EventSink): boolean {
+  if (s.tactic !== 'stand' || s.charges <= 0) return false
+  s.charges--
+  sink.emit({ type: 'warded', what })
+  return true
+}
+
+/** Grant the player mana of one colour (capped at MANA_CAP; gains past it are pure loss). */
 export function grantMana(s: CombatState, color: number, amount: number, sink: EventSink): void {
   if (amount <= 0) return
-  s.mana[color] += amount
+  const applied = Math.min(MANA_CAP - s.mana[color], amount)
+  if (applied <= 0) return
+  s.mana[color] += applied
   const m: [number, number, number] = [0, 0, 0]
-  m[color] = amount
+  m[color] = applied
   sink.emit({ type: 'manaGained', mana: m })
 }
 

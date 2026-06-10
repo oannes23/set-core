@@ -3,9 +3,10 @@
    animations, narration, flashes. No DOM in the engine. This is the engine→UI contract. */
 
 import type { Trigger, FoeRules } from '../data/schema'
+import type { TacticKind, ManeuverBias } from './state'
 
 export type CombatEvent =
-  | { type: 'setResolved'; damage: number; block: number; boot: number; tactics: number; mana: [number, number, number]; slots: number[] }
+  | { type: 'setResolved'; damage: number; block: number; boot: number; mana: [number, number, number]; slots: number[] }
   | { type: 'enemyDamaged'; amount: number; immune?: boolean; magic?: boolean } // immune = card damage hit an immune foe; magic = ethereal mana-spent drain
   | { type: 'enemyHealed'; amount: number }
   | { type: 'playerDamaged'; amount: number; absorbed: number; source: string }
@@ -15,10 +16,11 @@ export type CombatEvent =
   | { type: 'blockOverflow'; amount: number } // block past the cap (wasted unless Overflow converts it)
   | { type: 'manaGained'; mana: [number, number, number] }
   | { type: 'manaDrained'; color: number; amount: number }
-  | { type: 'tacticsGained'; amount: number; source?: 'overflow' } // source='overflow' = Defend past the cap (UI floats it)
-  | { type: 'tacticsDrained'; amount: number }
-  | { type: 'tacticsArmed' }
-  | { type: 'tacticsReset' }
+  | { type: 'chargesGained'; amount: number; source?: 'overflow' } // Tactics charges queued (source='overflow' = excess block)
+  | { type: 'chargesDrained'; amount: number } // an enemy effect drained queued/banked charges
+  | { type: 'tacticChanged'; tactic: TacticKind } // the player swapped tactics (charges reset unless Adaptive)
+  | { type: 'biasChanged'; bias: ManeuverBias | null } // Maneuver's dial moved (free — no reset)
+  | { type: 'warded'; what: 'transmute' | 'lock' | 'shatter' } // Stand Ground ate a hostile board verb (1 charge)
   | { type: 'clockChanged'; deltaSeconds: number } // + = pushed later (good), − = sooner (bad)
   | { type: 'enemyStrikes' } // an instant attack was pulled to now
   | { type: 'cardsTransmuted'; slots: number[]; gapMs: number; hostile?: boolean } // hostile = an enemy trap razed these (UI booms it); player/trick/drift transmutes are calm
@@ -30,7 +32,6 @@ export type CombatEvent =
   | { type: 'abilityCast'; id: string; mana: [number, number, number] } // an ability fired (mana = cost spent)
   | { type: 'abilityFizzled'; id: string } // ability found nothing to act on
   | { type: 'passiveProc'; id: string; label: string } // an always-on passive fired off a match/cast
-  | { type: 'tacticUsed'; key: string } // a Tactics button spent the meter
   | { type: 'consumableUsed'; id: string; name: string } // a potion/scroll was spent
   | { type: 'buffFaded'; id: string; label: string } // a transient buff (Strength/Invisibility/Hourglass) ended/was spent
   | { type: 'fled' } // the player fled combat (Flee tactic)

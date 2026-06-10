@@ -9,23 +9,24 @@ import { findSets } from '../core/sets'
 import { type GenConfig, genInitial } from '../core/generate'
 import type { Rng } from '../core/rng'
 import type { GameData } from '../data/schema'
-import { type CombatState, type FoeRuntime, type Pending, TACTICS_DRAIN, DEFAULT_PLAYER_MAX } from './state'
+import { type CombatState, type FoeRuntime, type Pending, type TacticKind, type ManeuverBias, MANA_CAP, DEFAULT_PLAYER_MAX } from './state'
 import { type CombatEvent, EventSink } from './events'
-import { type Resolution, resolveSet, weightedRoll } from './resolve'
+import { type Resolution, resolveSet, SHAPE_MOVE } from './resolve'
 import { fireTriggers, runTrigger, enemyAttack, reformSlots, EMPTY_DESC } from './triggers'
-import { gainBlock, addTactics, pushClock } from './ops'
+import { gainBlock, addCharges, pushClock } from './ops'
 import { firePassives } from './passives'
 import { castAbility } from './abilities'
-import { useTactic } from './tactics'
+import { setTactic, setBias, churnTick } from './tactics'
 import { useConsumable } from './consumables'
 
 export type CombatAction =
   | { type: 'completeSet'; slots: [number, number, number] }
   | { type: 'tick'; dtMs: number }
   | { type: 'castAbility'; abilityId: string }
-  | { type: 'useTactic'; key: string }
+  | { type: 'setTactic'; tactic: TacticKind } // swap the charge-spending verb (resets charges + spin-up)
+  | { type: 'setBias'; bias: ManeuverBias | null } // Maneuver's dial (free)
   | { type: 'useConsumable'; slot: number } // spend a carried potion/scroll
-  | { type: 'flee' } // forfeit the encounter — available any time (not gated by the Tactics meter)
+  | { type: 'flee' } // forfeit the encounter — available any time (not gated by Tactics)
 
 export interface Deps {
   data: GameData
@@ -44,7 +45,6 @@ export interface NewCombatOpts {
   playerMax?: number
   passives?: string[] // the chosen class's always-on passive ids
   consumables?: string[] // carried potions/scrolls for this run
-  tacticsDrainMult?: number // slow the Tactics drain (e.g. 1/3 in the tutorial); default 1
 }
 
 /** Build a fresh combat state: a generated board + full vitals + the foe's clock primed. */
@@ -58,9 +58,11 @@ export function createCombat(opts: NewCombatOpts, rng: Rng): CombatState {
     enemyMax: opts.foe.hp,
     block: 0,
     mana: [0, 0, 0],
-    tactics: 0,
-    tacticsArmed: false,
-    tacticsDrainMult: opts.tacticsDrainMult ?? 1,
+    tactic: 'maneuver',
+    maneuverBias: null,
+    charges: 0,
+    nextChurnAt: 0,
+    tacticReadyAt: 0,
     board,
     cols: colsForN(opts.gen.n),
     pending: new Map(),
@@ -98,16 +100,21 @@ function applyResolution(s: CombatState, res: Resolution, rng: Rng, sink: EventS
     }
   }
   if (res.block > 0) gainBlock(s, res.block, rng, sink)
-  // Move boots push the clock (capped at the foe's interval); overflow seconds feed Tactics
-  let tactics = 0
+  // Move boots push the clock (capped at the foe's interval). Charge income (CRAWL §5.5 v2):
+  // +1 per Move CARD in the set, plus the clock-overflow seconds wasted against the cap.
+  let charges = res.desc.shapes.filter((sh) => sh === SHAPE_MOVE).length
   if (res.boot > 0) {
     const applied = pushClock(s, res.boot, sink)
-    const overflow = res.boot - applied
-    tactics = weightedRoll(res.boot, rng) + overflow
+    charges += res.boot - applied
   }
-  for (let i = 0; i < 3; i++) s.mana[i] += res.mana[i]
-  sink.emit({ type: 'manaGained', mana: res.mana })
-  if (tactics > 0) addTactics(s, tactics, sink)
+  // mana banks per color up to the cap; gains past it are pure loss (deliberate — no excess income)
+  const gained: [number, number, number] = [0, 0, 0]
+  for (let i = 0; i < 3; i++) {
+    gained[i] = Math.min(MANA_CAP - s.mana[i], res.mana[i])
+    s.mana[i] += Math.max(0, gained[i])
+  }
+  sink.emit({ type: 'manaGained', mana: gained })
+  if (charges > 0) addCharges(s, charges, sink)
 }
 
 /** End this combat with a win. Run-level progression (the gauntlet's next foe; B2's room chain)
@@ -131,7 +138,7 @@ function completeSet(s: CombatState, slots: [number, number, number], deps: Deps
   const cards: [Card, Card, Card] = [ca, cb, cc]
   const res = resolveSet(cards, deps.rng)
   applyResolution(s, res, deps.rng, sink)
-  sink.emit({ type: 'setResolved', damage: res.damage, block: res.block, boot: res.boot, tactics: 0, mana: res.mana, slots })
+  sink.emit({ type: 'setResolved', damage: res.damage, block: res.block, boot: res.boot, mana: res.mana, slots })
   // character-innate passives react to this match's signature (Momentum may steer the refill below)...
   firePassives(s, 'match', res.desc, deps.rng, sink)
   // ...and the FOE prices this match (traps + tricks fire on the same bus)
@@ -159,14 +166,8 @@ function tick(s: CombatState, dtMs: number, deps: Deps, sink: EventSink): void {
     s.tickSuppressedUntil = 0
     sink.emit({ type: 'buffFaded', id: 'hourglass', label: 'The hourglass empties — drift resumes' })
   }
-  // tactics drain while armed — paused during Invisibility; the tutorial slows it via tacticsDrainMult
-  if (s.tacticsArmed && !s.attackFrozen) {
-    s.tactics = Math.max(0, s.tactics - TACTICS_DRAIN * s.tacticsDrainMult * dt)
-    if (s.tactics <= 0) {
-      s.tacticsArmed = false
-      sink.emit({ type: 'tacticsReset' })
-    }
-  }
+  // Maneuver's serial churn — one charge per CHURN_MS, deadest re-evaluated each spend
+  churnTick(s, deps.rng, sink)
   // on:tick triggers (drift + dread-DoTs), each on its own accumulator — paused while suppressed (Hourglass)
   const tickers: { key: string; trig: typeof s.foe.triggers[number] }[] = []
   if (s.now >= s.tickSuppressedUntil) {
@@ -234,8 +235,11 @@ export function reduce(state: CombatState, action: CombatAction, deps: Deps): { 
     case 'castAbility':
       if (castAbility(s, action.abilityId, deps.rng, sink) && s.running && s.enemyHP <= 0) onWin(s, sink)
       break
-    case 'useTactic':
-      if (useTactic(s, action.key, deps.rng, sink) && s.running && s.enemyHP <= 0) onWin(s, sink)
+    case 'setTactic':
+      setTactic(s, action.tactic, sink)
+      break
+    case 'setBias':
+      setBias(s, action.bias, sink)
       break
     case 'useConsumable':
       if (useConsumable(s, action.slot, deps.rng, sink) && s.running && s.enemyHP <= 0) onWin(s, sink)
@@ -255,6 +259,7 @@ export function cloneState(s: CombatState): CombatState {
     pending: new Map([...s.pending].map(([k, v]) => [k, { ...v }])),
     locked: new Map(s.locked),
     pendingRegenBias: s.pendingRegenBias ? { ...s.pendingRegenBias } : null,
+    maneuverBias: s.maneuverBias ? { ...s.maneuverBias } : null,
     passives: s.passives.slice(),
     consumables: s.consumables.slice(),
     tickAccum: { ...s.tickAccum },

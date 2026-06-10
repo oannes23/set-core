@@ -8,7 +8,7 @@ import type { EventSink } from './events'
 import type { MatchDescriptor } from './resolve'
 import { SHAPE_ATTACK, SHAPE_MOVE } from './resolve'
 import { COLOR_RED, COLOR_GREEN, COLOR_BLUE, BIAS_W } from './select'
-import { gainBlock, addTactics, healPlayer, dealAbilityDamage, pushClock } from './ops'
+import { gainBlock, healPlayer, dealAbilityDamage, pushClock } from './ops'
 
 export type PassiveEvent = 'match' | 'ability'
 
@@ -63,10 +63,11 @@ export const PASSIVES: Record<string, Passive> = {
     test: (d) => d.sameNumber != null,
     fire(s, _rng, sink) { pushClock(s, 2, sink); proc(sink, 'quicken', '+2s') },
   },
-  tactician: {
-    id: 'tactician', name: 'Tactician', icon: '🎯', on: 'match', desc: 'every match → +2 Tactics',
-    test: () => true,
-    fire(s, _rng, sink) { addTactics(s, 2, sink); proc(sink, 'tactician', '🎯 +2') },
+  // Hooked directly in tactics.setTactic (not via firePassives) — the Warlord stance-dances.
+  adaptive: {
+    id: 'adaptive', name: 'Adaptive Tactics', icon: '🎯', on: 'passive',
+    desc: 'your Tactics charges persist through a tactic swap (no spin-up)',
+    fire() {},
   },
   spellecho: {
     id: 'spellecho', name: 'Spell Echo', icon: '⚡', on: 'ability', desc: 'every ability cast → +3 bonus damage',

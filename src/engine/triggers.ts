@@ -10,7 +10,7 @@ import { patch, patchFavor, type FavorBias } from '../core/generate'
 import type { Condition, Selector, Bias, Effect, Trigger } from '../data/schema'
 import type { CombatState, Pending } from './state'
 import { DMG_REGEN_MS } from './state'
-import { pushClock } from './ops'
+import { pushClock, tryWard } from './ops'
 import type { EventSink } from './events'
 import { type MatchDescriptor, weightedRoll } from './resolve'
 import { cardColor, cardShape, cardMag, isLive, liveSlots, pickRandom, gridDims, rowSlots, colSlots } from './select'
@@ -159,7 +159,7 @@ export function lockSlots(s: CombatState, slots: number[], durationMs: number, s
 
 // ---- effects ----
 
-function runEffect(s: CombatState, e: Effect, desc: MatchDescriptor, rng: Rng, sink: EventSink, hostile: boolean): string | null {
+function runEffect(s: CombatState, e: Effect, desc: MatchDescriptor, rng: Rng, sink: EventSink, hostile: boolean, wardable: boolean): string | null {
   if (e.chance != null && rng() >= e.chance) return null
   switch (e.effect) {
     case 'damage': {
@@ -191,16 +191,12 @@ function runEffect(s: CombatState, e: Effect, desc: MatchDescriptor, rng: Rng, s
       return healed > 0 ? `enemy +${healed}` : null
     }
     case 'drain_tactics': {
-      const a = e.amount ?? 4
-      const before = s.tactics
-      s.tactics = Math.max(0, s.tactics - a)
-      if (s.tacticsArmed && s.tactics <= 0) {
-        s.tacticsArmed = false
-        sink.emit({ type: 'tacticsReset' })
-      }
-      const drained = before - s.tactics
-      if (drained > 0) sink.emit({ type: 'tacticsDrained', amount: drained })
-      return drained > 0 ? `−${Math.round(drained)} tac` : null
+      // v2: drains queued/banked CHARGES (the amounts in data were tuned for the 0-10 meter — halve, min 1)
+      const a = Math.max(1, Math.round((e.amount ?? 4) / 2))
+      const drained = Math.min(s.charges, a)
+      s.charges -= drained
+      if (drained > 0) sink.emit({ type: 'chargesDrained', amount: drained })
+      return drained > 0 ? `−${drained} charge${drained > 1 ? 's' : ''}` : null
     }
     case 'drain_mana': {
       const c = e.color != null ? tokVal('color', e.color) : 0
@@ -212,6 +208,7 @@ function runEffect(s: CombatState, e: Effect, desc: MatchDescriptor, rng: Rng, s
       return drained > 0 ? `−${drained}` : null
     }
     case 'transmute': {
+      if (wardable && tryWard(s, 'transmute', sink)) return '🛡warded' // Stand Ground eats the reshape
       let slots = e.select ? selectSlots(s, e.select, rng) : []
       if (e.count != null && slots.length > e.count) slots = pickRandom(slots, e.count, rng)
       if (!slots.length) return null
@@ -219,6 +216,7 @@ function runEffect(s: CombatState, e: Effect, desc: MatchDescriptor, rng: Rng, s
       return `↯${slots.length}`
     }
     case 'lock': {
+      if (wardable && tryWard(s, 'lock', sink)) return '🛡warded'
       let slots = e.select ? selectSlots(s, e.select, rng) : []
       if (e.count != null && slots.length > e.count) slots = pickRandom(slots, e.count, rng)
       const n = lockSlots(s, slots, (e.seconds ?? 4) * 1000, sink)
@@ -239,9 +237,12 @@ function transmuteFor(s: CombatState, slots: number[], bias: FavorBias | undefin
 export function runTrigger(s: CombatState, trigger: Trigger, desc: MatchDescriptor, rng: Rng, sink: EventSink): void {
   // a trap razing your cards reads as aggression (boom); a favorable trick or ambient drift stays calm (morph)
   const hostile = trigger.kind !== 'trick' && !trigger.quiet
+  // Stand Ground intercepts every non-trick board verb — including quiet ambient drift (it's still
+  // the enemy pulling the rope), but never a favorable trick (don't ward your own gifts)
+  const wardable = trigger.kind !== 'trick'
   const labels: string[] = []
   for (const eff of trigger.do) {
-    const r = runEffect(s, eff, desc, rng, sink, hostile)
+    const r = runEffect(s, eff, desc, rng, sink, hostile, wardable)
     if (r != null) labels.push(r)
     if (!s.running) break // an effect ended the fight — don't run the rest against a settled state
   }
@@ -278,8 +279,10 @@ export function hurtPlayer(s: CombatState, raw: number, source: string, sink: Ev
   }
 }
 
-/** A landed standard attack shatters a live rune — a Wound: that slot can't reform for DMG_REGEN_MS. */
+/** A landed standard attack shatters a live rune — a Wound: that slot can't reform for DMG_REGEN_MS.
+ *  Stand Ground intercepts the shatter (the board verb) — the DAMAGE still landed (Block's lane). */
 export function shatterCard(s: CombatState, rng: Rng, sink: EventSink): void {
+  if (tryWard(s, 'shatter', sink)) return
   const [i] = pickRandom(liveSlots(s), 1, rng)
   if (i == null) return
   s.board[i] = null

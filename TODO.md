@@ -86,14 +86,18 @@ Build scope:
 - `[x]` **Design spec (CRAWL §5.5 v2): WRITTEN** — the charge/income model, Maneuver + Stand
   Ground, swap-commitment, remaps, and the full ability-translation table + Calls tiering
   (Tier-1 generic shape Calls speced; Tier-2 geometric class signatures sketched for B4).
-- `[ ]` **Engine:** replace armed/drain state with tactic + charge queue (player-owned tick-trigger
-  shape); remap meter-anchored systems — Vigilance `drain_tactics` (drains queued charges),
-  Invisibility (fills the queue; drain-pause deleted), tutorial Tactics step, §7 Move-affix anchors
-  (re-anchor on charge income / queue cap); mana cap 15; Rally → tactic-aware deadest targeter;
-  Tactician → Adaptive Tactics; add the 3 Tier-1 shape Calls.
-- `[ ]` **UI:** tactic selector + per-tactic sub-UI (Maneuver bias picker / Ward pips) in the old
-  6-button real estate; serial churn needs visible per-card feedback (morph animation exists);
-  "tug" readability vs drift.
+- `[x]` **Engine — BUILT (2026-06-10):** charge queue + Maneuver churn (serial, deadest-first) +
+  Stand Ground interception (`ops.tryWard` — drift/transmute/lock/shatter, tricks exempt, never
+  damage); income (+1/Move card, excess timer, excess block 1:2; spin-up loses income); mana cap 15;
+  `setTactic`/`setBias` actions; Vigilance drains charges (data amounts halved in-engine);
+  Invisibility fills the queue; Rally → tactic-aware deadest×3; Tactician → Adaptive Tactics;
+  3 Tier-1 shape Calls (callarms/callshields/callhunt) + previews. 8 new v2 tests; fuzz drives
+  setTactic/setBias; 85 passing.
+- `[x]` **UI — BUILT (2026-06-10):** Maneuver/Stand Ground toggle + 9-chip bias picker (click-again
+  clears) + Stand Ground note, charge gauge (re-forming… during spin-up), warded/charge log lines +
+  floats, guided-intro Tactics stage rewritten (bank a charge → set a bias; coach arrow on the bias
+  row). Churn renders via the existing calm-morph transmute animation. Still open: a dedicated
+  "tug" readability pass (drift-vs-churn at a glance) — bundle with the playtest tuning.
 - ⚠ Interaction: Maneuver(green) smooths sustain loops (Photosynthesis/Heal), and Chronomancer's
   pinned clock is the premier excess-timer engine — the structural anti-stall lands with/before this.
 

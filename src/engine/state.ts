@@ -11,6 +11,14 @@ export interface Pending {
   bias?: FavorBias
 }
 
+/** Tactics v2 — the selected tactic (the VERB charges are spent on; CRAWL §5.5). */
+export type TacticKind = 'maneuver' | 'stand'
+/** Maneuver's parameter: churn the deadest non-conforming card toward this axis/value. */
+export interface ManeuverBias {
+  axis: 'color' | 'shape' | 'mag'
+  value: number // 0..2 on that axis
+}
+
 /** A fielded foe, resolved from data (creature ⊕ variant ⊕ template) into runtime numbers. */
 export interface FoeRuntime {
   id: string
@@ -32,10 +40,13 @@ export interface CombatState {
   enemyHP: number
   enemyMax: number
   block: number
-  mana: [number, number, number]
-  tactics: number
-  tacticsArmed: boolean
-  tacticsDrainMult: number // scales the armed-meter drain rate; 1 = normal, <1 = slower (e.g. the tutorial)
+  mana: [number, number, number] // capped at MANA_CAP per color; gains past it are pure loss
+  // Tactics v2 (CRAWL §5.5): a charge queue spent by the selected tactic
+  tactic: TacticKind
+  maneuverBias: ManeuverBias | null // Maneuver's parameter; null = charges queue and wait
+  charges: number // queued (Maneuver) / banked (Stand Ground); ≤ CHARGE_CAP
+  nextChurnAt: number // serial spend cadence — Maneuver churns one card per CHURN_MS
+  tacticReadyAt: number // swap spin-up: income is LOST until `now` reaches this
   // board
   board: Board
   cols: number // grid width (for geometry selectors); rows = ceil(board.length / cols)
@@ -70,7 +81,10 @@ export function clockCapMs(s: CombatState): number {
 }
 
 export const DEFAULT_PLAYER_MAX = 30 // createCombat's default playerMax; the save layer mirrors it
-export const TACTICS_GOAL = 10
-export const TACTICS_DRAIN = 0.5 // levels/sec while armed → a 20s window to spend a Tactic (eased from 10s)
+// Tactics v2 (CRAWL §5.5) — tuning defaults
+export const CHARGE_CAP = 5 // the queue/bank cap; overflow income is wasted
+export const CHURN_MS = 800 // Maneuver spends ONE charge per this interval (serial, never a batch)
+export const SWAP_SPINUP_MS = 3000 // after a tactic swap, income is lost until the spin-up elapses
+export const MANA_CAP = 15 // per color; gains past it are pure loss (gear may raise it later)
 export const DMG_REGEN_MS = 10000 // a shattered (wounded) card reforms after this
 export const START_GRACE_MS = 3000 // UI freezes the clock this long after Engage (read the board, no ticks advance)

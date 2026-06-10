@@ -6,10 +6,10 @@
 import type { Rng } from '../core/rng'
 import type { Card } from '../core/affine'
 import type { CombatState } from './state'
-import { TACTICS_GOAL } from './state'
+import { CHARGE_CAP } from './state'
 import type { EventSink } from './events'
 import { transmute } from './triggers'
-import { healPlayer, gainBlock, pushClock, addTactics, grantMana, dealAbilityDamage } from './ops'
+import { healPlayer, gainBlock, pushClock, addCharges, grantMana, dealAbilityDamage } from './ops'
 import { COLOR_RED, COLOR_GREEN, COLOR_BLUE, BIAS_W, cardColor, cardMag, comboCounts, isLive, liveSlots, gridDims, rowSlots, colSlots } from './select'
 import { ABILITIES } from './abilities'
 
@@ -74,8 +74,8 @@ TIERS.forEach((t, i) => {
 // --- special potions (one-off effects, no tiers) ---
 reg({
   id: 'invisibility', name: 'Invisibility Potion', kind: 'potion', icon: '👻', color: null,
-  desc: 'fill Tactics · freeze the enemy until your next Set',
-  use(s, _rng, sink) { addTactics(s, TACTICS_GOAL, sink); s.attackFrozen = true },
+  desc: 'fill your Tactics charges · freeze the enemy until your next Set',
+  use(s, _rng, sink) { addCharges(s, CHARGE_CAP, sink); s.attackFrozen = true },
 })
 reg({
   id: 'strength', name: 'Strength Potion', kind: 'potion', icon: '💪', color: COLOR_RED,

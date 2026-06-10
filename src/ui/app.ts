@@ -20,7 +20,7 @@ import { colsForN, COMBAT_GEN, type Deps, type CombatAction } from '../engine/co
 import { createRun, runReduce, type RunState } from '../engine/run'
 import { CONSUMABLES } from '../engine/consumables'
 import type { CombatState } from '../engine/state'
-import { TACTICS_GOAL, START_GRACE_MS } from '../engine/state'
+import { CHARGE_CAP, START_GRACE_MS } from '../engine/state'
 import type { CombatEvent } from '../engine/events'
 import { bumpTurn, pick, strikeWord, healWord, drainWord, magicLead, tierOf, joinClauses, voiceOf, ABILITY_FLAVOR } from './flavor'
 import { type SavedChar, loadRoster, upsertChar, deleteChar, makeChar, freshId, CONSUMABLE_SLOTS } from './save'
@@ -442,8 +442,7 @@ function begin(root: HTMLElement, char: SavedChar, dungeonId: string, foeVal: st
   const foe = assembleFoe(foeId, dg, GAMEDATA, rng)
   if (!foe) return
   const cls = classById(char.classId)
-  // the guided tutorial eases the Tactics drain to a 60s window (1/3 of the normal 20s) while it teaches the meter
-  const run = createRun({ foe, gen: GEN, playerMax: char.maxHp, passives: cls.passives, consumables: char.consumables, sequence, dungeonId, tacticsDrainMult: dg.guided ? 1 / 3 : 1 }, rng)
+  const run = createRun({ foe, gen: GEN, playerMax: char.maxHp, passives: cls.passives, consumables: char.consumables, sequence, dungeonId }, rng)
   run.combat.playerHP = Math.max(0, Math.min(char.maxHp, char.hp)) // the hero enters at their persisted HP, not full
   V = { root, deps: { data: GAMEDATA, rng }, run, state: run.combat, char, actions: [], classId: cls.id, loadout: cls.abilities.slice(), coach: !!dg.coach, coachCue: null, manaColor: dominantManaColor(cls.abilities), paused: true, hitstopUntil: 0, preview: null, selected: [], raf: 0, lastT: 0, boardSig: '', refs: {}, stats: { dealt: 0, taken: 0, blocked: 0, healed: 0, sets: 0, traps: 0 } }
   buildPlay()
@@ -510,7 +509,7 @@ function buildPlay(): void {
   if (!document.getElementById('ptint')) document.body.appendChild($(`<div id="ptint"></div>`)) // low-HP vignette (body-level)
 
   V.refs = {}
-  for (const id of ['foename', 'foedesc', 'fleebtn', 'enemylab', 'phpv', 'ehpv', 'php', 'ehp', 'clock', 'atkfill', 'tacv', 'tac', 'm0', 'm1', 'm2', 'block', 'buffind', 'strip', 'boardwrap', 'board', 'log', 'abilities', 'tactics', 'passives', 'consumables', 'floatlayer']) {
+  for (const id of ['foename', 'foedesc', 'fleebtn', 'enemylab', 'phpv', 'ehpv', 'php', 'ehp', 'clock', 'atkfill', 'tacv', 'tac', 'biasrow', 'standnote', 'm0', 'm1', 'm2', 'block', 'buffind', 'strip', 'boardwrap', 'board', 'log', 'abilities', 'tactics', 'passives', 'consumables', 'floatlayer']) {
     const el = wrap.querySelector('#' + id)
     if (el) V.refs[id] = el as HTMLElement
   }
@@ -528,23 +527,38 @@ function buildPlay(): void {
   V.refs.foedesc.innerHTML = V.state.foe.desc ?? ''
 }
 
-/** The live castable panel: the class loadout (mana-gated click-to-cast), the Tactics buttons (live at
- *  full meter), and the always-on passive chips — all dispatching castAbility / useTactic to the engine. */
+/** The live castable panel: the class loadout (mana-gated click-to-cast), the Tactics v2 controls
+ *  (tactic toggle + Maneuver's bias picker + the charge gauge), and the always-on passive chips. */
 const MANA_ICON = ['🔥', '🌿', '❄']
-const TAC_BTNS: { k: string; label: string }[] = [
-  { k: 'attack', label: '⚔ Attack' }, { k: 'defend', label: '🛡 Defend' }, { k: 'move', label: '➤ Move' },
-  { k: 'heat', label: '🔥 Heat' }, { k: 'chill', label: '❄ Chill' }, { k: 'wild', label: '🌿 Wild' },
+const TAC_BTNS: { k: 'maneuver' | 'stand'; label: string; tip: string }[] = [
+  { k: 'maneuver', label: '⚔ Maneuver', tip: 'Charges spend themselves morphing the DEADEST card toward your chosen bias — one card at a time. Pick the bias below.' },
+  { k: 'stand', label: '🛡 Stand Ground', tip: 'Charges bank as a shield: each enemy board-meddle (drift, warp, lock, wound) eats one charge and fizzles. Damage still hurts — only the board holds.' },
+]
+const BIAS_CHIPS: { axis: 'color' | 'shape' | 'mag'; value: number; label: string; tip: string }[] = [
+  { axis: 'color', value: 0, label: '🔥', tip: 'Churn toward red (Fire)' },
+  { axis: 'color', value: 1, label: '🌿', tip: 'Churn toward green (Nature)' },
+  { axis: 'color', value: 2, label: '❄', tip: 'Churn toward blue (Frost)' },
+  { axis: 'shape', value: 0, label: '⚔', tip: 'Churn toward Attacks' },
+  { axis: 'shape', value: 1, label: '🛡', tip: 'Churn toward Defends' },
+  { axis: 'shape', value: 2, label: '➤', tip: 'Churn toward Moves' },
+  { axis: 'mag', value: 0, label: '①', tip: 'Churn toward 1s (light)' },
+  { axis: 'mag', value: 1, label: '②', tip: 'Churn toward 2s' },
+  { axis: 'mag', value: 2, label: '③', tip: 'Churn toward 3s (heavy)' },
 ]
 function buildCastPanel(): HTMLElement {
   const cls = classById(V!.classId)
   const panel = $(`<div class="panel"></div>`)
   // TACTICS section (meter built in, above abilities) — coach-gateable as one region
   const tacSec = $(`<div class="coach-sec" data-sec="tactics"></div>`)
-  tacSec.appendChild($(`<div class="panelhd"><label>Tactics</label><span class="stub-note" id="tacv">0/${TACTICS_GOAL}</span></div>`))
-  tacSec.appendChild($(`<div class="track tacmeter"><span class="fill tac" id="tac"></span></div>`))
+  tacSec.appendChild($(`<div class="panelhd"><label>Tactics</label><span class="stub-note" id="tacv">0/${CHARGE_CAP}</span></div>`))
+  tacSec.appendChild($(`<div class="track tacmeter" data-tip-title="Tactics charges" data-tip="Banked by matching Move cards (+1 each), and by tempo/Block wasted past their caps. Your selected tactic below spends them."><span class="fill tac" id="tac"></span></div>`))
   const row = $(`<div class="tactics-row" id="tactics"></div>`)
-  for (const t of TAC_BTNS) row.appendChild($(`<div class="tac-btn" data-tac="${t.k}" data-tip-title="${t.label}" data-tip="Armed Tactic — ${TAC_TAIL[t.k] ?? 'reshape the board'}. Fill the meter with Move matches to arm it.">${t.label}</div>`))
+  for (const t of TAC_BTNS) row.appendChild($(`<div class="tac-btn" data-tac="${t.k}" data-tip-title="${t.label}" data-tip="${t.tip} Swapping tactics resets your charges (a few seconds to re-engage).">${t.label}</div>`))
   tacSec.appendChild(row)
+  const biasRow = $(`<div class="bias-row" id="biasrow"></div>`)
+  for (const b of BIAS_CHIPS) biasRow.appendChild($(`<div class="bias-chip" data-axis="${b.axis}" data-value="${b.value}" data-tip-title="Maneuver bias" data-tip="${b.tip}. Click again to clear.">${b.label}</div>`))
+  tacSec.appendChild(biasRow)
+  tacSec.appendChild($(`<div class="standnote" id="standnote">charges ward off enemy board-meddling</div>`))
   panel.appendChild(tacSec)
   // ABILITIES section (mana display built into the header) + grid + passive chips
   const abSec = $(`<div class="coach-sec" data-sec="abilities" style="margin-top:14px"></div>`)
@@ -844,11 +858,21 @@ function onFlee(): void {
 }
 
 function onTacticClick(e: Event): void {
-  if (!V || !V.state.running || V.paused || !V.state.tacticsArmed) return // input frozen during a pause
-  const el = (e.target as HTMLElement).closest('.tac-btn') as HTMLElement | null
-  const key = el?.dataset.tac
-  if (!key) return
-  dispatch({ type: 'useTactic', key })
+  if (!V || !V.state.running || V.paused) return // input frozen during a pause
+  const tEl = (e.target as HTMLElement).closest('.tac-btn') as HTMLElement | null
+  if (tEl?.dataset.tac) {
+    const tactic = tEl.dataset.tac as 'maneuver' | 'stand'
+    if (tactic !== V.state.tactic) dispatch({ type: 'setTactic', tactic })
+    return
+  }
+  const bEl = (e.target as HTMLElement).closest('.bias-chip') as HTMLElement | null
+  if (bEl?.dataset.axis) {
+    const axis = bEl.dataset.axis as 'color' | 'shape' | 'mag'
+    const value = +bEl.dataset.value!
+    const cur = V.state.maneuverBias
+    // clicking the active chip clears the bias (toggle off)
+    dispatch({ type: 'setBias', bias: cur && cur.axis === axis && cur.value === value ? null : { axis, value } })
+  }
 }
 
 /** Refresh ability/tactic affordances — runs every frame so they track mana + the armed meter live.
@@ -863,15 +887,22 @@ function updateCastables(): void {
     if (V!.coach) setCoachArrow(el, ready)
   })
   V.refs.tactics?.querySelectorAll<HTMLElement>('.tac-btn').forEach((el) => {
-    el.classList.toggle('armed', s.running && s.tacticsArmed)
+    el.classList.toggle('on', s.running && el.dataset.tac === s.tactic)
+  })
+  const maneuver = s.tactic === 'maneuver'
+  if (V.refs.biasrow) V.refs.biasrow.style.display = maneuver ? '' : 'none'
+  if (V.refs.standnote) V.refs.standnote.style.display = maneuver ? 'none' : ''
+  V.refs.biasrow?.querySelectorAll<HTMLElement>('.bias-chip').forEach((el) => {
+    const b = s.maneuverBias
+    el.classList.toggle('on', !!b && el.dataset.axis === b.axis && +el.dataset.value! === b.value)
   })
   if (V.coach) {
-    // general affordance: HARD-beckon the tactic buttons the moment the meter arms
-    setCoachArrow(V.refs.tactics, s.running && s.tacticsArmed)
+    // guided Tactics stage: beckon the bias row once a charge is banked (pick what to do with it)
+    setCoachArrow(V.refs.biasrow, COACH.await === 'tactic' && s.charges > 0 && maneuver)
     // staged tutorial cues — teach how to GET there, scoped to the current guided stage:
     const cue = V.coachCue
-    // Tactics stage: STRONG glow on Move cards + LIGHT pulse on the filling meter (until armed).
-    const moveGlow = cue === 'moves' && !s.tacticsArmed
+    // Tactics stage: STRONG glow on Move cards + LIGHT pulse on the gauge (until a charge banks).
+    const moveGlow = cue === 'moves' && s.charges === 0
     updateMoveHints(moveGlow)
     document.querySelector('[data-sec="tactics"] .tacmeter')?.classList.toggle('meterhint', moveGlow)
     // Abilities stage: while nothing's affordable, glow the colour the loadout needs most; once an
@@ -963,8 +994,6 @@ function verbsFromEvents(events: CombatEvent[]): Map<number, CardVerb> {
 
 /** Full-screen feedback priority — a wound out-shouts a trap spring (TRAPS layering scheme). */
 const FLASH_PRI: Record<string, number> = { wound: 3, trap: 2, trick: 2 }
-/** Per-tactic flavour tail for the combat log (the board-reshape it triggers). */
-const TAC_TAIL: Record<string, string> = { attack: 'the board snaps to Attacks', defend: 'the board hardens to Defends', move: 'the board flows into Moves', heat: 'everything kindles to Fire', chill: 'everything glazes to Frost', wild: 'everything greens to Nature' }
 function interpret(events: CombatEvent[]): void {
   if (!V) return
   const MANA = ['Fire', 'Nature', 'Frost']
@@ -1013,11 +1042,18 @@ function interpret(events: CombatEvent[]): void {
       case 'manaGained':
         if (actor) for (let i = 0; i < 3; i++) actor.mana[i] += e.mana[i] // fold potion/ability mana into its line
         break
-      case 'tacticsGained':
-        if (e.source === 'overflow') { // Block past the cap spills into the Tactics meter — call it out
-          log(`Defend overflows — <b>+${e.amount}</b> Tactics.`, 'you')
+      case 'chargesGained':
+        if (e.source === 'overflow') { // Block past the cap converts to charges — call it out
+          log(`Defend overflows — <b>+${e.amount}</b> Tactics charge${e.amount > 1 ? 's' : ''}.`, 'you')
           floatBoard(`+${e.amount} ⚡`, 'var(--gold)', 'you')
         }
+        break
+      case 'chargesDrained':
+        log(`The ${foe} rattles your focus — <b>−${e.amount}</b> Tactics charge${e.amount > 1 ? 's' : ''}.`, 'foe')
+        break
+      case 'warded':
+        log(`<b>Stand Ground</b> — the ${e.what === 'lock' ? 'lock' : e.what === 'shatter' ? 'blow\u2019s shatter' : 'warp'} breaks against your line (−1 charge).`, 'you')
+        floatBoard('🛡 warded', 'var(--gold)', 'you')
         break
       case 'buffFaded':
         log(`<span style="opacity:.85">✧ ${e.label}.</span>`, 'you')
@@ -1037,10 +1073,15 @@ function interpret(events: CombatEvent[]): void {
       case 'passiveProc':
         pulsePassive(e.id)
         break
-      case 'tacticUsed': {
-        const tail = TAC_TAIL[e.key]
-        log(`Tactic — <b>${e.key[0].toUpperCase()}${e.key.slice(1)}</b>!${tail ? ` ${tail}.` : ''}`, 'you')
-        coachNotify('tactic') // guided intro: "spend Tactics" step
+      case 'tacticChanged':
+        log(e.tactic === 'stand'
+          ? 'You <b>Stand Ground</b> — charges now ward the board against enemy meddling.'
+          : 'You shift to <b>Maneuver</b> — charges now churn the deadest cards toward your bias.', 'you')
+        break
+      case 'biasChanged': {
+        const lbl = e.bias ? BIAS_CHIPS.find((b) => b.axis === e.bias!.axis && b.value === e.bias!.value)?.tip : null
+        log(e.bias && lbl ? `Maneuver set — <i>${lbl.toLowerCase()}</i>.` : 'Maneuver bias cleared — charges hold.', 'you')
+        if (e.bias) coachNotify('tactic') // guided intro: "set your bias" step
         break
       }
       case 'consumableUsed': {
@@ -1096,9 +1137,6 @@ function interpret(events: CombatEvent[]): void {
         hs = Math.max(hs, 120)
         break
       }
-      case 'tacticsArmed':
-        log('Your <b>Tactics</b> meter is full — a window of decisive moves.', 'you')
-        break
       case 'foeChanged':
         log(`The foe falls — <b>${e.name}</b> rises next.`, 'win')
         renderStrip()
@@ -1301,9 +1339,10 @@ function updateBar(): void {
   V.refs.phpv.textContent = `${s.playerHP}/${s.playerMax}`
   V.refs.ehpv.textContent = `${s.enemyHP}/${s.enemyMax}`
   V.refs.enemylab.textContent = s.foe.name
-  V.refs.tac.style.width = `${(s.tactics / TACTICS_GOAL) * 100}%`
-  V.refs.tac.classList.toggle('armed', s.tacticsArmed)
-  V.refs.tacv.textContent = `${Math.round(s.tactics * 10) / 10}/${TACTICS_GOAL}`
+  V.refs.tac.style.width = `${(s.charges / CHARGE_CAP) * 100}%`
+  const spinup = s.now < s.tacticReadyAt
+  V.refs.tac.classList.toggle('spinup', spinup)
+  V.refs.tacv.textContent = spinup ? 're-forming…' : `${s.charges}/${CHARGE_CAP}`
   V.refs.m0.textContent = String(s.mana[0])
   V.refs.m1.textContent = String(s.mana[1])
   V.refs.m2.textContent = String(s.mana[2])
@@ -1516,10 +1555,10 @@ const GUIDED_STEPS: GuidedStep[] = [
     done: 'Nice. A set resolves all three cards at once — that one act does several things together: <b>Attacks</b> deal damage, <b>Defends</b> raise <b>Block</b> that soaks the enemy\'s next hit, and <b>Moves</b> shove the attack timer back. The <b>colours</b> feed mana too: three of one colour banks a big chunk of that element, one-of-each banks a little of all three. Every match is offence, defence, tempo, and resources in one move.' },
   { icon: '⚠️', title: 'Watch for traps', spot: '#strip', reveal: ['traps'], hold: true,
     body: "Tougher foes carry <b>traps</b> — rules that punish (or reward!) certain matches, shown in the <b>trap strip</b> above the board. This dummy has none, but the <b>Training · Gauntlet</b> has foes whose lines you must read, dodge, or deliberately spring." },
-  { icon: '🎯', title: 'Spend Tactics', reveal: ['tactics'], await: 'tactic', cue: 'moves',
-    hint: '▸ Match Moves (➤) to fill the meter; when the arrow appears, press a tactic.',
-    body: 'Matching <b>Move</b> cards fills your <b>Tactics</b> meter. Full, it <b>arms</b> — a glowing arrow marks it — and you can spend it to reshape the whole board. Fill it and spend one.',
-    done: 'That is your reset button. When the board has nothing useful — no damage, no blocks, wrong colours — a tactic reshapes it on demand: <b>Strike</b> floods Attacks, <b>Dodge</b> floods Defends, <b>Heat / Chill / Wild</b> recolour everything toward an element. You earned it by playing Moves, so steady tempo always buys you a way out of a bad board.' },
+  { icon: '🎯', title: 'Use Tactics', reveal: ['tactics'], await: 'tactic', cue: 'moves',
+    hint: '▸ Match a set with a Move (➤) to bank a charge, then pick a bias chip under Maneuver.',
+    body: 'Matching <b>Move</b> cards banks <b>Tactics charges</b>. Under <b>Maneuver</b>, pick a <b>bias</b> — what you want more of — and your charges spend themselves, steadily morphing the deadest card toward it. Bank a charge and set your bias now.',
+    done: 'That is your tide. <b>Maneuver</b> pulls the board toward your build one card at a time, while the dungeon pulls it the other way — a tug-of-war you fund with Moves. Its twin, <b>Stand Ground</b>, banks the same charges as a shield that eats enemy board-meddling (warps, locks, wounds). Swapping tactics resets your charges — pick a stance and commit.' },
   { icon: '🔥', title: 'Cast an ability', reveal: ['abilities'], await: 'ability', cue: 'mana',
     hint: '▸ Match the highlighted cards (all one colour) to bank that mana; when an ability lights up, click it.',
     body: 'Matches also generate <b>mana</b> by colour. The cards of the colour your spells need most are <b>highlighted</b> — match them to bank that mana. When you can afford an ability it lights up with an arrow. Build mana and cast one.',

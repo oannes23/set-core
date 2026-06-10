@@ -69,17 +69,17 @@ test('a haste potion stalls the enemy clock (uncapped by tier)', () => {
   expect(r.state.nextAttackAt).toBe(before + 30_000)
 })
 
-test('invisibility fills Tactics and freezes the enemy attack until the next Set', () => {
+test('invisibility fills the charge queue and freezes the enemy attack until the next Set', () => {
   const s = combat(['invisibility'])
-  s.tactics = 0
+  s.charges = 0
   const r = reduce(s, { type: 'useConsumable', slot: 0 }, deps())
-  expect(r.state.tactics).toBe(10) // TACTICS_GOAL
+  expect(r.state.charges).toBe(5) // CHARGE_CAP
   expect(r.state.attackFrozen).toBe(true)
   // ticking far past the attack interval does NOT trigger an enemy attack while frozen
   const t = reduce(r.state, { type: 'tick', dtMs: 60_000 }, deps())
   expect(t.events.some((e) => e.type === 'playerDamaged' || e.type === 'enemyStrikes')).toBe(false)
   expect(t.state.attackFrozen).toBe(true)
-  expect(t.state.tactics).toBe(10) // the filled meter also held — its drain is paused while frozen
+  expect(t.state.charges).toBe(5) // no bias set → Maneuver queues and waits (no waste)
 })
 
 test('strength triples the next attacking set, then is spent', () => {
