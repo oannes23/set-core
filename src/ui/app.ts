@@ -1547,7 +1547,7 @@ function positionCoachPop(): void {
   pop.style.left = `${r.left}px`
   pop.style.top = `${r.top}px`
   pop.style.width = `${r.width}px`
-  pop.style.maxHeight = `${Math.max(150, r.height) + 6}px`
+  pop.style.maxHeight = `${Math.max(195, r.height) + 6}px`
   pop.style.transform = 'none'
 }
 

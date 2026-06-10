@@ -69,7 +69,7 @@ button.cta.bob { animation: ctabob 1.6s ease-in-out infinite; }
 .combatbar { margin: 0; }
 
 /* foe header — tall (room for foe art); also the stage for popup messaging (the tutorial) */
-.headpanel { min-height: 150px; position: relative; }
+.headpanel { min-height: 195px; position: relative; } /* sized to give the coach popover (anchored over it) comfortable reading room */
 /* any-time Flee — a low-emphasis meta action pinned to the header corner; reddens on hover */
 .fleebtn { position: absolute; top: 14px; right: 14px; font-family: inherit; font-size: 11px; letter-spacing: .03em;
   color: var(--ink-faint); background: transparent; border: 1px solid var(--line2); border-radius: 8px;
@@ -448,21 +448,21 @@ button.cta:disabled { opacity: .4; cursor: not-allowed; }
 /* anchored over the FOE HEADER by positionCoachPop() (never the play area); the CSS coords are the
    fallback when no headpanel exists. Flex column + scrolling body so it can NEVER outgrow its anchor. */
 #coachpop { position: fixed; z-index: 44; left: 50%; top: 14px; bottom: auto; transform: translateX(-50%); width: min(560px, calc(100% - 44px));
-  background: var(--panel); border: 1px solid var(--gold); border-radius: 15px; padding: 14px 18px 12px;
+  background: var(--panel); border: 1px solid var(--gold); border-radius: 15px; padding: 10px 14px 8px;
   box-shadow: 0 18px 60px -14px rgba(0, 0, 0, .75), 0 0 0 1px var(--gold) inset; display: none; }
 #coachpop.show { display: flex; flex-direction: column; }
 #coachpop .cpbody { overflow-y: auto; min-height: 0; flex: 1; }
-#coachpop .cphd { display: flex; align-items: center; gap: 9px; margin-bottom: 7px; }
+#coachpop .cphd { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
 #coachpop .cpicon { font-size: 21px; line-height: 1; }
 #coachpop .cptitle { font-family: "Syne", sans-serif; font-weight: 800; font-size: 16px; color: var(--gold); }
-#coachpop .cpbody { font-size: 13px; line-height: 1.62; color: var(--ink); margin-bottom: 14px; }
+#coachpop .cpbody { font-size: 13px; line-height: 1.5; color: var(--ink); margin-bottom: 8px; }
 #coachpop .cpbody b { color: var(--phos); }
-#coachpop .cphint { font-size: 11.5px; color: var(--warn); margin-top: -6px; margin-bottom: 12px; display: none; }
+#coachpop .cphint { font-size: 11.5px; color: var(--warn); margin-top: -3px; margin-bottom: 7px; display: none; }
 #coachpop.awaiting .cphint { display: block; }
 #coachpop .cpfoot { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
 #coachpop .cpstep { font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-faint); font-variant-numeric: tabular-nums; }
 #coachpop .cpbtns { display: flex; gap: 8px; }
-#coachpop button { font-family: inherit; font-size: 12px; font-weight: 600; padding: 8px 15px; border-radius: 9px; cursor: pointer; border: 1px solid var(--line); background: transparent; color: var(--ink-dim); transition: all .14s ease; }
+#coachpop button { font-family: inherit; font-size: 12px; font-weight: 600; padding: 5px 12px; border-radius: 8px; cursor: pointer; border: 1px solid var(--line); background: transparent; color: var(--ink-dim); transition: all .14s ease; }
 #coachpop button:hover { color: var(--ink); }
 #coachpop button.primary { border-color: var(--gold); color: var(--gold); }
 #coachpop button.primary:hover { background: var(--gold); color: #2b1f02; }
