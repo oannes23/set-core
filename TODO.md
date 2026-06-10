@@ -83,14 +83,14 @@ deliverable of this batch.
   to static frames) — frees the glow channel for future hint layers.
 
 Build scope:
-- `[ ]` **Design spec (CRAWL §5.5 v2):** write the settled model above into the doc.
+- `[x]` **Design spec (CRAWL §5.5 v2): WRITTEN** — the charge/income model, Maneuver + Stand
+  Ground, swap-commitment, remaps, and the full ability-translation table + Calls tiering
+  (Tier-1 generic shape Calls speced; Tier-2 geometric class signatures sketched for B4).
 - `[ ]` **Engine:** replace armed/drain state with tactic + charge queue (player-owned tick-trigger
   shape); remap meter-anchored systems — Vigilance `drain_tactics` (drains queued charges),
-  Invisibility drain-pause (delete), tutorial Tactics step, §7 Move-affix anchors (re-anchor on
-  charge income / queue cap).
-- `[ ]` **Ability translation pass:** carry every existing ability that translates cleanly; **cut
-  and replace** bad fits. **Keep the color Call floods** (the burst layer) and **add SHAPE-targeting
-  Calls** (Attack/Defend/Move) to round out burst under the new system.
+  Invisibility (fills the queue; drain-pause deleted), tutorial Tactics step, §7 Move-affix anchors
+  (re-anchor on charge income / queue cap); mana cap 15; Rally → tactic-aware deadest targeter;
+  Tactician → Adaptive Tactics; add the 3 Tier-1 shape Calls.
 - `[ ]` **UI:** tactic selector + per-tactic sub-UI (Maneuver bias picker / Ward pips) in the old
   6-button real estate; serial churn needs visible per-card feedback (morph animation exists);
   "tug" readability vs drift.

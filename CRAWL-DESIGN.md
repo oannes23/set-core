@@ -480,46 +480,106 @@ by its number (magnitude 1–3), typed by its color:
 **Resource caps (and the adaptive deal).**
 - **Block ≤ max HP.** The barrier can hold up to your HP (block never exceeds the cap) →
   generation steers the shape axis away from Defend when Block is full. The excess isn't
-  fully wasted: a **low-weighted slice of the overflow trickles into the Tactics meter**
-  (symmetric with the Move/clock overflow below), and the **Sentinel** passive *also*
-  spills the full overflow into a weighted attack — both stack.
+  fully wasted: **overcap block converts to Tactics charges** (see v2 below), and the
+  **Sentinel** passive *also* spills the full overflow into a weighted attack — both stack.
 - **Enemy clock ≤ 20s.** Move can't push the next attack more than 20s out — but the
-  overflow seconds are **no longer wasted**: they dump into the Tactics meter (below),
+  overflow seconds are **no longer wasted**: they convert to Tactics charges (below),
   so a maxed clock keeps Move a fair, useful draw. Distinctness still caps realized
   skew (the §3-style saturation governor), so the board never goes mono.
+- **Mana ≤ 15 per color** (NEW with Tactics v2; gear may raise it later). Storing and
+  chaining 2–3 big casts stays a valid strategy; gains past the cap are a **pure loss**
+  (deliberately: no excess-mana income — see v2 income rules). Excess healing at full
+  HP is likewise pure loss.
 
-**The Tactics meter — Move's banked outlet** (resolves the old §6 "rework Move's
-core" TOP PRIORITY). Move was the weak, fiddly verb (Defend and Move were both
-"don't-die" tools, and tempo couldn't reach the clock cap). Move is now a
-**board-control engine** instead of a second defensive tool:
-- Every **Move match** rolls (triangular on its magnitude) into a **Tactics meter →
-  10**, *on top of* still pushing the clock. Any clock-overflow seconds (Move into an
-  already-maxed clock) dump on top — so feeding Moves into a capped clock builds
-  Tactics fast. The once-wasted overcap is now the *point*.
-- **Full meter → ARMS** a row of one-shot **Tactic** buttons and then **drains**
-  `TACTICS_DRAIN`/sec (use-it-or-lose-it). **Built:** the six armed Tactics are universal
-  board transmutes — the three shape tactics mirror the card types: **Attack** (→ heavy
-  Attacks), **Defend** (→ heavy Defends), **Move** (→ Moves), plus **Heat Up / Chill Out /
-  Go Wild** (→ red / blue / green flood). Firing any Tactic empties the meter. (Flee is no
-  longer here — it's a standalone any-time button; see below.)
-- **Tactics' lane — resolved: keep the overlap.** The armed transmutes deliberately
-  echo class floods (Attack ≈ Berserk, Heat Up ≈ Call Flames). In play this is a
-  *feature*: it lets any class run a control loop — **Call Flames + Attack** ping-pongs
-  the board between lots-of-red and lots-of-Attacks; **Glaciate + Chill Out** plays
-  extremely control-heavy on Cryomancer. More board-shaping options is good, especially
-  now that enemy transmutes create constant back-and-forth over the board. (Generic
-  board tools — shuffle/peek/floor-boost/lock — remain available as *additional*
-  Tactics later, not a replacement.)
-- Live constants (code is source of truth, `src/engine/state.ts`): `TACTICS_GOAL=10`,
-  `TACTICS_DRAIN=0.5`/sec (eased from 1 — a 20s spend window), `CLOCK_CAP=20s`.
-- **⚠ PLANNED REWORK (2026-06-09, next batch — see TODO.md "Tactics v2"):** the armed
-  meter + one-shot flood buttons are slated to become a **stance system**: the player
-  sets a standing field preference (axis/value, plus at least one non-axis *verb*
-  stance, e.g. Ward), and Tactics income drives **continuous deadest-card turnover**
-  toward the stance instead of filling a meter — the player-side mirror of dungeon
-  drift (a literal tug-of-war over the board; makes TRAPS §5.5 reshape-share directly
-  playable). The section above documents the meter **as currently built**; the v2 spec
-  lands with the batch.
+**TACTICS v2 — charges & the two tactics** (settled 2026-06-09/10; supersedes the v1
+armed meter, kept below for history). Tactics is the **board-control discipline**: a
+**charge queue** fed by play, spent by whichever **tactic** you've selected. This is
+the player-side mirror of dungeon drift — a literal tug-of-war over the board's
+composition — and it makes TRAPS §5.5's reshape-share *directly playable*.
+
+- **Income (charges):**
+  - **+1 charge per Move CARD in a matched set** — a shape-rainbow set always contains
+    exactly one Move (steady trickle for every archetype); an all-Move set pays 3.
+    Magnitude stays tempo-only (boots push the clock; charges count cards, flat).
+  - **+ excess timer:** clock-push seconds wasted against the 20s cap convert ~1:1.
+  - **+ excess block:** block past max HP converts (default 1 charge per 2 excess).
+  - **Nothing else.** No excess-mana or excess-healing income (pure loss, see caps).
+- **The queue:** charges queue up to a **cap of 5** (overflow wasted) and spend
+  **serially, one at a time** (~0.8s between spends, tunable) — never a batch flash;
+  the eye can follow every change. Deadest-card evaluation re-runs after each spend.
+  Deterministic: spends resolve on reducer ticks (replay-safe).
+- **The two tactics** (pick ONE; its sub-UI shows its parameter):
+  - **⚔ Maneuver** *(active shaping)* — each charge transmutes the **deadest**
+    non-conforming card toward your chosen **bias** (sub-UI: axis/value picker —
+    any color, shape, or magnitude; uses the standard `patchFavor` weights, so the
+    §3 saturation governor still applies).
+  - **🛡 Stand Ground** *(passive integrity)* — charges **bank** (same cap of 5);
+    each hostile **board verb** that fires — dungeon drift tick, enemy transmute,
+    lock, wound-shatter — consumes one banked charge and **fizzles**. Never absorbs
+    raw damage (that's Block's lane); dread ticks still hurt, the board just holds
+    its shape. Sub-UI: the banked pips.
+  - **Swapping tactics RESETS your charges to 0** and takes a few seconds (~3s
+    spin-up, tunable) before accumulation resumes. Picking your tactic is a
+    commitment — that's what makes greed-vs-integrity a real decision.
+- **Remaps from v1:** Vigilance-style `drain_tactics` effects drain queued/banked
+  charges; the Invisibility potion's "fill the meter + pause drain" becomes "fill
+  the queue (+5 charges), enemy frozen until your next match"; the Warlord's
+  Tactician passive is replaced by **Adaptive Tactics** (your charges PERSIST through
+  a tactic swap, no spin-up — the stance-dancer); the tutorial's Tactics stage
+  teaches Maneuver. §7's Move affixes re-anchor on charge income / queue cap.
+- **Tactics' lane vs class floods — still resolved: keep the overlap, re-shaped.**
+  Maneuver is the slow, free, full-board **tide**; Call-type abilities are instant,
+  regional, mana-priced **waves** (see the Calls tiering in §3-adjacent ability
+  notes / TODO). Drip vs splash, same ocean — running both is the control loop.
+- ⚠ Watch in tuning: Maneuver(green) smooths sustain loops, and a pinned clock
+  (Chronomancer) is the premier excess-timer engine — the **structural anti-stall**
+  (FABLE §8.1) ships with/before this system.
+
+*v1 (superseded, for history):* Move matches rolled into a 0–10 meter that ARMED six
+one-shot board-flood buttons (Attack/Defend/Move/Heat Up/Chill Out/Go Wild), draining
+0.5/sec once armed (use-it-or-lose-it). Constants were `TACTICS_GOAL=10`,
+`TACTICS_DRAIN=0.5`/sec. The meter's overlap-with-floods doctrine carries forward;
+the use-it-or-lose-it pressure is replaced by the swap-commitment rule.
+
+**ABILITY TRANSLATION to v2 + the Calls tiering** (the batch's authoring map; names
+and costs are placeholders the designer will rename — mechanics are the spec).
+
+Audit result: of the 23 shipped abilities, **only Rally touches the meter** — every
+other ability is built on clock-pushes, transmutes, and damage, all of which survive
+v2 untouched. So the table is mostly KEEP:
+
+| Disposition | Abilities |
+|---|---|
+| **KEEP unchanged** | firebolt, frostbolt, heal, block, fireball, glaciate, wildgrowth, callflames, callfrost, callwilds, cleave, berserk, rampage, bulwark, quickstrike, smokebomb, thornwall, venomstrike, thornvines, coldblade, riposte, timewarp |
+| **RE-ANCHOR** | **rally** — "bank 4 Tactics" is meaningless in v2. New form (per design direction — a deadest targeter): *Rally — the 3 deadest cards answer the call: under **Maneuver** they churn toward your chosen bias now; under **Stand Ground** they dig in as heavy Defends.* Same cost slot; the tactic-aware dual mode makes it the Warlord's signature bridge into the new system. |
+| **RE-ANCHOR (consumable)** | **Invisibility** — "fill the meter + pause drain" → "fill the queue (+5 charges); enemy frozen until your next match". |
+| **RE-ANCHOR (passive)** | **Tactician** → **Adaptive Tactics** (charges persist through tactic swaps, no spin-up). |
+| **NOTE (tuning watch)** | The stall kit — timewarp / glaciate / frostbolt / smokebomb / thornvines — now *generates income* via excess timer. Intended (Move-flavored classes run charge-rich) but these numbers get a look in the tuning pass. |
+
+**Tier 1 — the generic Calls (shared, board-wide, the teaching versions).** The three
+color Calls (shipped) + three NEW shape Calls, costs mirrored at 8 total mana,
+weighted toward the shape's kin color (Attack↔red, Defend↔green, Move↔blue):
+- **Call to Arms** `[4,2,2]` — every non-Attack card → max-magnitude Attack (the burst enabler).
+- **Call the Shields** `[2,4,2]` — every non-Defend card → max-magnitude Defend.
+- **Call the Hunt** `[2,2,4]` — every non-Move card → Move. ⚠ The hot one: a Move
+  flood feeds the charge queue — watch its cost/queue-cap interaction first.
+
+**Tier 2 — class-signature geometric Calls (the boss-pick / spellbook content, B4).**
+Same verb, smaller region, sharper identity, cheaper — the geometry selector
+vocabulary (row/column/border/inner/diagonal/corners — already engine-built, today
+enemy-only) handed to players. Power ≈ region size ≈ cost; the saturation governor
+already polices all of them. One seed sketch per class (names/costs placeholder):
+- Pyromancer — **Wall of Flame**: the center *column* → red.
+- Cryomancer — **Glacial Front**: the *border* → blue.
+- Druid — **Overgrowth**: the *inner* region → green, light magnitudes.
+- Spellblade — **Cross-Cut**: a *diagonal* → Attack, small damage per card converted.
+- Chronomancer — **Stasis Rank**: the top *row* → blue/Move.
+- Berserker — **Hone**: the bottom *row*'s magnitudes → 3s (heavy everything).
+- Sentinel — **Shield Wall**: the *border* → Defend.
+- Warlord — **Battle Line**: the bottom *row* → Attack.
+- Rogue — **Ambush**: the four *corners* → Move.
+The relationship to Maneuver is deliberate: Maneuver is the slow free full-board
+*tide*; Calls are instant regional mana-priced *waves*. Drip vs splash, same ocean.
 
 **Flee — the retreat mechanic** (resolves the §6 loss-condition retreat path). The
 old standalone Flee *meter* (toggle Fleeing mode, farm Moves to 10, decay + lockout)
