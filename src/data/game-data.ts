@@ -179,7 +179,9 @@ export const GAMEDATA: GameData = {
     },
     goblin_king: {
       name: 'The Goblin King', tier: 'boss', hp: 90, speed: 'steady', damage: 16,
-      traps: ['molten_veins', 'confusion', 'dread_drums'], xp: 120, loot_tier: 5,
+      // war_cry is the SIGNATURE the elites' Lesser War Cry foretells; the other three are the
+      // §7 role buckets (specialist molten_veins / generalist confusion / tick-dread dread_drums)
+      traps: ['war_cry', 'molten_veins', 'confusion', 'dread_drums'], xp: 120, loot_tier: 5,
     },
 
     // --- goblin_warren build-out: more minions + a proper elite roster (each elite = telegraph + rolled) ---
@@ -306,13 +308,13 @@ export const GAMEDATA: GameData = {
     },
     goblin_warren: {
       name: 'The Goblin Warren', difficulty: 1,
-      theme: { axis: 'color', value: 'red' }, drift: 'ember', boss_mirror: 'war_cry',
+      theme: { axis: 'color', value: 'red' }, drift: 'ember', boss_mirror: 'war_cry_lesser',
       enemy_table: [{ foe: 'goblin', weight: 35 }, { foe: 'cave_bat', weight: 20 }, { foe: 'goblin_shaman', weight: 15 }, { foe: 'goblin_archer', weight: 12 }, { foe: 'goblin_sapper', weight: 10 }, { foe: 'warren_rat', weight: 8 }],
       elite_pool: ['goblin_warlord', 'ember_shaman', 'warren_butcher', 'goblin_oracle'], boss: 'goblin_king', template: null,
     },
     haunted_warren: {
       name: 'The Haunted Warren', difficulty: 3, extends: 'goblin_warren',
-      theme: { axis: 'color', value: 'red' }, drift: 'ember', boss_mirror: 'war_cry',
+      theme: { axis: 'color', value: 'red' }, drift: 'ember', boss_mirror: 'war_cry_lesser',
       enemy_table: [{ foe: 'goblin', weight: 35 }, { foe: 'cave_bat', weight: 20 }, { foe: 'goblin_shaman', weight: 15 }, { foe: 'goblin_archer', weight: 12 }, { foe: 'goblin_sapper', weight: 10 }, { foe: 'warren_rat', weight: 8 }],
       elite_pool: ['goblin_warlord', 'ember_shaman', 'warren_butcher', 'goblin_oracle'], boss: 'goblin_king', template: 'undead',
     },

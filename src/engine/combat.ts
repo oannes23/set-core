@@ -9,11 +9,11 @@ import { findSets } from '../core/sets'
 import { type GenConfig, genInitial } from '../core/generate'
 import type { Rng } from '../core/rng'
 import type { GameData } from '../data/schema'
-import { type CombatState, type FoeRuntime, type Pending, TACTICS_DRAIN, clockCapMs } from './state'
+import { type CombatState, type FoeRuntime, type Pending, TACTICS_DRAIN } from './state'
 import { type CombatEvent, EventSink } from './events'
 import { type Resolution, resolveSet, weightedRoll } from './resolve'
 import { fireTriggers, runTrigger, enemyAttack, reformSlots, EMPTY_DESC } from './triggers'
-import { gainBlock, addTactics } from './ops'
+import { gainBlock, addTactics, pushClock } from './ops'
 import { firePassives } from './passives'
 import { castAbility } from './abilities'
 import { useTactic } from './tactics'
@@ -108,12 +108,9 @@ function applyResolution(s: CombatState, res: Resolution, rng: Rng, sink: EventS
   // Move boots push the clock (capped at the foe's interval); overflow seconds feed Tactics
   let tactics = 0
   if (res.boot > 0) {
-    const before = s.nextAttackAt
-    s.nextAttackAt = Math.min(s.now + clockCapMs(s), s.nextAttackAt + res.boot * 1000)
-    const applied = Math.round((s.nextAttackAt - before) / 1000)
-    const overflow = Math.max(0, res.boot - applied)
+    const applied = pushClock(s, res.boot, sink)
+    const overflow = res.boot - applied
     tactics = weightedRoll(res.boot, rng) + overflow
-    if (applied > 0) sink.emit({ type: 'clockChanged', deltaSeconds: applied })
   }
   for (let i = 0; i < 3; i++) s.mana[i] += res.mana[i]
   sink.emit({ type: 'manaGained', mana: res.mana })
@@ -156,6 +153,7 @@ function onWin(s: CombatState, deps: Deps, sink: EventSink): void {
 }
 
 function completeSet(s: CombatState, slots: [number, number, number], deps: Deps, sink: EventSink): void {
+  if (!s.running) return // a settled fight accepts no more sets (replayed/stray actions are no-ops)
   const [a, b, c] = slots
   const ca = s.board[a]
   const cb = s.board[b]
@@ -220,6 +218,7 @@ function tick(s: CombatState, dtMs: number, deps: Deps, sink: EventSink): void {
       runTrigger(s, trig, EMPTY_DESC, deps.rng, sink) // tick triggers fire with no match descriptor
     }
   }
+  if (!s.running) return // a tick trigger ended the fight — no board upkeep after `lost`
   // unlock expired locks
   if (s.locked.size) {
     const freed: number[] = []

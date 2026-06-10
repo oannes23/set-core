@@ -87,11 +87,13 @@ export function castDamageHook(s: CombatState, cost: [number, number, number], s
 }
 
 /** Push the enemy's next attack later, capped at the clock ceiling (Moves). `uncapped` bypasses the
- *  ceiling for premium stalls (e.g. a major Haste potion). Returns the seconds applied. */
+ *  ceiling for premium stalls (e.g. a major Haste potion). The cap clamps the GAIN only — a clock
+ *  already past the ceiling (via an uncapped push) is never pulled backward. Returns seconds applied
+ *  (0..sec); callers can treat `sec - applied` as overflow (Move sets feed it to Tactics). */
 export function pushClock(s: CombatState, sec: number, sink: EventSink, uncapped = false): number {
   const before = s.nextAttackAt
   const ceil = uncapped ? Infinity : s.now + clockCapMs(s)
-  s.nextAttackAt = Math.min(ceil, s.nextAttackAt + sec * 1000)
+  s.nextAttackAt = Math.max(before, Math.min(ceil, before + sec * 1000))
   const applied = Math.round((s.nextAttackAt - before) / 1000)
   if (applied > 0) sink.emit({ type: 'clockChanged', deltaSeconds: applied })
   return applied

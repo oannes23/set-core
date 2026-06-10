@@ -837,14 +837,16 @@ Durable facts surfaced in this review that aren't (yet) in any doc:
 
 ## 14. Prioritized action list
 
-**Now (small, high-payoff):**
-1. Fix E1 — clamp the clock *gain* in `pushClock`, dedupe the 4 copies (A2),
-   add T3 tests.
-2. Fix U1 — Enter must not confirm danger modals.
-3. Fix the Goblin King / War Cry mirror (drift #1-2) and decide the canonical
-   elite-telegraph recipe before authoring more dungeons.
-4. E2, E5, U3, U4 — each is a few lines.
-5. sw.js: network-first navigations + gate SW registration on PROD.
+**Now (small, high-payoff):** — ✅ ALL LANDED 2026-06-09
+1. ~~Fix E1 — clamp the clock *gain* in `pushClock`, dedupe the 4 copies (A2),
+   add T3 tests.~~ ✅ (Time Warp = never-pull-backward, per design call)
+2. ~~Fix U1 — Enter must not confirm danger modals.~~ ✅ (Enter now only
+   activates the focused button; U2 stacking leak fixed alongside)
+3. ~~Fix the Goblin King / War Cry mirror and decide the canonical
+   elite-telegraph recipe.~~ ✅ (King fields war_cry; boss_mirror →
+   war_cry_lesser, always attaches to every elite, deduped; TRAPS.md §7 updated)
+4. ~~E2, E5, E6, U3, U4 — each is a few lines.~~ ✅
+5. ~~sw.js: network-first navigations + gate SW registration on PROD.~~ ✅
 
 **Before Phase B2 (decisions + foundations):**
 6. Settle the death/flee/Rest cost triad — load-bearing for the whole loot loop.

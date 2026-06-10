@@ -747,14 +747,14 @@ function onBoardClick(e: Event): void {
       dispatch({ type: 'completeSet', slots: sel }) // dispatch renders (with the crossfade) — don't double-render
       return
     }
-    // misread — shake + clear
-    V.selected.forEach((j) => V!.refs.board.querySelector(`[data-i="${j}"]`)?.classList.add('bad'))
+    // misread — clear the selection NOW (an engine re-render mid-shake must not repaint the bad
+    // trio as a normal pick, and a 4th click must not re-enter this branch); only the shake lingers
+    const bad = V.selected
+    V.selected = []
+    bad.forEach((j) => V!.refs.board.querySelector(`[data-i="${j}"]`)?.classList.add('bad'))
     log('A misread — those three are not a set.', 'foe')
     setTimeout(() => {
-      if (V) {
-        V.selected = []
-        renderBoard()
-      }
+      if (V) renderBoard()
     }, 320)
     return
   }
@@ -775,24 +775,28 @@ function onAbilityClick(e: Event): void {
 }
 
 /** A small in-engine confirm dialog (replaces the browser confirm()). Cancel / confirm / click-scrim /
- *  Esc(cancel) / Enter(confirm). The caller owns any pause/resume around it. */
+ *  Esc(cancel). Enter activates whichever BUTTON has focus (native semantics) — never a global
+ *  confirm, so the focused-Cancel safe default actually protects the danger actions. */
 function confirmModal(opts: { title: string; body?: string; confirmLabel?: string; danger?: boolean; onConfirm: () => void; onCancel?: () => void }): void {
+  // a stacked open must run the previous modal's FULL cleanup (its document keydown listener leaks otherwise)
+  ;(document.getElementById('confirmmodal') as (HTMLElement & { _cancel?: () => void }) | null)?._cancel?.()
   document.getElementById('confirmmodal')?.remove()
   const m = $(`<div id="confirmmodal"><div class="confcard">
     <h2 class="conftitle">${opts.title}</h2>
     ${opts.body ? `<div class="confbody">${opts.body}</div>` : ''}
     <div class="confbtns"><button class="confbtn" id="cm-no">Cancel</button><button class="confbtn ${opts.danger ? 'danger' : 'primary'}" id="cm-yes">${opts.confirmLabel ?? 'Confirm'}</button></div>
-  </div></div>`)
+  </div></div>`) as HTMLElement & { _cancel?: () => void }
   document.body.appendChild(m)
   const cleanup = (): void => { m.remove(); document.removeEventListener('keydown', onKey) }
   const cancel = (): void => { cleanup(); opts.onCancel?.() }
   const accept = (): void => { cleanup(); opts.onConfirm() }
-  const onKey = (e: KeyboardEvent): void => { if (e.key === 'Escape') cancel(); else if (e.key === 'Enter') accept() }
+  const onKey = (e: KeyboardEvent): void => { if (e.key === 'Escape') cancel() }
+  m._cancel = cancel
   m.querySelector('#cm-no')!.addEventListener('click', cancel)
   m.querySelector('#cm-yes')!.addEventListener('click', accept)
   m.addEventListener('click', (e) => { if (e.target === m) cancel() }) // click the scrim = cancel
   document.addEventListener('keydown', onKey)
-  ;(m.querySelector('#cm-no') as HTMLElement).focus() // safe default (Cancel)
+  ;(m.querySelector('#cm-no') as HTMLElement).focus() // safe default (Cancel); Tab → confirm, Enter activates
 }
 
 /** Flee — forfeit the encounter. Available any time the fight is live (not gated by the Tactics meter). */
@@ -1330,6 +1334,7 @@ function loop(t: number): void {
 function endScreen(result: 'win' | 'lose' | 'flee'): void {
   if (!V) return
   coachFinish() // close any open guided step before the end banner
+  V.paused = false // a flee-confirm pause must not survive onto the end card (frozen animations)
   cancelAnimationFrame(V.raf)
   if (V.refs.fleebtn) V.refs.fleebtn.style.display = 'none' // no fleeing a finished fight
   document.getElementById('ptint')?.classList.remove('low', 'crit') // drop the low-HP vignette on the end card

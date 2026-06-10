@@ -55,9 +55,10 @@ export function assembleFoe(creatureId: string, dungeon: Dungeon | null, data: G
     }
   }
 
-  // an elite's telegraph: its OWN authored trap(s) if it has them, else the dungeon's generic boss_mirror.
-  // (Authoring traps overrides the mirror — otherwise an elite would carry both its telegraph AND the mirror.)
-  if (base.tier === 'elite' && dungeon?.boss_mirror && !(base.traps && base.traps.length)) {
+  // the elite recipe (TRAPS.md §7): EVERY elite telegraphs the boss — the dungeon's boss_mirror
+  // (a lesser echo of a boss signature trap) attaches on top of any authored traps, deduped when
+  // the elite already authors that exact trap (e.g. the Warlord's own Lesser War Cry).
+  if (base.tier === 'elite' && dungeon?.boss_mirror && !(base.traps ?? []).includes(dungeon.boss_mirror)) {
     const m = data.traps[dungeon.boss_mirror]
     if (m) triggers.unshift(m)
   }

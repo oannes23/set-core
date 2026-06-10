@@ -413,6 +413,13 @@ threat. (Lives alongside `CRAWL-DESIGN.md` §2 run loop / §4 data architecture.
   ONE rolled minion trap. So the ladder is **1 → 2 → 3 traps**, and the elite's fixed
   trap **foreshadows the boss**: you learn the dungeon's core danger before you face
   it. (Reinforces theme a fourth time: drift baits → elite previews → boss confirms.)
+- **Canonical recipe (as built):** the dungeon's `boss_mirror` names the *lesser-echo*
+  trap, and it **always attaches** to every elite — on top of any elite-authored flavor
+  traps, deduped when the elite authors that exact trap itself. The boss MUST actually
+  field the signature the mirror foretells (asserted for the warren in `engine.test.ts`;
+  keep that true when authoring new dungeons). An elite with an authored extra (e.g. the
+  Ember Shaman's sweep) thus carries
+  mirror + authored + rolled — flavor-rich elites run a touch hotter than the base TWO.
 - **Spawn — sawtooth per-room roll**, checked *only if the boss didn't trigger this
   room*: chance = **10% × (rooms since the last elite)**, and the counter **resets to 0
   the moment an elite is encountered**. So it climbs 10% → 20% → 30% … until an elite

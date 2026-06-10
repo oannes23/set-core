@@ -203,8 +203,9 @@ export const ABILITIES: Record<string, Ability> = {
     id: 'timewarp', name: 'Time Warp', icon: '⏳', cost: [2, 2, 2], desc: 'slam enemy clock to its cap + 6 dmg',
     cast(s, rng, sink) {
       dealRolled(s, 6, rng, sink)
+      // slam to the cap, but never pull an above-cap clock (uncapped Speed Potion) backward
       const before = s.nextAttackAt
-      s.nextAttackAt = s.now + clockCapMs(s)
+      s.nextAttackAt = Math.max(before, s.now + clockCapMs(s))
       const applied = Math.round((s.nextAttackAt - before) / 1000)
       if (applied > 0) sink.emit({ type: 'clockChanged', deltaSeconds: applied })
     },

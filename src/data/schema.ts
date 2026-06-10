@@ -158,7 +158,7 @@ export interface Dungeon {
   guided?: boolean // launch the staged guided-intro walkthrough on Engage
   theme?: Theme | null
   drift?: string | null // drift id
-  boss_mirror?: string | null // trap id elites telegraph
+  boss_mirror?: string | null // lesser-echo trap id EVERY elite carries (attaches atop authored traps, deduped)
   default_foe?: string // creature id pre-selected in the picker
   sequence?: string[] // creature ids fought in a row (gauntlet)
   enemy_table: EnemyTableEntry[]

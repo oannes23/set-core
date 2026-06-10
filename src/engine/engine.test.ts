@@ -8,8 +8,10 @@ import { assembleFoe } from './foe'
 import { createCombat, reduce, colsForN } from './combat'
 import { resolveSet, SHAPE_ATTACK, SHAPE_MOVE } from './resolve'
 import { condMet, selectSlots, transmute, lockSlots, runTrigger, EMPTY_DESC } from './triggers'
+import { pushClock } from './ops'
 import { EventSink } from './events'
 import type { CombatState } from './state'
+import { clockCapMs } from './state'
 
 const GEN: GenConfig = { n: 15, active: [0, 1, 3], pin: [0, 0, 0, 0], camoDepth: 1, escapeRoutes: 6, floor: 1 }
 const card = (col: number, sh: number, num: number): Card => [col, sh, 0, num]
@@ -85,17 +87,28 @@ test('assembleFoe resolves stats, triggers, rules', () => {
   expect(b.triggers.find((t) => t.name === 'Outmaneuvered')?.kind).toBe('trick')
 })
 
-test('an elite with an authored telegraph overrides the dungeon boss_mirror (no double trap)', () => {
+test('an elite that already authors the boss_mirror trap does not double-stack it', () => {
   const e = assembleFoe('goblin_warlord', GAMEDATA.dungeons.goblin_warren, GAMEDATA, mulberry32(3))!
-  const names = e.triggers.map((t) => t.name)
-  expect(names).toContain('Lesser War Cry') // its own telegraph
-  expect(names).not.toContain('War Cry') // NOT the generic boss_mirror stacked on top
+  const names = e.triggers.filter((t) => t.name === 'Lesser War Cry')
+  expect(names).toHaveLength(1) // authored == mirror → exactly one copy
   expect(e.triggers).toHaveLength(2) // telegraph + one rolled variant
 })
 
-test('an elite without authored traps falls back to the dungeon boss_mirror', () => {
+test('the boss_mirror attaches ON TOP of an elite\'s other authored traps', () => {
+  const e = assembleFoe('ember_shaman', GAMEDATA.dungeons.goblin_warren, GAMEDATA, mulberry32(3))!
+  const names = e.triggers.map((t) => t.name)
+  expect(names).toContain('Lesser War Cry') // the dungeon-fixed mirror — every elite telegraphs the boss
+  expect(names).toContain('Ember Sweep') // its own authored trap, kept
+})
+
+test('an elite without authored traps still carries the dungeon boss_mirror', () => {
   const e = assembleFoe('goblin_brute', GAMEDATA.dungeons.goblin_warren, GAMEDATA, mulberry32(3))!
-  expect(e.triggers.map((t) => t.name)).toContain('War Cry') // the boss_mirror telegraph
+  expect(e.triggers.map((t) => t.name)).toContain('Lesser War Cry') // the boss_mirror telegraph
+})
+
+test('the boss actually fields the signature trap his elites telegraph', () => {
+  const king = GAMEDATA.creatures.goblin_king
+  expect(king.traps).toContain('war_cry') // the Lesser War Cry foretaste must be true
 })
 
 // ---- reducer: a real match + the enemy clock ----
@@ -166,4 +179,66 @@ test('determinism: same seed + actions → identical state', () => {
     return { hp: s.enemyHP, php: s.playerHP, mana: s.mana, board: s.board.map((c) => (c ? c.join('') : 'x')).join('|') }
   }
   expect(run()).toEqual(run())
+})
+
+// ---- clock cap: the ceiling clamps the GAIN, never pulls the clock backward (FABLE E1) ----
+test('pushClock: capped pushes never pull an above-cap clock backward', () => {
+  const s = createCombatStub(Array.from({ length: 15 }, (_, i) => card(i % 3, i % 3, (i >> 2) % 3)))
+  const sink = new EventSink()
+  // an uncapped premium stall (Speed Potion) pushes well past the ceiling…
+  pushClock(s, 30, sink, true)
+  const stalled = s.nextAttackAt
+  expect(stalled).toBeGreaterThan(s.now + clockCapMs(s))
+  // …then a capped push (Frostbolt / a Move set) must apply 0, not crater the stall to the cap
+  const applied = pushClock(s, 5, sink)
+  expect(applied).toBe(0)
+  expect(s.nextAttackAt).toBe(stalled)
+})
+
+test('pushClock: a capped push clamps the gain at the ceiling and reports seconds applied', () => {
+  const s = createCombatStub(Array.from({ length: 15 }, (_, i) => card(i % 3, i % 3, (i >> 2) % 3)))
+  const sink = new EventSink()
+  s.now = 0
+  s.nextAttackAt = 5000
+  const applied = pushClock(s, 100, sink) // way past the cap
+  expect(s.nextAttackAt).toBe(clockCapMs(s)) // exactly the ceiling
+  expect(applied).toBe(Math.round((clockCapMs(s) - 5000) / 1000))
+  expect(applied).toBeGreaterThanOrEqual(0) // never negative → Move overflow can never be inflated
+})
+
+test('Time Warp slams to the cap but never pulls an above-cap clock earlier', () => {
+  const rng = mulberry32(9)
+  const f = foe('goblin', rng)
+  let s = createCombat({ foe: f, gen: GEN, dungeonId: 'goblin_warren' }, rng)
+  s.mana = [2, 2, 2]
+  s.nextAttackAt = s.now + clockCapMs(s) + 15000 // Speed-Potion territory
+  const stalled = s.nextAttackAt
+  const r = reduce(s, { type: 'castAbility', abilityId: 'timewarp' }, { data: GAMEDATA, rng })
+  expect(r.state.nextAttackAt).toBe(stalled) // the bigger stall survives
+  expect(r.events.some((e) => e.type === 'clockChanged')).toBe(false)
+})
+
+// ---- death guards: a mid-trigger kill stops cleanly (FABLE E2/E5) ----
+test('a multi-effect trigger that kills on the first effect emits exactly one lost and stops', () => {
+  const s = createCombatStub(Array.from({ length: 15 }, (_, i) => card(i % 3, i % 3, (i >> 2) % 3)))
+  s.playerHP = 3
+  s.block = 0
+  const sink = new EventSink()
+  runTrigger(s, { name: 'Twin Blast', icon: 'x', on: 'match', do: [{ effect: 'damage', amount: 10 }, { effect: 'damage', amount: 10 }] }, EMPTY_DESC, mulberry32(1), sink)
+  expect(s.running).toBe(false)
+  expect(sink.events.filter((e) => e.type === 'lost')).toHaveLength(1)
+  expect(sink.events.filter((e) => e.type === 'playerDamaged')).toHaveLength(1) // second effect never ran
+})
+
+test('completeSet after the fight has settled is a no-op (replay safety)', () => {
+  const rng = mulberry32(5)
+  const f = foe('goblin', rng)
+  let s = createCombat({ foe: f, gen: GEN, dungeonId: 'goblin_warren' }, rng)
+  s.running = false
+  s.result = 'lose'
+  const sets = findSets(s.board)
+  const r = reduce(s, { type: 'completeSet', slots: sets[0] }, { data: GAMEDATA, rng })
+  expect(r.events).toHaveLength(0)
+  expect(r.state.enemyHP).toBe(s.enemyHP)
+  expect(r.state.board).toEqual(s.board)
 })

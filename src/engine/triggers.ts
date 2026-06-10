@@ -9,7 +9,8 @@ import type { Rng } from '../core/rng'
 import { patch, patchFavor, type FavorBias } from '../core/generate'
 import type { Condition, Selector, Bias, Effect, Trigger } from '../data/schema'
 import type { CombatState, Pending } from './state'
-import { clockCapMs, DMG_REGEN_MS } from './state'
+import { DMG_REGEN_MS } from './state'
+import { pushClock } from './ops'
 import type { EventSink } from './events'
 import { type MatchDescriptor, weightedRoll } from './resolve'
 import { cardColor, cardShape, cardMag, isLive, liveSlots, pickRandom, gridDims, rowSlots, colSlots } from './select'
@@ -180,10 +181,7 @@ function runEffect(s: CombatState, e: Effect, desc: MatchDescriptor, rng: Rng, s
     }
     case 'delay_attack': {
       const sec = e.seconds ?? 5
-      const before = s.nextAttackAt
-      s.nextAttackAt = Math.min(s.now + clockCapMs(s), s.nextAttackAt + sec * 1000)
-      const applied = Math.round((s.nextAttackAt - before) / 1000)
-      if (applied > 0) sink.emit({ type: 'clockChanged', deltaSeconds: applied })
+      const applied = pushClock(s, sec, sink)
       return applied > 0 ? `+${applied}s` : null
     }
     case 'enemy_heal': {
@@ -247,6 +245,7 @@ export function runTrigger(s: CombatState, trigger: Trigger, desc: MatchDescript
   for (const eff of trigger.do) {
     const r = runEffect(s, eff, desc, rng, sink, hostile)
     if (r != null) labels.push(r)
+    if (!s.running) break // an effect ended the fight — don't run the rest against a settled state
   }
   if (labels.length) sink.emit({ type: 'triggerSprung', trigger, label: labels.join(' · ') })
 }
@@ -271,7 +270,7 @@ export function hurtPlayer(s: CombatState, raw: number, source: string, sink: Ev
   if (dmg > 0) {
     s.playerHP = Math.max(0, s.playerHP - dmg)
     sink.emit({ type: 'playerDamaged', amount: dmg, absorbed, source })
-    if (s.playerHP <= 0) {
+    if (s.playerHP <= 0 && s.running) { // guard: never emit `lost` twice (multi-effect triggers)
       s.running = false
       s.result = 'lose'
       sink.emit({ type: 'lost' })
