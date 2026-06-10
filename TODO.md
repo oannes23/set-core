@@ -53,15 +53,16 @@ deliverable of this batch.
 
 **Settled in design discussion (2026-06-09/10):**
 - **Verb-then-parameter UI:** you select a TACTIC (the verb); its sub-UI exposes its parameter.
-  Launch roster = TWO tactics: **Maneuver** (charges churn the deadest card toward your chosen
-  bias; sub-UI = axis/value picker incl. shape & magnitude) and **Ward** (board INTEGRITY:
-  banked charges intercept hostile board verbs — drift / enemy transmute / lock, never damage —
-  AND actively repair existing wounds/locks/gaps; sub-UI = charge pips). Ward absorbed the old
-  "Mend" idea (wounds/locks too rare for a standalone tactic). Shelf: **Scout** = a RUN mechanic,
-  not combat — leftover end-of-fight charges spent at the between-rooms fork to reveal the next
-  room (foe → variant → trap, one per charge; in-combat preview is impossible since reforms are
-  contextual, not a stack). **Salvage** (churn→mana) = gear-unlocked later. **Disrupt** (delay
-  enemy ticks) = shelved, it undermines dread/anti-stall. Bait = rejected.
+  Launch roster = TWO tactics: **Maneuver** (active: charges churn the deadest card toward your
+  chosen bias; sub-UI = axis/value picker incl. shape & magnitude) and **Stand Ground** (passive:
+  banked charges intercept hostile board verbs as they fire — dungeon drift, enemy transmutes,
+  locks, wound-shatters; never raw damage; sub-UI = charge pips). Stand Ground absorbed and
+  simplified the old "Ward/Mend" ideas — prevention only, no active repair. **Swapping tactics
+  RESETS your charges and takes a few seconds to begin accumulating again** (supersedes the
+  earlier free-with-lull rule) — picking your tactic is a commitment, which is what makes the
+  choice real. Shelf: **Scout & Scavenge** = RUN-fork verbs, not combat (notes below).
+  **Salvage** (churn→mana) = gear-unlocked later. **Disrupt** (delay enemy ticks) = shelved, it
+  undermines dread/anti-stall. Bait = rejected.
 - **Income (charges):** **+1 per Move CARD in the matched set** (shape-rainbow = 1, all-Move = 3;
   magnitude stays tempo-only) **+ excess timer** (clock pushed past cap) **+ excess block** (past
   max HP). NO excess-mana or excess-healing income — those are pure loss. **Mana cap 15** (new;
@@ -69,7 +70,14 @@ deliverable of this batch.
 - **Pure flow** (no surge valve) · **serial queue** — charges spend ONE AT A TIME (deadest
   re-evaluated after each morph; never a batch flash), modest queue cap (~5, overflow wasted) ·
   **switching free with a brief lull** (~3-4s churn pause, no loss).
-- **Warlord passive → "Adaptive Tactics":** no changeover lull, +2 queue cap (the stance-dancer).
+- **Warlord passive → "Adaptive Tactics":** your charges PERSIST through a tactic swap (and the
+  spin-up is skipped) — the stance-dancer, rebuilt against the harsher swap-resets baseline.
+- **Run-fork verbs (notes for the B2 room-variety pass, not this batch):** **Scout** — spend at
+  the fork: telegraphs what the next room holds AND grants extra board-preview seconds before the
+  enemy clock starts in the next fight (grace ends instantly on your first match). **Scavenge** —
+  its foil: a loot bonus (shape TBD). These live alongside the bigger run-variety thread: StS-style
+  non-combat room encounters, dungeon merchants, camp spots — to be designed when the run loop
+  deepens; more fork verbs will likely emerge there.
 - `[x]` **Set-mate hint rework (prereq, DONE):** teal glow → wind-FLUTTER micro-shake (amplitude
   scales with gimme; completer = hard rattle; tutorial keeps gold glow; reduced-motion falls back
   to static frames) — frees the glow channel for future hint layers.
