@@ -110,17 +110,41 @@ button.cta.bob { animation: ctabob 1.6s ease-in-out infinite; }
 .card:hover { transform: translateY(-2px); }
 .card .cardsvg { width: 82%; height: 82%; display: block; pointer-events: none; }
 .card.sel { box-shadow: var(--moat), 0 0 0 6px var(--phos), 0 0 22px -3px var(--phos); transform: translateY(-3px); }
-/* set-mate hints (2nd possibilities — often MANY at once) are an INNER gold FRAME: it stays inside the card,
-   so adjacent lit cards never bleed across the 8px gap. Gold ≠ card colours, so it reads on red/green/blue. */
-/* normal play: TEAL inner frame, brightness scaled HARD by --gimme (obvious sets glow, camo sets barely) */
-.card.mate { box-shadow: inset 0 0 0 3px rgba(94,234,212, calc(.2 + .62 * var(--gimme, .5))), inset 0 0 calc(16px * var(--gimme, 0)) -2px rgba(94,234,212,.85); }
-/* tutorial: uniform bright GOLD so every set-mate is unmistakable (teaching, not difficulty-grading) */
-.board.teachmates .card.mate { box-shadow: inset 0 0 0 3px var(--gold), inset 0 0 11px -2px var(--gold); }
-/* the completer (3rd finisher) is a single card → an OUTER breathing ring (with moat) to POP out */
-.card.complete { animation: completebreath 1.1s ease-in-out infinite; }
-@keyframes completebreath { 0%, 100% { box-shadow: var(--moat), 0 0 0 6px var(--phos), 0 0 9px -3px var(--phos); } 50% { box-shadow: var(--moat), 0 0 0 6px var(--phos), 0 0 18px -2px var(--phos); } }
-.board.teachmates .card.complete { animation: completebreathbig 1.1s ease-in-out infinite; }
+/* set-mate hints (2nd possibilities — often MANY at once) are a WIND-FLUTTER: a brief micro-shake
+   every couple of seconds, amplitude scaled HARD by --gimme (obvious sets flap, camo sets barely
+   stir). Motion instead of glow keeps the glow channel free for future hint layers (Scout etc.).
+   --amp floors at .3 so even a full-camo mate still visibly stirs; hover pauses the flutter so the
+   normal lift works; reduced-motion swaps back to the old static teal frame (see below). */
+.card.mate { --amp: calc(.3 + .7 * var(--gimme, .5)); }
+.card.mate:not(:hover) { animation: mateflutter 2.5s ease-in-out infinite; }
+@keyframes mateflutter {
+  0%, 14%, 100% { transform: none; }
+  3% { transform: translateX(calc(var(--amp, .5) * -2.5px)) rotate(calc(var(--amp, .5) * -1.2deg)); }
+  6% { transform: translateX(calc(var(--amp, .5) * 2.5px)) rotate(calc(var(--amp, .5) * 1.2deg)); }
+  9% { transform: translateX(calc(var(--amp, .5) * -1.6px)) rotate(calc(var(--amp, .5) * -.7deg)); }
+  12% { transform: translateX(calc(var(--amp, .5) * .9px)) rotate(calc(var(--amp, .5) * .4deg)); }
+}
+/* tutorial: uniform bright GOLD GLOW, no flutter — teaching wants unmistakable, not difficulty-graded */
+.board.teachmates .card.mate { animation: none; box-shadow: inset 0 0 0 3px var(--gold), inset 0 0 11px -2px var(--gold); }
+/* the completer (3rd finisher) is a single card → a VERY visible rattle (begging to be picked) */
+.card.complete { box-shadow: var(--moat); }
+.card.complete:not(:hover) { animation: completeshake .95s ease-in-out infinite; }
+@keyframes completeshake {
+  0%, 48%, 100% { transform: none; }
+  54% { transform: translateX(-3px) rotate(-1.6deg); }
+  62% { transform: translateX(3px) rotate(1.6deg); }
+  70% { transform: translateX(-3px) rotate(-1.3deg); }
+  78% { transform: translateX(2px) rotate(.9deg); }
+  86% { transform: translateX(-1px) rotate(-.4deg); }
+}
+.board.teachmates .card.complete { animation: completebreathbig 1.1s ease-in-out infinite; box-shadow: none; }
 @keyframes completebreathbig { 0%, 100% { box-shadow: var(--moat), 0 0 0 7px var(--gold), 0 0 13px -3px var(--gold); } 50% { box-shadow: var(--moat), 0 0 0 8px var(--gold), 0 0 22px -1px var(--gold); } }
+/* reduced motion: hints fall back to the pre-flutter static frames (glow carries the signal instead) */
+@media (prefers-reduced-motion: reduce) {
+  .card.mate:not(:hover), .card.complete:not(:hover) { animation: none; }
+  .card.mate { box-shadow: inset 0 0 0 3px rgba(94, 234, 212, calc(.2 + .62 * var(--gimme, .5))), inset 0 0 calc(16px * var(--gimme, 0)) -2px rgba(94, 234, 212, .85); }
+  .card.complete { box-shadow: var(--moat), 0 0 0 6px var(--phos), 0 0 14px -3px var(--phos); }
+}
 /* two picks whose finishing third isn't on the board → a dead end: the picks glow red, nothing else does */
 .card.badpair { box-shadow: var(--moat), 0 0 0 6px var(--red), 0 0 22px -3px var(--red); transform: translateY(-3px); } /* red ring stays visible on a red card thanks to the moat */
 .card.bait { animation: baitshimmer 2.3s ease-in-out infinite; } /* drift-colour cards tempt you (the lure to resist) */

@@ -205,7 +205,7 @@ function characterSelectScene(root: HTMLElement): void {
   wrap.appendChild(cols)
   const footer = $(`<div class="hubfoot"></div>`)
   wrap.appendChild(footer)
-  wrap.appendChild($(`<div class="sub" style="margin-top:18px">Click cards to build a set (same-or-all-different on every trait). Teal halos show set-mates.</div>`))
+  wrap.appendChild($(`<div class="sub" style="margin-top:18px">Click cards to build a set (same-or-all-different on every trait). Set-mates flutter — the easier the set, the harder they flap; a rattling card completes one.</div>`))
   wrap.appendChild($(`<div class="sub" style="margin-top:10px;text-transform:none;letter-spacing:0;color:var(--ink-faint)">Archived single-file prototypes (the migration oracle): <a href="${import.meta.env.BASE_URL}prototype/" style="color:var(--phos);text-decoration:none">▸ /prototype/</a></div>`))
   root.appendChild(wrap)
 
@@ -659,7 +659,7 @@ function renderBoard(verbs?: Map<number, CardVerb>): void {
     let gimme = -1
     if (V!.selected.includes(i)) cls.push(mates.deadPair ? 'badpair' : 'sel') // dead pair → red picks, no other glow
     else if (mates.complete === i) cls.push('complete')
-    else if (mates.set.has(i)) { cls.push('mate'); gimme = mates.set.get(i)! } // brightness scales with this set's gimme value
+    else if (mates.set.has(i)) { cls.push('mate'); gimme = mates.set.get(i)! } // flutter amplitude scales with this set's gimme value
     if (locked) cls.push('locked')
     else if (bait != null && c[0] === bait && !V!.selected.includes(i) && mates.complete !== i && !mates.set.has(i)) cls.push('bait')
     if (!firstRender && oldKeys[i] !== key) { cls.push('enter'); if (verbs?.get(i) === 'reform') cls.push('reform') } // new/changed → fade in (reform = materialize)

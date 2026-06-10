@@ -51,25 +51,43 @@ decision"; a stance makes board-shaping a standing read and makes TRAPS §5.5's 
 directly playable). Pointer note lives in `CRAWL-DESIGN.md` §5.5; the full v2 spec is the first
 deliverable of this batch.
 
-Scope:
-- `[ ]` **Design spec (CRAWL §5.5 v2):** stance menu (axis/value stances + at least one non-axis
-  *verb* stance, e.g. **Ward** = spend churn suppressing enemy drift, so mono-color builds still
-  face a live greed-vs-defense toggle); churn mechanics (income → churn charges; deadest
-  non-conforming card transmutes toward stance via existing `patchFavor` bias + saturation caps);
-  decide **pure flow vs surge valve** (banked excess ventable as a mini-flood spike).
-- `[ ]` **Engine:** replace armed/drain state with stance + churn accumulator (player-owned
-  tick-trigger shape); remap meter-anchored systems — Vigilance `drain_tactics` (drain bank /
-  stall churn), Tactician passive (churn income — watch its rate, flagged as cheap), Invisibility
-  drain-pause (delete), tutorial Tactics step, §7 Move-affix anchors (re-anchor on churn
-  rate/stance strength).
-- `[ ]` **Ability translation pass:** carry every existing ability into the new paradigm where it
-  translates cleanly; **cut and replace** the ones that don't (don't force bad fits). **Keep the
-  Call-type floods** (the burst layer) and **add new Call-type spells targeting SHAPES**
-  (Attack/Defend/Move) alongside the color Calls, to round out burst options under stances.
-- `[ ]` **UI:** 6-way tactic buttons → stance selector (same real estate); churn needs visible
-  per-card feedback (the morph animation exists); stance vs drift "tug" readability.
-- ⚠ Interaction: a green stance smooths sustain loops (Photosynthesis/Heal) — one more reason
-  the structural anti-stall lands with/before this.
+**Settled in design discussion (2026-06-09/10):**
+- **Verb-then-parameter UI:** you select a TACTIC (the verb); its sub-UI exposes its parameter.
+  Launch roster = TWO tactics: **Maneuver** (charges churn the deadest card toward your chosen
+  bias; sub-UI = axis/value picker incl. shape & magnitude) and **Ward** (board INTEGRITY:
+  banked charges intercept hostile board verbs — drift / enemy transmute / lock, never damage —
+  AND actively repair existing wounds/locks/gaps; sub-UI = charge pips). Ward absorbed the old
+  "Mend" idea (wounds/locks too rare for a standalone tactic). Shelf: **Scout** = a RUN mechanic,
+  not combat — leftover end-of-fight charges spent at the between-rooms fork to reveal the next
+  room (foe → variant → trap, one per charge; in-combat preview is impossible since reforms are
+  contextual, not a stack). **Salvage** (churn→mana) = gear-unlocked later. **Disrupt** (delay
+  enemy ticks) = shelved, it undermines dread/anti-stall. Bait = rejected.
+- **Income (charges):** **+1 per Move CARD in the matched set** (shape-rainbow = 1, all-Move = 3;
+  magnitude stays tempo-only) **+ excess timer** (clock pushed past cap) **+ excess block** (past
+  max HP). NO excess-mana or excess-healing income — those are pure loss. **Mana cap 15** (new;
+  gear-raisable later) — closes the open mana-cap gap; storing/chaining casts stays viable.
+- **Pure flow** (no surge valve) · **serial queue** — charges spend ONE AT A TIME (deadest
+  re-evaluated after each morph; never a batch flash), modest queue cap (~5, overflow wasted) ·
+  **switching free with a brief lull** (~3-4s churn pause, no loss).
+- **Warlord passive → "Adaptive Tactics":** no changeover lull, +2 queue cap (the stance-dancer).
+- `[x]` **Set-mate hint rework (prereq, DONE):** teal glow → wind-FLUTTER micro-shake (amplitude
+  scales with gimme; completer = hard rattle; tutorial keeps gold glow; reduced-motion falls back
+  to static frames) — frees the glow channel for future hint layers.
+
+Build scope:
+- `[ ]` **Design spec (CRAWL §5.5 v2):** write the settled model above into the doc.
+- `[ ]` **Engine:** replace armed/drain state with tactic + charge queue (player-owned tick-trigger
+  shape); remap meter-anchored systems — Vigilance `drain_tactics` (drains queued charges),
+  Invisibility drain-pause (delete), tutorial Tactics step, §7 Move-affix anchors (re-anchor on
+  charge income / queue cap).
+- `[ ]` **Ability translation pass:** carry every existing ability that translates cleanly; **cut
+  and replace** bad fits. **Keep the color Call floods** (the burst layer) and **add SHAPE-targeting
+  Calls** (Attack/Defend/Move) to round out burst under the new system.
+- `[ ]` **UI:** tactic selector + per-tactic sub-UI (Maneuver bias picker / Ward pips) in the old
+  6-button real estate; serial churn needs visible per-card feedback (morph animation exists);
+  "tug" readability vs drift.
+- ⚠ Interaction: Maneuver(green) smooths sustain loops (Photosynthesis/Heal), and Chronomancer's
+  pinned clock is the premier excess-timer engine — the structural anti-stall lands with/before this.
 
 ---
 
