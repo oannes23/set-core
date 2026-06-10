@@ -90,3 +90,68 @@ test('the locked combat config (f=3 / n=15 / k1) generates valid boards and stee
   // findability should land the easiest set on k=1 the large majority of the time at this config
   expect(onTarget / trials).toBeGreaterThan(0.8)
 })
+
+// ---- T1: the WEIGHTED regen path (patchFavor) — the path every in-game transmute actually uses ----
+import { patchFavor, type FavorBias } from './generate'
+import { countSetsExcluding } from './sets'
+
+test('patchFavor holds the invariants under heavy bias AND steers the aggregate', () => {
+  // BIAS_W in the engine is 8 — stress at and above it, single- and multi-axis
+  const biases: FavorBias[] = [
+    { color: 0, colorW: 8 },
+    { shape: 2, shapeW: 8 },
+    { mag: 1, magW: 8 },
+    { color: 0, colorW: 16, shape: 2, shapeW: 16 }, // intensity-2-style compound
+  ]
+  const cfg = makeCfg(3, 2, 15, 1, 6)
+  const viol: string[] = []
+  let favored = 0
+  let refills = 0
+  const rng = mulberry32(424242)
+  for (const bias of biases) {
+    let board: Board = genInitial(cfg, rng)
+    for (let c = 0; c < 25; c++) {
+      const sets = findSets(board)
+      const pick = sets[Math.floor(rng() * sets.length)]
+      for (const s of pick) board[s] = null
+      board = patchFavor(board, [...pick], cfg, rng, bias)
+      checkBoard(board, cfg, `favor ${JSON.stringify(bias)} #${c}`, viol)
+      // distribution: count refilled cards that landed on the favoured value(s)
+      for (const s of pick) {
+        const card = board[s]!
+        refills++
+        if (bias.color != null && card[0] === bias.color) favored++
+        else if (bias.color == null && bias.shape != null && card[1] === bias.shape) favored++
+        else if (bias.color == null && bias.shape == null && bias.mag != null && card[3] === bias.mag) favored++
+      }
+    }
+  }
+  expect(viol.slice(0, 10)).toEqual([])
+  // invariant 5's "control aggregate stats": an 8× bias must land WELL above the uniform 1/3 rate
+  expect(favored / refills).toBeGreaterThan(0.55)
+}, 30_000)
+
+// ---- I1: the lock-aware floor — a reform with locked slots must restore a MAKEABLE set ----
+test('patch with excluded (locked) slots keeps ≥ floor sets that avoid every locked slot', () => {
+  const cfg = makeCfg(3, 2, 15, 1, 6)
+  const rng = mulberry32(987654321)
+  const viol: string[] = []
+  for (let trial = 0; trial < 40; trial++) {
+    let board: Board = genInitial(cfg, rng)
+    // lock the three slots of one present set (the worst case: the paper floor runs through locks)
+    const sets = findSets(board)
+    const locked = new Set<number>(sets[Math.floor(rng() * sets.length)])
+    // transmute three random unlocked slots and reform lock-aware
+    const free = board.map((_, i) => i).filter((i) => !locked.has(i))
+    const slots: number[] = []
+    while (slots.length < 3) {
+      const i = free[Math.floor(rng() * free.length)]
+      if (!slots.includes(i)) slots.push(i)
+    }
+    for (const s of slots) board[s] = null
+    board = patch(board, slots, cfg, rng, undefined, locked)
+    checkBoard(board, cfg, `lockfloor #${trial}`, viol)
+    if (countSetsExcluding(board, locked) < cfg.floor) viol.push(`lockfloor #${trial}: no makeable set outside locks`)
+  }
+  expect(viol.slice(0, 10)).toEqual([])
+}, 30_000)

@@ -34,6 +34,15 @@ export function findSets(board: Board): SetTriple[] {
 
 export const countSets = (b: Board): number => findSets(b).length
 
+/** Sets that avoid every `excluded` slot index — the lock-aware ("makeable") count: locked cards
+ *  still form sets on paper, but a set through a lock can't be completed by the player. */
+export function countSetsExcluding(b: Board, excluded?: ReadonlySet<number>): number {
+  if (!excluded || excluded.size === 0) return countSets(b)
+  let n = 0
+  for (const [i, j, k] of findSets(b)) if (!excluded.has(i) && !excluded.has(j) && !excluded.has(k)) n++
+  return n
+}
+
 /** k = how many ACTIVE axes are all-different across the three cards (1 = gimme … F = camouflaged). */
 export function kOfSet(cards: [Card, Card, Card], active: number[]): number {
   let k = 0

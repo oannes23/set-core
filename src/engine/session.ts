@@ -1,18 +1,18 @@
 /* engine/session — the multiplayer seam (TODO.md §A, step 6). We don't build netcode here; we build
    the SHAPE that lets a server slot in as the authority later.
 
-   A combat is fully described by: a seed + a setup descriptor + an ordered ACTION LOG. Because the
+   A run is fully described by: a seed + a setup descriptor + an ordered ACTION LOG. Because the
    engine is pure and the RNG is seeded, replaying that log reproduces the exact same state and events
    on any machine. So: the client dispatches actions locally for instant feedback AND streams the log;
    a server runs `runSession` over the same log and is the source of truth (anti-cheat / shared world).
-   Nothing in the engine mutates state except `reduce` — this module just folds it. */
+   Nothing mutates state except `reduce`/`runReduce` — this module just folds the run layer. */
 
 import { mulberry32, type Rng } from '../core/rng'
 import type { GameData } from '../data/schema'
-import type { CombatState } from './state'
 import type { CombatEvent } from './events'
 import { assembleFoe, pickWeightedFoe } from './foe'
-import { type CombatAction, type Deps, createCombat, reduce, COMBAT_GEN } from './combat'
+import { type CombatAction, COMBAT_GEN } from './combat'
+import { type RunState, createRun, runReduce } from './run'
 
 /** Everything needed to reconstruct the initial state deterministically (no live objects). */
 export interface SessionSetup {
@@ -30,29 +30,29 @@ export interface Session {
   actions: CombatAction[]
 }
 
-/** Build the initial combat state for a setup, consuming the seeded rng (foe roll + board gen). */
-export function startSession(setup: SessionSetup, data: GameData): { state: CombatState; rng: Rng } {
+/** Build the initial run state for a setup, consuming the seeded rng (foe roll + board gen). */
+export function startSession(setup: SessionSetup, data: GameData): { run: RunState; rng: Rng } {
   const rng = mulberry32(setup.seed)
   const dungeon = data.dungeons[setup.dungeonId] ?? null
   const sequence = setup.sequence ?? null
   const foeId = setup.foeId === 'random' || setup.foeId == null ? (sequence ? sequence[0] : pickWeightedFoe(dungeon?.enemy_table ?? [], rng)) : setup.foeId
   const foe = assembleFoe(foeId, dungeon, data, rng)
   if (!foe) throw new Error(`unknown foe: ${foeId}`)
-  const state = createCombat({ foe, gen: COMBAT_GEN, sequence, seqIdx: 0, dungeonId: setup.dungeonId, playerMax: setup.playerMax }, rng)
-  return { state, rng }
+  const run = createRun({ foe, gen: COMBAT_GEN, sequence, dungeonId: setup.dungeonId, playerMax: setup.playerMax }, rng)
+  return { run, rng }
 }
 
-/** Deterministically replay a whole session → final state + the full event stream. A server runs this
- *  over a client's action log to be authoritative; the client running it locally gets the same result. */
-export function runSession(session: Session, data: GameData): { state: CombatState; events: CombatEvent[] } {
-  const { state: initial, rng } = startSession(session.setup, data)
-  const deps: Deps = { data, rng }
-  let state = initial
+/** Deterministically replay a whole session → final run state + the full event stream. A server runs
+ *  this over a client's action log to be authoritative; a client running it locally gets the same. */
+export function runSession(session: Session, data: GameData): { run: RunState; events: CombatEvent[] } {
+  const { run: initial, rng } = startSession(session.setup, data)
+  const deps = { data, rng }
+  let run = initial
   const events: CombatEvent[] = []
   for (const action of session.actions) {
-    const r = reduce(state, action, deps)
-    state = r.state
+    const r = runReduce(run, action, deps)
+    run = r.run
     events.push(...r.events)
   }
-  return { state, events }
+  return { run, events }
 }

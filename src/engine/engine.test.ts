@@ -6,6 +6,7 @@ import type { GenConfig } from '../core/generate'
 import { GAMEDATA } from '../data/game-data'
 import { assembleFoe } from './foe'
 import { createCombat, reduce, colsForN } from './combat'
+import { createRun, runReduce } from './run'
 import { resolveSet, SHAPE_ATTACK, SHAPE_MOVE } from './resolve'
 import { condMet, selectSlots, transmute, lockSlots, runTrigger, EMPTY_DESC } from './triggers'
 import { pushClock } from './ops'
@@ -49,7 +50,7 @@ function bareState(board: (Card | null)[]): CombatState {
 }
 function createCombatStub(board: (Card | null)[]): CombatState {
   const f = foe('limbless_zombie')
-  const s = createCombat({ foe: f, gen: GEN, dungeonId: 'training' }, mulberry32(7))
+  const s = createCombat({ foe: f, gen: GEN }, mulberry32(7))
   s.board = board
   s.cols = colsForN(board.length === 15 ? 15 : 12)
   s.pending = new Map()
@@ -115,7 +116,7 @@ test('the boss actually fields the signature trap his elites telegraph', () => {
 test('completeSet damages the foe / banks mana; tick fires the enemy attack', () => {
   const rng = mulberry32(42)
   const f = foe('goblin', rng)
-  const s = createCombat({ foe: f, gen: GEN, dungeonId: 'goblin_warren' }, rng)
+  const s = createCombat({ foe: f, gen: GEN }, rng)
   const sets = findSets(s.board)
   expect(sets.length).toBeGreaterThan(0)
   const r = reduce(s, { type: 'completeSet', slots: sets[0] }, { data: GAMEDATA, rng })
@@ -130,7 +131,7 @@ test('completeSet damages the foe / banks mana; tick fires the enemy attack', ()
 test('the training dummy (0 damage) cannot hurt the player', () => {
   const rng = mulberry32(5)
   const f = foe('training_dummy', rng)
-  const s = createCombat({ foe: f, gen: GEN, dungeonId: 'tutorial' }, rng)
+  const s = createCombat({ foe: f, gen: GEN }, rng)
   const t = reduce(s, { type: 'tick', dtMs: 31000 }, { data: GAMEDATA, rng }) // cadence 30s
   expect(t.state.playerHP).toBe(t.state.playerMax)
   expect(t.events.some((e) => e.type === 'playerBlocked')).toBe(true) // harmless swing
@@ -139,7 +140,7 @@ test('the training dummy (0 damage) cannot hurt the player', () => {
 test('immune foe (ethereal goblin) takes no card damage', () => {
   const rng = mulberry32(9)
   const g = foe('unstable_ethereal_goblin', rng)
-  const s = createCombat({ foe: g, gen: GEN, dungeonId: 'training' }, rng)
+  const s = createCombat({ foe: g, gen: GEN }, rng)
   // hand it an all-Attack set in slots 0,1,2
   s.board[0] = card(0, SHAPE_ATTACK, 2)
   s.board[1] = card(1, SHAPE_ATTACK, 2)
@@ -149,28 +150,43 @@ test('immune foe (ethereal goblin) takes no card damage', () => {
   expect(r.state.enemyHP).toBe(g.hp) // unscathed by swords
 })
 
-test('gauntlet: killing a foe mid-sequence advances to the next', () => {
+test('gauntlet (run layer): killing a foe mid-sequence advances to the next', () => {
   const rng = mulberry32(11)
   const f = foe('limbless_zombie', rng)
-  const s = createCombat({ foe: f, gen: GEN, sequence: ['limbless_zombie', 'dread_behemoth'], seqIdx: 0, dungeonId: 'training' }, rng)
-  s.enemyHP = 1
+  const run = createRun({ foe: f, gen: GEN, sequence: ['limbless_zombie', 'dread_behemoth'], dungeonId: 'training' }, rng)
+  run.combat.enemyHP = 1
   // make slots 0,1,2 a heavy all-Attack set (guaranteed lethal vs 1 HP)
-  s.board[0] = card(0, SHAPE_ATTACK, 2)
-  s.board[1] = card(1, SHAPE_ATTACK, 2)
-  s.board[2] = card(2, SHAPE_ATTACK, 2)
-  const r = reduce(s, { type: 'completeSet', slots: [0, 1, 2] }, { data: GAMEDATA, rng })
+  run.combat.board[0] = card(0, SHAPE_ATTACK, 2)
+  run.combat.board[1] = card(1, SHAPE_ATTACK, 2)
+  run.combat.board[2] = card(2, SHAPE_ATTACK, 2)
+  const r = runReduce(run, { type: 'completeSet', slots: [0, 1, 2] }, { data: GAMEDATA, rng })
   expect(r.events.some((e) => e.type === 'foeChanged')).toBe(true)
-  expect(r.state.seqIdx).toBe(1)
-  expect(r.state.foe.name).toContain('Behemoth')
-  expect(r.state.running).toBe(true)
+  expect(r.run.seqIdx).toBe(1)
+  expect(r.run.combat.foe.name).toContain('Behemoth')
+  expect(r.run.running).toBe(true)
+  expect(r.run.combat.playerHP).toBe(r.run.combat.playerMax) // fresh vitals between gauntlet foes
   expect(r.events.some((e) => e.type === 'won')).toBe(false)
+})
+
+test('gauntlet (run layer): winning the LAST foe ends the run with a win', () => {
+  const rng = mulberry32(13)
+  const f = foe('limbless_zombie', rng)
+  const run = createRun({ foe: f, gen: GEN, sequence: ['limbless_zombie'], dungeonId: 'training' }, rng)
+  run.combat.enemyHP = 1
+  run.combat.board[0] = card(0, SHAPE_ATTACK, 2)
+  run.combat.board[1] = card(1, SHAPE_ATTACK, 2)
+  run.combat.board[2] = card(2, SHAPE_ATTACK, 2)
+  const r = runReduce(run, { type: 'completeSet', slots: [0, 1, 2] }, { data: GAMEDATA, rng })
+  expect(r.events.some((e) => e.type === 'won')).toBe(true)
+  expect(r.run.running).toBe(false)
+  expect(r.run.result).toBe('win')
 })
 
 test('determinism: same seed + actions → identical state', () => {
   const run = () => {
     const rng = mulberry32(123)
     const f = foe('goblin', rng)
-    let s = createCombat({ foe: f, gen: GEN, dungeonId: 'goblin_warren' }, rng)
+    let s = createCombat({ foe: f, gen: GEN }, rng)
     for (let i = 0; i < 5; i++) {
       const sets = findSets(s.board)
       if (sets.length) s = reduce(s, { type: 'completeSet', slots: sets[0] }, { data: GAMEDATA, rng }).state
@@ -209,7 +225,7 @@ test('pushClock: a capped push clamps the gain at the ceiling and reports second
 test('Time Warp slams to the cap but never pulls an above-cap clock earlier', () => {
   const rng = mulberry32(9)
   const f = foe('goblin', rng)
-  let s = createCombat({ foe: f, gen: GEN, dungeonId: 'goblin_warren' }, rng)
+  let s = createCombat({ foe: f, gen: GEN }, rng)
   s.mana = [2, 2, 2]
   s.nextAttackAt = s.now + clockCapMs(s) + 15000 // Speed-Potion territory
   const stalled = s.nextAttackAt
@@ -233,7 +249,7 @@ test('a multi-effect trigger that kills on the first effect emits exactly one lo
 test('completeSet after the fight has settled is a no-op (replay safety)', () => {
   const rng = mulberry32(5)
   const f = foe('goblin', rng)
-  let s = createCombat({ foe: f, gen: GEN, dungeonId: 'goblin_warren' }, rng)
+  let s = createCombat({ foe: f, gen: GEN }, rng)
   s.running = false
   s.result = 'lose'
   const sets = findSets(s.board)

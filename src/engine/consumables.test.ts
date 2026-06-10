@@ -16,7 +16,7 @@ const deps = (rng = mulberry32(1)) => ({ data: GAMEDATA, rng })
 function combat(consumables: string[]): CombatState {
   const rng = mulberry32(1)
   const f = assembleFoe('goblin', GAMEDATA.dungeons.goblin_warren, GAMEDATA, rng)!
-  const s = createCombat({ foe: f, gen: GEN, consumables, dungeonId: 'goblin_warren' }, rng)
+  const s = createCombat({ foe: f, gen: GEN, consumables }, rng)
   s.enemyHP = 1000
   s.enemyMax = 1000
   return s

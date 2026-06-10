@@ -16,7 +16,8 @@ import { SHAPE_MOVE, matchDescriptor } from '../engine/resolve'
 import { condMet } from '../engine/triggers'
 import { PASSIVES } from '../engine/passives'
 import { assembleFoe, pickWeightedFoe } from '../engine/foe'
-import { createCombat, reduce, colsForN, COMBAT_GEN, type Deps, type CombatAction } from '../engine/combat'
+import { colsForN, COMBAT_GEN, type Deps, type CombatAction } from '../engine/combat'
+import { createRun, runReduce, type RunState } from '../engine/run'
 import { CONSUMABLES } from '../engine/consumables'
 import type { CombatState } from '../engine/state'
 import { TACTICS_GOAL, START_GRACE_MS } from '../engine/state'
@@ -75,6 +76,9 @@ function cardSVG(card: Card): string {
 interface View {
   root: HTMLElement
   deps: Deps
+  /** the run layer (gauntlet today; the crawl's room chain in B2) — owns combat progression */
+  run: RunState
+  /** the CURRENT combat (always === run.combat; kept as a direct ref for render-path brevity) */
   state: CombatState
   /** the persisted character playing this run (HP is written back on combat end) */
   char: SavedChar
@@ -412,9 +416,9 @@ function begin(root: HTMLElement, char: SavedChar, dungeonId: string, foeVal: st
   if (!foe) return
   const cls = classById(char.classId)
   // the guided tutorial eases the Tactics drain to a 60s window (1/3 of the normal 20s) while it teaches the meter
-  const state = createCombat({ foe, gen: GEN, playerMax: char.maxHp, passives: cls.passives, consumables: char.consumables, sequence, seqIdx: 0, dungeonId, tacticsDrainMult: dg.guided ? 1 / 3 : 1 }, rng)
-  state.playerHP = Math.max(0, Math.min(char.maxHp, char.hp)) // the hero enters at their persisted HP, not full
-  V = { root, deps: { data: GAMEDATA, rng }, state, char, actions: [], classId: cls.id, loadout: cls.abilities.slice(), coach: !!dg.coach, coachCue: null, manaColor: dominantManaColor(cls.abilities), paused: true, hitstopUntil: 0, preview: null, selected: [], raf: 0, lastT: 0, boardSig: '', refs: {}, stats: { dealt: 0, taken: 0, blocked: 0, healed: 0, sets: 0, traps: 0 } }
+  const run = createRun({ foe, gen: GEN, playerMax: char.maxHp, passives: cls.passives, consumables: char.consumables, sequence, dungeonId, tacticsDrainMult: dg.guided ? 1 / 3 : 1 }, rng)
+  run.combat.playerHP = Math.max(0, Math.min(char.maxHp, char.hp)) // the hero enters at their persisted HP, not full
+  V = { root, deps: { data: GAMEDATA, rng }, run, state: run.combat, char, actions: [], classId: cls.id, loadout: cls.abilities.slice(), coach: !!dg.coach, coachCue: null, manaColor: dominantManaColor(cls.abilities), paused: true, hitstopUntil: 0, preview: null, selected: [], raf: 0, lastT: 0, boardSig: '', refs: {}, stats: { dealt: 0, taken: 0, blocked: 0, healed: 0, sets: 0, traps: 0 } }
   buildPlay()
   renderBoard()
   updateBar()
@@ -493,7 +497,7 @@ function buildPlay(): void {
   renderStrip()
   renderConsumables()
   updateCastables()
-  V.refs.foename.textContent = V.state.foe.name + (V.state.sequence ? `  ·  ${V.state.seqIdx + 1}/${V.state.sequence.length}` : '')
+  V.refs.foename.textContent = V.state.foe.name + (V.run.sequence ? `  ·  ${V.run.seqIdx + 1}/${V.run.sequence.length}` : '')
   V.refs.foedesc.innerHTML = V.state.foe.desc ?? ''
 }
 
@@ -903,7 +907,9 @@ function setCoachArrow(el: HTMLElement | undefined, on: boolean): void {
 // ---- dispatch + event interpretation ----
 function dispatch(action: CombatAction): void {
   if (!V) return
-  const { state, events } = reduce(V.state, action, V.deps)
+  const { run, events } = runReduce(V.run, action, V.deps)
+  const state = run.combat
+  V.run = run
   V.state = state
   V.actions.push(action) // record the session log (the seam): a server could replay these
   // drop any selected slot a board verb just removed (transmute/shatter), so the glow can't dangle
@@ -1069,7 +1075,7 @@ function interpret(events: CombatEvent[]): void {
       case 'foeChanged':
         log(`The foe falls — <b>${e.name}</b> rises next.`, 'win')
         renderStrip()
-        if (V.refs.foename) V.refs.foename.textContent = e.name + (V.state.sequence ? `  ·  ${V.state.seqIdx + 1}/${V.state.sequence.length}` : '')
+        if (V.refs.foename) V.refs.foename.textContent = e.name + (V.run.sequence ? `  ·  ${V.run.seqIdx + 1}/${V.run.sequence.length}` : '')
         if (V.refs.foedesc) V.refs.foedesc.innerHTML = V.state.foe.desc ?? ''
         renderBoard()
         // brief the next foe (freeze until Engage)
@@ -1374,7 +1380,7 @@ function showBriefing(onEngage: () => void): void {
   if (!V) return
   document.getElementById('briefing')?.remove()
   const f = V.state.foe
-  const seq = V.state.sequence
+  const seq = V.run.sequence
   const stats: [string, string][] = [
     ['HP', String(V.state.enemyMax)],
     ['Damage', `${f.damage}<small> max</small>`],
@@ -1389,7 +1395,7 @@ function showBriefing(onEngage: () => void): void {
     : `<div class="btraps" style="margin-top:14px"><div class="briefnote">No traps — a plain foe. Hit it until it falls.</div></div>`
   const counters = f.triggers.some((t) => t.kind !== 'trick' && countersBuild(t.when))
   const modal = $(`<div id="briefing" class="show"><div class="briefcard">
-    ${seq ? `<div class="bseq">Gauntlet · ${V.state.seqIdx + 1} of ${seq.length}</div>` : ''}
+    ${seq ? `<div class="bseq">Gauntlet · ${V.run.seqIdx + 1} of ${seq.length}</div>` : ''}
     <div class="bhead">${tier ? `<span class="btier ${tier}">${tier}</span>` : ''}<h2 class="bname">${f.name}</h2>${counters ? '<span class="bcounter">⚔ counters your build</span>' : ''}</div>
     ${f.desc ? `<div class="bdesc">${f.desc}</div>` : ''}
     <div class="bstats">${statsHTML}</div>

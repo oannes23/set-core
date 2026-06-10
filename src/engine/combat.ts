@@ -9,7 +9,7 @@ import { findSets } from '../core/sets'
 import { type GenConfig, genInitial } from '../core/generate'
 import type { Rng } from '../core/rng'
 import type { GameData } from '../data/schema'
-import { type CombatState, type FoeRuntime, type Pending, TACTICS_DRAIN } from './state'
+import { type CombatState, type FoeRuntime, type Pending, TACTICS_DRAIN, DEFAULT_PLAYER_MAX } from './state'
 import { type CombatEvent, EventSink } from './events'
 import { type Resolution, resolveSet, weightedRoll } from './resolve'
 import { fireTriggers, runTrigger, enemyAttack, reformSlots, EMPTY_DESC } from './triggers'
@@ -18,7 +18,6 @@ import { firePassives } from './passives'
 import { castAbility } from './abilities'
 import { useTactic } from './tactics'
 import { useConsumable } from './consumables'
-import { assembleFoe } from './foe'
 
 export type CombatAction =
   | { type: 'completeSet'; slots: [number, number, number] }
@@ -46,14 +45,11 @@ export interface NewCombatOpts {
   passives?: string[] // the chosen class's always-on passive ids
   consumables?: string[] // carried potions/scrolls for this run
   tacticsDrainMult?: number // slow the Tactics drain (e.g. 1/3 in the tutorial); default 1
-  sequence?: string[] | null
-  seqIdx?: number
-  dungeonId?: string | null
 }
 
 /** Build a fresh combat state: a generated board + full vitals + the foe's clock primed. */
 export function createCombat(opts: NewCombatOpts, rng: Rng): CombatState {
-  const playerMax = opts.playerMax ?? 30
+  const playerMax = opts.playerMax ?? DEFAULT_PLAYER_MAX
   const board: Board = genInitial(opts.gen, rng)
   return {
     playerHP: playerMax,
@@ -79,12 +75,9 @@ export function createCombat(opts: NewCombatOpts, rng: Rng): CombatState {
     now: 0,
     nextAttackAt: opts.foe.cadence * 1000,
     tickAccum: {},
-    sequence: opts.sequence ?? null,
-    seqIdx: opts.seqIdx ?? 0,
     running: true,
     result: null,
     gen: opts.gen,
-    dungeonId: opts.dungeonId ?? null,
   }
 }
 
@@ -117,36 +110,9 @@ function applyResolution(s: CombatState, res: Resolution, rng: Rng, sink: EventS
   if (tactics > 0) addTactics(s, tactics, sink)
 }
 
-/** Advance a gauntlet to the next foe (fresh board + vitals), or end the run with a win. */
-function onWin(s: CombatState, deps: Deps, sink: EventSink): void {
-  if (s.sequence && s.seqIdx < s.sequence.length - 1) {
-    s.seqIdx++
-    const dungeon = s.dungeonId ? (deps.data.dungeons[s.dungeonId] ?? null) : null
-    const foe = assembleFoe(s.sequence[s.seqIdx], dungeon, deps.data, deps.rng)
-    if (foe) {
-      s.foe = foe
-      s.enemyHP = foe.hp
-      s.enemyMax = foe.hp
-      // fresh start for the next lesson (forgiving)
-      s.playerHP = s.playerMax
-      s.block = 0
-      s.mana = [0, 0, 0]
-      s.tactics = 0
-      s.tacticsArmed = false
-      s.pending = new Map()
-      s.locked = new Map()
-      s.pendingRegenBias = null
-      s.attackFrozen = false
-      s.nextSetDamageMult = 1
-      s.tickSuppressedUntil = 0
-      s.tickAccum = {}
-      s.board = genInitial(s.gen, deps.rng)
-      s.now = 0
-      s.nextAttackAt = foe.cadence * 1000
-      sink.emit({ type: 'foeChanged', name: foe.name, rules: foe.rules })
-      return
-    }
-  }
+/** End this combat with a win. Run-level progression (the gauntlet's next foe; B2's room chain)
+ *  lives in the RUN layer (run.ts), which composes combats — not in the combat reducer. */
+function onWin(s: CombatState, sink: EventSink): void {
   s.running = false
   s.result = 'win'
   sink.emit({ type: 'won' })
@@ -172,7 +138,7 @@ function completeSet(s: CombatState, slots: [number, number, number], deps: Deps
   if (s.running && s.enemyHP > 0) fireTriggers(s, 'match', res.desc, deps.rng, sink)
   if (!s.running) return
   if (s.enemyHP <= 0) {
-    onWin(s, deps, sink)
+    onWin(s, sink)
     return
   }
   // clear the matched slots and refill (keeps ≥ FLOOR sets); a passive may bias this refill
@@ -266,13 +232,13 @@ export function reduce(state: CombatState, action: CombatAction, deps: Deps): { 
       tick(s, action.dtMs, deps, sink)
       break
     case 'castAbility':
-      if (castAbility(s, action.abilityId, deps.rng, sink) && s.running && s.enemyHP <= 0) onWin(s, deps, sink)
+      if (castAbility(s, action.abilityId, deps.rng, sink) && s.running && s.enemyHP <= 0) onWin(s, sink)
       break
     case 'useTactic':
-      if (useTactic(s, action.key, deps.rng, sink) && s.running && s.enemyHP <= 0) onWin(s, deps, sink)
+      if (useTactic(s, action.key, deps.rng, sink) && s.running && s.enemyHP <= 0) onWin(s, sink)
       break
     case 'useConsumable':
-      if (useConsumable(s, action.slot, deps.rng, sink) && s.running && s.enemyHP <= 0) onWin(s, deps, sink)
+      if (useConsumable(s, action.slot, deps.rng, sink) && s.running && s.enemyHP <= 0) onWin(s, sink)
       break
     case 'flee':
       if (s.running) { s.running = false; s.result = 'flee'; sink.emit({ type: 'fled' }) }

@@ -21,7 +21,7 @@ const deps = (rng = mulberry32(1)) => ({ data: GAMEDATA, rng })
 function combat(foeId: string, opts: { passives?: string[]; seed?: number } = {}): CombatState {
   const rng = mulberry32(opts.seed ?? 1)
   const f = assembleFoe(foeId, GAMEDATA.dungeons.training, GAMEDATA, rng)!
-  const s = createCombat({ foe: f, gen: GEN, passives: opts.passives, dungeonId: 'training' }, rng)
+  const s = createCombat({ foe: f, gen: GEN, passives: opts.passives }, rng)
   s.enemyHP = 1000
   s.enemyMax = 1000
   s.mana = [10, 10, 10]
@@ -120,7 +120,7 @@ test('the armed meter drains at the eased 0.5/sec rate (~20s window)', () => {
 test('tacticsDrainMult slows the drain (tutorial 60s window)', () => {
   const rng = mulberry32(1)
   const f = assembleFoe('training_dummy', GAMEDATA.dungeons.training, GAMEDATA, rng)!
-  const s = createCombat({ foe: f, gen: GEN, dungeonId: 'training', tacticsDrainMult: 1 / 3 }, rng)
+  const s = createCombat({ foe: f, gen: GEN, tacticsDrainMult: 1 / 3 }, rng)
   s.tactics = TACTICS_GOAL
   s.tacticsArmed = true
   const r = reduce(s, { type: 'tick', dtMs: 6000 }, deps())
@@ -195,7 +195,7 @@ test('determinism: same seed + ability/tactic actions → identical state', () =
   const run = () => {
     const rng = mulberry32(77)
     const f = assembleFoe('goblin', GAMEDATA.dungeons.goblin_warren, GAMEDATA, rng)!
-    let s = createCombat({ foe: f, gen: GEN, passives: ['tactician'], dungeonId: 'goblin_warren' }, rng)
+    let s = createCombat({ foe: f, gen: GEN, passives: ['tactician'] }, rng)
     s.mana = [9, 9, 9]
     s = reduce(s, { type: 'castAbility', abilityId: 'firebolt' }, { data: GAMEDATA, rng }).state
     s = reduce(s, { type: 'tick', dtMs: 1000 }, { data: GAMEDATA, rng }).state

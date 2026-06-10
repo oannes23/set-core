@@ -56,9 +56,6 @@ export interface CombatState {
   nextAttackAt: number
   tickAccum: Record<string, number> // trigger key -> seconds accumulated toward its `every`
   // run / gauntlet
-  sequence: string[] | null
-  seqIdx: number
-  dungeonId: string | null // for re-assembling the next gauntlet foe
   running: boolean
   result: 'win' | 'lose' | 'flee' | null
   // board generation config
@@ -72,6 +69,7 @@ export function clockCapMs(s: CombatState): number {
   return Math.max(CLOCK_CAP, s.foe.cadence) * 1000
 }
 
+export const DEFAULT_PLAYER_MAX = 30 // createCombat's default playerMax; the save layer mirrors it
 export const TACTICS_GOAL = 10
 export const TACTICS_DRAIN = 0.5 // levels/sec while armed → a 20s window to spend a Tactic (eased from 10s)
 export const DMG_REGEN_MS = 10000 // a shattered (wounded) card reforms after this

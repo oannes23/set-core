@@ -4,7 +4,7 @@
 
 import type { Card } from '../core/affine'
 import type { Board } from '../core/sets'
-import { findSets } from '../core/sets'
+import { countSetsExcluding } from '../core/sets'
 import type { Rng } from '../core/rng'
 import { patch, patchFavor, type FavorBias } from '../core/generate'
 import type { Condition, Selector, Bias, Effect, Trigger } from '../data/schema'
@@ -136,9 +136,7 @@ export function transmute(s: CombatState, slots: number[], opts: { bias?: FavorB
 
 /** Makeable sets that don't use any locked slot — the lock floor (never lock below FLOOR makeable). */
 function makeableSetCount(board: Board, lockedKeys: Set<number>): number {
-  let n = 0
-  for (const [i, j, k] of findSets(board)) if (!lockedKeys.has(i) && !lockedKeys.has(j) && !lockedKeys.has(k)) n++
-  return n
+  return countSetsExcluding(board, lockedKeys)
 }
 
 /** Lock slots for `durationMs`, honoring the makeable-set floor (FLOOR completable from unlocked cards). */
@@ -307,11 +305,14 @@ export const EMPTY_DESC: MatchDescriptor = {
   sameColor: null, sameShape: null, sameNumber: null, colors: [0, 0, 0], shapes: [0, 0, 0], numbers: [0, 0, 0],
 }
 
-/** Reform-on-tick is handled by the reducer; expose the regen helper it uses (bias-aware). */
+/** Reform-on-tick is handled by the reducer; expose the regen helper it uses (bias-aware).
+ *  Locked slots are excluded from the floor count, so the reform restores a MAKEABLE set —
+ *  the lock-layer invariant (TRAPS.md §6.1), not just a paper floor through a locked card. */
 export function reformSlots(s: CombatState, slots: number[], bias: FavorBias | undefined, rng: Rng): void {
   const fill = slots.filter((i) => s.board[i] == null)
   if (!fill.length) return
-  const next = bias ? patchFavor(s.board, fill, s.gen, rng, bias) : patch(s.board, fill, s.gen, rng)
+  const locked = s.locked.size ? new Set(s.locked.keys()) : undefined
+  const next = bias ? patchFavor(s.board, fill, s.gen, rng, bias, locked) : patch(s.board, fill, s.gen, rng, undefined, locked)
   for (const i of fill) {
     s.board[i] = next[i]
     s.pending.delete(i)

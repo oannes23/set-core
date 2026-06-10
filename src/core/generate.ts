@@ -10,7 +10,7 @@
      4. the findability knobs (camoDepth / escapeRoutes) steer toward their target */
 
 import { type Card, keyOf, third } from './affine'
-import { type Board, countSets, boardKInfo } from './sets'
+import { type Board, countSetsExcluding, boardKInfo } from './sets'
 import { type Rng, r3 } from './rng'
 
 export interface GenConfig {
@@ -106,9 +106,25 @@ export function boardFindDist(board: Board, cfg: GenConfig): number {
 function genOnce(cfg: GenConfig, rng: Rng): Card[] {
   for (let t = 0; t < 5000; t++) {
     const b = distinctRandomBoard(cfg, rng)
-    if (countSets(b) >= cfg.floor) return b
+    if (countSetsExcluding(b) >= cfg.floor) return b
   }
   return distinctRandomBoard(cfg, rng)
+}
+
+/** Deterministic sweep of the (small) card space for any card not in `seen` — the guard that keeps
+ *  the fallback fill from spinning when rejection sampling is unlucky near saturation. */
+function anyUnusedCard(cfg: GenConfig, seen: Set<number>): Card | null {
+  const total = Math.pow(3, cfg.active.length)
+  for (let m = 0; m < total; m++) {
+    const c = cfg.pin.slice() as Card
+    let x = m
+    for (const i of cfg.active) {
+      c[i] = x % 3
+      x = (x / 3) | 0
+    }
+    if (!seen.has(keyOf(c))) return c
+  }
+  return null // card space saturated — caller leaves the slot as-is
 }
 
 /** The opening board: sample many candidates, keep the one closest to the findability target. */
@@ -128,8 +144,9 @@ export function genInitial(cfg: GenConfig, rng: Rng): Card[] {
   return best ?? genOnce(cfg, rng)
 }
 
-/** Refill the given empty `slots` with distinct cards keeping ≥ floor sets (one attempt). */
-function patchOnce(board: Board, slots: number[], cfg: GenConfig, rng: Rng, weights?: AxisWeights): Board {
+/** Refill the given empty `slots` with distinct cards keeping ≥ floor sets (one attempt).
+ *  `excluded` slots (the engine's locks) don't count toward the floor — the floor is MAKEABLE sets. */
+function patchOnce(board: Board, slots: number[], cfg: GenConfig, rng: Rng, weights?: AxisWeights, excluded?: ReadonlySet<number>): Board {
   const present = new Set<number>()
   board.forEach((c) => {
     if (c) present.add(keyOf(c))
@@ -153,29 +170,33 @@ function patchOnce(board: Board, slots: number[], cfg: GenConfig, rng: Rng, weig
       seen.add(keyOf(c))
       nb[s] = c
     }
-    if (ok && countSets(nb) >= cfg.floor) return nb
+    if (ok && countSetsExcluding(nb, excluded) >= cfg.floor) return nb
   }
   // fallback: fill distinct, then PLANT a completing third card if still below floor
   const nb = board.slice()
   const seen = new Set(present)
   for (const s of slots) {
-    let c: Card
+    let c: Card | null
+    let g = 0
     do {
       c = randCard(cfg, rng, weights)
-    } while (seen.has(keyOf(c)))
+      if (++g > 500) c = anyUnusedCard(cfg, seen) // unlucky rejection near saturation → deterministic sweep
+    } while (c && seen.has(keyOf(c)))
+    if (!c) continue // card space truly saturated — leave the slot for the next reform pass
     seen.add(keyOf(c))
     nb[s] = c
   }
   let guard = 0
-  while (countSets(nb) < cfg.floor && guard < 60) {
-    const cards = nb.map((c, i) => [c, i] as [Card | null, number]).filter((x) => x[0])
+  while (slots.length && countSetsExcluding(nb, excluded) < cfg.floor && guard < 60) {
+    // plant third(a,b) from UNLOCKED cards only — a floor set through a lock isn't makeable
+    const cards = nb.map((c, i) => [c, i] as [Card | null, number]).filter((x) => x[0] && !excluded?.has(x[1]))
     let planted = false
     for (let i = 0; i < cards.length && !planted; i++) {
       for (let j = i + 1; j < cards.length && !planted; j++) {
         const t = third(cards[i][0]!, cards[j][0]!)
         if (!seen.has(keyOf(t))) {
           const s = slots[guard % slots.length]
-          seen.delete(keyOf(nb[s]!))
+          if (nb[s]) seen.delete(keyOf(nb[s]!))
           nb[s] = t
           seen.add(keyOf(t))
           planted = true
@@ -188,13 +209,14 @@ function patchOnce(board: Board, slots: number[], cfg: GenConfig, rng: Rng, weig
   return nb
 }
 
-/** Refill `slots`, keeping the result closest to the findability target. */
-export function patch(board: Board, slots: number[], cfg: GenConfig, rng: Rng, weights?: AxisWeights): Board {
+/** Refill `slots`, keeping the result closest to the findability target. `excluded` slots (engine
+ *  locks) don't count toward the floor — the floor is sets MAKEABLE from unlocked cards. */
+export function patch(board: Board, slots: number[], cfg: GenConfig, rng: Rng, weights?: AxisWeights, excluded?: ReadonlySet<number>): Board {
   const samples = 80
   let best: Board | null = null
   let bestDist = Infinity
   for (let s = 0; s < samples; s++) {
-    const b = patchOnce(board, slots, cfg, rng, weights)
+    const b = patchOnce(board, slots, cfg, rng, weights, excluded)
     const d = boardFindDist(b, cfg)
     if (d < bestDist) {
       bestDist = d
@@ -202,12 +224,12 @@ export function patch(board: Board, slots: number[], cfg: GenConfig, rng: Rng, w
     }
     if (bestDist === 0) break
   }
-  return best ?? patchOnce(board, slots, cfg, rng, weights)
+  return best ?? patchOnce(board, slots, cfg, rng, weights, excluded)
 }
 
 /** Bias-objective refill (for ability-driven transmutes): MAXIMIZE how many freed slots land on
  *  the favoured value(s), tie-broken by findability. Still distinct + ≥ floor (via patchOnce). */
-export function patchFavor(board: Board, slots: number[], cfg: GenConfig, rng: Rng, bias: FavorBias): Board {
+export function patchFavor(board: Board, slots: number[], cfg: GenConfig, rng: Rng, bias: FavorBias, excluded?: ReadonlySet<number>): Board {
   const weights = favorWeights(bias)
   const axes = (bias.color != null ? 1 : 0) + (bias.shape != null ? 1 : 0) + (bias.mag != null ? 1 : 0)
   const samples = 80
@@ -216,7 +238,7 @@ export function patchFavor(board: Board, slots: number[], cfg: GenConfig, rng: R
   let bestScore = -1
   let bestDist = Infinity
   for (let s = 0; s < samples; s++) {
-    const b = patchOnce(board, slots, cfg, rng, weights)
+    const b = patchOnce(board, slots, cfg, rng, weights, excluded)
     let score = 0
     for (const sl of slots) {
       const c = b[sl]
@@ -233,5 +255,5 @@ export function patchFavor(board: Board, slots: number[], cfg: GenConfig, rng: R
     }
     if (bestScore >= want && bestDist === 0) break
   }
-  return best ?? patchOnce(board, slots, cfg, rng, weights)
+  return best ?? patchOnce(board, slots, cfg, rng, weights, excluded)
 }
