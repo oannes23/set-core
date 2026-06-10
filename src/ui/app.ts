@@ -1390,6 +1390,7 @@ function updateBar(): void {
   const paused = !!V.paused
   document.querySelector('.wrap')?.classList.toggle('frozen', paused)
   document.getElementById('coachscrim')?.classList.toggle('show', paused)
+  positionCoachPop() // keep the dialog pinned to the foe header through scroll/resize
 }
 
 // ---- the clock loop ----
@@ -1534,6 +1535,22 @@ function coachSpotlight(sel: string | null): void {
   if (sel) document.querySelectorAll(sel).forEach((e) => e.classList.add('coach-spot'))
 }
 
+/** Anchor the coach popover OVER the foe header (name/desc) — information dialogs cover that panel,
+ *  never the play area, so awaited steps (press Maneuver, pick a bias…) stay fully clickable.
+ *  Capped to the header's footprint; the body scrolls if a step's text runs long. */
+function positionCoachPop(): void {
+  const pop = document.getElementById('coachpop')
+  if (!pop || !pop.classList.contains('show')) return
+  const head = document.querySelector('.headpanel')
+  if (!head) { pop.style.cssText = ''; return } // no combat header (shouldn't happen) → CSS fallback
+  const r = head.getBoundingClientRect()
+  pop.style.left = `${r.left}px`
+  pop.style.top = `${r.top}px`
+  pop.style.width = `${r.width}px`
+  pop.style.maxHeight = `${Math.max(150, r.height) + 6}px`
+  pop.style.transform = 'none'
+}
+
 // build the scrim + popover once, lazily (kept out of the static markup)
 function buildCoachUI(): void {
   if (document.getElementById('coachscrim')) return
@@ -1601,6 +1618,7 @@ function coachShowStep(i: number): void {
   if (next) { next.textContent = s.finishLabel ?? (i === COACH.steps.length - 1 ? 'Finish' : 'Next ▸'); next.classList.toggle('await', !!COACH.await); next.classList.remove('lit') }
   pop?.classList.toggle('awaiting', !!COACH.await)
   pop?.classList.add('show')
+  positionCoachPop()
 }
 function coachAdvance(): void {
   if (COACH.idx >= COACH.steps.length - 1) { coachFinish(); return }
@@ -1625,6 +1643,7 @@ function coachNotify(event: 'match' | 'ability' | 'tactic'): void {
   const next = document.getElementById('cp-next')
   next?.classList.remove('await')
   next?.classList.add('lit')
+  positionCoachPop() // the body swap changes its height — re-fit to the header
 }
 function coachFinish(): void {
   if (!COACH.active && !document.getElementById('coachpop')) return
