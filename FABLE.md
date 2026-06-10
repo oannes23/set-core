@@ -855,7 +855,10 @@ Durable facts surfaced in this review that aren't (yet) in any doc:
    falls back to the fork (reroll, elite reset) — run continues; death = carried
    loot + gold + a banked-gold tithe, XP always banks; Rest free forever (gold
    sinks: amenities/shop/abilities). Note: raises §8.1 anti-stall to a B2 companion.
-7. Pin the boss-hazard formula (one line of math, doc it in CRAWL §2).
+7. ~~Pin the boss-hazard formula (one line of math, doc it in CRAWL §2).~~
+   ✅ SETTLED 2026-06-09: inverse-CDF draw (one seeded R against the triangular
+   running total); fled rooms count; the throne room, once found, stays found;
+   dread meter = thematic bands. Spec in CRAWL §2.
 8. Save-system envelope `{v, chars}` + validation + migration table — before the
    first progression field lands.
 9. Extract the run reducer from `onWin` (A5) and a scene router with a
@@ -868,8 +871,10 @@ Durable facts surfaced in this review that aren't (yet) in any doc:
 13. Doc sweep: update THEORYCRAFT/CRAWL headers, strike resolved GAME-DESIGN §7
     items, fix TRAPS numbers, write `TUNING.md`, document the consumables/buff
     system and the Trap/Trick convention.
-14. Add 1-2 non-flood Tactics verbs; give each class one unique ability;
-    add an all-Defend/magnitude trap (coverage rule).
+14. ~~Add 1-2 non-flood Tactics verbs~~ — SUPERSEDED by the Tactics v2 stance
+    redesign (TODO.md "NEXT BATCH", planned 2026-06-09), which absorbs this via
+    verb stances (Ward). Still live: give each class one unique ability; add an
+    all-Defend/magnitude trap (coverage rule).
 15. Telemetry for spring-rate and reshape-share before mass content authoring.
 
 **Pre-launch (whenever public):**

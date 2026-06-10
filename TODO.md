@@ -41,6 +41,38 @@ Traffic-light: green = pursue · yellow = consequence · red = wounded.
 
 ---
 
+## NEXT BATCH — Tactics v2: the stance system (planned 2026-06-09)
+
+Replace the armed meter + one-shot flood buttons with a **stance selector**: the player sets a
+standing **field preference**, and Tactics income (Move sets, Defend-overflow trickle, Tactician)
+drives **continuous deadest-card turnover** toward the stance — the player-side mirror of dungeon
+drift. Rationale + trade-offs discussed 2026-06-09 (the meter was "a good resource, a weak
+decision"; a stance makes board-shaping a standing read and makes TRAPS §5.5's reshape-share
+directly playable). Pointer note lives in `CRAWL-DESIGN.md` §5.5; the full v2 spec is the first
+deliverable of this batch.
+
+Scope:
+- `[ ]` **Design spec (CRAWL §5.5 v2):** stance menu (axis/value stances + at least one non-axis
+  *verb* stance, e.g. **Ward** = spend churn suppressing enemy drift, so mono-color builds still
+  face a live greed-vs-defense toggle); churn mechanics (income → churn charges; deadest
+  non-conforming card transmutes toward stance via existing `patchFavor` bias + saturation caps);
+  decide **pure flow vs surge valve** (banked excess ventable as a mini-flood spike).
+- `[ ]` **Engine:** replace armed/drain state with stance + churn accumulator (player-owned
+  tick-trigger shape); remap meter-anchored systems — Vigilance `drain_tactics` (drain bank /
+  stall churn), Tactician passive (churn income — watch its rate, flagged as cheap), Invisibility
+  drain-pause (delete), tutorial Tactics step, §7 Move-affix anchors (re-anchor on churn
+  rate/stance strength).
+- `[ ]` **Ability translation pass:** carry every existing ability into the new paradigm where it
+  translates cleanly; **cut and replace** the ones that don't (don't force bad fits). **Keep the
+  Call-type floods** (the burst layer) and **add new Call-type spells targeting SHAPES**
+  (Attack/Defend/Move) alongside the color Calls, to round out burst options under stances.
+- `[ ]` **UI:** 6-way tactic buttons → stance selector (same real estate); churn needs visible
+  per-card feedback (the morph animation exists); stance vs drift "tug" readability.
+- ⚠ Interaction: a green stance smooths sustain loops (Photosynthesis/Heal) — one more reason
+  the structural anti-stall lands with/before this.
+
+---
+
 ## Open — combat polish (small, optional)
 - `[ ]` **Explain-mid-play tutorial variant** — fire explain-popovers at trigger points during a
   *normal* fight (first trap spring, first lock) rather than only as the staged intro: same coaching
@@ -121,11 +153,16 @@ The four run-exits are strictly ordered (each rung worse than the one above):
 - **Death:** lose the run inventory + all gold carried this run + a **tithe (% of banked gold,
   % TBD)**; **XP always banks**; gear + hero survive. Permadeath → future opt-in hardcore flag.
 - **Rest: free forever** (gold sinks: amenities / shop / abilities — see B1 note above).
-- Corollaries: run gold is **carried, not banked** (banks on any exit except death). Open
-  micro-decisions: tithe %; does a fled room advance the boss running-total (lean **yes** —
-  key boss % to encounters *entered*). ⚠ Companion requirement: free Rest + flee-farming +
-  sustain builds = unbounded farming → the **structural anti-stall** (soft-enrage / per-room
-  pressure, `FABLE.md` §8.1) should land *with* B2, not after.
+- Corollaries: run gold is **carried, not banked** (banks on any exit except death). **Settled
+  follow-ups (2026-06-09):** a fled room **does** advance the boss running-total (boss % keys
+  to encounters *entered*); **boss mechanism** = inverse-CDF draw (one seeded `R`, boss at first
+  room where `cum(n) = n(n+1)/2 % > R` — exact triangular, median 10, guaranteed 14); **the
+  throne room, once found, stays found** (fleeing the boss → fork, but pressing on is always
+  the boss — farming's point of no return); the **dread meter** shows the running total as
+  **thematic bands** (fiction surface, true curve underneath). Full spec: `CRAWL-DESIGN.md` §2.
+  Still open: tithe %. ⚠ Companion requirement: free Rest + flee-farming + sustain builds =
+  unbounded farming → the **structural anti-stall** (soft-enrage / per-room pressure,
+  `FABLE.md` §8.1) should land *with* B2, not after.
 
 ### Phase B2 — run loop + first loot (consumables)
 - `[ ]` **Room = encounter + reward** — on win, roll loot / gold / XP (`CRAWL-DESIGN.md` §3).

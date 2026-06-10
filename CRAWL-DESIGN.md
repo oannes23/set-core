@@ -100,6 +100,26 @@ f=3/N=15 grid; only the skin changes.
   out before the boss). When the boss triggers, **it replaces the enemy that room would
   have generated** (its own fresh encounter), not an appended extra room.
 
+  **Mechanism (SETTLED 2026-06-09)** — the table above is the *distribution itself*,
+  not a per-room reroll spec (naive readings get it wrong: rolling the +n% increment
+  each room yields only ~67% by room 14 with no guarantee; rolling the cumulative each
+  room front-loads it to a ~room-6 median). Implement by **inverse-CDF draw**: at run
+  start, draw one `R ∈ [0, 100)` from the run seed; the boss appears at the first room
+  where `cumulative(n) > R`. Exact (P(boss at room n) = n% for rooms 1–13, the
+  remaining 9% at 14; mean ≈ 9.5, median 10, rooms 8–12 hold half the mass),
+  deterministic per seed (daily/shareable runs), and one line of code. Corollaries:
+  - **Room index n counts encounters *entered*, cleared or fled** — fleeing
+    (exit ladder, §6) still advances the boss total, so flee-farming the minion
+    tier always walks toward the throne room.
+  - **The throne room, once found, stays found.** Fleeing the boss pays the parting
+    blow and returns to the fork, but pressing on always faces the boss again — no
+    minion rooms remain behind him. The boss's appearance is the run's point of no
+    return for farming (finish him or cash out).
+  - **The dread meter (between-rooms UI, Phase B2):** the running total is surfaced
+    as **thematic bands** (≈4–5 steps: "the warren is quiet" → "drums echo" →
+    "the throne stirs" → "he is near"), monotone and honest against the true
+    cumulative — fiction on the surface, the exact curve underneath.
+
 - **Elite chance per room** — checked *only if the boss didn't trigger this room*, and
   **recurring** (the elite tier is met repeatedly). Chance = **10% × (rooms since the
   last elite)**; the counter **resets to 0 when an elite is fought**, so it climbs
@@ -492,6 +512,14 @@ core" TOP PRIORITY). Move was the weak, fiddly verb (Defend and Move were both
   Tactics later, not a replacement.)
 - Live constants (code is source of truth, `src/engine/state.ts`): `TACTICS_GOAL=10`,
   `TACTICS_DRAIN=0.5`/sec (eased from 1 — a 20s spend window), `CLOCK_CAP=20s`.
+- **⚠ PLANNED REWORK (2026-06-09, next batch — see TODO.md "Tactics v2"):** the armed
+  meter + one-shot flood buttons are slated to become a **stance system**: the player
+  sets a standing field preference (axis/value, plus at least one non-axis *verb*
+  stance, e.g. Ward), and Tactics income drives **continuous deadest-card turnover**
+  toward the stance instead of filling a meter — the player-side mirror of dungeon
+  drift (a literal tug-of-war over the board; makes TRAPS §5.5 reshape-share directly
+  playable). The section above documents the meter **as currently built**; the v2 spec
+  lands with the batch.
 
 **Flee — the retreat mechanic** (resolves the §6 loss-condition retreat path). The
 old standalone Flee *meter* (toggle Fleeing mode, farm Moves to 10, decay + lockout)
@@ -543,9 +571,10 @@ fork (run continues; encounter rerolled, elite counter reset) rather than ending
   - Corollaries: **gold found mid-run is carried, not banked** — it banks on any exit
     except death (this rule is most of the dread-meter's teeth). **Town Rest stays
     free, permanently** — gold's sinks live elsewhere (base-building amenities, shop
-    gear, consumables, learning abilities; see §6 economy note). Open micro-decisions:
-    the tithe %; whether a fled room still advances the boss running-total (lean yes —
-    key it to encounters *entered*, so flee-farming still walks toward the throne room).
+    gear, consumables, learning abilities; see §6 economy note). **A fled room DOES
+    advance the boss running-total** (settled — boss % keys to encounters *entered*,
+    §2), and the boss, once appeared, persists through flees (§2). Still open: the
+    tithe % (a tuning number).
   - ⚠ Interaction flag: free Rest + flee-farming + in-combat sustain builds
     (Druid/Sentinel healing loops) = unbounded minion farming with no attrition. This
     raises the priority of a **structural anti-stall** (universal soft-enrage /
