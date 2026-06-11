@@ -160,11 +160,19 @@ export function lockSlots(s: CombatState, slots: number[], durationMs: number, s
 
 // ---- effects ----
 
+/** Severity scaled by the springing set's TOTAL magnitude (CRAWL tuning, the "Confusion v2" law):
+ *  a modest 1+2+3 rainbow pays the old mild price; a greedy 3/3/3 set pays for its weight.
+ *  total 6 → 2 · total 9 → 5 (clamped ≥1; tick triggers with no match descriptor resolve to 1). */
+function scaledBySetMag(desc: MatchDescriptor): number {
+  const total = desc.numbers[0] + desc.numbers[1] + desc.numbers[2] + 3 // numbers are 0-indexed magnitudes
+  return Math.max(1, total - 4)
+}
+
 function runEffect(s: CombatState, e: Effect, desc: MatchDescriptor, rng: Rng, sink: EventSink, hostile: boolean, wardable: boolean): string | null {
   if (e.chance != null && rng() >= e.chance) return null
   switch (e.effect) {
     case 'damage': {
-      const amt = e.amount != null ? e.amount : weightedRoll(e.max ?? 4, rng)
+      const amt = e.scale === 'set_mag' ? scaledBySetMag(desc) : e.amount != null ? e.amount : weightedRoll(e.max ?? 4, rng)
       hurtPlayer(s, amt, s.foe.name, sink)
       return `⚔${amt}`
     }
@@ -173,7 +181,7 @@ function runEffect(s: CombatState, e: Effect, desc: MatchDescriptor, rng: Rng, s
       sink.emit({ type: 'enemyStrikes' })
       return 'strikes!'
     case 'advance_timer': {
-      const sec = e.seconds ?? 3
+      const sec = e.scale === 'set_mag' ? scaledBySetMag(desc) : (e.seconds ?? 3)
       s.nextAttackAt -= sec * 1000
       sink.emit({ type: 'clockChanged', deltaSeconds: -sec })
       return `−${sec}s`
@@ -211,7 +219,8 @@ function runEffect(s: CombatState, e: Effect, desc: MatchDescriptor, rng: Rng, s
     case 'transmute': {
       if (wardable && tryWard(s, 'transmute', sink)) return '🛡warded' // Stand Ground eats the reshape
       let slots = e.select ? selectSlots(s, e.select, rng) : []
-      if (e.count != null && slots.length > e.count) slots = pickRandom(slots, e.count, rng)
+      // an ordered pick (highest_mag) takes the TOP of the sort; only unordered picks sample randomly
+      if (e.count != null && slots.length > e.count) slots = e.select?.pick === 'highest_mag' ? slots.slice(0, e.count) : pickRandom(slots, e.count, rng)
       if (!slots.length) return null
       // attribution for the tug: a punishing trap, a favorable trick, or the quiet ambient drift
       const source = !wardable ? ('trick' as const) : hostile ? ('trap' as const) : ('drift' as const)
@@ -221,7 +230,7 @@ function runEffect(s: CombatState, e: Effect, desc: MatchDescriptor, rng: Rng, s
     case 'lock': {
       if (wardable && tryWard(s, 'lock', sink)) return '🛡warded'
       let slots = e.select ? selectSlots(s, e.select, rng) : []
-      if (e.count != null && slots.length > e.count) slots = pickRandom(slots, e.count, rng)
+      if (e.count != null && slots.length > e.count) slots = e.select?.pick === 'highest_mag' ? slots.slice(0, e.count) : pickRandom(slots, e.count, rng)
       const n = lockSlots(s, slots, (e.seconds ?? 4) * 1000, sink)
       return n ? `🔒${n}` : null
     }

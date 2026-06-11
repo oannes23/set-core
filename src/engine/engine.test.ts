@@ -123,8 +123,8 @@ test('completeSet damages the foe / banks mana; tick fires the enemy attack', ()
   expect(r.events.some((e) => e.type === 'setResolved')).toBe(true)
   expect(r.events.some((e) => e.type === 'manaGained')).toBe(true)
   expect(r.state.board.filter(Boolean).length).toBe(15) // refilled
-  // advance the clock past the goblin's cadence (swift = 10s) → it attacks
-  const t = reduce(r.state, { type: 'tick', dtMs: 11000 }, { data: GAMEDATA, rng })
+  // advance past any possible clock (cadence ≤ 10s, Move boots cap at 20s out) → it attacks
+  const t = reduce(r.state, { type: 'tick', dtMs: 21000 }, { data: GAMEDATA, rng })
   expect(t.events.some((e) => e.type === 'playerDamaged' || e.type === 'playerBlocked')).toBe(true)
 })
 
@@ -257,4 +257,41 @@ test('completeSet after the fight has settled is a no-op (replay safety)', () =>
   expect(r.events).toHaveLength(0)
   expect(r.state.enemyHP).toBe(s.enemyHP)
   expect(r.state.board).toEqual(s.board)
+})
+
+// ---- the Bulwark-loop fixes: magnitude pricing (playtest 2026-06-10) ----
+test('highest_mag selection takes the TOP of the sort, not a random sample', () => {
+  const board: (Card | null)[] = Array.from({ length: 15 }, (_, i) => card(i % 3, SHAPE_ATTACK, i === 7 ? 2 : 0)) // one heavy 3 at slot 7
+  const s = createCombatStub(board)
+  const sink = new EventSink()
+  runTrigger(s, { name: 'Covet', icon: 'x', on: 'match', do: [{ effect: 'transmute', count: 1, select: { pick: 'highest_mag' } }] }, EMPTY_DESC, mulberry32(2), sink)
+  expect(s.board[7]).toBeNull() // the heaviest rune, specifically, was plucked
+})
+
+test('scale:set_mag severity — a modest rainbow pays 2s, a greedy 3/3/3 pays 5s', () => {
+  const mk = (numbers: [number, number, number]) => ({ ...EMPTY_DESC, sameColor: null, numbers })
+  const trig = { name: 'Confusion', icon: 'x', on: 'match' as const, do: [{ effect: 'advance_timer' as const, scale: 'set_mag' as const }] }
+  const a = createCombatStub(Array.from({ length: 15 }, (_, i) => card(i % 3, i % 3, (i >> 2) % 3)))
+  const beforeA = a.nextAttackAt
+  runTrigger(a, trig, mk([0, 1, 2]), mulberry32(1), new EventSink()) // 1+2+3 = 6 → 2s
+  expect(beforeA - a.nextAttackAt).toBe(2000)
+  const b = createCombatStub(Array.from({ length: 15 }, (_, i) => card(i % 3, i % 3, (i >> 2) % 3)))
+  const beforeB = b.nextAttackAt
+  runTrigger(b, trig, mk([2, 2, 2]), mulberry32(1), new EventSink()) // 3+3+3 = 9 → 5s
+  expect(beforeB - b.nextAttackAt).toBe(5000)
+})
+
+test('shape floods no longer bias magnitude (the Bulwark loop is dead)', () => {
+  // data-shape assertion: no multi-card shape flood carries a mag bias anymore
+  const rng = mulberry32(31)
+  const f = foe('training_dummy', rng)
+  const s = createCombat({ foe: f, gen: GEN }, rng)
+  s.mana = [9, 9, 9]
+  // a board of all mag-1 Attacks: Bulwark floods them to Defends — magnitudes must stay NATURAL (not all-3)
+  s.board = Array.from({ length: 15 }, (_, i) => card(i % 3, SHAPE_ATTACK, 0))
+  let r = reduce(s, { type: 'castAbility', abilityId: 'bulwark' }, { data: GAMEDATA, rng })
+  r = reduce(r.state, { type: 'tick', dtMs: 100 }, { data: GAMEDATA, rng }) // reforms land
+  const mags = r.state.board.filter(Boolean).map((c) => c![3])
+  const threes = mags.filter((m) => m === 2).length
+  expect(threes).toBeLessThan(10) // an 8× mag bias would land ~12+ threes; natural is ~5
 })

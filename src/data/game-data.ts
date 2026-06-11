@@ -62,8 +62,8 @@ export const GAMEDATA: GameData = {
     // GENERALIST trap (all_different) + a DREAD tick — the boss role buckets
     confusion: {
       name: 'Confusion', icon: '💫', on: 'match', when: { axis: 'color', mode: 'all_different' },
-      desc: 'rainbow (all-different colour) match → enemy speeds up 2s',
-      do: [{ effect: 'advance_timer', seconds: 2 }],
+      desc: 'rainbow (all-different colour) match → the foe quickens by the set\u2019s weight (1+2+3 → 2s · 3/3/3 → 5s)',
+      do: [{ effect: 'advance_timer', scale: 'set_mag' }],
     },
     dread_drums: {
       name: 'Dread Drums', icon: '🥁', on: 'tick', every: 8,
@@ -163,7 +163,7 @@ export const GAMEDATA: GameData = {
     },
     goblin: {
       name: 'Goblin', tier: 'minion', hp: 20, speed: 'swift', damage: 10,
-      variants: ['bloodthirsty', 'sneaky', 'cowardly'], xp: 10, loot_tier: 2,
+      variants: ['bloodthirsty', 'sneaky', 'cowardly', 'grasping'], xp: 10, loot_tier: 2,
     },
     cave_bat: {
       name: 'Cave Bat', tier: 'minion', hp: 14, speed: 'frenzied', damage: 6,
@@ -171,11 +171,11 @@ export const GAMEDATA: GameData = {
     },
     goblin_shaman: {
       name: 'Goblin Shaman', tier: 'minion', hp: 18, speed: 'slow', damage: 8,
-      variants: ['plagued', 'hexer'], xp: 12, loot_tier: 2,
+      variants: ['plagued', 'hexer', 'covetous'], xp: 12, loot_tier: 2,
     },
     goblin_brute: {
       name: 'Goblin Brute', tier: 'elite', hp: 38, speed: 'steady', damage: 13,
-      variants: ['bloodthirsty', 'cruel'], xp: 26, loot_tier: 3,
+      variants: ['bloodthirsty', 'cruel', 'grasping'], xp: 26, loot_tier: 3,
     },
     goblin_king: {
       name: 'The Goblin King', tier: 'boss', hp: 90, speed: 'steady', damage: 16,
@@ -219,7 +219,7 @@ export const GAMEDATA: GameData = {
       name: 'The Warren Butcher', tier: 'elite', hp: 50, speed: 'lumbering', damage: 18,
       desc: 'A hulking goblin gone to fat and cruelty, a cleaver in each hand. Slow, but every red blow lands like the King’s.',
       voice: { hit: ['hacks', 'butchers', 'rends'], zero: 'is too slow, just missing' },
-      traps: ['war_cry_lesser'], variants: ['cruel', 'greedy'], xp: 34, loot_tier: 4,
+      traps: ['war_cry_lesser'], variants: ['cruel', 'greedy', 'covetous'], xp: 34, loot_tier: 4,
     },
     goblin_oracle: {
       name: 'Goblin Oracle', tier: 'elite', hp: 38, speed: 'swift', damage: 12,
@@ -258,6 +258,15 @@ export const GAMEDATA: GameData = {
     cruel: {
       name: 'Cruel', icon: '🔪', desc: 'all-Attack → reflect 6', stat_mod: { damage: 2 },
       trap: { on: 'match', when: { axis: 'shape', mode: 'all_same', value: 'attack' }, do: [{ effect: 'damage', amount: 6 }] },
+    },
+    // magnitude TOLLS — heavy (all-3s) sets pay a small constant tax, never a spike: greed is a grind
+    grasping: {
+      name: 'Grasping', icon: '🪤', desc: 'all-3s match → it snatches at your spoils: strikes 2s sooner',
+      trap: { on: 'match', when: { axis: 'number', mode: 'all_same', value: 'three' }, do: [{ effect: 'advance_timer', seconds: 2 }] },
+    },
+    covetous: {
+      name: 'Covetous', icon: '🧲', desc: 'all-3s match → it plucks your heaviest rune from the board',
+      trap: { on: 'match', when: { axis: 'number', mode: 'all_same', value: 'three' }, do: [{ effect: 'transmute', count: 1, select: { pick: 'highest_mag' } }] },
     },
     nimble: {
       name: 'Nimble', icon: '🦶', desc: 'all-Move → drain 3 Tactics', stat_mod: { speed_band: 1 },

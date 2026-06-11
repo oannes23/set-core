@@ -140,12 +140,12 @@ export const ABILITIES: Record<string, Ability> = {
   // ---- SHAPE FLOODS (Tier-1 generic Calls, CRAWL §5.5 v2): the burst layer, mirroring the color Calls.
   // Costs weighted toward each shape's kin color (Attack↔red, Defend↔green, Move↔blue). ----
   callarms: {
-    id: 'callarms', name: 'Call to Arms', icon: '⚔️', cost: [4, 2, 2], desc: 'every non-Attack card → max-magnitude Attack',
-    cast(s, _rng, sink) { transmute(s, liveSlots(s, (c) => cardShape(c) !== SHAPE_ATTACK), { bias: { shape: SHAPE_ATTACK, shapeW: BIAS_W, mag: 2, magW: BIAS_W } }, sink) },
+    id: 'callarms', name: 'Call to Arms', icon: '⚔️', cost: [4, 2, 2], desc: 'every non-Attack card → Attack',
+    cast(s, _rng, sink) { transmute(s, liveSlots(s, (c) => cardShape(c) !== SHAPE_ATTACK), { bias: { shape: SHAPE_ATTACK, shapeW: BIAS_W } }, sink) },
   },
   callshields: {
-    id: 'callshields', name: 'Call the Shields', icon: '🛡️', cost: [2, 4, 2], desc: 'every non-Defend card → max-magnitude Defend',
-    cast(s, _rng, sink) { transmute(s, liveSlots(s, (c) => cardShape(c) !== SHAPE_DEFEND), { bias: { shape: SHAPE_DEFEND, shapeW: BIAS_W, mag: 2, magW: BIAS_W } }, sink) },
+    id: 'callshields', name: 'Call the Shields', icon: '🛡️', cost: [2, 4, 2], desc: 'every non-Defend card → Defend',
+    cast(s, _rng, sink) { transmute(s, liveSlots(s, (c) => cardShape(c) !== SHAPE_DEFEND), { bias: { shape: SHAPE_DEFEND, shapeW: BIAS_W } }, sink) },
   },
   callhunt: {
     id: 'callhunt', name: 'Call the Hunt', icon: '🏹', cost: [2, 2, 4], desc: 'every non-Move card → Move (feeds the charge queue)',
@@ -161,8 +161,8 @@ export const ABILITIES: Record<string, Ability> = {
     },
   },
   berserk: {
-    id: 'berserk', name: 'Berserk', icon: '😤', cost: [4, 0, 0], desc: 'every Defend → heavy Attack',
-    cast(s, _rng, sink) { transmute(s, liveSlots(s, (c) => cardShape(c) === SHAPE_DEFEND), { bias: { shape: SHAPE_ATTACK, shapeW: BIAS_W, mag: 2, magW: BIAS_W } }, sink) },
+    id: 'berserk', name: 'Berserk', icon: '😤', cost: [4, 0, 0], desc: 'every Defend → Attack',
+    cast(s, _rng, sink) { transmute(s, liveSlots(s, (c) => cardShape(c) === SHAPE_DEFEND), { bias: { shape: SHAPE_ATTACK, shapeW: BIAS_W } }, sink) },
   },
   rampage: {
     id: 'rampage', name: 'Rampage', icon: '💢', cost: [2, 2, 2], desc: 'damage per Attack on board, then resets them',
@@ -175,10 +175,11 @@ export const ABILITIES: Record<string, Ability> = {
     },
   },
   bulwark: {
-    id: 'bulwark', name: 'Bulwark', icon: '🧱', cost: [2, 2, 2], desc: '+8 block · every non-Defend → heavy Defend',
+    id: 'bulwark', name: 'Bulwark', icon: '🧱', cost: [2, 2, 2], desc: '+8 block · every non-Defend → Defend',
     cast(s, rng, sink) {
       gainBlock(s, 8, rng, sink)
-      transmute(s, liveSlots(s, (c) => cardShape(c) !== SHAPE_DEFEND), { bias: { shape: SHAPE_DEFEND, shapeW: BIAS_W, mag: 2, magW: BIAS_W } }, sink)
+      // shape-only: a MAGNITUDE flood made every set a 9-value print (the "Bulwark loop") — never again
+      transmute(s, liveSlots(s, (c) => cardShape(c) !== SHAPE_DEFEND), { bias: { shape: SHAPE_DEFEND, shapeW: BIAS_W } }, sink)
     },
   },
   quickstrike: {
@@ -196,10 +197,10 @@ export const ABILITIES: Record<string, Ability> = {
   },
   // ---- GREEN sinks (a mono-green defensive + a mono-green strike) so every class can spend Nature ----
   thornwall: {
-    id: 'thornwall', name: 'Thornwall', icon: '🌵', cost: [0, 4, 0], desc: '+8 block · every Attack → heavy Defend (briars)',
+    id: 'thornwall', name: 'Thornwall', icon: '🌵', cost: [0, 4, 0], desc: '+8 block · every Attack → Defend (briars)',
     cast(s, rng, sink) {
       gainBlock(s, 8, rng, sink)
-      transmute(s, liveSlots(s, (c) => cardShape(c) === SHAPE_ATTACK), { bias: { shape: SHAPE_DEFEND, shapeW: BIAS_W, mag: 2, magW: BIAS_W } }, sink)
+      transmute(s, liveSlots(s, (c) => cardShape(c) === SHAPE_ATTACK), { bias: { shape: SHAPE_DEFEND, shapeW: BIAS_W } }, sink)
     },
   },
   venomstrike: {

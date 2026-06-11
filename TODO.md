@@ -235,6 +235,30 @@ The four run-exits are strictly ordered (each rung worse than the one above):
 - `[ ]` Optional: crawler reskin/palette (§1); a YAML data loader **only if** external authoring is
   wanted — today's typed `game-data.ts` is the equivalent (and type-safe).
 
+### Balance log — the Bulwark loop (found by the dev instruments, 2026-06-10; FIXED)
+First playtest with the dev panel caught the first degenerate line: **Bulwark's magnitude flood**
+(shape→Defend AND mag→3) printed value — mag-3 boards give 9-value sets, collapse the number axis
+(gimme ~100%), and rainbow-colour sets dodge every all-same trap while repaying [2,2,2] costs.
+Reshape share ran 73→100% vs the 65–70 target; the King's Confusion was farmed at 78% spring rate
+(−2s vs +9 boot). Fixes landed: ① ALL multi-card shape floods are now shape-only (bulwark, berserk,
+thornwall, callarms, callshields) — "heavy" boards come only from deliberate tools (Maneuver ③ bias,
+Hone later); ② magnitude TOLLS — new variants `grasping` (all-3s → strikes 2s sooner) and `covetous`
+(all-3s → plucks the heaviest rune, via the now actually-fixed `pick: 'highest_mag'`) rolled into
+warren pools — constant tax, never a spike: greed is a grind; ③ **Confusion v2** — generalist
+severity scales with the springing set's weight (`scale: 'set_mag'`: 1+2+3 → 2s, 3/3/3 → 5s),
+threading the severity law. Re-measure reshape share before touching drift rates.
+
+### ⭐ OPEN DESIGN THREAD — pacing & the stat footprint ("sets steer, stats carry")
+Playtest feel (2026-06-10): the game is frantic — scan-speed-gated twitch — and struggling players
+collapse fast; the target feel is a **deliberate strategic grind**. Under consideration: expand the
+RPG layer's stat footprint so **sets are DIRECTIONAL rather than the primary number source** (the
+character sheet — class/level/gear — carries the magnitudes; a matched set chooses/steers the action
+instead of being its damage roll). Would decouple output from scan speed (slow players execute the
+same build at lower tempo), make gear/levels load-bearing, and soften the death spiral. **Must be
+decided BEFORE Phase B3 (gear)** — affix design depends entirely on where numbers live. Needs a
+design session: what each axis directs, what magnitude becomes, and the clock-feel companion
+(fewer/heavier telegraphed exchanges vs the current steady cadence).
+
 ### Open design decisions (carry from `CRAWL-DESIGN.md` §6 — settle as each phase lands)
 - ~~Loss-condition framing + the flee penalty~~ — **SETTLED 2026-06-09: the exit ladder** (above).
 - Ability slots vs. a known-ability library (implies a loadout screen in town).

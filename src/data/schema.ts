@@ -70,6 +70,9 @@ export interface Effect {
   select?: Selector
   bias?: Bias
   gap?: number // transmute: hold slots empty this long before reforming (ms)
+  /** severity scaled by the springing set's TOTAL magnitude: max(1, total − 4) — a modest 1+2+3
+   *  rainbow pays the mild price, a greedy 3/3/3 pays for its weight (damage / advance_timer). */
+  scale?: 'set_mag'
 }
 
 // ---- traps & drifts ----
