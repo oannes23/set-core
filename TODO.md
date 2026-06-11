@@ -247,6 +247,13 @@ Hone later); ② magnitude TOLLS — new variants `grasping` (all-3s → strikes
 warren pools — constant tax, never a spike: greed is a grind; ③ **Confusion v2** — generalist
 severity scales with the springing set's weight (`scale: 'set_mag'`: 1+2+3 → 2s, 3/3/3 → 5s),
 threading the severity law. Re-measure reshape share before touching drift rates.
+- **Post-fix readings (2026-06-10, second playtest):** Warlord — reshape 85%, spring 7%, sets/min
+  10.8, gimme 76%, churns 16 · Scorched Ember Shaman — reshape 81%, spring 0%, gimme 76%. Verdict:
+  *"feels a lot better — not degenerate, just effective."* Gimme fell ~100→76, sets/min cooled
+  ~13→10.8. Reshape still runs ~15pts hot; spring fell BELOW target (7%/0% — with rainbow value
+  normalized, players dodge harder; watch whether trap bait needs sweetening). ⚙ Tuning watch:
+  **shape-Call/Bulwark board coverage** — full-board floods may want a haircut (e.g., convert a
+  capped count or a region instead of every non-conforming card); revisit after a few more reads.
 
 ### ⭐ OPEN DESIGN THREAD — pacing & the stat footprint ("sets steer, stats carry")
 Playtest feel (2026-06-10): the game is frantic — scan-speed-gated twitch — and struggling players

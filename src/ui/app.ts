@@ -1511,10 +1511,11 @@ function updateTugAndSprites(): void {
     V.refs.tugyou.textContent = AXIS_ICONS[bias!.axis]?.[bias!.value] ?? '🎯'
     V.refs.tugmarker.style.left = `${Math.max(3, Math.min(97, 50 + d * 75))}%`
   }
-  // the duelists (PLACEHOLDER art): step toward whoever owns the field; CSS eases the walk
-  const step = Math.max(-1, Math.min(1, d * 2.2)) * 34
-  if (V.refs.spyou) V.refs.spyou.style.transform = `translateX(${Math.max(0, step)}px)`
-  if (V.refs.spfoe) V.refs.spfoe.style.transform = `translateX(${Math.min(0, step)}px) scaleX(-1)`
+  // the duelists (PLACEHOLDER art): the winner ADVANCES across the header, the loser gives ground.
+  // Typical differentials are small (±0.1–0.3), so the gain is steep — the walk must be readable.
+  const step = Math.max(-1, Math.min(1, d * 3)) * 150
+  if (V.refs.spyou) V.refs.spyou.style.transform = `translateX(${Math.max(-18, step)}px)`
+  if (V.refs.spfoe) V.refs.spfoe.style.transform = `translateX(${Math.min(18, step)}px) scaleX(-1)`
 }
 
 /** The always-on DEV instruments vs design targets (TRAPS §5.5 reshape share, ~30% spring rate). */
