@@ -1,9 +1,17 @@
-/* engine/resolve — turn a found set into combat effects (per-card shape × magnitude × colour).
-   Ported verbatim from the prototype's resolveSet / matchDescriptor / weightedRoll. Damage is a
-   weighted roll, so this takes an Rng (the only impurity). */
+/* engine/resolve — turn a found set into combat effects. RESOLUTION v2 ("Model B" — sets STEER,
+   stats CARRY, CRAWL §5.5): each card in a set is one action of the character's build — an Attack
+   card swings with Power, a Defend guards with Endurance, a Move steps with Speed — and the card's
+   MAGNITUDE is the action's QUALITY (① glancing ×0.7 · ② solid ×1.0 · ③ heavy ×1.4), not its size.
+   Deterministic on purpose (the deliberate-grind direction): a set always delivers exactly what it
+   reads. At the base statline (2/2/2) per-card values are 1/2/3 — exact parity with the old system.
+   `weightedRoll` remains for ENEMY attacks and ability rolls. */
 
 import type { Card } from '../core/affine'
 import type { Rng } from '../core/rng'
+import type { StatBlock } from './state'
+
+/** Magnitude → action quality: glancing / solid / heavy. */
+export const QUALITY = [0.7, 1, 1.4] as const
 
 export const SHAPE_ATTACK = 0
 export const SHAPE_DEFEND = 1
@@ -54,9 +62,10 @@ export interface Resolution {
   desc: MatchDescriptor
 }
 
-/** Resolve a set: Attack→rolled damage (by magnitude tier), Defend→block, Move→clock-boost seconds.
- *  Mana routes by colour signature: all-same → 3 in that pool, all-different → 1 of each. */
-export function resolveSet(cards: [Card, Card, Card], rng: Rng): Resolution {
+/** Resolve a set (Model B): each card fires its shape's stat at its magnitude's quality —
+ *  Attack → round(Power × q) damage · Defend → round(Endurance × q) Block · Move → round(Speed × q)
+ *  clock-boost seconds. Mana routes by colour signature: all-same → 3 in that pool, all-diff → 1 each. */
+export function resolveSet(cards: [Card, Card, Card], stats: StatBlock, _rng: Rng): Resolution {
   let dmgLight = 0
   let dmgMed = 0
   let dmgHeavy = 0
@@ -64,16 +73,16 @@ export function resolveSet(cards: [Card, Card, Card], rng: Rng): Resolution {
   let boot = 0
   for (const c of cards) {
     const shape = c[1]
-    const mag = c[3] + 1 // 1/2/3 = light/med/heavy
+    const q = QUALITY[c[3]] // card magnitude = the action's quality tier
     if (shape === SHAPE_ATTACK) {
-      const roll = weightedRoll(mag, rng)
-      if (mag === 1) dmgLight += roll
-      else if (mag === 2) dmgMed += roll
-      else dmgHeavy += roll
+      const hit = Math.round(stats.power * q)
+      if (c[3] === 0) dmgLight += hit
+      else if (c[3] === 1) dmgMed += hit
+      else dmgHeavy += hit
     } else if (shape === SHAPE_DEFEND) {
-      block += mag
+      block += Math.round(stats.endurance * q)
     } else {
-      boot += mag
+      boot += Math.round(stats.speed * q)
     }
   }
   const damage = dmgLight + dmgMed + dmgHeavy

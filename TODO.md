@@ -255,7 +255,16 @@ threading the severity law. Re-measure reshape share before touching drift rates
   **shape-Call/Bulwark board coverage** — full-board floods may want a haircut (e.g., convert a
   capped count or a region instead of every non-conforming card); revisit after a few more reads.
 
-### ⭐ OPEN DESIGN THREAD — pacing & the stat footprint ("sets steer, stats carry")
+### ⭐ SETTLED & BUILT (2026-06-10) — pacing & the stat footprint ("sets steer, stats carry")
+**Decision: Model B + the full clock rework, landed.** Stats are **Power / Endurance / Speed**
+(base 2/2/2 = old-system parity; class `stats` field exists, uniform for now — differentiate via
+gear/levels in B3). Per card: `round(stat × quality)`, quality = ①×0.7/②×1.0/③×1.4; set damage is
+DETERMINISTIC. The clock is the **telegraphed exchange**: approach → windup (strike pre-rolled +
+revealed as ⚔N; clock COMMITTED, Move pushes → charges; default 4s, per-foe authored) → strike
+lands exactly as telegraphed. Bands slowed (24/19/15/12/9) + creature damage ~+25%. Spec in
+CRAWL §5.5; constants in TUNING.md. B3 gear/affixes now design against the stat block.
+
+*(original thread, for the record:)*
 Playtest feel (2026-06-10): the game is frantic — scan-speed-gated twitch — and struggling players
 collapse fast; the target feel is a **deliberate strategic grind**. Under consideration: expand the
 RPG layer's stat footprint so **sets are DIRECTIONAL rather than the primary number source** (the

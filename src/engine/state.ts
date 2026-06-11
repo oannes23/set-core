@@ -11,6 +11,15 @@ export interface Pending {
   bias?: FavorBias
 }
 
+/** Resolution v2 ("sets steer, stats carry") — the character's stat block. Sets choose and aim the
+ *  action; these carry its size: Power sizes Attack swings, Endurance sizes Defend guards, Speed
+ *  sizes Move steps. Base 2/2/2 = parity with the old card-magnitude system; gear/levels grow them. */
+export interface StatBlock {
+  power: number
+  endurance: number
+  speed: number
+}
+
 /** Tactics v2 — the selected tactic (the VERB charges are spent on; CRAWL §5.5). */
 export type TacticKind = 'maneuver' | 'stand'
 /** Maneuver's parameter: churn the deadest non-conforming card toward this axis/value. */
@@ -31,6 +40,7 @@ export interface FoeRuntime {
   drift: Trigger | null
   rules: FoeRules
   desc: string | null
+  windupMs: number // telegraphed-exchange windup: the strike is COMMITTED for this long before landing
 }
 
 export interface CombatState {
@@ -40,6 +50,7 @@ export interface CombatState {
   enemyHP: number
   enemyMax: number
   block: number
+  stats: StatBlock // Resolution v2: sets steer, these carry (Power/Endurance/Speed)
   mana: [number, number, number] // capped at MANA_CAP per color; gains past it are pure loss
   // Tactics v2 (CRAWL §5.5): a charge queue spent by the selected tactic
   tactic: TacticKind
@@ -65,6 +76,9 @@ export interface CombatState {
   // clock (all ms, on the `now` timeline)
   now: number
   nextAttackAt: number
+  /** the TELEGRAPH: pre-rolled strike damage, set when the windup begins (clock is then COMMITTED —
+   *  Move pushes convert fully to charges); cleared when the strike lands. null = approach phase. */
+  incoming: number | null
   tickAccum: Record<string, number> // trigger key -> seconds accumulated toward its `every`
   // run / gauntlet
   running: boolean
@@ -86,5 +100,8 @@ export const CHARGE_CAP = 5 // the queue/bank cap; overflow income is wasted
 export const CHURN_MS = 800 // Maneuver spends ONE charge per this interval (serial, never a batch)
 export const SWAP_SPINUP_MS = 3000 // after a tactic swap, income is lost until the spin-up elapses
 export const MANA_CAP = 15 // per color; gains past it are pure loss (gear may raise it later)
+// Resolution v2 / telegraphed exchanges
+export const BASE_STATS: StatBlock = { power: 2, endurance: 2, speed: 2 } // parity statline (per-card 1/2/3)
+export const DEFAULT_WINDUP_S = 4 // seconds of committed windup before a strike (per-foe `windup` overrides)
 export const DMG_REGEN_MS = 10000 // a shattered (wounded) card reforms after this
 export const START_GRACE_MS = 3000 // UI freezes the clock this long after Engage (read the board, no ticks advance)

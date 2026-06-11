@@ -20,7 +20,7 @@ import { colsForN, COMBAT_GEN, type Deps, type CombatAction } from '../engine/co
 import { createRun, runReduce, type RunState } from '../engine/run'
 import { CONSUMABLES } from '../engine/consumables'
 import type { CombatState } from '../engine/state'
-import { CHARGE_CAP, START_GRACE_MS } from '../engine/state'
+import { CHARGE_CAP, BASE_STATS, START_GRACE_MS } from '../engine/state'
 import type { CombatEvent } from '../engine/events'
 import { bumpTurn, pick, strikeWord, healWord, drainWord, magicLead, tierOf, joinClauses, voiceOf, ABILITY_FLAVOR } from './flavor'
 import { type SavedChar, loadRoster, upsertChar, deleteChar, makeChar, freshId, CONSUMABLE_SLOTS } from './save'
@@ -244,6 +244,8 @@ function characterSelectScene(root: HTMLElement): void {
     host.appendChild($(`<div class="sheet-hd"><span class="ci">${cls.icon}</span><div class="cmeta"><div class="cn">${c.name}</div><div class="cc">${cls.name}</div></div></div>`))
     host.appendChild($(`<label style="margin-top:14px">Vitals</label>`))
     host.appendChild($(`<div class="sheet-stat">❤ HP <b>${c.hp}/${c.maxHp}</b></div>`))
+    const st = cls.stats ?? BASE_STATS
+    host.appendChild($(`<div class="sheet-stat" data-tip-title="Stats — sets steer, stats carry" data-tip="Each card in a matched set fires its shape's stat: Attack swings with Power, Defend guards with Endurance, Move steps with Speed. The card's number is the action's QUALITY (① glancing ×0.7 · ② solid ×1.0 · ③ heavy ×1.4). Gear and levels grow these.">⚔ Power <b>${st.power}</b> · 🛡 Endurance <b>${st.endurance}</b> · 👟 Speed <b>${st.speed}</b></div>`))
     host.appendChild($(`<label style="margin-top:14px">Abilities</label>`))
     const ab = $(`<div class="sheet-abils"></div>`)
     for (const id of cls.abilities) {
@@ -446,7 +448,7 @@ function begin(root: HTMLElement, char: SavedChar, dungeonId: string, foeVal: st
   const foe = assembleFoe(foeId, dg, GAMEDATA, rng)
   if (!foe) return
   const cls = classById(char.classId)
-  const run = createRun({ foe, gen: GEN, playerMax: char.maxHp, passives: cls.passives, consumables: char.consumables, sequence, dungeonId }, rng)
+  const run = createRun({ foe, gen: GEN, playerMax: char.maxHp, stats: cls.stats, passives: cls.passives, consumables: char.consumables, sequence, dungeonId }, rng)
   run.combat.playerHP = Math.max(0, Math.min(char.maxHp, char.hp)) // the hero enters at their persisted HP, not full
   V = { root, deps: { data: GAMEDATA, rng }, run, state: run.combat, char, actions: [], classId: cls.id, loadout: cls.abilities.slice(), coach: !!dg.coach, coachCue: null, manaColor: dominantManaColor(cls.abilities), paused: true, hitstopUntil: 0, preview: null, selected: [], raf: 0, lastT: 0, boardSig: '', refs: {}, stats: { dealt: 0, taken: 0, blocked: 0, healed: 0, sets: 0, traps: 0 }, morphSrc: new Map(), dev: { reshapeYou: 0, reshapeFoe: 0, matches: 0, springs: 0, k1: 0, wards: 0, churns: 0 } }
   buildPlay()
@@ -1440,14 +1442,17 @@ function updateBar(): void {
   V.refs.buffind.classList.toggle('on', buffs.length > 0)
   const remain = Math.max(0, (s.nextAttackAt - s.now) / 1000)
   const clk = V.refs.clock
-  clk.textContent = s.running ? `${Math.ceil(remain)}s` : '—'
+  // a telegraphed windup shows WHAT is coming, not just when — Block to meet it, or finish him first
+  clk.textContent = !s.running ? '—' : s.incoming != null ? `⚔${s.incoming} in ${Math.ceil(remain)}s` : `${Math.ceil(remain)}s`
   clk.classList.toggle('low', remain <= 5 && remain > 2.5)
-  clk.classList.toggle('crit', remain <= 2.5)
+  clk.classList.toggle('crit', s.incoming != null || remain <= 2.5)
   // the attack timer empties as the strike nears (fraction of the foe's cadence)
   const frac = s.foe.cadence > 0 ? Math.max(0, Math.min(1, remain / s.foe.cadence)) : 0
   V.refs.atkfill.style.width = `${s.running ? frac * 100 : 100}%`
   V.refs.atkfill.classList.toggle('low', remain <= 5 && remain > 2.5)
   V.refs.atkfill.classList.toggle('crit', remain <= 2.5)
+  V.refs.atkfill.classList.toggle('windup', s.incoming != null)
+  V.refs.spfoe?.classList.toggle('winding', s.running && s.incoming != null)
   // ambient dread: a low-HP vignette + HP-bar glow band (transitions, not animations → survive the pause)
   const hpf = s.playerMax > 0 ? s.playerHP / s.playerMax : 1
   const band = !s.running ? '' : hpf <= 0.35 ? 'crit' : hpf <= 0.7 ? 'low' : ''

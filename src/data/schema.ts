@@ -127,6 +127,7 @@ export interface Creature {
   traps?: string[] // authored signature trap ids (bosses / special foes)
   variants?: string[] // variant ids to roll one from (minions / elites)
   rules?: FoeRules
+  windup?: number // telegraphed-exchange windup seconds (default DEFAULT_WINDUP_S = 4)
   xp: number
   loot_tier: number
 }
@@ -185,6 +186,9 @@ export interface ClassDef {
   blurb: string
   abilities: string[] // ability ids (3) drawn into the active loadout
   passives: string[] // passive id(s) — always-on
+  /** Resolution v2 statline (Power/Endurance/Speed); omitted = BASE_STATS 2/2/2 parity.
+   *  A future class-identity lever — ship uniform first, differentiate with gear/levels (B3+). */
+  stats?: { power: number; endurance: number; speed: number }
 }
 
 export interface GameData {

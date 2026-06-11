@@ -3,7 +3,7 @@
 
 import type { Rng } from '../core/rng'
 import type { GameData, Dungeon, Trigger, SpeedBand, Speed } from '../data/schema'
-import type { FoeRuntime } from './state'
+import { type FoeRuntime, DEFAULT_WINDUP_S } from './state'
 
 const SPEED_ORDER: SpeedBand[] = ['lumbering', 'slow', 'steady', 'swift', 'frenzied']
 
@@ -84,6 +84,7 @@ export function assembleFoe(creatureId: string, dungeon: Dungeon | null, data: G
     hp: Math.max(1, hp | 0),
     damage: Math.max(0, dmg | 0),
     cadence: speedSeconds(data, base.speed, bandShift),
+    windupMs: (base.windup ?? DEFAULT_WINDUP_S) * 1000,
     triggers,
     drift,
     rules: base.rules ?? {},

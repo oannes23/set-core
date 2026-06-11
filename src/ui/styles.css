@@ -553,3 +553,9 @@ button.cta:disabled { opacity: .4; cursor: not-allowed; }
   .card.src-churn, .card.src-drift, .card.src-trick, .card.src-trap { animation-duration: .01s; }
   .sprite, .tugbar .tug-marker { transition: none; }
 }
+
+/* TELEGRAPHED EXCHANGES — the windup is committed: the bar charges, the foe rears */
+.fill.atk.windup { background: var(--warn); animation: windupcharge .45s ease-in-out infinite; }
+@keyframes windupcharge { 0%, 100% { opacity: 1; filter: brightness(1); } 50% { opacity: .7; filter: brightness(1.5); } }
+.sprite.foe.winding { animation: spwind .7s ease-in-out infinite; }
+@keyframes spwind { 0%, 100% { rotate: 7deg; translate: 0 0; } 50% { rotate: 11deg; translate: 2px -3px; } }

@@ -515,16 +515,39 @@ The per-room combat model. ~~Values below are prototyped and live in
 `src/engine/resolve.ts`, `tactics.ts`; live constants in `TUNING.md`.)* Treat
 numbers as tuning defaults.
 
-**Per-card resolution.** Each card in a found set fires its own shape-action, scaled
-by its number (magnitude 1–3), typed by its color:
-- **Attack → damage** (rolled — `weightedRoll`, triangular, weighted high toward
-  magnitude but the odd weak hit slips through; *not* pure).
-- **Defend → Block** (a persistent barrier).
-- **Move → tempo + Tactics** (pushes the enemy's next-attack clock later, *and*
-  fuels the Tactics meter — see below; this is the resolution of the old §6
-  "rework Move's core" priority).
+**Per-card resolution — RESOLUTION v2, "sets steer, stats carry" (SETTLED & BUILT
+2026-06-10; Model B from the pacing design session).** The character sheet carries the
+numbers; a matched set CHOOSES and AIMS the action. Each card in a found set fires its
+shape's STAT, scaled by the card's magnitude read as QUALITY:
+- **Stat block: Power / Endurance / Speed** (`StatBlock`; base 2/2/2 = exact parity
+  with the old card-magnitude system; gear/levels grow them — the B3 power curve).
+- **Quality:** ① glancing ×0.7 · ② solid ×1.0 · ③ heavy ×1.4 — per card:
+  `value = round(stat × quality)`. At base stats per-card values are 1/2/3.
+- **Attack → round(Power × q) damage** — DETERMINISTIC now (no roll): a set always
+  delivers exactly what it reads; the deliberate-grind direction. (`weightedRoll`
+  remains for enemy strikes and ability rolls.)
+- **Defend → round(Endurance × q) Block** (a persistent barrier).
+- **Move → round(Speed × q) clock-push seconds** + 1 Tactics charge per Move card.
 - **Color → mana** by signature: all-same color → 3 of that mana; all-different → 1
-  of each. (The speed-vs-value routing tradeoff falls out for free.)
+  of each. Mana stays pure board economy (no stat touches it — caster identity).
+- *Why:* decouples output from scan speed (a slow player executes the same build at
+  lower tempo — speed buys tempo, not existence), makes gear/levels load-bearing,
+  softens the death spiral. Decided WITH the commercial-positioning lens (deliberate
+  strategic grind > perception-gated twitch for the Steam roguelite market).
+
+**The telegraphed exchange (the clock rework, same session).** The steady invisible
+cadence is replaced by a readable exchange loop: **approach → windup → strike.**
+- **Approach:** the clock runs as before; Move pushes work (capped, overflow→charges).
+- **Windup** (the last `windup` seconds — default 4, per-foe authored: Behemoth 8,
+  King 6, Butcher 6): the strike is **pre-rolled and REVEALED** (`incoming`, the ⚔N
+  telegraph in the HUD) and the clock is **COMMITTED** — Move pushes apply 0 and
+  convert fully to charges. Counterplay: raise Block to meet the known number, ward
+  the shatter, or kill first. Nothing dodges a committed strike.
+- **Strike:** lands EXACTLY the telegraphed amount, then the next approach begins.
+  Un-telegraphed hits (`instant_attack` trap effects) still roll fresh — traps stay
+  surprising; the clock stays honest.
+- Speed bands slowed + damage raised across the roster (fewer, weightier, readable
+  exchanges — see TUNING.md): lumbering 24 / slow 19 / steady 15 / swift 12 / frenzied 9.
 
 **Resource caps (and the adaptive deal).**
 - **Block ≤ max HP.** The barrier can hold up to your HP (block never exceeds the cap) →

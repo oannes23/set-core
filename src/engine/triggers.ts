@@ -305,7 +305,10 @@ export function shatterCard(s: CombatState, rng: Rng, sink: EventSink): void {
 /** The enemy's scheduled (or instant) attack. 0-damage foes (the dummy) can't hurt you. A hit that
  *  beats Block and bites actual HP also shatters a rune (a Wound) — traps that deal damage do not. */
 export function enemyAttack(s: CombatState, rng: Rng, sink: EventSink): void {
-  const raw = s.foe.damage > 0 ? weightedRoll(s.foe.damage, rng) : 0
+  // a telegraphed strike lands EXACTLY what it promised; an un-telegraphed one (instant_attack
+  // trap effects, advance_timer yanks) rolls fresh — traps stay surprising, the clock stays honest
+  const raw = s.incoming ?? (s.foe.damage > 0 ? weightedRoll(s.foe.damage, rng) : 0)
+  s.incoming = null
   if (raw === 0) {
     sink.emit({ type: 'playerBlocked' })
   } else {

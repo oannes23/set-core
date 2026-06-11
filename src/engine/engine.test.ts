@@ -21,18 +21,43 @@ function foe(id: string, rng = mulberry32(1)) {
   return assembleFoe(id, GAMEDATA.dungeons.training, GAMEDATA, rng)!
 }
 
-// ---- resolution math ----
-test('resolveSet routes Defend→block, Move→boot, colour→mana', () => {
-  const r = resolveSet([card(0, 1, 0), card(0, 1, 1), card(0, 1, 2)], mulberry32(1)) // all Defend, all red
-  expect(r.block).toBe(1 + 2 + 3)
+// ---- resolution math (Model B: sets steer, stats carry; base 2/2/2 = old-system parity) ----
+const STATS = { power: 2, endurance: 2, speed: 2 }
+test('resolveSet (Model B): shape picks the stat, magnitude is quality', () => {
+  const r = resolveSet([card(0, 1, 0), card(0, 1, 1), card(0, 1, 2)], STATS, mulberry32(1)) // all Defend, all red
+  expect(r.block).toBe(1 + 2 + 3) // Endurance 2 × q(0.7/1/1.4), rounded per card = parity
   expect(r.boot).toBe(0)
   expect(r.damage).toBe(0)
   expect(r.mana).toEqual([3, 0, 0]) // all-red → 3 Fire
-  const r2 = resolveSet([card(0, 2, 0), card(1, 2, 0), card(2, 2, 0)], mulberry32(1)) // all Move, all-diff colour
+  const r2 = resolveSet([card(0, 2, 0), card(1, 2, 0), card(2, 2, 0)], STATS, mulberry32(1)) // all Move ①, all-diff colour
   expect(r2.boot).toBe(3)
   expect(r2.mana).toEqual([1, 1, 1])
-  const r3 = resolveSet([card(0, SHAPE_ATTACK, 2), card(1, SHAPE_ATTACK, 2), card(2, SHAPE_ATTACK, 2)], mulberry32(1))
-  expect(r3.damage).toBeGreaterThan(0)
+  const r3 = resolveSet([card(0, SHAPE_ATTACK, 2), card(1, SHAPE_ATTACK, 2), card(2, SHAPE_ATTACK, 2)], STATS, mulberry32(1))
+  expect(r3.damage).toBe(9) // DETERMINISTIC now: three heavy swings of Power 2 → 3+3+3
+  const r4 = resolveSet([card(0, SHAPE_ATTACK, 2), card(1, SHAPE_ATTACK, 2), card(2, SHAPE_ATTACK, 2)], { ...STATS, power: 4 }, mulberry32(1))
+  expect(r4.damage).toBe(18) // stats CARRY: Power 4 → round(4×1.4)=6 per heavy swing
+})
+
+test('telegraphed exchange: the windup reveals the strike, commits the clock, and lands exactly', () => {
+  const rng = mulberry32(21)
+  const f = foe('limbless_zombie', rng) // lumbering 24s · windup 4s · damage 4
+  const s = createCombat({ foe: f, gen: GEN }, rng)
+  // approach: Moves still push the clock
+  const r1 = reduce(s, { type: 'tick', dtMs: 1000 }, { data: GAMEDATA, rng })
+  expect(r1.state.incoming).toBeNull()
+  // cross into the windup (24s cadence − 4s windup = 20s)
+  const r2 = reduce(r1.state, { type: 'tick', dtMs: 19_500 }, { data: GAMEDATA, rng })
+  const tele = r2.events.find((e) => e.type === 'windup') as { amount: number } | undefined
+  expect(tele).toBeTruthy()
+  expect(r2.state.incoming).toBe(tele!.amount)
+  // committed: a clock push applies 0 (it would all overflow to charges in a Move set)
+  const sink = new EventSink()
+  expect(pushClock(r2.state, 10, sink)).toBe(0)
+  // the strike lands EXACTLY the telegraphed amount (block 0)
+  const r3 = reduce(r2.state, { type: 'tick', dtMs: 5000 }, { data: GAMEDATA, rng })
+  const hit = r3.events.find((e) => e.type === 'playerDamaged') as { amount: number } | undefined
+  expect(hit?.amount).toBe(tele!.amount)
+  expect(r3.state.incoming).toBeNull() // cleared — next approach begins
 })
 
 // ---- trigger conditions ----
@@ -77,8 +102,10 @@ test('selectSlots: geometry ∩ value, and lock/transmute board verbs', () => {
 test('assembleFoe resolves stats, triggers, rules', () => {
   const z = foe('limbless_zombie')
   expect(z.hp).toBe(30)
-  expect(z.cadence).toBe(20) // lumbering
-  expect(z.damage).toBe(3)
+  expect(z.cadence).toBe(24) // lumbering (telegraphed-exchange retune)
+  expect(z.damage).toBe(4)
+  expect(z.windupMs).toBe(4000) // default windup
+  expect(foe('dread_behemoth').windupMs).toBe(8000) // authored long windup (you see the mountain rise)
   expect(z.triggers.map((t) => t.name)).toContain('Limbless')
   const g = foe('unstable_ethereal_goblin')
   expect(g.rules.immune_card_damage).toBe(true)

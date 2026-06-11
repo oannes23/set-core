@@ -9,9 +9,9 @@ import { findSets } from '../core/sets'
 import { type GenConfig, genInitial } from '../core/generate'
 import type { Rng } from '../core/rng'
 import type { GameData } from '../data/schema'
-import { type CombatState, type FoeRuntime, type Pending, type TacticKind, type ManeuverBias, MANA_CAP, DEFAULT_PLAYER_MAX } from './state'
+import { type CombatState, type FoeRuntime, type Pending, type TacticKind, type ManeuverBias, type StatBlock, MANA_CAP, DEFAULT_PLAYER_MAX, BASE_STATS } from './state'
 import { type CombatEvent, EventSink } from './events'
-import { type Resolution, resolveSet, SHAPE_MOVE } from './resolve'
+import { type Resolution, resolveSet, weightedRoll, SHAPE_MOVE } from './resolve'
 import { fireTriggers, runTrigger, enemyAttack, reformSlots, EMPTY_DESC } from './triggers'
 import { gainBlock, addCharges, pushClock } from './ops'
 import { firePassives } from './passives'
@@ -43,6 +43,7 @@ export interface NewCombatOpts {
   foe: FoeRuntime
   gen: GenConfig
   playerMax?: number
+  stats?: StatBlock // Resolution v2: Power/Endurance/Speed (default BASE_STATS = old-system parity)
   passives?: string[] // the chosen class's always-on passive ids
   consumables?: string[] // carried potions/scrolls for this run
 }
@@ -57,6 +58,7 @@ export function createCombat(opts: NewCombatOpts, rng: Rng): CombatState {
     enemyHP: opts.foe.hp,
     enemyMax: opts.foe.hp,
     block: 0,
+    stats: { ...(opts.stats ?? BASE_STATS) },
     mana: [0, 0, 0],
     tactic: 'stand', // the defensive default — you OPT INTO Maneuver's greed (swap is ~free at 0 charges)
     maneuverBias: null,
@@ -76,6 +78,7 @@ export function createCombat(opts: NewCombatOpts, rng: Rng): CombatState {
     foe: opts.foe,
     now: 0,
     nextAttackAt: opts.foe.cadence * 1000,
+    incoming: null,
     tickAccum: {},
     running: true,
     result: null,
@@ -136,7 +139,7 @@ function completeSet(s: CombatState, slots: [number, number, number], deps: Deps
   if (!isSet(ca, cb, cc)) return // invalid pick — no-op (the UI handles misread feedback)
   if (s.attackFrozen) { s.attackFrozen = false; sink.emit({ type: 'buffFaded', id: 'invisibility', label: 'Invisibility fades — the enemy sees you again' }) }
   const cards: [Card, Card, Card] = [ca, cb, cc]
-  const res = resolveSet(cards, deps.rng)
+  const res = resolveSet(cards, s.stats, deps.rng)
   applyResolution(s, res, deps.rng, sink)
   sink.emit({ type: 'setResolved', damage: res.damage, block: res.block, boot: res.boot, mana: res.mana, slots })
   // character-innate passives react to this match's signature (Momentum may steer the refill below)...
@@ -214,6 +217,12 @@ function tick(s: CombatState, dtMs: number, deps: Deps, sink: EventSink): void {
       if (reformed.length) sink.emit({ type: 'cardsReformed', slots: reformed })
     }
   }
+  // TELEGRAPHED EXCHANGE: entering the windup pre-rolls and REVEALS the strike; the clock is
+  // committed from here (Move pushes convert fully to charges — see ops.pushClock).
+  if (s.running && s.incoming == null && !s.attackFrozen && s.now >= s.nextAttackAt - s.foe.windupMs) {
+    s.incoming = s.foe.damage > 0 ? weightedRoll(s.foe.damage, deps.rng) : 0
+    sink.emit({ type: 'windup', amount: s.incoming, strikesAt: s.nextAttackAt })
+  }
   // enemy attack when the clock elapses
   if (s.now >= s.nextAttackAt && s.running) {
     enemyAttack(s, deps.rng, sink)
@@ -254,6 +263,7 @@ export function reduce(state: CombatState, action: CombatAction, deps: Deps): { 
 export function cloneState(s: CombatState): CombatState {
   return {
     ...s,
+    stats: { ...s.stats },
     mana: [s.mana[0], s.mana[1], s.mana[2]],
     board: s.board.map((c) => (c ? ([c[0], c[1], c[2], c[3]] as Card) : null)),
     pending: new Map([...s.pending].map(([k, v]) => [k, { ...v }])),

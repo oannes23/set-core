@@ -163,7 +163,7 @@ test('Stand Ground intercepts the wound-shatter; the damage still lands', () => 
   s.charges = 1
   s.block = 0
   const before = s.board.filter(Boolean).length
-  const t = reduce(s, { type: 'tick', dtMs: 21000 }, deps()) // past cadence → it attacks
+  const t = reduce(s, { type: 'tick', dtMs: 25000 }, deps()) // past cadence → it attacks
   expect(t.events.some((e) => e.type === 'playerDamaged')).toBe(true) // damage is Block's lane, not Ward's
   expect(t.events.some((e) => e.type === 'warded' && e.what === 'shatter')).toBe(true)
   expect(t.events.some((e) => e.type === 'cardsShattered')).toBe(false)
@@ -202,10 +202,10 @@ test('flee forfeits the encounter at any time (not gated by the meter)', () => {
 
 // ---- wound (shatter) + Defend overflow ----
 test('a landed enemy hit shatters a board rune (a Wound)', () => {
-  const s = combat('limbless_zombie') // damage 3, no variants, lumbering 20s — survives, deterministic
+  const s = combat('limbless_zombie') // damage 4, no variants, lumbering 24s — survives, deterministic
   s.block = 0
   const before = s.board.filter(Boolean).length
-  const t = reduce(s, { type: 'tick', dtMs: 21000 }, deps()) // past the cadence → it attacks
+  const t = reduce(s, { type: 'tick', dtMs: 25000 }, deps()) // past the cadence → it attacks
   expect(t.events.some((e) => e.type === 'playerDamaged')).toBe(true)
   expect(t.events.some((e) => e.type === 'cardsShattered')).toBe(true)
   expect(t.state.board.filter(Boolean).length).toBe(before - 1) // one slot emptied (wounded)

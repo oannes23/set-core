@@ -132,7 +132,8 @@ export const GAMEDATA: GameData = {
   },
 
   // --- SPEED bands → attack cadence in seconds (TRAPS.md §7.2; lower = more dangerous) ---
-  speed: { lumbering: 20, slow: 15, steady: 12, swift: 10, frenzied: 8 },
+  // telegraphed exchanges: slower bands, heavier hits — fewer, weightier, READABLE exchanges
+  speed: { lumbering: 24, slow: 19, steady: 15, swift: 12, frenzied: 9 },
 
   // --- CREATURES: stat baseline + a variant pool (minion/elite) OR authored traps (boss) ---
   creatures: {
@@ -143,42 +144,42 @@ export const GAMEDATA: GameData = {
       traps: [], variants: [], xp: 0, loot_tier: 0,
     },
     limbless_zombie: {
-      name: 'Limbless Zombie', tier: 'minion', hp: 30, speed: 'lumbering', damage: 3,
+      name: 'Limbless Zombie', tier: 'minion', hp: 30, speed: 'lumbering', damage: 4,
       desc: 'A zombie with no limbs, chin-crawling across the floor toward you. Harmless — until it gathers itself for a sudden lurch.',
       voice: { hit: ['gnaws at', 'claws at', 'paws at'], zero: 'flops against you, harmless' },
       traps: ['limbless'], variants: [], xp: 5, loot_tier: 1,
     },
     dread_behemoth: {
-      name: 'Dread Behemoth', tier: 'elite', hp: 50, speed: 120, damage: 100,
+      name: 'Dread Behemoth', tier: 'elite', hp: 50, speed: 120, damage: 100, windup: 8,
       desc: 'A mountain that walks. Its blow is <b>certain death</b>, so blocking is futile — but it is <i>ponderously</i> slow. Its tremors shake your useless <b>Defend</b> cards loose into <b>Moves</b>; spend a <b>Move</b> set and you dance aside, leaving it a step behind. Stay mobile, bank <b>Tactics</b>, and break it with a decisive strike.',
       voice: { hit: ['hammers', 'crushes down on', 'flattens'], zero: 'misses — its bulk too slow' },
       traps: ['tremor', 'outmaneuvered'], variants: [], xp: 30, loot_tier: 3,
     },
     unstable_ethereal_goblin: {
-      name: 'Unstable Ethereal Goblin', tier: 'minion', hp: 15, speed: 'steady', damage: 6,
+      name: 'Unstable Ethereal Goblin', tier: 'minion', hp: 15, speed: 'steady', damage: 8,
       desc: 'A goblin who gulped a Potion of Etherealness <i>and</i> a Potion of Polymorph at once — now a flickering wisp of raw magic. <b>Swords pass right through him</b> (Attack cards deal no damage). Only <b>magic</b> bites: every <b>ability</b> you cast drains him by the <b>mana you spent</b>. Spend 15 mana of spells to dispel him.',
       rules: { immune_card_damage: true, ability_damage: 'mana_spent' },
       voice: { hit: ['flickers through', 'phases into', 'wisps across'], heal: ['reknits from mist'], zero: 'shimmers past you' },
       traps: ['ethereal_cackle'], variants: [], xp: 25, loot_tier: 3,
     },
     goblin: {
-      name: 'Goblin', tier: 'minion', hp: 20, speed: 'swift', damage: 10,
+      name: 'Goblin', tier: 'minion', hp: 20, speed: 'swift', damage: 13,
       variants: ['bloodthirsty', 'sneaky', 'cowardly', 'grasping'], xp: 10, loot_tier: 2,
     },
     cave_bat: {
-      name: 'Cave Bat', tier: 'minion', hp: 14, speed: 'frenzied', damage: 6,
+      name: 'Cave Bat', tier: 'minion', hp: 14, speed: 'frenzied', damage: 8,
       variants: ['sneaky', 'elusive'], xp: 8, loot_tier: 1,
     },
     goblin_shaman: {
-      name: 'Goblin Shaman', tier: 'minion', hp: 18, speed: 'slow', damage: 8,
+      name: 'Goblin Shaman', tier: 'minion', hp: 18, speed: 'slow', damage: 10,
       variants: ['plagued', 'hexer', 'covetous'], xp: 12, loot_tier: 2,
     },
     goblin_brute: {
-      name: 'Goblin Brute', tier: 'elite', hp: 38, speed: 'steady', damage: 13,
+      name: 'Goblin Brute', tier: 'elite', hp: 38, speed: 'steady', damage: 16,
       variants: ['bloodthirsty', 'cruel', 'grasping'], xp: 26, loot_tier: 3,
     },
     goblin_king: {
-      name: 'The Goblin King', tier: 'boss', hp: 90, speed: 'steady', damage: 16,
+      name: 'The Goblin King', tier: 'boss', hp: 90, speed: 'steady', damage: 20, windup: 6,
       // war_cry is the SIGNATURE the elites' Lesser War Cry foretells; the other three are the
       // §7 role buckets (specialist molten_veins / generalist confusion / tick-dread dread_drums)
       traps: ['war_cry', 'molten_veins', 'confusion', 'dread_drums'], xp: 120, loot_tier: 5,
@@ -186,43 +187,43 @@ export const GAMEDATA: GameData = {
 
     // --- goblin_warren build-out: more minions + a proper elite roster (each elite = telegraph + rolled) ---
     goblin_archer: {
-      name: 'Goblin Archer', tier: 'minion', hp: 16, speed: 'steady', damage: 9,
+      name: 'Goblin Archer', tier: 'minion', hp: 16, speed: 'steady', damage: 11,
       desc: 'A wiry goblin loosing crude arrows from a ledge — quick to panic, quicker to flee.',
       voice: { hit: ['looses an arrow at', 'pelts', 'nicks'], zero: 'misses wide' },
       variants: ['frenetic', 'cowardly'], xp: 11, loot_tier: 2,
     },
     goblin_sapper: {
-      name: 'Goblin Sapper', tier: 'minion', hp: 22, speed: 'slow', damage: 8,
+      name: 'Goblin Sapper', tier: 'minion', hp: 22, speed: 'slow', damage: 10,
       desc: 'A grubby goblin lugging fire-bombs — more dangerous to your board than to you.',
       voice: { hit: ['lobs a bomb at', 'scorches', 'singes'], zero: 'fumbles the fuse' },
       variants: ['firebrand', 'greedy'], xp: 12, loot_tier: 2,
     },
     warren_rat: {
-      name: 'Warren Rat', tier: 'minion', hp: 12, speed: 'frenzied', damage: 5,
+      name: 'Warren Rat', tier: 'minion', hp: 12, speed: 'frenzied', damage: 6,
       desc: 'A fat, fearless rat the size of a dog. It comes in a chittering rush.',
       voice: { hit: ['bites', 'gnaws', 'scratches'], zero: 'squeaks and recoils' },
       variants: ['nimble', 'sneaky'], xp: 7, loot_tier: 1,
     },
     goblin_warlord: {
-      name: 'Goblin Warlord', tier: 'elite', hp: 42, speed: 'steady', damage: 14,
+      name: 'Goblin Warlord', tier: 'elite', hp: 42, speed: 'steady', damage: 18,
       desc: 'A scarred captain in looted plate, bellowing the King’s own war-cry. His red rage foretells the throne room.',
       voice: { hit: ['cleaves', 'bludgeons', 'smashes'], zero: 'swings wide, roaring' },
       traps: ['war_cry_lesser'], variants: ['bloodthirsty', 'cruel'], xp: 28, loot_tier: 3,
     },
     ember_shaman: {
-      name: 'Ember Shaman', tier: 'elite', hp: 36, speed: 'slow', damage: 11,
+      name: 'Ember Shaman', tier: 'elite', hp: 36, speed: 'slow', damage: 14,
       desc: 'A goblin mystic wreathed in cinders, dragging whole rows of your runes into the fire — the warren’s drift made a weapon.',
       voice: { hit: ['scorches', 'immolates', 'sears'], heal: ['draws strength from the embers'], zero: 'fizzles out' },
       traps: ['ember_sweep'], variants: ['scorched', 'hexer'], xp: 30, loot_tier: 3,
     },
     warren_butcher: {
-      name: 'The Warren Butcher', tier: 'elite', hp: 50, speed: 'lumbering', damage: 18,
+      name: 'The Warren Butcher', tier: 'elite', hp: 50, speed: 'lumbering', damage: 22, windup: 6,
       desc: 'A hulking goblin gone to fat and cruelty, a cleaver in each hand. Slow, but every red blow lands like the King’s.',
       voice: { hit: ['hacks', 'butchers', 'rends'], zero: 'is too slow, just missing' },
       traps: ['war_cry_lesser'], variants: ['cruel', 'greedy', 'covetous'], xp: 34, loot_tier: 4,
     },
     goblin_oracle: {
-      name: 'Goblin Oracle', tier: 'elite', hp: 38, speed: 'swift', damage: 12,
+      name: 'Goblin Oracle', tier: 'elite', hp: 38, speed: 'swift', damage: 15,
       desc: 'A wild-eyed seer who reads doom in the runes — crimson and threefold, and the strike comes at once.',
       voice: { hit: ['hexes', 'curses', 'blights'], zero: 'mutters, the omen unbroken' },
       traps: ['red_threes_omen'], variants: ['nimble', 'plagued'], xp: 30, loot_tier: 3,

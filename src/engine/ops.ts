@@ -100,6 +100,7 @@ export function castDamageHook(s: CombatState, cost: [number, number, number], s
  *  already past the ceiling (via an uncapped push) is never pulled backward. Returns seconds applied
  *  (0..sec); callers can treat `sec - applied` as overflow (Move sets feed it to Tactics). */
 export function pushClock(s: CombatState, sec: number, sink: EventSink, uncapped = false): number {
+  if (s.incoming != null) return 0 // the strike is COMMITTED (windup) — the whole push overflows to charges
   const before = s.nextAttackAt
   const ceil = uncapped ? Infinity : s.now + clockCapMs(s)
   s.nextAttackAt = Math.max(before, Math.min(ceil, before + sec * 1000))

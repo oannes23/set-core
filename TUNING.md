@@ -3,7 +3,17 @@
 **The numbers below live in code; this file is a mirror, not an authority.**
 Design docs should cite `TUNING.md` instead of inlining numbers — when a
 constant changes in code, update it here (one place) rather than chasing prose
-across the design docs. Verified against `src/` on 2026-06-10.
+across the design docs. Verified against `src/` on 2026-06-10 (incl. the Resolution v2 retune: slower bands, ~+25% creature damage — fewer, weightier, telegraphed exchanges).
+
+## Resolution v2 — "sets steer, stats carry" (Model B)
+
+| Constant | Value | File | Meaning |
+|---|---|---|---|
+| `BASE_STATS` | power 2 · endurance 2 · speed 2 | `src/engine/state.ts` | The parity statline (per-card values 1/2/3, identical to the old magnitude system) |
+| `QUALITY` | ① ×0.7 · ② ×1.0 · ③ ×1.4 | `src/engine/resolve.ts` | Card magnitude = action quality; per card `round(stat × q)` |
+| Set damage | deterministic | `src/engine/resolve.ts` | A set always delivers exactly what it reads (no roll); `weightedRoll` remains for enemy strikes + abilities |
+| `DEFAULT_WINDUP_S` | 4 | `src/engine/state.ts` | Telegraphed-exchange windup: the strike is pre-rolled, REVEALED, and COMMITTED (Move pushes → charges) |
+| Authored windups | Behemoth 8 · King 6 · Butcher 6 | `src/data/game-data.ts` (`windup`) | Heavy hitters rise visibly longer |
 
 ## Combat & Tactics (v2)
 
@@ -33,7 +43,7 @@ across the design docs. Verified against `src/` on 2026-06-10.
 
 | Constant | Value | File | Meaning |
 |---|---|---|---|
-| Speed bands | lumbering 20s · slow 15s · steady 12s · swift 10s · frenzied 8s | `src/data/game-data.ts` (`speed`) | Per-foe attack cadence (TRAPS.md §7.2) |
+| Speed bands | lumbering 24s · slow 19s · steady 15s · swift 12s · frenzied 9s | `src/data/game-data.ts` (`speed`) | Per-foe attack cadence (TRAPS.md §7.2) |
 | Ember Drift `every` | 7s | `src/data/game-data.ts` (`drifts.ember`) | The shipped dungeon drift: 1 card / 7s toward red (per-dungeon tuning lever) |
 | Enemy hit → wound | 1 rune shattered | `src/engine/triggers.ts` (`shatterCard`) | A hit that bites HP past Block shatters one card (a Wound); it reforms after `DMG_REGEN_MS` |
 
