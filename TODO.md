@@ -107,6 +107,19 @@ Build scope:
   ⑤ DEV instruments (always-on dim row below the board, not a feature): reshape share vs the
   TRAPS §5.5 65–70% target, trap-spring rate vs ~30%, sets/min, gimme%, wards, churns — off-target
   values turn warn-colored. The §5.5 telemetry is finally measured.
+- **Pre-Resolution-v2 readings (2026-06-10, third playtest):** Warlord reshape 72% / spring 40% /
+  s.m 18.1 / gimme 87 / wards 1 / churns 9 · Cowardly Archer reshape — / spring 25 / gimme 100 ·
+  Butcher reshape 96 / spring 13 / wards 13 / churns 0 · Plagued Oracle reshape 100 / spring 32 /
+  wards 14 / churns 0. NOTE: 96–100% readings were an INSTRUMENT ARTIFACT — warded enemy reshapes
+  vanished from the count (fixed: a ward now logs the foe's attempt). **Feel verdict: no pressure
+  or urge to swap tactics; Stand Ground vs Maneuver lacks felt difference; tactics UI "a little
+  off."** Volume-up pass landed (stance auras on the board edge, swap flash, sprite stance badge,
+  stronger toggle styling). Root cause is partly structural: pre-v2 the generous board made
+  composition low-stakes — re-read AFTER Resolution v2 (shape mix is now the action economy).
+  ⚙ Mechanical sharpeners PROPOSED (decide after v2 playtest): **Braced** (Stand Ground charges
+  each reduce a telegraphed incoming by 1 — the defensive stance meets the windup system) and
+  **Primed** (a Maneuver-churned card matched within ~6s counts one quality tier higher — your
+  tide creates value, not just composition).
 - `[~]` **Duelist sprites (PLACEHOLDER art):** 🧙/👹 emoji stand-ins in the foe header that STEP
   toward whoever owns the board (driven by the same tug differential), lunge on their attacks and
   recoil on hits. Seeds the longer-term pixel-art pair; replace art + grow reactions later.

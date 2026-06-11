@@ -475,7 +475,7 @@ function buildPlay(): void {
   // foe header — tall (room for future foe art); also the stage for popup messaging (the tutorial)
   const head = $(`<div class="panel headpanel"></div>`)
   // PLACEHOLDER sprites (pixel art later): the duelists step toward whoever owns the board (the tug)
-  head.appendChild($(`<div class="sprites"><span class="sprite you" id="spyou">🧙</span><span class="sprite foe" id="spfoe">👹</span></div>`))
+  head.appendChild($(`<div class="sprites"><span class="sprite you" id="spyou">🧙<span class="stb" id="stancebadge">🛡</span></span><span class="sprite foe" id="spfoe">👹</span></div>`))
   head.appendChild($(`<div class="foename" id="foename"></div>`))
   head.appendChild($(`<div class="foedesc" id="foedesc"></div>`))
   head.appendChild($(`<button class="fleebtn" id="fleebtn" data-tip-title="Flee" data-tip="Forfeit this encounter and retreat to town. Available any time.">🏃 Flee</button>`)) // any-time flee
@@ -526,7 +526,7 @@ function buildPlay(): void {
   if (!document.getElementById('ptint')) document.body.appendChild($(`<div id="ptint"></div>`)) // low-HP vignette (body-level)
 
   V.refs = {}
-  for (const id of ['foename', 'foedesc', 'fleebtn', 'enemylab', 'phpv', 'ehpv', 'php', 'ehp', 'clock', 'atkfill', 'tacv', 'tac', 'biasrow', 'standnote', 'm0', 'm1', 'm2', 'block', 'buffind', 'strip', 'boardwrap', 'board', 'tugbar', 'tugmarker', 'tugfoe', 'tugyou', 'devstats', 'spyou', 'spfoe', 'log', 'abilities', 'tactics', 'passives', 'consumables', 'floatlayer']) {
+  for (const id of ['foename', 'foedesc', 'fleebtn', 'enemylab', 'phpv', 'ehpv', 'php', 'ehp', 'clock', 'atkfill', 'tacv', 'tac', 'biasrow', 'standnote', 'm0', 'm1', 'm2', 'block', 'buffind', 'strip', 'boardwrap', 'board', 'tugbar', 'tugmarker', 'tugfoe', 'tugyou', 'devstats', 'spyou', 'spfoe', 'stancebadge', 'log', 'abilities', 'tactics', 'passives', 'consumables', 'floatlayer']) {
     const el = wrap.querySelector('#' + id)
     if (el) V.refs[id] = el as HTMLElement
   }
@@ -1102,6 +1102,7 @@ function interpret(events: CombatEvent[]): void {
         log(`<b>Stand Ground</b> — the ${e.what === 'lock' ? 'lock' : e.what === 'shatter' ? 'blow\u2019s shatter' : 'warp'} breaks against your line (−1 charge).`, 'you')
         floatBoard('🛡 warded', 'var(--gold)', 'you')
         V.dev.wards++
+        V.dev.reshapeFoe++ // the enemy ATTEMPTED a reshape — count the attempt or the share reads false-high
         // the ward BEAT: burn the pip on the gauge + a one-beat shield shimmer on the board edge
         const meter = document.querySelector('[data-sec="tactics"] .tacmeter')
         meter?.classList.remove('wardpulse'); void (meter as HTMLElement | null)?.offsetWidth; meter?.classList.add('wardpulse')
@@ -1127,11 +1128,19 @@ function interpret(events: CombatEvent[]): void {
       case 'passiveProc':
         pulsePassive(e.id)
         break
-      case 'tacticChanged':
+      case 'tacticChanged': {
         log(e.tactic === 'stand'
           ? 'You <b>Stand Ground</b> — charges now ward the board against enemy meddling.'
           : 'You shift to <b>Maneuver</b> — charges now churn the deadest cards toward your bias.', 'you')
+        const bw = V.refs.boardwrap
+        if (bw) {
+          bw.classList.remove('stance-stand', 'stance-maneuver')
+          void bw.offsetWidth
+          bw.classList.add(e.tactic === 'stand' ? 'stance-stand' : 'stance-maneuver')
+        }
+        floatBoard(e.tactic === 'stand' ? '🛡 STAND GROUND' : '⚙ MANEUVER', e.tactic === 'stand' ? 'var(--gold)' : 'var(--phos)')
         break
+      }
       case 'biasChanged': {
         const lbl = e.bias ? BIAS_CHIPS.find((b) => b.axis === e.bias!.axis && b.value === e.bias!.value)?.tip : null
         log(e.bias && lbl ? `Maneuver set — <i>${lbl.toLowerCase()}</i>.` : 'Maneuver bias cleared — charges hold.', 'you')
@@ -1515,6 +1524,22 @@ function updateTugAndSprites(): void {
     V.refs.tugfoe.textContent = AXIS_ICONS[theme!.axis]?.[TOKEN_VAL[theme!.value] ?? 0] ?? '⚠'
     V.refs.tugyou.textContent = AXIS_ICONS[bias!.axis]?.[bias!.value] ?? '🎯'
     V.refs.tugmarker.style.left = `${Math.max(3, Math.min(97, 50 + d * 75))}%`
+  }
+  // STANCE PRESENCE — the selected tactic owns the board's edge: Stand Ground = a gold guard ring
+  // (intensity = banked charges); Maneuver = a teal current. The badge on your sprite shows the
+  // stance (and the chosen bias) at a glance.
+  const bw = V.refs.boardwrap
+  if (bw) {
+    const standing = s.running && s.tactic === 'stand'
+    bw.classList.toggle('guarded', standing && s.charges > 0)
+    if (standing) bw.style.setProperty('--guard', String(s.charges / 5))
+    bw.classList.toggle('flowing', s.running && s.tactic === 'maneuver' && !!s.maneuverBias && s.charges > 0)
+  }
+  if (V.refs.stancebadge) {
+    V.refs.stancebadge.textContent = s.tactic === 'stand'
+      ? '🛡'
+      : (bias ? (AXIS_ICONS[bias.axis]?.[bias.value] ?? '⚙') : '⚙')
+    V.refs.stancebadge.classList.toggle('armed', s.charges > 0)
   }
   // the duelists (PLACEHOLDER art): the winner ADVANCES across the header, the loser gives ground.
   // Typical differentials are small (±0.1–0.3), so the gain is steep — the walk must be readable.

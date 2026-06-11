@@ -559,3 +559,20 @@ button.cta:disabled { opacity: .4; cursor: not-allowed; }
 @keyframes windupcharge { 0%, 100% { opacity: 1; filter: brightness(1); } 50% { opacity: .7; filter: brightness(1.5); } }
 .sprite.foe.winding { animation: spwind .7s ease-in-out infinite; }
 @keyframes spwind { 0%, 100% { rotate: 7deg; translate: 0 0; } 50% { rotate: 11deg; translate: 2px -3px; } }
+
+/* STANCE PRESENCE — the selected tactic visibly owns the board edge (turn the feel volume UP) */
+.boardwrap { transition: box-shadow .45s ease; }
+.boardwrap.guarded { box-shadow: inset 0 0 0 2px rgba(245, 197, 66, calc(.22 + .5 * var(--guard, .5))), inset 0 0 calc(26px * var(--guard, .5)) -10px var(--gold); }
+.boardwrap.flowing { box-shadow: inset 0 0 0 2px rgba(94, 234, 212, .3), inset 0 -16px 30px -18px var(--phos); }
+/* the swap is a MOMENT: a one-beat full-board stance flash */
+.boardwrap.stance-stand { animation: stancestand .7s ease; }
+@keyframes stancestand { 0% { box-shadow: inset 0 0 0 5px var(--gold), inset 0 0 44px -8px var(--gold); } 100% { box-shadow: inset 0 0 0 2px rgba(245, 197, 66, .3); } }
+.boardwrap.stance-maneuver { animation: stancemaneuver .7s ease; }
+@keyframes stancemaneuver { 0% { box-shadow: inset 0 0 0 5px var(--phos), inset 0 0 44px -8px var(--phos); } 100% { box-shadow: inset 0 0 0 2px rgba(94, 234, 212, .3); } }
+/* the stance badge on your sprite — your posture at a glance (shows the bias chip under Maneuver) */
+.sprite .stb { position: absolute; right: -13px; top: -7px; font-size: 13px; opacity: .55; filter: drop-shadow(0 1px 3px #000c); transition: opacity .3s ease; }
+.sprite .stb.armed { opacity: 1; }
+/* tactic buttons: a real stance toggle, not two text chips */
+.tac-btn { flex: 1; text-align: center; padding: 8px 9px; font-size: 12px; }
+.tac-btn.on { background: rgba(245, 197, 66, .13); box-shadow: 0 0 12px -5px var(--gold); font-weight: 700; }
+.tac-btn[data-tac="maneuver"].on { border-color: var(--phos); color: var(--phos); background: rgba(94, 234, 212, .1); box-shadow: 0 0 12px -5px var(--phos); }
