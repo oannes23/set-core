@@ -1,15 +1,21 @@
 # CRAWL-DESIGN.md — SET.crawl
 
 > The first iteration toward the **real game**: a data-driven dungeon crawler on
-> the SET skill engine. **Status: design capture, no code yet.** Builds on
+> the SET skill engine. **Status: in build, on `src/`.** Combat, the threat layer,
+> **Tactics v2** (§5.5), and **Phase B1** (scene shell + town/run-map screens +
+> persisted progression) are shipped in the modular TS client; the **run loop**
+> (§2, exit ladder §6) is the next build — see `TODO.md`. Builds on
 > `GAME-DESIGN.md` (trigger bus, transmute verb, locked f=3/N=15) and `PROJECT.md`
 > (generation math). This doc owns the crawl-specific run loop, the data
-> architecture (YAML entities), and the visual reskin.
+> architecture, and the visual reskin.
 
 **Lineage:** `set.core` (skill core + tuning console) → `set.combat` (combat
-sandbox) → **`set.crawl`** (the dungeon-crawler game). set.crawl starts as a copy
+sandbox) → **`set.crawl`** (the dungeon-crawler game). ~~set.crawl starts as a copy
 of `prototype/set-combat.html`, palette-swapped first, then grown into the loop
-below. We keep the validated generation core untouched.
+below.~~ *(Superseded by `TODO.md` §A: the crawl is built on the modular `src/`
+client, not the archived HTML; the typed TS data module (`src/data`) is the
+YAML-portable equivalent of the loader sketched below.)* We keep the validated
+generation core untouched.
 
 ---
 
@@ -40,11 +46,10 @@ f=3/N=15 grid; only the skin changes.
 - **Health gems + playfield tint.** Gems set into the background art recolor with the
   player's HP band, and at the low bands the whole playfield takes a vignette tint
   that deepens toward death — a glanceable, ambient health read (no need to watch a
-  number). Bands: **Blue >90% · Green 70–90% · Yellow 35–70% · Red 1–35%**; the tint
-  engages at Yellow and intensifies through Red, and the gems pulse (faster at Red).
-  Gem placement: one in each of the four corners of every panel, plus a center-top
-  jewel on the card board. *Prototyped in `set-combat.html`* (corner gems on all
-  panels + radial tint vignette on the playfield).
+  number). *(As shipped in `src/ui`: a simpler two-band version — **low ≤70% ·
+  crit ≤35%** — driving the HP-bar glow + playfield vignette; the 4-band
+  blue/green/yellow/red gem spec and corner-gem placement remain a future polish
+  option, prototyped in the archived `set-combat.html`.)*
 
 > Principle: reskin is cosmetic only. No generation/mechanic change rides along with
 > the palette swap — that's a separate, later step.
@@ -178,8 +183,11 @@ Sorcerer, Pyromancer all list it.
 
 ## 4. Data-driven architecture — YAML entities
 
-Everything content-side is **declarative YAML, ingested at load**. One file per
-entity type (e.g. `data/abilities.yaml`, `data/foes.yaml`, …) + a loader. This keeps
+~~Everything content-side is **declarative YAML, ingested at load**.~~ *(As built:
+content lives in a **typed TS module** — `src/data/game-data.ts` against
+`src/data/schema.ts` — that keeps a **YAML-portable contract**: plain-data
+objects, no functions, swappable for a YAML loader later without engine change.
+The declarative principle holds; the file format changed.)* This keeps
 content authorable without touching engine code and makes the whole game moddable.
 
 ### Axis theming (locks the abstract axes to crawler flavor)
@@ -221,6 +229,13 @@ do:                  # one or more effects
 (the board verb), `set_bias`, `modify_stat`, `heal`, `learn_ability`, `gain_xp`.
 
 ### Entity sketches (illustrative — to iterate, not final)
+
+> **⚠ Caution — do not author from these sketches.** They are illustrative
+> design-capture only. The **real trigger vocabulary** is `src/data/schema.ts`
+> (e.g. `On = 'match' | 'tick'`, different effect names) and the real content is
+> `src/data/game-data.ts`. Several event names and effects below
+> (`damage_enemy`, `grant_resource`, `on: lethal`, `room_clear`, …) never shipped
+> in this form.
 
 ```yaml
 # abilities.yaml — active verbs + (passive abilities are just triggers w/ no cost)
@@ -393,6 +408,34 @@ most of which **reuse engine ops we already have** — that's what makes them ch
 A consumable is used via a new **"use consumable"** combat action (one of the slots), dispatched
 like any other action so it stays replay-deterministic.
 
+### Consumables & player buffs (shipped — `src/engine/consumables.ts`)
+
+The system above is built. A consumable is a registry entry with a pure
+`use(state, rng, sink)` effect, spent via the replay-deterministic
+`useConsumable` action. The shipped roster (~30 potions + a scroll per ability):
+
+- **Tiered staples** (Minor / standard / Major): Healing (10/20/30 HP),
+  Stoneskin (10/20/30 Block), Speed (stall the enemy 10/20/30s, bypassing the
+  Move clock cap), per-color Mana (5/10/15), Rainbow Mana (2/4/6 of each).
+- **Special potions:** **Invisibility** (fill the Tactics charges + freeze the
+  enemy until your next Set) and **Strength** (triple your next attacking Set's
+  damage).
+- **Elemental cascade triad** (region-flood + payoff per matching card, 50% to
+  repeat): **Fire Breathing** (flood the least-red row, damage), **Regeneration**
+  (green the 2 least-green columns, heal), **Mind Reading** (blue the 3 deadest
+  cards, Block).
+- **Utility potions:** **Hourglass Draught** (reset the enemy clock to a full
+  interval + suppress drift/DoT ticks 6s), **Prismatic Vial** (paint the rows
+  red/green/blue, +1 mana per card painted), **Saboteur's Phial** (destroy the 3
+  lightest cards — they reform fresh).
+- **Scrolls:** every ability in the `ABILITIES` roster is automatically a
+  one-shot, free-cast scroll (`scroll_<id>`) — the scroll pool comes free.
+
+The transient **buff flags** these set live on `CombatState`
+(`src/engine/state.ts`): `attackFrozen` (Invisibility — enemy clock paused until
+the next Set), `nextSetDamageMult` (Strength — multiplier on the next attacking
+Set), `tickSuppressedUntil` (Hourglass — `on:tick` effects paused until then).
+
 ```yaml
 # dungeons.yaml + loot_tables.yaml
 - id: goblin_warren        # dungeons.yaml
@@ -446,25 +489,31 @@ affixes** — the enemy is assembled like a piece of gear (`TRAPS.md` §7.1).
 
 ---
 
-## 5. Build sequence (when we start coding)
+## 5. Build sequence *(superseded — see `TODO.md`)*
 
-1. Copy `set-combat.html` → `set-crawl.html`; **palette-swap only** (§1). Ship the
-   reskin with zero mechanic change.
-2. Stand up the **YAML loader** + the entity schemas (§4) with a tiny seed dataset.
-3. Implement the **trigger bus** and **transmute verb** against the data.
+*(This pre-migration sequence assumed growing the single-file prototype. The
+actual build runs on the modular `src/` client: the trigger bus, transmute verb,
+and typed data schemas are long shipped; Phase B1 (scenes + persistence) is done;
+the live phase plan lives in `TODO.md`. Kept for history:)*
+
+1. ~~Copy `set-combat.html` → `set-crawl.html`; **palette-swap only** (§1).~~
+2. ~~Stand up the **YAML loader** + the entity schemas (§4)~~ — shipped as the
+   typed TS data module (`src/data`).
+3. ~~Implement the **trigger bus** and **transmute verb** against the data.~~ — shipped.
 4. Wrap a single **room/encounter** in the run loop (enemy stats, attack timer,
-   loot roll).
+   loot roll). ← *the current frontier*
 5. Add **dungeon flow** (room chain, boss-chance, loot scaling), then **town**
-   (buy/sell), then **progression** (XP/levels/slots).
+   (buy/sell — B1 shell shipped), then **progression** (XP/levels/slots).
 6. Author content; tune.
 
 ---
 
-## 5.5 Combat resolution, the Tactics meter & the Flee retreat — *prototyped in `set-combat.html`*
+## 5.5 Combat resolution, Tactics (v2) & the Flee retreat — *shipped in `src/`*
 
-The per-room combat model. Values below are **prototyped and live in
-`prototype/set-combat.html`** (the basis for `set-crawl.html`); treat numbers as
-tuning defaults.
+The per-room combat model. ~~Values below are prototyped and live in
+`prototype/set-combat.html`.~~ *(Now shipped in the modular client —
+`src/engine/resolve.ts`, `tactics.ts`; live constants in `TUNING.md`.)* Treat
+numbers as tuning defaults.
 
 **Per-card resolution.** Each card in a found set fires its own shape-action, scaled
 by its number (magnitude 1–3), typed by its color:

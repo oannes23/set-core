@@ -14,18 +14,19 @@ over `core/` (generation) and `data/` (content). The UI dispatches actions and r
 - `ops.ts` — shared combatant ops (block w/ Overflow spill, tactics, heal, ability damage, the ethereal
   mana-spent hook, clock push) used by the reducer + abilities + passives + tactics.
 - `passives.ts` — the 9 always-on passives + `firePassives` (fire on `match` / `ability`).
-- `abilities.ts` — the 17-ability roster (pure DOM-free casts) + `castAbility` (afford → spend → cast →
+- `abilities.ts` — the ability roster (pure DOM-free casts) + `castAbility` (afford → spend → cast →
   ability-passives).
-- `tactics.ts` — the 6 Tactics buttons (attack/defend/move/heat/chill/wild) + `useTactic`.
-- `combat.ts` — the reducer: `createCombat`, `completeSet`, `tick`, `castAbility`/`useTactic` actions,
-  gauntlet advance, `cloneState`.
+- `tactics.ts` — **Tactics v2** (CRAWL-DESIGN.md §5.5): the charge queue + the two tactics
+  (Maneuver's serial deadest-card churn, Stand Ground's banked interception) + swap/spin-up.
+- `consumables.ts` — one-use potions + scrolls (a free cast of any ability), via the
+  replay-deterministic `useConsumable` action.
+- `combat.ts` — the per-combat reducer: `createCombat`, `completeSet`, `tick`,
+  `castAbility`/`useTactic` actions, `cloneState`.
+- `run.ts` — the RUN layer: `RunState`/`runReduce` compose combats into a run (sequence advance,
+  the progression that used to live in the UI's `onWin`).
+- `session.ts` — the replay seam: a session records actions and replays them **through `runReduce`**
+  (seed + actions → identical run), so a server can be the authority later.
 
 Determinism: time is explicit (`now`, advanced by `tick`) and the RNG is injected — same seed + same
-actions → identical state (tested). This is the step-6 seam: clients replay actions; a server can be
-the authority later. Tested in `engine.test.ts` (resolution, conditions, selectors, board verbs, foe
-assembly, the clock, immunity, gauntlet advance, determinism).
-
-**Step 4 is now complete:** the ability roster (17), passives (9), and Tactics buttons (6) are ported
-as `castAbility` / `useTactic` actions over the same bus, and the 9 classes live in `data/classes.ts`
-(loadouts of these ids, integrity-gated against the registries). The engine is at full combat parity
-with the prototype; what remains is the UI (step 5): the ability/passive/class panels + coaching.
+actions → identical state (tested in `engine.test.ts`, `seam.test.ts`, `engine.fuzz.test.ts`:
+resolution, conditions, selectors, board verbs, foe assembly, the clock, determinism).

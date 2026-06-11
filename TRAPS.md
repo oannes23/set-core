@@ -64,6 +64,14 @@ are not equally likely. On an f=3 board a given axis lands roughly **all-same
 > feel-bad. It is also *why* double-matches earn bigger consequences: they are
 > ~10× rarer than a single all-same, so they may hit ~10× harder.
 
+### 1.1 Trap vs Trick (valence)
+
+One mechanism, two valences — a trigger's `kind` field (`src/data/schema.ts`):
+**trap** = hostile, a price to *avoid* springing; **trick** = favorable, a payoff
+to *aim for*. Everything else (events, conditions, effects, legibility) is shared.
+The UI reads them as a traffic light: **green** = a trick to pursue · **yellow** =
+a priced trap, sometimes worth paying · **red** = wounded/danger state.
+
 ---
 
 ## 2. The condition space (the "when")
@@ -165,6 +173,15 @@ magnitude) there must *exist* a counter-trap. A build keyed on a value nothing c
 punish is degenerate by construction. The trap-condition space (3 colors × 3
 shapes × magnitude) should roughly mirror the build-condition space. **Traps are
 the enemy's "build"** — same `all_same` language the player's passives speak.
+
+> **Coverage status (as built):** the all-Defend / magnitude gap is now closed.
+> **Magnitude tolls** exist as the `grasping` / `covetous` variants (all-3s
+> matches pay small constant taxes; covetous targets via `pick: 'highest_mag'`),
+> and the **scaled generalist** — Confusion v2 — uses the `scale: 'set_mag'`
+> severity law (`max(1, totalMagnitude − 4)`, see `TUNING.md`) so heavy sets pay
+> proportionally. Multi-card shape floods (bulwark / berserk / thornwall /
+> callarms / callshields) are deliberately **shape-only** (no magnitude bias) —
+> the "Bulwark loop" fix.
 
 ---
 
@@ -321,13 +338,14 @@ board — worst case it makes the theme value abundant (~60% one color = the bai
 intended). So we never tune to prevent a dead/degenerate board (impossible); we tune a
 **feel band**:
 - *too slow* (≤1 card / 10s) → invisible, decorative, ignored
-- *right* (~1 card / 5s base) → you notice the lean, feel the bait, can fight or surf it
+- *right* (roughly 1 card / 5–7s) → you notice the lean, feel the bait, can fight or surf it
 - *too fast* (chunks every couple sec) → the board stops feeling yours ("owning")
 
 **Governing law — enemy reshape ≤ ~half the player's clear rate.** A competent player
 clears ~3 cards / ~4s ≈ **0.6–0.9 c/s** of player-directed churn. Keep **total enemy
 transmute (dungeon drift + every active foe transmute) ≤ ~0.3–0.4 c/s** so the player
-owns net composition. Base drift 1/5s = 0.2 c/s (~25%) — comfortably tilting.
+owns net composition. Drift rate is **per-dungeon tuning** within that budget — the
+shipped Ember Drift runs 1/7s ≈ 0.14 c/s (see `TUNING.md`) — comfortably tilting.
 
 **Dungeon drift + foe transmute is ONE shared budget.** Spend it on the dungeon *or*
 the foes, not both maxed: a fast-drift "raging" dungeon staffs foes that punish via
@@ -365,6 +383,9 @@ starve / shape).
 **Playtest instrument:** log player-caused vs enemy-caused card-changes per fight; aim
 **player ≥ ~65–70%** of all reshapes. Below that (or if the board *feels* like it's
 fighting you), back off the *timed* channel first — it's the usual culprit.
+*(Status: this instrument is now **live** in the combat UI's dev panel — reshape
+share and trap-spring rate are measured against the design targets; `src/ui/app.ts`,
+targets recorded in `TUNING.md`.)*
 
 ---
 
@@ -391,8 +412,9 @@ threat. (Lives alongside `CRAWL-DESIGN.md` §2 run loop / §4 data architecture.
 
 **Dungeon — the ambient drift** (a board verb, *global* to the dungeon).
 - Each dungeon has a theme and applies ONE global **transmute drift**: an `on:tick`
-  nudge of the board toward the theme value (e.g. *Emberdeep* → drift Red). **Base rate:
-  1 card / 5s.** Active in *every* room, so the dungeon **feels** like its element — the
+  nudge of the board toward the theme value (e.g. *Emberdeep* → drift Red). **Rate is a
+  per-dungeon tuning lever** (the shipped Ember Drift runs 1 card / 7s — see `TUNING.md`).
+  Active in *every* room, so the dungeon **feels** like its element — the
   board texture is its signature, not a per-fight surprise. (One mechanism shared with
   §2.4 tick-dread; here the payload is a transmute, not damage.)
 - This is enemy-as-transmuter (§5.1) elevated to the environment, and where **bait
@@ -469,13 +491,13 @@ free to add stat-mods and traps. Stat-mods stack additively; trap resolution ord
 Cadence is "seconds to next attack" (lower = more dangerous), so named bands let design
 talk *feel* not numbers:
 
-| Band | Cadence | Feel (actions between hits) |
+| Band | Cadence (live — `src/data/game-data.ts`, see `TUNING.md`) | Feel (actions between hits) |
 |---|---|---|
-| **Lumbering** | ~18–20s | many — a slow siege, big punish-windows |
-| **Slow** | ~14–17s | comfortable |
-| **Steady** | ~10–13s | the baseline trade |
-| **Swift** | ~6–9s | tight — ~1–2 actions per hit |
-| **Frenzied** | ~4–5s | frantic — barely a breath between strikes |
+| **Lumbering** | 20s | many — a slow siege, big punish-windows |
+| **Slow** | 15s | comfortable |
+| **Steady** | 12s | the baseline trade |
+| **Swift** | 10s | tight — ~1–2 actions per hit |
+| **Frenzied** | 8s | frantic — barely a breath between strikes |
 
 Variants/templates may shift a foe by **±1 band** (a *Sneaky* goblin is one band faster;
 an *Undead* template might drop a band but add HP).
@@ -501,8 +523,9 @@ an *Undead* template might drop a band but add HP).
   rolling picks a whole variant, not a detached trap. **Templates** are dungeon-global
   overlays stacked on every foe (e.g. Undead) — a one-knob difficulty/variety lever.
   Built like an item (base ⊕ affixes). (Supersedes the earlier abstract-type-pool note.)
-- **Base transmute rate — 1 card / 5s** for tick-transmutes (dungeon drift; tick
-  traps). Triggered (`on:match`) transmutes may move more per the severity∝rarity law
+- **Base transmute rate — per-dungeon tuning** for tick-transmutes (dungeon drift; tick
+  traps); the shipped Ember Drift runs **1 card / 7s** (see `TUNING.md`). Triggered
+  (`on:match`) transmutes may move more per the severity∝rarity law
   (§1). Exact per-foe gating still wants playtest, but the baseline tide is set.
 - **Player-side lock — yes**, themed as **Ice Block** (defense buff + wound clear +
   self-heal + big temp board lock); the inert ruling makes it board-preservation too

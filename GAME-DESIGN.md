@@ -191,11 +191,14 @@ which holds distinctness + the floor and reads the bias channel.
   smarter fill (draw favored-value-first from the distinct pool, then top up).
   Small-AoE verbs (Fireball ~5 slots) don't have this problem.
 
-**Damage as a transmute.** Enemy attack → screen flashes red → 1 random card
-destroyed, regenerates after ~2s. Empty/pending slots are already supported by the
-data model (render and findSets skip falsy cards), so this is a timer + juice. Keep
-it to **1 card** (more is too swingy). Caveat: at FLOOR=1 the wrong card can leave a
-genuine 2s gap — either pick a non-floor-critical card or accept the gap as the cost.
+**Damage as a transmute.** ~~Enemy attack → screen flashes red → 1 random card
+destroyed, regenerates after ~2s.~~ *(Superseded by the shipped **wound** mechanic:
+an enemy hit that bites HP past Block **shatters one rune** — a Wound — which
+reforms after `DMG_REGEN_MS` = 10s; Stand Ground can intercept the shatter. The
+Move-stall cap on the enemy clock is `max(20s, foe cadence)`. See `TUNING.md` and
+`src/engine/triggers.ts` `shatterCard`.)* Empty/pending slots are supported by the
+data model (render and findSets skip falsy cards). Keep it to **1 card** (more is
+too swingy).
 
 ---
 
@@ -235,18 +238,20 @@ genuine 2s gap — either pick a non-floor-critical card or accept the gap as th
   contains rewards; severity scales with rarity). Enemy traps, the inverse "diverse"
   conditions, double-value boss conjunctions, tick-dread DoTs, and the **lock** board
   verb all specced there.
-- **Resource mapping** for the shape and number axes (color→mana is clear; the others
-  aren't).
-- **Enemy timer model** — fixed countdown? variable per enemy? how triggers
-  accelerate it (−Ns vs immediate vs %chance).
-- **Bias persistence** — does a transmute's bias apply once (decays) or set a
-  *stance* until changed? (Once-with-decay is the safer default; stance is stronger
-  and more degenerate.)
-- **Ability targeting UX** — click-to-target mode, neighbor definition over the
-  5-column N=15 grid, confirm/cancel.
-- **Stacking rules** — how multiple triggers on the same event order and combine.
-- **Engine/tech** — prototype is single-file vanilla JS; prior context favored Godot
-  if this graduates (HTML5/WASM export, CLI builds).
+- ~~**Resource mapping**~~ — resolved: a **single mana economy** off the color axis;
+  shape pays immediate per-card verbs and number is the magnitude multiplier, not
+  separate currencies (`CRAWL-DESIGN.md` §4/§6).
+- ~~**Enemy timer model**~~ — resolved: per-foe cadence via the named **speed bands**
+  (`TRAPS.md` §7.2; live numbers in `TUNING.md`).
+- ~~**Bias persistence**~~ — resolved: **once-only** — `pendingRegenBias` steers a
+  single refill, then clears (`src/engine/combat.ts`).
+- ~~**Ability targeting UX**~~ — resolved in code: no click-to-target mode; bolts and
+  hostile transmutes **auto-target the deadest card** (fewest match-mates, then
+  lightest — `src/engine/abilities.ts`, `src/engine/triggers.ts`).
+- ~~**Stacking rules**~~ — resolved: **drift first, then listed order** of the foe's
+  triggers (`CRAWL-DESIGN.md` §6).
+- ~~**Engine/tech**~~ — resolved by `WRAPPERS.md`: web client + PWA (Tauri/Capacitor
+  documented); Godot rejected. The live game is the modular TS client in `src/`.
 
 ---
 

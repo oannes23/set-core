@@ -9,16 +9,25 @@ orientation.
 - `GAME-DESIGN.md` — the real game: locked f=3 / N=15 **5×3** board, trigger bus,
   transmute verb. Wins over the prototype defaults where they conflict.
 - `CRAWL-DESIGN.md` — **set.crawl**, the data-driven dungeon-crawler: run loop,
-  YAML entity architecture, combat resolution, Tactics meter, gear taxonomy.
+  entity architecture (typed TS data, YAML-portable), combat resolution,
+  **Tactics v2** (§5.5 — charge queue + Stand Ground / Maneuver), gear taxonomy.
 - `TRAPS.md` — the reactive **threat layer**: trap vocabulary, the four board verbs
   (destroy / transmute / lock / + conditions), dungeon·elite·boss attachment, foe
   composition (creature ⊕ variant ⊕ template), enemy-transmute tuning.
+- `TUNING.md` — the **live-constants reference** (code is source of truth): Tactics,
+  caps, speed bands, gen spec, severity laws, dev-instrument targets. Cite it
+  instead of inlining numbers in docs.
+- `FABLE.md` — the 2026-06-09 full-repo review: bug ledger, invariant risks,
+  architecture notes, prioritized action list (§14).
+- `WRAPPERS.md` — shipping decision: web client + PWA (Tauri/Capacitor documented);
+  Godot rejected.
 
 ## What this is
 A skill-component minigame based on the card game **Set**, the reusable
 action-resolution layer of a web RPG. Lineage: `set.core` (skill core + tuning
 console) → **`set.combat`** (classes, passives, abilities, Tactics, transmute,
-the threat layer) → **`set.crawl`** (the dungeon-crawler game, not yet code).
+the threat layer) → **`set.crawl`** (the dungeon-crawler game — combat + Tactics
+v2 + Phase B1 hub/persistence shipped; run loop next).
 **The live game is now the modular TypeScript client in `src/`** (`core`/`data`/
 `engine`/`ui`, entry root `index.html`, run with `pnpm dev`). The original
 single-file prototypes (`prototype/set-proto.html`, `prototype/set-combat.html`)
@@ -52,10 +61,11 @@ foundation migration is complete (TODO §A); next is **set.crawl on the modules*
 - Before shipping any change to generation, re-run a headless simulation that
   checks the invariants above across the dial space. (Past sessions extracted the
   `<script>` core with a small Node harness and asserted floor/distinct/pin.)
-- Prefer keeping the prototype dependency-free and single-file until there's a
-  reason not to. If it graduates to an engine, prior context favored Godot
-  (HTML5/WASM export, CLI builds).
-- **Lock-layer invariant (when built):** ≥ FLOOR sets must be completable from
+- The live game is the framework-free TS client in `src/` (Vite/Vitest toolchain);
+  shipping is settled as **web client + PWA** per `WRAPPERS.md` (Tauri/Capacitor
+  documented as wrapper paths; Godot rejected). The archived single-file
+  prototypes are oracles only — don't grow them.
+- **Lock-layer invariant (built, keep asserting):** ≥ FLOOR sets must be completable from
   *unlocked* cards (the makeable-set floor, `TRAPS.md` §6). Locked cards still form
   sets on paper but not in reach.
 
@@ -70,9 +80,19 @@ foundation migration is complete (TODO §A); next is **set.crawl on the modules*
   selectors, dungeon-drift tick. Built in the prototype, then ported to `src/engine`.
 - **DONE: the foundation migration** (TODO §A) — the modular `src/` client is the live
   game at full parity (engine + UI + coaching + polish); the prototype is archived.
-- **NEXT BUILD: `set.crawl` on the modules** (`CRAWL-DESIGN.md`) — the run loop +
-  second screens (town / run-map / inventory) + persisted progression. This is the
-  "graduate the prototype" trigger; build it on `src/`, not the archived HTML.
+- **DONE: Tactics v2** (`CRAWL-DESIGN.md` §5.5) — the charge queue + Stand Ground /
+  Maneuver stances replaced the old armed meter; tug-readability polish and the
+  **dev instruments** (reshape share, trap-spring rate vs targets — `TUNING.md`)
+  are live in the combat UI.
+- **DONE: crawl Phase B1** — scene router + town screens (character select /
+  dungeon select) + persisted roster (`save.ts`) + the run layer (`run.ts`).
+  No run-map yet — that's B2.
+- **NEXT BUILD: `set.crawl` Phase B2** — the run loop + exit ladder
+  (`CRAWL-DESIGN.md` §2/§6, plan in `TODO.md`): room chain, boss/elite rolls,
+  loot, the flee/death/cash-out fork.
+- **⭐ OPEN DESIGN THREAD: "sets steer, stats carry"** (resolution v2, `TODO.md`) —
+  where the numbers live (cards vs character stats). **Must be decided before
+  Phase B3 gear** — affix design depends entirely on it.
 - Still open (see `TRAPS.md` §8 / `CRAWL-DESIGN.md` §6): per-foe transmute *numbers*
-  (framework set, tune in play); loss-condition penalty; XP/HP/gold curves; whether
+  (framework set, tune in play); XP/HP/gold curves; whether
   the enemy ever gets an active resource-spending layer.

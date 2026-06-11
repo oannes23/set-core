@@ -875,14 +875,20 @@ Durable facts surfaced in this review that aren't (yet) in any doc:
 **Design debt (before/while authoring crawl content):**
 11. Structural anti-stall (universal soft-enrage) — the #1 threat to the fun.
 12. Colorblind redundant encoding + CVD palette — the #1 accessibility gap.
-13. Doc sweep: update THEORYCRAFT/CRAWL headers, strike resolved GAME-DESIGN §7
+13. ~~Doc sweep: update THEORYCRAFT/CRAWL headers, strike resolved GAME-DESIGN §7
     items, fix TRAPS numbers, write `TUNING.md`, document the consumables/buff
-    system and the Trap/Trick convention.
+    system and the Trap/Trick convention.~~ ✅ DONE 2026-06-10 (TUNING.md written;
+    THEORYCRAFT/PROJECT/GAME-DESIGN/TRAPS/CRAWL annotated in place).
 14. ~~Add 1-2 non-flood Tactics verbs~~ — SUPERSEDED by the Tactics v2 stance
     redesign (TODO.md "NEXT BATCH", planned 2026-06-09), which absorbs this via
-    verb stances (Ward). Still live: give each class one unique ability; add an
-    all-Defend/magnitude trap (coverage rule).
-15. Telemetry for spring-rate and reshape-share before mass content authoring.
+    verb stances (Ward). *(Update 2026-06-10: the all-Defend/magnitude trap
+    coverage gap is now CLOSED — `grasping`/`covetous` magnitude tolls + the
+    `set_mag`-scaled Confusion v2, see TRAPS.md §4 / TUNING.md.)* Still live:
+    give each class one unique ability.
+15. ~~Telemetry for spring-rate and reshape-share before mass content authoring.~~
+    ✅ DONE 2026-06-10 — the combat UI's dev instruments now measure reshape
+    share (65–70% player target) and trap-spring rate (~30% target) live
+    (`src/ui/app.ts`; targets in TUNING.md).
 
 **Pre-launch (whenever public):**
 16. Rename the public-facing title (trademark); keep "SET-like" as descriptive

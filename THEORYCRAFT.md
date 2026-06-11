@@ -5,6 +5,12 @@ the math, the balance, and the guiding ideas. Written for someone only
 vaguely familiar with the project. Every section opens in plain language;
 the exact formulas live in the appendices at the bottom.*
 
+> **⚠ Historical theorycraft tour.** This document captures the design *as it was
+> reasoned out*; the codebase has since moved past several claims below. For the
+> current state read `CLAUDE.md` (orientation) and `TUNING.md` (live constants).
+> Superseded claims are annotated in place rather than rewritten — the reasoning
+> is still the point of this file.
+
 The deeper source-of-truth docs are `PROJECT.md`, `GAME-DESIGN.md`,
 `TRAPS.md`, `CRAWL-DESIGN.md`, and `prototype/TIERS.md`. This file distills and
 connects them. Where they conflict, the later/game docs win (the game on top of
@@ -12,7 +18,9 @@ the prototype overrides prototype defaults).
 
 **Status tags used throughout:** `[live]` = working in a prototype you can open
 today · `[designed]` = fully specified on paper, not yet code · `[open]` = still
-an undecided question.
+an undecided question. *(Superseded — the prototypes are now **archived** under
+`prototype/`; the live game is the modular TypeScript client in `src/`. Read
+`[live]` as "shipped in `src/`".)*
 
 ---
 
@@ -29,12 +37,14 @@ The project has grown in three layers, each building on the last:
 
 | Layer | What it is | Status |
 |---|---|---|
-| **`set.core`** | The skill engine + a tuning console for it (`prototype/set-proto.html`) | `[live]` |
-| **`set.combat`** | The active combat sandbox — classes, passives, abilities, Tactics, transmute (`prototype/set-combat.html`) | `[live]` — the active prototype |
-| **`set.crawl`** | A data-driven dungeon crawler built on combat (`CRAWL-DESIGN.md`) | `[designed]`, not yet code |
+| **`set.core`** | The skill engine + a tuning console for it (`prototype/set-proto.html`) | archived oracle |
+| **`set.combat`** | The combat layer — classes, passives, abilities, Tactics, transmute | live in `src/` (`prototype/set-combat.html` is the archived oracle) |
+| **`set.crawl`** | A data-driven dungeon crawler built on combat (`CRAWL-DESIGN.md`) | combat + Tactics v2 + Phase B1 (scenes + persistence) shipped in `src/`; run loop is next |
 
-The next build is the **threat layer** (`TRAPS.md`) landing inside
-`set-combat.html`: the enemy half of the system.
+~~The next build is the **threat layer** (`TRAPS.md`) landing inside
+`set-combat.html`: the enemy half of the system.~~ *(Superseded — the threat
+layer shipped long ago and lives in `src/engine` (`triggers.ts`, `foe.ts`); the
+single-file prototypes are archived. See `CLAUDE.md` for the current next build.)*
 
 ---
 
@@ -118,7 +128,8 @@ ever placed; only the mix is steered.
 3. **Dropped/inactive features are pinned to a constant** so they're trivially
    "all-same" and never affect set validity. (Cards are always stored as
    4-tuples internally, even when only 3 features are active.)
-4. **The makeable-set floor** `[designed]`: once cards can be *locked*, ≥ `FLOOR`
+4. **The makeable-set floor** `[live]` *(enforced in `src/` since the lock layer
+   shipped)*: once cards can be *locked*, ≥ `FLOOR`
    sets must be completable from *unlocked* cards. A locked card forms sets on
    paper but not in reach — the floor has to count reach, not just existence.
 
@@ -330,12 +341,10 @@ this one verb. And the math hands us the **balance for free**:
   turning unused colors into the color you want. **Loop discipline:** the
   governors above (saturation cap, decay, floor, cost) keep every combo loop
   *sub-unity* so no infinite engine emerges.
-- **The Tactics meter** is the resolved rework of the "Move" verb: Move matches
-  (and overflow from the capped enemy clock) fill a meter to a goal; a full meter
-  arms one-shot board-transmute "Tactics" — the three shape tactics mirror the card
-  types (Attack, Defend, Move) plus the color floods — then drains use-it-or-lose-it.
-  (Flee was pulled out into a standalone any-time button.) Prototyped constants:
-  `TACTICS_GOAL = 10`, `TACTICS_DRAIN = 1/sec`, `CLOCK_CAP = 20s`.
+- **Tactics** is the resolved rework of the "Move" verb. *(The armed-meter
+  version described in early drafts — `TACTICS_GOAL`/`TACTICS_DRAIN` — is GONE;
+  the live system is **Tactics v2**, a charge queue + two stances. See
+  `CRAWL-DESIGN.md` §5.5 for the current spec and `TUNING.md` for the constants.)*
 - **Passives** are always-on triggers on the bus (Flame Shield: *all-red match →
   +block*; Bloodlust: *all-Attack match → +damage*; etc.).
 - **Nine classes** are each a 3-ability loadout + 1 signature passive
@@ -344,9 +353,10 @@ this one verb. And the math hands us the **balance for free**:
 
 ---
 
-## 8. Layer: the threat layer — `TRAPS.md` `[designed]`/`[partly built]`
+## 8. Layer: the threat layer — `TRAPS.md` `[live]` *(shipped in `src/engine`)*
 
-This is the **next build**. Its founding thesis is one sentence:
+~~This is the **next build**.~~ *(Superseded — built and live.)* Its founding
+thesis is one sentence:
 
 > **A trap is a *price*, not a *wall*.**
 
@@ -408,8 +418,9 @@ board from the *enemy* too (it can never make the board fully mono-red).
 The pacing rule keeps the player in charge: **enemy reshape ≤ ~half the player's
 clear rate.** A competent player changes ~0.6–0.9 cards/sec; total enemy
 transmute (dungeon drift + all foe transmutes, one shared budget) stays ≤
-~0.3–0.4 c/sec. Base dungeon drift is **1 card / 5s = 0.2 c/sec** — a current to
-fight, not a flood to drown in. (Geometry is tier-gated, too: minions may
+~0.3–0.4 c/sec. Base dungeon drift is a per-dungeon tuning lever within that
+budget — the shipped Ember Drift runs **1 card / 7s ≈ 0.14 c/sec** (see
+`TUNING.md`) — a current to fight, not a flood to drown in. (Geometry is tier-gated, too: minions may
 *strike* a column of 3, but only elites/bosses may *sweep* a row of 5.)
 
 ### 8.3 How traps reach the player — three scopes
@@ -431,7 +442,11 @@ satisfies it is the skill, so that part is *not* highlighted).
 
 ---
 
-## 9. Layer: the crawl — `CRAWL-DESIGN.md` `[designed]`
+## 9. Layer: the crawl — `CRAWL-DESIGN.md` *(in build — Phase B1 shipped)*
+
+*(Status update: no longer paper-only. Combat, Tactics v2, and Phase B1 — the
+scene shell + town/run-map screens + persisted progression — are shipped in
+`src/`; the run loop proper is the next build. See `CRAWL-DESIGN.md` header.)*
 
 The furthest-out layer: a **data-driven dungeon crawler** on the combat engine.
 The reskin is explicitly cosmetic — parchment and ink instead of neon — with no
@@ -464,12 +479,13 @@ mechanic change riding along.
 
 ## 10. Open threads (honest list of what's still in flux)
 
-- **Resource mapping for shape and number** — color → mana is clear; the others
-  aren't pinned. `[open]`
-- **Enemy timer model** — fixed vs. per-enemy countdown; how triggers accelerate
-  it. `[open]`
-- **Bias persistence** — does a transmute's bias apply once (decay) or set a
-  *stance* until changed? (Once-with-decay is the safer default.) `[open]`
+- ~~**Resource mapping for shape and number**~~ — *resolved: single mana economy
+  off the color axis; shape/number pay out per-card verbs and magnitude, not
+  separate currencies (`CRAWL-DESIGN.md` §4/§6).*
+- ~~**Enemy timer model**~~ — *resolved: per-foe cadence via named speed bands
+  (`TRAPS.md` §7.2; live numbers in `TUNING.md`).*
+- ~~**Bias persistence**~~ — *resolved: once-only — `pendingRegenBias` steers a
+  single refill, then clears (`src/engine/combat.ts`).*
 - **Per-foe transmute *numbers*** — the framework is set (§8.2); the exact
   per-foe values want playtest. `[open]`
 - **Loss condition** — permadeath vs. roguelite; loss penalty. `[open]`
@@ -478,8 +494,11 @@ mechanic change riding along.
   fire directly, gated by condition or cadence; feel the reactive system first.
   `[open]`
 - **Curves** — XP / HP / gold economy. `[open]`
-- **Engine/tech** — prototype is dependency-free single-file vanilla JS; prior
-  context favored **Godot** if it graduates to an engine. `[open]`
+- ~~**Engine/tech** — prototype is dependency-free single-file vanilla JS; prior
+  context favored **Godot** if it graduates to an engine.~~ *(Superseded — settled
+  by `WRAPPERS.md`: ship as a web client + PWA, with Tauri/Capacitor documented as
+  wrapper paths. Godot is rejected. The live game is the modular TS client in
+  `src/`.)*
 
 ---
 
@@ -668,8 +687,9 @@ These are the "don't break this in a refactor" rules, stated precisely:
   geometric facts that balance board abilities for free.
 - **setup bias vs runtime bias** — locked-at-round-start deal bias vs. a transient
   bias applied to a single ability-driven refill.
-- **Tactics** — the meter Move matches fill; arms one-shot board transmutes
-  (Attack, Defend, Move, color floods). Flee is a separate any-time button.
+- **Tactics** — the charge-based stance system Move matches feed (v2: a charge
+  queue + Stand Ground / Maneuver — see `CRAWL-DESIGN.md` §5.5). Flee is a
+  separate any-time button.
 
 ---
 
@@ -682,5 +702,6 @@ These are the "don't break this in a refactor" rules, stated precisely:
 | The threat layer: traps, the four verbs, foe composition, attachment | `TRAPS.md` |
 | The dungeon crawler: run loop, YAML entities, gear, progression | `CRAWL-DESIGN.md` |
 | The difficulty ladder, DI formula, achievability data | `prototype/TIERS.md` |
+| Live engine constants (code is source of truth) | `TUNING.md` |
 | Fast orientation for a coding session | `CLAUDE.md` |
-| The working prototypes | `prototype/set-proto.html`, `prototype/set-combat.html` |
+| The archived prototypes (behavioral oracles, not the live game) | `prototype/set-proto.html`, `prototype/set-combat.html` |

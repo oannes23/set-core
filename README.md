@@ -34,6 +34,10 @@ one demonstrates.
 ```
 .
 ├── CLAUDE.md · PROJECT.md · GAME-DESIGN.md · CRAWL-DESIGN.md · TRAPS.md   # design docs
+├── THEORYCRAFT.md                  # the whole design from first principles (historical tour)
+├── TUNING.md                       # live engine constants (code is source of truth)
+├── WRAPPERS.md                     # shipping decision: web + PWA (Tauri/Capacitor documented)
+├── FABLE.md                        # 2026-06-09 full-repo review (bugs, risks, action list)
 ├── TODO.md                         # working backlog + the migration log (§A)
 ├── index.html                      # the modular client entry (Vite)
 ├── src/

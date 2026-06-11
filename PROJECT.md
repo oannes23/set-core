@@ -3,7 +3,9 @@
 > A skill-component minigame built on the card game **Set**, intended as the
 > reusable "action resolution" layer of a larger web-based RPG. This document
 > captures the full design reasoning to date so a fresh session can continue
-> without re-deriving it. The working prototype is in `prototype/set-proto.html`.
+> without re-deriving it. *(Update: `prototype/set-proto.html` is now an
+> **archived oracle** — the live game is the modular TS client in `src/`. This
+> doc remains the source of truth for the generation/tuning math.)*
 
 ---
 
@@ -12,10 +14,12 @@
 When the player's character does something in the eventual RPG, resolution is a
 short, time-boxed round of a **Set**-derived matching game. Each set found is
 worth points; total points over the round determine how well the action
-resolves. The current prototype is the *abstract skill core only* — classic Set
+resolves. The proto described here is the *abstract skill core only* — classic Set
 mechanics + the custom generation logic + scoring + a full dial console for
-tuning feel. RPG layers (encounters as content, abilities, equipment) are
-designed-for but mostly not yet built.
+tuning feel. ~~RPG layers (encounters as content, abilities, equipment) are
+designed-for but mostly not yet built.~~ *(Superseded — the RPG layers are now
+built in `src/`: combat, classes, abilities, the threat layer, Tactics v2, and
+the crawl's first scenes. See `CLAUDE.md` and `GAME-DESIGN.md`/`CRAWL-DESIGN.md`.)*
 
 **Design north star:** bias heavily toward player *skill* and *generosity of
 generation*. The board should never be the bottleneck — the player's eyes and
@@ -154,7 +158,11 @@ shape→form, number→magnitude) for the future RPG layer.
 
 ---
 
-## 5. Current prototype state (`prototype/set-proto.html`)
+## 5. Prototype state (`prototype/set-proto.html`) — *archived oracle*
+
+*(Status: this prototype is **archived**, kept as the behavioral oracle the
+`src/` rebuild was diffed against. The live game is the modular TS client in
+`src/`. The dial console below still documents the tuning model.)*
 
 Single self-contained HTML file (no build step, no external deps beyond Google
 Fonts; all CSS/JS inline). Open it in a browser.
@@ -272,9 +280,12 @@ axes) to effects, which couples findability-difficulty with spell-semantics
   fall out of the math.
 - **Progression:** leveling could *add an axis* (raise F) — harder, but unlocks
   more of the 2^f signature/spell space.
-- **Game engine:** prototype is vanilla HTML/JS. (Prior project context favored
+- **Game engine:** ~~prototype is vanilla HTML/JS. (Prior project context favored
   Godot for text-based/CLI-buildable games with HTML5/WASM export; worth
-  considering if this grows beyond a web toy.)
+  considering if this grows beyond a web toy.)~~ *(Superseded — settled by
+  `WRAPPERS.md`: the live game is the framework-free TS client in `src/`, shipped
+  as a web client + PWA, with Tauri/Capacitor as documented wrapper paths. Godot
+  is rejected.)*
 
 ---
 
@@ -304,7 +315,8 @@ axes) to effects, which couples findability-difficulty with spell-semantics
 
 ## 10. Asset manifest (in this bundle)
 
-- `prototype/set-proto.html` — the current working prototype (open in browser).
+- `prototype/set-proto.html` — the archived skill-core prototype (open in
+  browser; an oracle, not the live game — that's `src/` + `index.html`).
 - `prototype/sim-invariants.mjs` — headless invariant sim (mirrors the generation
   core; asserts no-dupes/floor/pin across the dial space + depth achievability).
   **Run before shipping any generation change:** `node prototype/sim-invariants.mjs`.
