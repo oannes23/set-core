@@ -131,6 +131,22 @@ Build scope:
 - ⚠ Quick foes still feel too quick (swift/frenzied) — "a weird sweet spot we keep missing."
   User sketch (not a commitment): a harder-to-adjust ~fixed 20s timer — but that guts Move.
   Feeds the RPG-numbers workshop (see design discussion 2026-06-10).
+
+### ⭐ OPEN — RPG-numbers workshop + the ROUNDS grammar (discussion 2026-06-10, user mulling)
+Agreed directions: exchange-denominated budgets (kill budgets per tier, threat grades as %HP,
+decisions-per-exchange ≥ ~3 floor) · decimal rebase (HP 100, stats 10 → quality law VISIBLE as
+7/10/14) · derivation sheet in TUNING.md (≈6 axioms, every game-data number computed) + a headless
+budget-conformance sim. The consequential fork: a ROUNDS temporal grammar (round = approach →
+windup → strike; foe speed = round BEHAVIOR not round length).
+**Open concern (user, sleeping on it): Move-as-evasion collides with Defend** — both become
+"reduce incoming damage." Sketches on the table: Move builds a jackpot-crit meter? fuse Move
+harder with Tactics? **Dodge as a TACTIC option**? and the standout: **round-locked Tactics with
+a DRAW PHASE** — you lock your stance for the round; at rollover your Move-banked charges resolve
+as the board mutation (cards-dealt animation, a breath between rounds). Note: draw-phase locking
+would supersede the swap-spin-up rule, and restructures the parked attack-bar telegraph UI.
+Candidate distinctness law: the three shapes answer three questions — Attack: "how fast do they
+die" · Defend: "do I survive THIS strike" (certain, immediate) · Move: "how much agency do I
+have" (time/board/stance fuel — NEVER denominated in HP directly).
 - `[~]` **Duelist sprites (PLACEHOLDER art):** 🧙/👹 emoji stand-ins in the foe header that STEP
   toward whoever owns the board (driven by the same tug differential), lunge on their attacks and
   recoil on hits. Seeds the longer-term pixel-art pair; replace art + grow reactions later.
