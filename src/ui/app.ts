@@ -6,7 +6,7 @@
 
 import { systemRng, type Rng } from '../core/rng'
 import { type Card, isSet, third, keyOf } from '../core/affine'
-import { findSets } from '../core/sets'
+import { findSets, kOfSet } from '../core/sets'
 import type { GenConfig } from '../core/generate'
 import { GAMEDATA } from '../data/game-data'
 import type { Dungeon, Trigger, Condition } from '../data/schema'
@@ -99,6 +99,10 @@ interface View {
   refs: Record<string, HTMLElement>
   /** running combat tallies for the end-of-combat contribution chart (UI-only, replay-safe) */
   stats: { dealt: number; taken: number; blocked: number; healed: number; sets: number; traps: number }
+  /** slot → who pulled it (consumed when the slot's new card renders — the tug-attribution tint) */
+  morphSrc: Map<number, 'churn' | 'drift' | 'trap' | 'trick'>
+  /** the always-on dev balance instruments (TRAPS §5.5 targets etc.) — display-only, replay-safe */
+  dev: { reshapeYou: number; reshapeFoe: number; matches: number; springs: number; k1: number; wards: number; churns: number }
 }
 let V: View | null = null
 
@@ -444,7 +448,7 @@ function begin(root: HTMLElement, char: SavedChar, dungeonId: string, foeVal: st
   const cls = classById(char.classId)
   const run = createRun({ foe, gen: GEN, playerMax: char.maxHp, passives: cls.passives, consumables: char.consumables, sequence, dungeonId }, rng)
   run.combat.playerHP = Math.max(0, Math.min(char.maxHp, char.hp)) // the hero enters at their persisted HP, not full
-  V = { root, deps: { data: GAMEDATA, rng }, run, state: run.combat, char, actions: [], classId: cls.id, loadout: cls.abilities.slice(), coach: !!dg.coach, coachCue: null, manaColor: dominantManaColor(cls.abilities), paused: true, hitstopUntil: 0, preview: null, selected: [], raf: 0, lastT: 0, boardSig: '', refs: {}, stats: { dealt: 0, taken: 0, blocked: 0, healed: 0, sets: 0, traps: 0 } }
+  V = { root, deps: { data: GAMEDATA, rng }, run, state: run.combat, char, actions: [], classId: cls.id, loadout: cls.abilities.slice(), coach: !!dg.coach, coachCue: null, manaColor: dominantManaColor(cls.abilities), paused: true, hitstopUntil: 0, preview: null, selected: [], raf: 0, lastT: 0, boardSig: '', refs: {}, stats: { dealt: 0, taken: 0, blocked: 0, healed: 0, sets: 0, traps: 0 }, morphSrc: new Map(), dev: { reshapeYou: 0, reshapeFoe: 0, matches: 0, springs: 0, k1: 0, wards: 0, churns: 0 } }
   buildPlay()
   renderBoard()
   updateBar()
@@ -468,6 +472,8 @@ function buildPlay(): void {
   const wrap = $(`<div class="wrap"></div>`)
   // foe header — tall (room for future foe art); also the stage for popup messaging (the tutorial)
   const head = $(`<div class="panel headpanel"></div>`)
+  // PLACEHOLDER sprites (pixel art later): the duelists step toward whoever owns the board (the tug)
+  head.appendChild($(`<div class="sprites"><span class="sprite you" id="spyou">🧙</span><span class="sprite foe" id="spfoe">👹</span></div>`))
   head.appendChild($(`<div class="foename" id="foename"></div>`))
   head.appendChild($(`<div class="foedesc" id="foedesc"></div>`))
   head.appendChild($(`<button class="fleebtn" id="fleebtn" data-tip-title="Flee" data-tip="Forfeit this encounter and retreat to town. Available any time.">🏃 Flee</button>`)) // any-time flee
@@ -488,6 +494,13 @@ function buildPlay(): void {
       <div class="lab"><span>⚔ Enemy attack</span><span id="clock">—</span></div>
       <div class="track"><span class="fill atk" id="atkfill"></span></div>
     </div>`))
+  // the TUG BAR — board composition: enemy theme share vs your Maneuver-bias share (shown when both exist)
+  left.appendChild($(`
+    <div class="tugbar" id="tugbar" style="display:none">
+      <span class="tug-end foe" id="tugfoe">🔥</span>
+      <div class="tug-track"><span class="tug-center"></span><span class="tug-marker" id="tugmarker"></span></div>
+      <span class="tug-end you" id="tugyou">—</span>
+    </div>`))
   left.appendChild($(`<div class="strip" id="strip"></div>`))
   const boardWrap = $(`<div class="boardwrap" id="boardwrap"></div>`)
   const board = $(`<div class="board" id="board"></div>`)
@@ -495,6 +508,8 @@ function buildPlay(): void {
   boardWrap.appendChild(board)
   boardWrap.appendChild($(`<div id="floatlayer"></div>`))
   left.appendChild(boardWrap)
+  // the DEV instruments — always-on while the project is in dev; a dim side-stat, not a feature
+  left.appendChild($(`<div class="devstats" id="devstats"></div>`))
   play.appendChild(left)
 
   const rail = $(`<div class="rail"></div>`)
@@ -509,7 +524,7 @@ function buildPlay(): void {
   if (!document.getElementById('ptint')) document.body.appendChild($(`<div id="ptint"></div>`)) // low-HP vignette (body-level)
 
   V.refs = {}
-  for (const id of ['foename', 'foedesc', 'fleebtn', 'enemylab', 'phpv', 'ehpv', 'php', 'ehp', 'clock', 'atkfill', 'tacv', 'tac', 'biasrow', 'standnote', 'm0', 'm1', 'm2', 'block', 'buffind', 'strip', 'boardwrap', 'board', 'log', 'abilities', 'tactics', 'passives', 'consumables', 'floatlayer']) {
+  for (const id of ['foename', 'foedesc', 'fleebtn', 'enemylab', 'phpv', 'ehpv', 'php', 'ehp', 'clock', 'atkfill', 'tacv', 'tac', 'biasrow', 'standnote', 'm0', 'm1', 'm2', 'block', 'buffind', 'strip', 'boardwrap', 'board', 'tugbar', 'tugmarker', 'tugfoe', 'tugyou', 'devstats', 'spyou', 'spfoe', 'log', 'abilities', 'tactics', 'passives', 'consumables', 'floatlayer']) {
     const el = wrap.querySelector('#' + id)
     if (el) V.refs[id] = el as HTMLElement
   }
@@ -613,7 +628,8 @@ function renderStrip(): void {
   const strip = V.refs.strip
   strip.innerHTML = ''
   const trigs = V.state.foe.triggers
-  if (!trigs.length) return
+  const drift = V.state.foe.drift
+  if (!trigs.length && !drift) return
   const hasTrick = trigs.some((t) => t.kind === 'trick')
   strip.appendChild($(`<span class="lab">${hasTrick ? '⚠ Traps · ✦ Tricks' : '⚠ Enemy traps'}</span>`))
   trigs.forEach((t, i) => {
@@ -621,6 +637,8 @@ function renderStrip(): void {
     const d = $(`<div class="trig${trick ? ' trick' : ''}" data-trig="${i}"><span>${t.icon ?? (trick ? '✦' : '⚠')}</span><span class="tn">${t.name}</span>${t.desc ? `<span class="td">${trick ? 'aim: ' : ''}${t.desc}</span>` : ''}</div>`)
     strip.appendChild(d)
   })
+  // the ambient drift gets its own chip + a LIVE countdown to its next pull (the rhythm of the tug)
+  if (drift) strip.appendChild($(`<div class="trig driftchip" data-trig="drift" data-tip-title="${drift.name}" data-tip="${drift.desc ?? 'the dungeon reshapes the board on a clock'} — every ${drift.every ?? 5}s."><span>${drift.icon ?? '🌫'}</span><span class="tn">${drift.name}</span><span class="td driftcd" id="driftcd"></span></div>`))
 }
 
 // ---- board rendering ----
@@ -677,7 +695,12 @@ function renderBoard(verbs?: Map<number, CardVerb>): void {
     else if (mates.set.has(i)) { cls.push('mate'); gimme = mates.set.get(i)! } // flutter amplitude scales with this set's gimme value
     if (locked) cls.push('locked')
     else if (bait != null && c[0] === bait && !V!.selected.includes(i) && mates.complete !== i && !mates.set.has(i)) cls.push('bait')
-    if (!firstRender && oldKeys[i] !== key) { cls.push('enter'); if (verbs?.get(i) === 'reform') cls.push('reform') } // new/changed → fade in (reform = materialize)
+    if (!firstRender && oldKeys[i] !== key) {
+      cls.push('enter')
+      if (verbs?.get(i) === 'reform') cls.push('reform')
+      const src = V!.morphSrc.get(i) // tug attribution: tint the arrival by who pulled it
+      if (src) { cls.push(`src-${src}`); V!.morphSrc.delete(i) }
+    } // new/changed → fade in (reform = materialize)
     const heat = (setCount[i] / maxCount).toFixed(2)
     const gimmeVar = gimme >= 0 ? `;--gimme:${(gimme / 2).toFixed(2)}` : ''
     const el = $(`<div class="${cls.join(' ')}" data-i="${i}" data-key="${key}" style="--cc:var(--c${c[0]});--heat:${heat}${gimmeVar}">${cardSVG(c)}${locked ? '<span class="lock">🔒</span><span class="lockcd"></span>' : ''}</div>`)
@@ -788,6 +811,7 @@ function onBoardClick(e: Event): void {
   if (V.selected.length === 3) {
     const [a, b, c] = V.selected
     if (isSet(s.board[a]!, s.board[b]!, s.board[c]!)) {
+      if (kOfSet([s.board[a]!, s.board[b]!, s.board[c]!], s.gen.active) === 1) V.dev.k1++ // gimme-rate instrument
       const sel = V.selected.slice() as [number, number, number]
       V.selected = []
       dispatch({ type: 'completeSet', slots: sel }) // dispatch renders (with the crossfade) — don't double-render
@@ -1020,6 +1044,7 @@ function interpret(events: CombatEvent[]): void {
         if (e.immune) { log('Swords pass through — only magic bites this foe.', 'foe'); floatBoard('blocked', 'var(--ink-faint)', 'enemy'); break } // fixed rule line — never varied
         floatBoard(`-${e.amount}`, e.magic ? 'var(--gold)' : 'var(--red)', 'enemy')
         flashStat('ehpv')
+        spriteReact('foe', 'sphit'); spriteReact('you', 'splunge')
         V.stats.dealt += e.amount
         if (actor) { actor.dmg += e.amount; if (e.magic) actor.magic = true; break } // fold into the action's own line
         const tier = tierOf(e.amount, 12)
@@ -1051,13 +1076,37 @@ function interpret(events: CombatEvent[]): void {
           floatBoard(`+${e.amount} ⚡`, 'var(--gold)', 'you')
         }
         break
+      case 'cardsTransmuted': {
+        // tug attribution: remember who pulled each slot (tints the reform) + a loud glyph now
+        const src = e.source
+        if (src === 'churn' || src === 'drift' || src === 'trick') {
+          for (const i of e.slots) V.morphSrc.set(i, src)
+          const glyph = src === 'churn' ? '⚙' : src === 'trick' ? '✦' : (V.state.foe.drift?.icon ?? '🌫')
+          const color = src === 'churn' ? 'var(--phos)' : src === 'trick' ? 'var(--trick)' : 'var(--warn)'
+          for (const i of e.slots) floatAtSlot(i, glyph, color)
+        } else if (src === 'trap') {
+          for (const i of e.slots) V.morphSrc.set(i, 'trap')
+        }
+        // dev reshape-share: churn + player casts = you; drift/trap/trick = the enemy's pull
+        if (src === 'drift' || src === 'trap' || src === 'trick') V.dev.reshapeFoe += e.slots.length
+        else V.dev.reshapeYou += e.slots.length
+        if (src === 'churn') V.dev.churns += e.slots.length
+        break
+      }
       case 'chargesDrained':
         log(`The ${foe} rattles your focus — <b>−${e.amount}</b> Tactics charge${e.amount > 1 ? 's' : ''}.`, 'foe')
         break
-      case 'warded':
+      case 'warded': {
         log(`<b>Stand Ground</b> — the ${e.what === 'lock' ? 'lock' : e.what === 'shatter' ? 'blow\u2019s shatter' : 'warp'} breaks against your line (−1 charge).`, 'you')
         floatBoard('🛡 warded', 'var(--gold)', 'you')
+        V.dev.wards++
+        // the ward BEAT: burn the pip on the gauge + a one-beat shield shimmer on the board edge
+        const meter = document.querySelector('[data-sec="tactics"] .tacmeter')
+        meter?.classList.remove('wardpulse'); void (meter as HTMLElement | null)?.offsetWidth; meter?.classList.add('wardpulse')
+        const bw = V.refs.boardwrap
+        if (bw) { bw.classList.remove('wardshield'); void bw.offsetWidth; bw.classList.add('wardshield') }
         break
+      }
       case 'buffFaded':
         log(`<span style="opacity:.85">✧ ${e.label}.</span>`, 'you')
         break
@@ -1102,6 +1151,7 @@ function interpret(events: CombatEvent[]): void {
         if (e.deltaSeconds > 0) kickClock() // a Move shoved the strike back → the timer bar recoils
         break
       case 'setResolved': {
+        V.dev.matches++
         V.stats.sets++
         matchSlots = e.slots
         manaSparks(e.mana, e.slots) // fly colour sparks to the mana pips — makes match→mana visible
@@ -1123,6 +1173,7 @@ function interpret(events: CombatEvent[]): void {
         log(`The ${foe} ${pick(voice.hit)} you — ${strikeWord(tier, 1)}, ${data}.`, tier === 'heavy' ? 'foe big' : 'foe')
         V.stats.taken += e.amount; V.stats.blocked += e.absorbed
         queueFlash('wound', 0.8 + Math.min(1.2, e.amount / Math.max(1, V.state.foe.damage))) // severity-scaled flash
+        spriteReact('you', 'sphit'); spriteReact('foe', 'splunge')
         floatBoard(`-${e.amount} HP`, 'var(--red)', 'you')
         flashStat('phpv')
         bursts.push(['💥', '✷ struck', foe, e.absorbed ? `−${e.amount} HP · ${e.absorbed} blocked` : `−${e.amount} HP`, 'wound'])
@@ -1130,6 +1181,7 @@ function interpret(events: CombatEvent[]): void {
         break
       }
       case 'triggerSprung': {
+        if (e.trigger.on === 'match' && e.trigger.kind !== 'trick') V.dev.springs++
         const trick = e.trigger.kind === 'trick'
         pulseTrig(e.trigger) // light up the named chip in the strip — builds the rule→flash association
         if (e.trigger.quiet) { log(`<span style="opacity:.7">${e.trigger.icon ?? '◦'} ${e.trigger.name}.</span>`, 'foe'); break } // ambient drift: calm, no flourish
@@ -1208,6 +1260,23 @@ function log(html: string, cls: string): HTMLElement | null {
 }
 
 /** A combat number that rises and fades over the board. `side` biases it left (you) / right (enemy). */
+/** A small attribution glyph rising off one card — WHO pulled this slot (loud to start; tune down). */
+function floatAtSlot(slot: number, text: string, color: string): void {
+  const layer = V?.refs.floatlayer
+  const card = V?.refs.board.querySelector(`[data-i="${slot}"]`)
+  const bw = V?.refs.boardwrap?.getBoundingClientRect()
+  if (!layer || !card || !bw) return
+  const r = card.getBoundingClientRect()
+  const el = $(`<div class="floater slotglyph">${text}</div>`)
+  el.style.color = color
+  el.style.left = `${r.left - bw.left + r.width / 2 - 8}px`
+  el.style.top = `${r.top - bw.top + 4}px`
+  layer.appendChild(el)
+  void el.offsetWidth
+  el.classList.add('go')
+  sceneTimeout(() => el.remove(), 1000)
+}
+
 function floatBoard(text: string, color: string, side?: 'you' | 'enemy'): void {
   const layer = V?.refs.floatlayer
   if (!layer) return
@@ -1313,14 +1382,25 @@ function flashStat(ref: string): void {
   el.classList.add('hit')
 }
 
-/** Re-trigger the proc pulse on the strip chip that just fired (drift has no chip → no-op). */
+/** Re-trigger the proc pulse on the strip chip that just fired (incl. the dungeon-drift chip). */
 function pulseTrig(trigger: Trigger): void {
   const idx = V?.state.foe.triggers.indexOf(trigger) ?? -1
-  const el = idx >= 0 ? (V?.refs.strip?.querySelector(`[data-trig="${idx}"]`) as HTMLElement | null) : null
+  const el = trigger === V?.state.foe.drift
+    ? (V?.refs.strip?.querySelector('[data-trig="drift"]') as HTMLElement | null)
+    : idx >= 0 ? (V?.refs.strip?.querySelector(`[data-trig="${idx}"]`) as HTMLElement | null) : null
   if (!el) return
   el.classList.remove('proc')
   void el.offsetWidth
   el.classList.add('proc')
+}
+
+/** Re-trigger a one-shot animation class on a duelist sprite (hit recoil / attack lunge). */
+function spriteReact(who: 'you' | 'foe', cls: 'sphit' | 'splunge'): void {
+  const el = who === 'you' ? V?.refs.spyou : V?.refs.spfoe
+  if (!el) return
+  el.classList.remove('sphit', 'splunge')
+  void el.offsetWidth
+  el.classList.add(cls)
 }
 
 /** Re-trigger the gold pulse on a passive chip when it fires. */
@@ -1384,6 +1464,16 @@ function updateBar(): void {
   V.refs.board?.classList.toggle('idle', !!V.paused && !COACH.active)
   V.refs.board?.classList.toggle('teachmates', COACH.active) // tutorial: brighter gold set-mate halos
 
+  // the drift chip's live countdown to its next pull (the rhythm half of tug readability)
+  const drift = s.foe.drift
+  const dcd = document.getElementById('driftcd')
+  if (drift && dcd) {
+    const period = drift.every || 5
+    const left = Math.max(0, period - (s.tickAccum['drift'] ?? 0))
+    dcd.textContent = s.tickSuppressedUntil > s.now ? '⏸' : `next pull ${Math.ceil(left)}s`
+  }
+  updateTugAndSprites()
+  renderDevStats()
   updateCastables()
   // a tutorial popup that needs acknowledgement steps OUTSIDE the game: freeze ALL in-game motion
   // (the engine clock is already frozen via the tick gate) and shade the field, leaving only the popover.
@@ -1391,6 +1481,63 @@ function updateBar(): void {
   document.querySelector('.wrap')?.classList.toggle('frozen', paused)
   document.getElementById('coachscrim')?.classList.toggle('show', paused)
   positionCoachPop() // keep the dialog pinned to the foe header through scroll/resize
+}
+
+// the tug + dev instruments (board composition, reshape share) — cheap; run per frame off updateBar
+const TOKEN_VAL: Record<string, number> = { red: 0, green: 1, blue: 2, attack: 0, defend: 1, move: 2, one: 0, two: 1, three: 2 }
+const AXIS_ICONS: Record<string, string[]> = { color: ['🔥', '🌿', '❄'], shape: ['⚔', '🛡', '➤'], number: ['①', '②', '③'], mag: ['①', '②', '③'] }
+const axisIdx = (axis: string): number => (axis === 'color' ? 0 : axis === 'shape' ? 1 : 3)
+
+/** The TUG, as board composition: enemy-theme share vs your-bias share over live cards. The bar
+ *  shows only when both ends exist (no tug, no rope); the duelist sprites track the same number. */
+function updateTugAndSprites(): void {
+  if (!V) return
+  const s = V.state
+  const dungeon = V.run.dungeonId ? GAMEDATA.dungeons[V.run.dungeonId] : null
+  const theme = dungeon?.theme ?? null
+  const bias = s.tactic === 'maneuver' ? s.maneuverBias : null
+  const live = s.board.filter((c, i) => c && !s.pending.has(i)) as Card[]
+  const share = (axis: string, value: number): number => (live.length ? live.filter((c) => c[axisIdx(axis)] === value).length / live.length : 0)
+  let d = 0 // + = the board leans yours · − = it leans the enemy's (above the uniform 1/3 baseline)
+  const themeShare = theme ? share(theme.axis, TOKEN_VAL[theme.value] ?? 0) : 0
+  if (theme) d -= themeShare - 1 / 3
+  const biasShare = bias ? share(bias.axis, bias.value) : 0
+  if (bias) d += biasShare - 1 / 3
+  // the bar
+  const show = !!theme && !!bias && s.running
+  V.refs.tugbar.style.display = show ? '' : 'none'
+  if (show) {
+    V.refs.tugfoe.textContent = AXIS_ICONS[theme!.axis]?.[TOKEN_VAL[theme!.value] ?? 0] ?? '⚠'
+    V.refs.tugyou.textContent = AXIS_ICONS[bias!.axis]?.[bias!.value] ?? '🎯'
+    V.refs.tugmarker.style.left = `${Math.max(3, Math.min(97, 50 + d * 75))}%`
+  }
+  // the duelists (PLACEHOLDER art): step toward whoever owns the field; CSS eases the walk
+  const step = Math.max(-1, Math.min(1, d * 2.2)) * 34
+  if (V.refs.spyou) V.refs.spyou.style.transform = `translateX(${Math.max(0, step)}px)`
+  if (V.refs.spfoe) V.refs.spfoe.style.transform = `translateX(${Math.min(0, step)}px) scaleX(-1)`
+}
+
+/** The always-on DEV instruments vs design targets (TRAPS §5.5 reshape share, ~30% spring rate). */
+function renderDevStats(): void {
+  if (!V) return
+  const d = V.dev
+  const s = V.state
+  const total = d.reshapeYou + d.reshapeFoe
+  const share = total ? Math.round((d.reshapeYou / total) * 100) : null
+  const spring = d.matches ? Math.round((d.springs / d.matches) * 100) : null
+  const gimme = d.matches ? Math.round((d.k1 / d.matches) * 100) : null
+  const spm = s.now > 10_000 ? (d.matches / (s.now / 60_000)).toFixed(1) : '—'
+  const cell = (k: string, v: string, off: boolean) => `<span class="${off ? 'off' : ''}">${k} <b>${v}</b></span>`
+  const html = [
+    cell('reshape', share == null ? '—' : `${share}% <i>→65–70</i>`, share != null && (share < 60 || share > 78)),
+    cell('spring', spring == null ? '—' : `${spring}% <i>→~30</i>`, spring != null && (spring < 15 || spring > 45)),
+    cell('sets/min', spm, false),
+    cell('gimme', gimme == null ? '—' : `${gimme}%`, false),
+    cell('wards', String(d.wards), false),
+    cell('churns', String(d.churns), false),
+  ].join('')
+  const el = V.refs.devstats
+  if (el && el.dataset.last !== html) { el.innerHTML = `<span class="dvl">dev</span>${html}`; el.dataset.last = html }
 }
 
 // ---- the clock loop ----

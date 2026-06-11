@@ -23,7 +23,7 @@ export type CombatEvent =
   | { type: 'warded'; what: 'transmute' | 'lock' | 'shatter' } // Stand Ground ate a hostile board verb (1 charge)
   | { type: 'clockChanged'; deltaSeconds: number } // + = pushed later (good), − = sooner (bad)
   | { type: 'enemyStrikes' } // an instant attack was pulled to now
-  | { type: 'cardsTransmuted'; slots: number[]; gapMs: number; hostile?: boolean } // hostile = an enemy trap razed these (UI booms it); player/trick/drift transmutes are calm
+  | { type: 'cardsTransmuted'; slots: number[]; gapMs: number; hostile?: boolean; source?: 'churn' | 'drift' | 'trap' | 'trick' } // hostile = boomed; source = WHO pulled (undefined = a player cast) — the tug-attribution channel
   | { type: 'cardsReformed'; slots: number[] }
   | { type: 'cardsLocked'; slots: number[]; untilMs: number }
   | { type: 'cardsUnlocked'; slots: number[] }

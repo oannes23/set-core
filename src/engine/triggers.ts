@@ -121,8 +121,9 @@ function biasFromSpec(b: Bias | undefined): FavorBias | undefined {
 
 // ---- board verbs (pure: mutate state.board / pending / locked, emit events) ----
 
-/** Transmute slots: destroy now, reform after `gapMs` (0 = next reform tick). Regen optionally biased. */
-export function transmute(s: CombatState, slots: number[], opts: { bias?: FavorBias; gapMs?: number; hostile?: boolean }, sink: EventSink): void {
+/** Transmute slots: destroy now, reform after `gapMs` (0 = next reform tick). Regen optionally biased.
+ *  `source` attributes the pull for the UI's tug readability (undefined = a player cast). */
+export function transmute(s: CombatState, slots: number[], opts: { bias?: FavorBias; gapMs?: number; hostile?: boolean; source?: 'churn' | 'drift' | 'trap' | 'trick' }, sink: EventSink): void {
   const live = slots.filter((i) => isLive(s, i))
   if (!live.length) return
   for (const i of live) {
@@ -131,7 +132,7 @@ export function transmute(s: CombatState, slots: number[], opts: { bias?: FavorB
     if (opts.bias) p.bias = opts.bias
     s.pending.set(i, p)
   }
-  sink.emit({ type: 'cardsTransmuted', slots: live, gapMs: opts.gapMs ?? 0, hostile: opts.hostile })
+  sink.emit({ type: 'cardsTransmuted', slots: live, gapMs: opts.gapMs ?? 0, hostile: opts.hostile, source: opts.source })
 }
 
 /** Makeable sets that don't use any locked slot — the lock floor (never lock below FLOOR makeable). */
@@ -212,7 +213,9 @@ function runEffect(s: CombatState, e: Effect, desc: MatchDescriptor, rng: Rng, s
       let slots = e.select ? selectSlots(s, e.select, rng) : []
       if (e.count != null && slots.length > e.count) slots = pickRandom(slots, e.count, rng)
       if (!slots.length) return null
-      transmuteFor(s, slots, biasFromSpec(e.bias), e.gap ?? 0, hostile, sink)
+      // attribution for the tug: a punishing trap, a favorable trick, or the quiet ambient drift
+      const source = !wardable ? ('trick' as const) : hostile ? ('trap' as const) : ('drift' as const)
+      transmuteFor(s, slots, biasFromSpec(e.bias), e.gap ?? 0, hostile, source, sink)
       return `↯${slots.length}`
     }
     case 'lock': {
@@ -229,8 +232,8 @@ function runEffect(s: CombatState, e: Effect, desc: MatchDescriptor, rng: Rng, s
 
 /** transmute with a regen that may favour a bias — the actual reform happens on a tick (gap), but we
  *  precompute the reform via patch/patchFavor at reform time. Here we just mark pending (see tick). */
-function transmuteFor(s: CombatState, slots: number[], bias: FavorBias | undefined, gapMs: number, hostile: boolean, sink: EventSink): void {
-  transmute(s, slots, { gapMs, hostile, ...(bias ? { bias } : {}) }, sink)
+function transmuteFor(s: CombatState, slots: number[], bias: FavorBias | undefined, gapMs: number, hostile: boolean, source: 'trap' | 'trick' | 'drift', sink: EventSink): void {
+  transmute(s, slots, { gapMs, hostile, source, ...(bias ? { bias } : {}) }, sink)
 }
 
 /** Apply a single trigger's effects; emit `triggerSprung` if anything landed. */

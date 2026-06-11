@@ -96,8 +96,20 @@ Build scope:
 - `[x]` **UI — BUILT (2026-06-10):** Maneuver/Stand Ground toggle + 9-chip bias picker (click-again
   clears) + Stand Ground note, charge gauge (re-forming… during spin-up), warded/charge log lines +
   floats, guided-intro Tactics stage rewritten (bank a charge → set a bias; coach arrow on the bias
-  row). Churn renders via the existing calm-morph transmute animation. Still open: a dedicated
-  "tug" readability pass (drift-vs-churn at a glance) — bundle with the playtest tuning.
+  row). Churn renders via the existing calm-morph transmute animation.
+- `[x]` **Tug-readability pass — BUILT (2026-06-10):** ① LOUD attribution (tune down, not up):
+  every non-player transmute carries a `source` (churn/drift/trap/trick); the arriving card is
+  edge-lit by who pulled it + a glyph floats off the slot (⚙ you / drift-icon them / ✦ trick).
+  ② Drift chip in the strip (ambient violet, not trap-red) with a LIVE "next pull Ns" countdown +
+  fire pulse (⏸ under Hourglass). ③ Ward beat: gauge pip-burn + board-edge shield shimmer.
+  ④ TUG BAR (player-facing, in the HUD above the board): board COMPOSITION — enemy-theme share vs
+  your-bias share over live cards, marker = differential; shown only when both ends exist.
+  ⑤ DEV instruments (always-on dim row below the board, not a feature): reshape share vs the
+  TRAPS §5.5 65–70% target, trap-spring rate vs ~30%, sets/min, gimme%, wards, churns — off-target
+  values turn warn-colored. The §5.5 telemetry is finally measured.
+- `[~]` **Duelist sprites (PLACEHOLDER art):** 🧙/👹 emoji stand-ins in the foe header that STEP
+  toward whoever owns the board (driven by the same tug differential), lunge on their attacks and
+  recoil on hits. Seeds the longer-term pixel-art pair; replace art + grow reactions later.
 - ⚠ Interaction: Maneuver(green) smooths sustain loops (Photosynthesis/Heal), and Chronomancer's
   pinned clock is the premier excess-timer engine — the structural anti-stall lands with/before this.
 

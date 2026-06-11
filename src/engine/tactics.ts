@@ -59,5 +59,5 @@ export function churnTick(s: CombatState, rng: Rng, sink: EventSink): void {
   if (pick == null) return
   s.charges--
   s.nextChurnAt = s.now + CHURN_MS
-  transmute(s, [pick], { bias: biasToFavor(bias) }, sink) // calm morph (not hostile) — reforms next tick
+  transmute(s, [pick], { bias: biasToFavor(bias), source: 'churn' }, sink) // calm morph (not hostile) — reforms next tick
 }
