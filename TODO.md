@@ -120,6 +120,17 @@ Build scope:
   each reduce a telegraphed incoming by 1 — the defensive stance meets the windup system) and
   **Primed** (a Maneuver-churned card matched within ~6s counts one quality tier higher — your
   tide creates value, not just composition).
+- **Post-Resolution-v2 readings (2026-06-10, fourth playtest — instrument now honest):** reshape
+  75 / 56 / 59% (bracketing the 65–70 target from both sides), spring 24 / 27 / 25%, sets/min
+  16.4 / 16.8 / 12.2, wards 7/5/9 AND churns 11/10/5 — stance swapping is live play now. Verdict:
+  "these numbers feel pretty good; the slower more deliberate game poking through feels better."
+- `[ ]` **Attack meter must SHOW the telegraph** — the bar still renders like the old cadence
+  meter; it needs a visible commit-zone (the windup fraction of the track) / segmented
+  approach→windup structure. PARKED pending the time-system discussion (a rounds-style grammar
+  may restructure the bar entirely — don't polish what might be replaced).
+- ⚠ Quick foes still feel too quick (swift/frenzied) — "a weird sweet spot we keep missing."
+  User sketch (not a commitment): a harder-to-adjust ~fixed 20s timer — but that guts Move.
+  Feeds the RPG-numbers workshop (see design discussion 2026-06-10).
 - `[~]` **Duelist sprites (PLACEHOLDER art):** 🧙/👹 emoji stand-ins in the foe header that STEP
   toward whoever owns the board (driven by the same tug differential), lunge on their attacks and
   recoil on hits. Seeds the longer-term pixel-art pair; replace art + grow reactions later.
