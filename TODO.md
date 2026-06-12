@@ -124,34 +124,56 @@ Build scope:
   75 / 56 / 59% (bracketing the 65–70 target from both sides), spring 24 / 27 / 25%, sets/min
   16.4 / 16.8 / 12.2, wards 7/5/9 AND churns 11/10/5 — stance swapping is live play now. Verdict:
   "these numbers feel pretty good; the slower more deliberate game poking through feels better."
-- `[ ]` **Attack meter must SHOW the telegraph** — the bar still renders like the old cadence
-  meter; it needs a visible commit-zone (the windup fraction of the track) / segmented
-  approach→windup structure. PARKED pending the time-system discussion (a rounds-style grammar
-  may restructure the bar entirely — don't polish what might be replaced).
-- ⚠ Quick foes still feel too quick (swift/frenzied) — "a weird sweet spot we keep missing."
-  User sketch (not a commitment): a harder-to-adjust ~fixed 20s timer — but that guts Move.
-  Feeds the RPG-numbers workshop (see design discussion 2026-06-10).
+- `[x]` ~~**Attack meter must SHOW the telegraph**~~ — RESOLVED BY ROUNDS v3 (the bar IS the
+  round; the telegraph is part of the deal). The build rides the v3 batch below.
+- `[x]` ~~⚠ Quick foes still feel too quick~~ — RESOLVED STRUCTURALLY BY ROUNDS v3: every foe
+  gives the same 20s of scan; foe speed = exchange cadence/behavior, never scan pressure.
 
-### ⭐ OPEN — RPG-numbers workshop + the ROUNDS grammar (discussion 2026-06-10, user mulling)
-Agreed directions: exchange-denominated budgets (kill budgets per tier, threat grades as %HP,
-decisions-per-exchange ≥ ~3 floor) · decimal rebase (HP 100, stats 10 → quality law VISIBLE as
-7/10/14) · derivation sheet in TUNING.md (≈6 axioms, every game-data number computed) + a headless
-budget-conformance sim. The consequential fork: a ROUNDS temporal grammar (round = approach →
-windup → strike; foe speed = round BEHAVIOR not round length).
-**Open concern (user, sleeping on it): Move-as-evasion collides with Defend** — both become
-"reduce incoming damage." Sketches on the table: Move builds a jackpot-crit meter? fuse Move
-harder with Tactics? **Dodge as a TACTIC option**? and the standout: **round-locked Tactics with
-a DRAW PHASE** — you lock your stance for the round; at rollover your Move-banked charges resolve
-as the board mutation (cards-dealt animation, a breath between rounds). Note: draw-phase locking
-would supersede the swap-spin-up rule, and restructures the parked attack-bar telegraph UI.
-Candidate distinctness law: the three shapes answer three questions — Attack: "how fast do they
-die" · Defend: "do I survive THIS strike" (certain, immediate) · Move: "how much agency do I
-have" (time/board/stance fuel — NEVER denominated in HP directly).
+### ⭐ SETTLED (2026-06-11) — ROUNDS v3: the 20-second round grammar (NEXT COMBAT BUILD)
+**Full spec: `CRAWL-DESIGN.md` §5.6.** The Move/Defend collision resolved itself by
+generalizing the draw-phase idea: ALL three verbs round-batch (accumulate → exchange).
+Headline decisions: **20s rounds** = THE pacing constant (every combat time number rebases to
+rounds) · telegraph revealed at the deal (Defend = allocation vs a known number, the live-action
+Spire turn) · rollover ≤ ~2.5s diegetic, never a modal: player swing first (**lethal cancels —
+the kill-race**, symmetric both ways) → enemy swing → Maneuver dump → deal → new telegraph +
+queued stance locks · live mid-round: spells/mana (the panic-button lane), traps/tricks, drift,
+SG wards, instant **NEUTRAL** refill (BIAS_W only via the dump) · **stance economy**: Stand
+Ground = banker (wards live — 1 charge/board verb, 3/wound — and carries over), Maneuver =
+dumper (never wards; burns ALL at rollover → N deadest NOT-already-matching cards redraw to
+bias; zeroes) · **CHARGE_CAP 15** (exact both ways: 5 wounds × 3 = 15 = the whole board) · the
+**Tactics WHEEL** (SG center w/ braced-figure icon; shape arc top, color arc bottom; magnitude
+bias CUT deliberately — heavy boards = gear/Hone only) · **wounds computed, never authored**:
+floor(dmgSuffered/(maxHP/10)) summed per exchange, cap 5; heals repair ceil(heal/(maxHP/10));
+1 reforms/draw phase, all at combat end · Adaptive Tactics → **Combined Arms** (+1 charge on
+shape-rainbow sets) · foe speed = round BEHAVIOR (speed bands retire) · distinctness law held:
+Move never denominated in HP (the Dodge-stance idea died — Defend owns round-scoped mitigation).
+Lands WITH the decimal rebase (HP 100 / stats 10 — the /10 wound laws confirm the package).
+
+Build scope (before B3 gear; doesn't collide with B2's run shell — combat-only):
+- `[ ]` **Engine:** round state machine (verb accumulators, rollover order, kill-race
+  symmetry), telegraph-at-deal, stance lock/queue (the wheel sets NEXT round's pick), SG live
+  wards (wound = 3), Maneuver rollover dump (deadest NOT-matching filter; overflow burns),
+  neutral mid-round regen, wound inflict/repair/recovery laws, CHARGE_CAP → 15, retire the
+  clock + excess-timer income + `SWAP_SPINUP_MS` + `DMG_REGEN_MS`.
+- `[ ]` **Numbers workshop (still open, settle in the derivation-sheet pass):** Speed's new
+  job (clock-push is gone — likely charge-income scaling: Power→damage, Endurance→block,
+  Speed→agency; the charge economy must absorb it) · stall-kit re-anchor (timewarp/glaciate/
+  frostbolt/smokebomb/thornvines lose the clock — candidates: shave the telegraph / delay an
+  exchange / convert to charges) · derivation sheet in TUNING.md (≈6 axioms) + headless
+  budget-conformance sim · per-foe exchange-cadence authoring (replaces the speed bands).
+- `[ ]` **UI:** the Tactics wheel (7 states; lit = locked, ghost = queued), round bar (the bar
+  IS the round), rollover choreography (swing→swing→dump→deal→telegraph), wound-row rendering,
+  dev instruments grow a **sets/round** readout (expect ~4–6 from current sets/min).
+- `[ ]` **Coach:** low-match-count player takes ≥4 wounds in one exchange → cooldowned
+  "Stand Ground to stabilize" reminder (rides the explain-mid-play variant below).
+- `[ ]` **Sim:** assert FLOOR under worst-case wounds(5)+locks; re-read reshape share + spring
+  rate post-v3 (the dump changes who moves the board, and when).
 - `[~]` **Duelist sprites (PLACEHOLDER art):** 🧙/👹 emoji stand-ins in the foe header that STEP
   toward whoever owns the board (driven by the same tug differential), lunge on their attacks and
   recoil on hits. Seeds the longer-term pixel-art pair; replace art + grow reactions later.
-- ⚠ Interaction: Maneuver(green) smooths sustain loops (Photosynthesis/Heal), and Chronomancer's
-  pinned clock is the premier excess-timer engine — the structural anti-stall lands with/before this.
+- ⚠ Interaction: Maneuver(green) smooths sustain loops (Photosynthesis/Heal) — the structural
+  anti-stall still lands with/before B2. (Chronomancer's excess-timer engine died with the
+  clock; its v3 identity rides the stall-kit re-anchor above.)
 
 ---
 

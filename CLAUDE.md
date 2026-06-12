@@ -90,9 +90,14 @@ foundation migration is complete (TODO §A); next is **set.crawl on the modules*
 - **NEXT BUILD: `set.crawl` Phase B2** — the run loop + exit ladder
   (`CRAWL-DESIGN.md` §2/§6, plan in `TODO.md`): room chain, boss/elite rolls,
   loot, the flee/death/cash-out fork.
-- **⭐ OPEN DESIGN THREAD: "sets steer, stats carry"** (resolution v2, `TODO.md`) —
-  where the numbers live (cards vs character stats). **Must be decided before
-  Phase B3 gear** — affix design depends entirely on it.
+- **DONE: Resolution v2 "sets steer, stats carry"** (Model B) — stats P/E/S carry the
+  numbers, sets steer; telegraphed exchanges. Built 2026-06-10; B3 gear designs
+  against the stat block.
+- **⭐ NEXT COMBAT BUILD: ROUNDS v3** (settled 2026-06-11; spec `CRAWL-DESIGN.md` §5.6,
+  build checklist in `TODO.md`, planned constants in `TUNING.md`) — 20-second rounds:
+  verbs accumulate → exchange at the rollover (kill-race ordering), Tactics wheel
+  (Stand Ground banker vs Maneuver dumper, CHARGE_CAP 15), computed wound laws, the
+  decimal rebase (HP 100 / stats 10). Combat-only; lands before B3 gear.
 - Still open (see `TRAPS.md` §8 / `CRAWL-DESIGN.md` §6): per-foe transmute *numbers*
   (framework set, tune in play); XP/HP/gold curves; whether
   the enemy ever gets an active resource-spending layer.

@@ -515,6 +515,11 @@ The per-room combat model. ~~Values below are prototyped and live in
 `src/engine/resolve.ts`, `tactics.ts`; live constants in `TUNING.md`.)* Treat
 numbers as tuning defaults.
 
+> ⚠ **SUPERSEDED IN PART by ROUNDS v3 (§5.6, settled 2026-06-11, next combat build):**
+> the continuous clock (approach→windup→strike), the swap-spin-up rule, excess-timer
+> income, Adaptive Tactics, `DMG_REGEN_MS`, and the speed bands all restructure under
+> the round grammar. This section remains the SHIPPED baseline until v3 lands.
+
 **Per-card resolution — RESOLUTION v2, "sets steer, stats carry" (SETTLED & BUILT
 2026-06-10; Model B from the pacing design session).** The character sheet carries the
 numbers; a matched set CHOOSES and AIMS the action. Each card in a found set fires its
@@ -662,6 +667,139 @@ Tactic during the feel pass, then pulled out so escape never depends on first ba
 The retreat *penalty* is **settled (2026-06-09)** — see **§6 "Loss condition / the exit
 ladder"**: a parting blow + the room's reward forfeited, falling back to the between-rooms
 fork (run continues; encounter rerolled, elite counter reset) rather than ending the run.
+
+---
+
+## 5.6 ROUNDS v3 — the 20-second round grammar (SETTLED 2026-06-11; next combat build)
+
+The temporal grammar that supersedes §5.5's continuous clock (approach→windup→strike).
+Grew out of the Move/Defend-distinctness thread (TODO, 2026-06-10/11): the draw-phase idea,
+generalized — **all three verbs round-batch**. The axiom: **round length is THE pacing
+constant** — every other combat time number denominates in rounds, not seconds. Planned
+constants staged in `TUNING.md` ("Rounds v3 — PLANNED"); code remains v2 until this builds.
+
+**The round (20s, tunable).** Matches accumulate by shape verb; nothing cashes until the
+exchange. Stats still carry (Model B per-card math, §5.5):
+- **Attack matches** → the player's exchange swing (per card `round(Power × q)`, summed).
+- **Defend matches** → mitigation of THIS round's telegraphed hit (per card
+  `round(Endurance × q)`). Overflow past the telegraph trickles to charges (1:2, the
+  v2 excess-block rule, re-denominated). The round is one continuous allocation
+  question: kill faster vs blunt the known hit.
+- **Move matches** → Tactics charges (+1 per Move card; the stance economy below).
+- **Round reset:** Attack/Defend accumulators and the Maneuver bank zero at the
+  exchange; mana, the Stand Ground bank, and HP carry. Each round is a fresh question.
+- ⚠ OPEN (numbers workshop): **Speed's new job.** v2 gave Move `round(Speed × q)`
+  clock-push seconds; the clock is gone. Natural rebase: Speed scales charge income
+  (Power→damage, Endurance→block, Speed→agency) — but the small-integer charge economy
+  (cap 5) must rescale to absorb it. Decide in the derivation-sheet pass.
+
+**Live mid-round** (the real-time half of the grammar):
+- **Mana + spells** — instant, outside round ordering; the panic-button slot Move used
+  to own. Anything dropping the foe to 0 HP ends the battle on the spot.
+- **Traps / tricks** — fire on matches via the trigger bus, as today.
+- **Dungeon drift** — ambient pressure, unchanged.
+- **Stand Ground wards** — intercept live (the wall stands all round).
+- **Board refill** — instant and **NEUTRAL** (mid-round regen drops the player-bias
+  tilt; `BIAS_W` expresses ONLY through the Maneuver rollover dump). The round
+  *degrades* — you cherry-pick the juice, drift drags, traps scar — the deal *redeems*.
+
+**The rollover** (≤ ~2.5s, diegetic, choreographed — **never a modal, no button, ever**):
+1. **Player swing** — the Attack total lands. **Lethal cancels the enemy swing** (the
+   kill-race: rushing lethal under a big telegraph is valid play, rewarded via passives/
+   gear). Symmetric: a player who would die but banked lethal wins the exchange.
+2. **Enemy swing** — telegraph minus the Defend total; damage *suffered* computes wounds.
+3. **Maneuver dump** — all charges burn (stance economy below).
+4. **The deal** — gaps fill, one wound reforms, churned cards settle.
+5. **Next telegraph reveals + the queued stance locks.** The breath; next round's plan forms.
+
+**Foe speed = round BEHAVIOR, not round length.** The speed bands (24…9s) retire. Every
+foe gives the same 20s of scan; quickness becomes exchange cadence: a frenzied foe swings
+every round, maybe as ⚔4×2; a lumbering one every other round, huge — "— (winding up:
+⚔18 next round)". The telegraph is part of the deal, so Defend allocation is a decision,
+never a guess. This is the structural fix for the quick-foe sweet spot: scan pressure was
+the problem, and it's gone.
+
+**The stance economy — banker vs dumper.** Charges accumulate in EVERY stance (income
+above). The stances differ in their relationship to the bank AND in resolution timing:
+- **🛡 Stand Ground** (wheel center) — **spends live**: each hostile board verb that
+  fires (drift tick, enemy transmute, lock) fizzles for **1 charge**; each incoming
+  **wound** fizzles for **3 charges**. **Carries its remainder across the rollover.**
+  No rollover effect — stuck with whatever luck draws out and what your own spells and
+  consumables trigger.
+- **⚔ Maneuver** (the six spokes) — **never wards**; drift runs unopposed. At rollover
+  it **burns ALL charges**: N charges redraw the **N deadest cards NOT already matching
+  the bias**, each redrawn to the bias value on that axis (other axes random). Biasing
+  Blue on a Red-heavy board converts dead Reds/Greens to Blue — undeadening the existing
+  Blues fast. The bank zeroes.
+- **Charge cap 15** (raised from v2's 5 — settled 2026-06-11). The number is exact on
+  both ends: a full bank soaks a maximum 5-wound haymaker (5 × 3 = 15) precisely, and a
+  full Maneuver dump rerolls the ENTIRE 15-card board toward your bias precisely. Cap =
+  board size = max exchange ward cost — one number, three readings. Filling it is a
+  multi-round arc (income runs a few charges per round), so the full-bank play is an
+  earned spike, not per-round routine. **Defend allocation remains the PRIMARY wound
+  prevention** (wounds key to damage *suffered*, so turtling cuts them at the source);
+  SG's wound-ward is the deep reserve you build toward. If the dump holds more charges
+  than non-matching cards exist, the excess burns unused (the board is already yours —
+  the bank still zeroes, per the rule).
+- **The stance locks at the draw phase** (the wheel mid-round queues NEXT round's pick).
+  Load-bearing, not flavor: free swapping enables the obvious cheese — Stand Ground all
+  round, flip to Maneuver at second 19, dump, collect both benefits. The lock kills it.
+  It also enables the legitimate cross-round line: turtle two rounds banking behind
+  wards, then flip and dump a full-bank tide. *Supersedes the swap-spin-up rule entirely.*
+
+**The Tactics wheel (the widget).** One control, seven states, one tap:
+- **Center: Stand Ground** — a braced stick-figure icon, classic bracing-for-battle.
+- **Top arc (shape biases):** Attack · Defend (top-middle) · Move — "steer what I can DO."
+- **Bottom arc (color biases):** Red · Blue (bottom-middle) · Green — "steer what I can CAST."
+- Selecting a spoke = selecting Maneuver with that bias (the v2 verb-then-parameter
+  two-step collapses into one gesture). Lit spoke = the locked current stance; ghost
+  spoke = queued for the deal.
+- **Magnitude bias is CUT — deliberately**, not by wheel geometry: heavy boards come
+  only from gear/Hone (B3). `grasping`/`covetous` now tax drift-luck and gear greed only.
+
+**Wounds — computed, never authored.** Both laws derive from one quantum, `maxHP/10`
+(the decimal rebase — HP 100, stats 10 — lands WITH v3 so the laws read clean):
+- **Inflict:** `wounds = floor(damageSuffered / (maxHP/10))`, summed **per exchange**
+  (a frenzied ⚔4×2 wounds off the 8 total, never two floored swings), **cap 5 per
+  exchange**. Chip hits (<10%) never scar; a 50% haymaker = 5 wounds — if you saw the
+  telegraph and didn't turtle, that's the lesson.
+- **Repair:** any heal also repairs `ceil(heal / (maxHP/10))` wounds. Floor-on-damage /
+  ceil-on-heal is deliberately player-generous; both sides are one law, so tightening
+  is a constant change, never a data audit.
+- **Recovery:** one wound reforms per draw phase; ALL reform at combat end.
+  (`DMG_REGEN_MS` retires — another seconds-constant rebased to rounds.)
+- ⚠ Invariant: wounds (≤5) + locks combined must still leave ≥ FLOOR makeable sets —
+  assert the worst case in the headless sim; a combined concurrent cap may need a number.
+- **Coach hook:** a player under a match-count threshold who takes ≥4 wounds in one
+  exchange gets a cooldowned reminder (every X occurrences) to Stand Ground / turtle
+  when big damage is telegraphed. Rides the explain-mid-play tutorial variant (TODO).
+
+**Ability/passive remaps (the v3 translation):**
+- **Adaptive Tactics → "Combined Arms"** (Warlord; total rewrite — swap-spin-up is dead):
+  **+1 bonus charge on any shape-rainbow set**. A rainbow carries exactly one Move card,
+  so it nets 2 charges vs all-Move's 3 — but delivered Attack+Defend value in the same
+  match: the flexible-commander identity, rebuilt on income.
+- **Rally / Vigilance / Invisibility** survive re-denominated (they drain/fill the same bank).
+- ⚠ OPEN: the **clock-push verbs** (timewarp, glaciate, frostbolt, smokebomb, thornvines —
+  the stall kit) lose their target with the clock. Candidates: shave the telegraph
+  (⚔N−X — time magic slows the blow), delay/skip a foe's exchange round, or convert to
+  charges. Settle in the v3 translation pass. Chronomancer's excess-timer-engine note
+  (§5.5 ⚠) dies with the income rule.
+
+**The feel target (user, 2026-06-11 — keep verbatim):** "you play the round in a quick
+frantic pace making matches, resisting the drift, using spells. You probably bias toward
+the high cards, and they run dry as you match and you hunt for best options as quick as
+you can, and it drifts, and by round end the board is a little weak and gross. That's
+when your tactics come in, and suddenly draw reset, you go from the held breath
+inhalation of the action to the sighing exhaling relief as your tactics trigger and the
+board redraws fresh with possibility. Or you resolutely stand your ground the entire
+time, reducing the churn in your foe's favor but being stuck with whatever luck draws
+out and what you can trigger with your own spells and consumables."
+
+**Numbers sanity (fourth-playtest anchored):** sets/min ran 12–17 → roughly 4–6 sets per
+20s round, comfortably over the workshop's ≥3 decisions-per-exchange floor. The dev
+instruments grow a **sets/round** readout; re-read reshape share and spring rate after v3
+lands (the rollover dump changes who moves the board, and when).
 
 ---
 
