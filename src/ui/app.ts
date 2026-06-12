@@ -1073,9 +1073,9 @@ function verbsFromEvents(events: CombatEvent[]): Map<number, CardVerb> {
 /** Full-screen feedback priority — a wound out-shouts a trap spring (TRAPS layering scheme). */
 const FLASH_PRI: Record<string, number> = { wound: 3, trap: 2, trick: 2 }
 
-/** Event → feedback. A batch containing a rollover is CHOREOGRAPHED (the ~2s diegetic exchange
- *  beat, CRAWL §5.6 — never a modal); everything else plays immediately. Returns true when the
- *  choreography owns the board render (dispatch must not double-render). */
+/** Event → feedback. A batch containing a rollover is CHOREOGRAPHED (the ~4.3s diegetic exchange
+ *  beat, CRAWL §5.6 — never a modal; timings in EXCHANGE_BEATS); everything else plays immediately.
+ *  Returns true when the choreography owns the board render (dispatch must not double-render). */
 function interpret(events: CombatEvent[]): boolean {
   if (!V) return false
   const cut = events.findIndex((e) => e.type === 'roundEnded')
@@ -1086,59 +1086,237 @@ function interpret(events: CombatEvent[]): boolean {
 }
 
 /* THE ROLLOVER CHOREOGRAPHY — the engine resolves the exchange atomically; the UI plays it back as
-   beats: ① "the exchange" flag → ② your swing lands → ③ their swing (or "no strike") → ④ the
-   Maneuver tide + the deal (cards morph/reform; wound gaps appear, one knits) → ⑤ the new telegraph
-   reveals as the round opens. Fast and skippable-feeling: input stays live, ticks freeze (hitstop)
-   so the new round's clock starts when the beat ends. The HUD holds its pre-exchange read until ⑤. */
-const EX_BEAT = { swing: 350, counter: 900, tide: 1450, deal: 2000 }
+   a ~4.3s cinematic beat (playtest 2026-06: the pause must be FELT — long enough to register your
+   matches and watch each quantity visibly TRANSFER): ① the field shifts mode (board dims under a
+   vignette, the flag stamps big, the scoreboard lights) → ② YOUR SWING: the banked ⚔ counts down
+   to 0 while the foe's HP drains with it → ③ THEIR STRIKE: the telegraph ⚔ drains into your guard
+   🛡; the bite past it drains your HP, wound shatters popping as it lands → ④ THE TIDE & THE DEAL:
+   the board takes the stage (churn morphs first, the wound-knit flare after) → ⑤ RELEASE: the field
+   re-brightens, "Round N" stamps, the fresh telegraph reveals. Input stays live; ticks freeze
+   (the hitstop spans the WHOLE beat, so the new round still opens with a full clock). The HUD holds
+   its pre-exchange read until ⑤ — every number lands on its beat, never all at once at dispatch. */
+const EXCHANGE_BEATS = {
+  swing: 800, // ② your swing begins (the ① mode-shift owns 0–800ms)
+  swingDrain: 650, // …the banked-⚔ → foe-HP count-down tween
+  counter: 1950, // ③ their strike begins
+  guardDrain: 450, // …the telegraph → guard absorb tween
+  hpDrain: 550, // …the remaining bite → your-HP tween (runs after the absorb)
+  tide: 3150, // ④ the tide + the deal (the board's own unhurried window)
+  knitHold: 550, // …the wound-knit flare fires this long after the churn morphs start
+  deal: 4150, // ⑤ release — the HUD snaps to the new round
+  releasePad: 350, // hitstop runs to deal+pad: the freeze covers every beat with margin
+}
+/** prefers-reduced-motion: the old compact ~2.25s pacing; the numbers snap instead of tweening. */
+const EXCHANGE_BEATS_REDUCED: typeof EXCHANGE_BEATS = { swing: 350, swingDrain: 0, counter: 900, guardDrain: 0, hpDrain: 0, tide: 1450, knitHold: 0, deal: 2000, releasePad: 250 }
+const exBeats = (): typeof EXCHANGE_BEATS => (matchMedia('(prefers-reduced-motion: reduce)').matches ? EXCHANGE_BEATS_REDUCED : EXCHANGE_BEATS)
+
 function choreographRollover(events: CombatEvent[]): void {
   if (!V) return
+  const B = exBeats()
   const seg: Record<'swing' | 'counter' | 'tide' | 'deal', CombatEvent[]> = { swing: [], counter: [], tide: [], deal: [] }
-  let won = false
+  const finale: CombatEvent[] = [] // won/lost — the end banner fires the instant an HP count crosses 0
   for (const e of events) {
     switch (e.type) {
-      case 'roundEnded': break // the beat itself (the banner below)
-      case 'won': won = true; seg.swing.push(e); break
+      case 'roundEnded': break // the beat itself (the mode-shift below)
+      case 'won': case 'lost': finale.push(e); break
       case 'enemyDamaged': seg.swing.push(e); break
-      case 'playerDamaged': case 'playerBlocked': case 'cardsShattered': case 'warded': case 'lost': seg.counter.push(e); break
+      case 'playerDamaged': case 'playerBlocked': case 'cardsShattered': case 'warded': seg.counter.push(e); break
       case 'windup': case 'roundStarted': seg.deal.push(e); break
       default: seg.tide.push(e) // dump/deal/stance-lock + anything unforeseen rides the tide beat
     }
   }
-  const verbs = verbsFromEvents(events) // booms (wounds) + morphs (tide) + reforms (knit/deal), one render
+  const won = finale.some((e) => e.type === 'won')
+  const s = V.state // POST-exchange (the engine already resolved); the pre-reads are reconstructed below
+  // ② the swing transfer: events carry the amount; the held HUD still shows the pre-exchange read
+  const swingDmg = seg.swing.reduce((a, e) => a + (e.type === 'enemyDamaged' ? e.amount : 0), 0)
+  const postFoeHP = s.enemyHP
+  const preFoeHP = won ? domNum(V.refs.ehpv, swingDmg) : postFoeHP + swingDmg // on a kill the bank overkills — the held HUD has the true pre-read
+  // ③ the strike transfer: telegraph → guard → your HP
+  const pd = seg.counter.find((e): e is Extract<CombatEvent, { type: 'playerDamaged' }> => e.type === 'playerDamaged')
+  const blockedAll = seg.counter.some((e) => e.type === 'playerBlocked')
+  const raw = pd ? pd.amount + pd.absorbed : blockedAll ? domNum(V.refs.exinc, 0) : null // null = no strike this round
+  const absorbed = pd ? pd.absorbed : raw ?? 0
+  const bite = pd ? pd.amount : 0
+  const preBlock = domNum(V.refs.exguard, absorbed) // the guard number the player watched all round
+  const postYouHP = s.playerHP
+  const shatters = seg.counter.flatMap((e) => (e.type === 'cardsShattered' ? e.slots : []))
+  const knits = events.flatMap((e) => (e.type === 'cardsReformed' ? e.slots : [])) // at the rollover, reforms = the knit
+  const verbs = verbsFromEvents(events) // booms (wounds) + morphs (tide) + reforms (knit/deal)
+  const foeName = s.foe.name
+
   V.holdHud = true
-  hitstop(EX_BEAT.deal + 250)
-  exchangeBeat()
+  hitstop(B.deal + B.releasePad) // the freeze covers the WHOLE beat — the new round opens with a full clock
+  exchangeEnter() // ① the field shifts mode
   log(`<span style="opacity:.8">— the exchange —</span>`, 'you')
-  sceneTimeout(() => { if (V) interpretChunk(seg.swing) }, EX_BEAT.swing)
+
+  // ② YOUR SWING — the banked ⚔ counts down to 0 as the foe's HP drains with it (one visible transfer)
   sceneTimeout(() => {
-    if (!V) return
-    if (seg.counter.length) interpretChunk(seg.counter)
-    else if (!won) { floatBoard('no strike', 'var(--ink-faint)', 'enemy'); log(`<span style="opacity:.7">The ${V.state.foe.name} doesn't strike.</span>`, 'foe') }
-  }, EX_BEAT.counter)
+    if (!V || !V.holdHud) return
+    if (swingDmg <= 0) { floatBoard('no swing banked', 'var(--ink-faint)', 'enemy'); return } // brief + grey
+    drainCls(true, V.refs.exatk, V.refs.ehpv)
+    sceneTimeout(() => { if (V?.holdHud) interpretChunk(seg.swing) }, Math.round(B.swingDrain * 0.35)) // the lunge/float/flash land mid-tween
+    exTween(B.swingDrain, (k) => {
+      if (!V) return
+      V.refs.exatk.textContent = `⚔ ${Math.round(swingDmg * (1 - k))}`
+      paintHP('e', Math.round(preFoeHP - (preFoeHP - postFoeHP) * k))
+    }, () => {
+      drainCls(false, V?.refs.exatk, V?.refs.ehpv)
+      if (won) interpretChunk(finale) // the win banner fires the moment the count crosses 0 HP
+    })
+  }, B.swing)
+  if (won) return // lethal cancels their strike — no counter/tide/deal beats on a kill
+
+  // ③ THEIR STRIKE — the telegraph ⚔ drains into your guard 🛡; what bites past it drains your HP
   sceneTimeout(() => {
-    if (!V) return
+    if (!V || !V.holdHud) return
+    if (raw == null) { // no strike this round — a brief grey beat
+      if (seg.counter.length) interpretChunk(seg.counter) // stray wards etc. still narrate
+      else { floatBoard('no strike', 'var(--ink-faint)', 'enemy'); log(`<span style="opacity:.7">The ${foeName} doesn't strike.</span>`, 'foe') }
+      return
+    }
+    const land = (): void => { // the hit lands: flash/burst/log/sprites + wound shatters pop on their slots
+      if (!V || !V.holdHud) return
+      interpretChunk(seg.counter)
+      for (const sl of shatters) boomSlot(sl, verbs)
+      if (bite > 0) {
+        drainCls(true, V.refs.phpv)
+        const preYouHP = postYouHP + bite
+        exTween(B.hpDrain, (k) => {
+          if (!V) return
+          V.refs.exinc.textContent = `⚔ ${Math.round(bite * (1 - k))}`
+          paintHP('p', Math.round(preYouHP - bite * k))
+        }, () => {
+          drainCls(false, V?.refs.phpv, V?.refs.exinc)
+          if (finale.length) interpretChunk(finale) // defeat fires the moment your count crosses 0
+        })
+      } else if (finale.length) interpretChunk(finale)
+    }
+    drainCls(true, V.refs.exinc, V.refs.exguard)
+    if (absorbed > 0) {
+      exTween(B.guardDrain, (k) => { // the guard ABSORBS: both numbers drain together
+        if (!V) return
+        V.refs.exinc.textContent = `⚔ ${Math.round(raw - absorbed * k)}`
+        V.refs.exguard.textContent = `🛡 ${Math.round(Math.max(0, preBlock - absorbed * k))}`
+      }, () => { drainCls(false, V?.refs.exguard); land() })
+    } else land()
+  }, B.counter)
+
+  // ④ THE TIDE & THE DEAL — the board takes the stage: the dim half-lifts, churn morphs play,
+  //    then the wound-knit flares on its own moment (never compressed into the same instant)
+  sceneTimeout(() => {
+    if (!V || !V.holdHud) return
+    V.refs.boardwrap?.classList.add('extide') // the eye moves to the board
     interpretChunk(seg.tide)
-    if (boardSignature(V.state) !== V.boardSig) renderBoard(verbs) // the tide comes in WITH the deal
-  }, EX_BEAT.tide)
+    if (boardSignature(V.state) !== V.boardSig) renderBoard(verbs)
+    holdKnits(knits, B.knitHold)
+  }, B.tide)
+
+  // ⑤ RELEASE — the field re-brightens, the HUD snaps to the new round, "Round N" stamps, the telegraph reveals
   sceneTimeout(() => {
-    if (!V) return
+    if (!V || !V.holdHud) return
     V.holdHud = false // the HUD snaps to the new round: fresh bar, fresh accumulators…
+    exchangeExit()
     interpretChunk(seg.deal)
-    pulseTelegraph() // …and the new telegraph reveals with a flourish
-  }, EX_BEAT.deal)
+    roundStamp(V.state.round)
+    pulseTelegraph() // …and the new telegraph reveals with its flourish
+  }, B.deal)
 }
 
-/** The "— the exchange —" flag over the board: beat ① of the rollover (diegetic, never a modal). */
-function exchangeBeat(): void {
-  const layer = V?.refs.floatlayer
+/** A scene-safe rAF tween for the exchange drains (eased 0→1). Dies silently if the combat view
+ *  changes or the HUD hold releases early (flee/endScreen mid-beat). ms<=0 snaps (reduced motion). */
+function exTween(ms: number, step: (k: number) => void, done?: () => void): void {
+  const view = V
+  if (!view) return
+  if (ms <= 0) { step(1); done?.(); return }
+  const t0 = performance.now()
+  const frame = (t: number): void => {
+    if (V !== view || !view.holdHud) return
+    const raw = Math.min(1, (t - t0) / ms)
+    step(1 - (1 - raw) ** 3) // ease-out: the number flies, then settles
+    if (raw < 1) requestAnimationFrame(frame)
+    else done?.()
+  }
+  requestAnimationFrame(frame)
+}
+
+/** Read the number the HELD HUD is showing (the pre-exchange paint) — e.g. "🛡 7 ✓" → 7. */
+function domNum(el: HTMLElement | undefined, fallback: number): number {
+  const m = el?.textContent?.match(/\d+/)
+  return m ? +m[0] : fallback
+}
+
+/** Toggle the drain glow (scaled-up, glowing number) on the HUD values currently transferring. */
+function drainCls(on: boolean, ...els: (HTMLElement | undefined)[]): void {
+  for (const el of els) el?.classList.toggle('draining', on)
+}
+
+/** Paint one HP read (number + bar) mid-drain — the beat's own write past the held HUD. */
+function paintHP(side: 'p' | 'e', hp: number): void {
+  if (!V) return
+  const s = V.state
+  const max = side === 'p' ? s.playerMax : s.enemyMax
+  const v = Math.max(0, Math.min(max, hp))
+  V.refs[side === 'p' ? 'phpv' : 'ehpv'].textContent = `${v}/${max}`
+  V.refs[side === 'p' ? 'php' : 'ehp'].style.width = `${max > 0 ? (v / max) * 100 : 0}%`
+}
+
+/** Pop a wound shatter on its slot the moment the strike lands (the tide render then deals the scar). */
+function boomSlot(slot: number, verbs: Map<number, CardVerb>): void {
+  const el = V?.refs.board.querySelector(`[data-i="${slot}"]`) as HTMLElement | null
+  if (!el) return
+  el.classList.add('boom') // the live card bursts NOW…
+  el.dataset.key = '' // …so the tide render won't ghost it a second time
+  verbs.delete(slot)
+}
+
+/** Stage the wound-knit: the slot holds as a dark gap while the churn morphs play, THEN flares closed. */
+function holdKnits(slots: number[], holdMs: number): void {
+  if (!V || !slots.length || holdMs <= 0) return
+  const els = slots
+    .map((i) => V!.refs.board.querySelector(`[data-i="${i}"]`) as HTMLElement | null)
+    .filter((el): el is HTMLElement => !!el && el.classList.contains('knit'))
+  if (!els.length) return
+  for (const el of els) { el.classList.remove('enter', 'reform', 'knit'); el.classList.add('knitwait') } // synchronous: the flare never paints early
+  sceneTimeout(() => {
+    if (!V) return
+    for (const el of els) { el.classList.remove('knitwait'); void el.offsetWidth; el.classList.add('enter', 'reform', 'knit') }
+  }, holdMs)
+}
+
+/** Beat ① — the whole field shifts mode: the board dims under a vignette with a low visual thunk,
+ *  the "— the exchange —" flag stamps big and HOLDS, the scoreboard (the stage of ②/③) lights up. */
+function exchangeEnter(): void {
+  if (!V) return
+  const bw = V.refs.boardwrap
+  if (bw) { bw.classList.add('exmode'); bw.classList.add('exenter'); sceneTimeout(() => bw.classList.remove('exenter'), 600) }
+  V.refs.exatk?.closest('.exchange')?.classList.add('live')
+  const layer = V.refs.floatlayer
   if (!layer) return
-  const el = $(`<div class="exbeat">— the exchange —</div>`)
+  const el = $(`<div class="exbeat big" id="exflag">— the exchange —</div>`)
   layer.appendChild(el)
   void el.offsetWidth
   el.classList.add('go')
-  sceneTimeout(() => el.classList.remove('go'), 1100)
-  sceneTimeout(() => el.remove(), 1500)
+}
+
+/** Beat ⑤ / defensive cleanup — release: the board re-brightens, the flag lifts, the glows settle. */
+function exchangeExit(): void {
+  if (!V) return
+  V.refs.boardwrap?.classList.remove('exmode', 'extide', 'exenter')
+  V.refs.exatk?.closest('.exchange')?.classList.remove('live')
+  drainCls(false, V.refs.exatk, V.refs.ehpv, V.refs.phpv, V.refs.exinc, V.refs.exguard)
+  const flag = document.getElementById('exflag')
+  if (flag) { flag.classList.remove('go'); sceneTimeout(() => flag.remove(), 450) }
+}
+
+/** "Round N" stamps over the board as the new round opens — the release moment's punctuation. */
+function roundStamp(round: number): void {
+  const layer = V?.refs.floatlayer
+  if (!layer) return
+  const el = $(`<div class="roundstamp">Round ${round}</div>`)
+  layer.appendChild(el)
+  void el.offsetWidth
+  el.classList.add('go')
+  sceneTimeout(() => el.remove(), 1300)
 }
 
 /** Beat ⑤: the scoreboard's foe side flares as the fresh telegraph lands. */
@@ -1772,6 +1950,7 @@ function endScreen(result: 'win' | 'lose' | 'flee'): void {
   coachFinish() // close any open guided step before the end banner
   V.paused = false // a flee-confirm pause must not survive onto the end card (frozen animations)
   V.holdHud = false // a mid-choreography end must not leave the HUD frozen on stale numbers…
+  exchangeExit() // …nor the field stuck in exchange mode (dim/vignette/flag/drain glows)
   updateBar() // …so paint the final read once before the loop dies
   cancelAnimationFrame(V.raf)
   if (V.refs.fleebtn) V.refs.fleebtn.style.display = 'none' // no fleeing a finished fight

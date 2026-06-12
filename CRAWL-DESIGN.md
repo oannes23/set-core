@@ -706,7 +706,9 @@ exchange. Stats still carry (Model B per-card math, §5.5):
   tilt; `BIAS_W` expresses ONLY through the Maneuver rollover dump). The round
   *degrades* — you cherry-pick the juice, drift drags, traps scar — the deal *redeems*.
 
-**The rollover** (≤ ~2.5s, diegetic, choreographed — **never a modal, no button, ever**):
+**The rollover** (≈ 4.5s, diegetic, choreographed in staged DRAINING transfers — **never a
+modal, no button, ever**; playtest-raised from ≤2.5s: the pause must be FELT, each quantity
+seen moving — banked swing → foe HP, telegraph → guard → HP, then the tide and the deal):
 1. **Player swing** — the Attack total lands. **Lethal cancels the enemy swing** (the
    kill-race: rushing lethal under a big telegraph is valid play, rewarded via passives/
    gear). Symmetric: a player who would die but banked lethal wins the exchange.

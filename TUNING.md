@@ -11,7 +11,7 @@ pending the derivation-sheet sim — directionally settled, numerically sim-fodd
 
 | # | Axiom | Value |
 |---|---|---|
-| A1 | The round is THE pacing constant | `ROUND_S` 20 · rollover ≤ ~2.5s diegetic, never a modal |
+| A1 | The round is THE pacing constant | `ROUND_S` 20 · rollover ≈ 4.5s staged diegetic beat (playtest-raised from 2.5 — it must be FELT), never a modal |
 | A2 | Baseline play = **6/6/6** | one magnitude-6 set per verb per round (~a match / 6–7s); competent ≈ ×2 (measured 4–6 sets/round) |
 | A3 | The decimal rebase | HP 100 · stats 10 (both combatants carry P/E/S) |
 | A4 | Even = average | at stat parity + baseline play the exchange is even: a mag-6 Defend set ≈ neutralizes the average telegraph (~25); a mag-6 Attack set ≈ 25 |
@@ -23,7 +23,7 @@ pending the derivation-sheet sim — directionally settled, numerically sim-fodd
 | Constant / law | Value | File | Meaning |
 |---|---|---|---|
 | `ROUND_MS` | 20 000 | `src/engine/state.ts` | Round length (A1) |
-| Rollover order | swing → counter → dump → deal → telegraph | `src/engine/combat.ts` (`rollover`) | Player swing FIRST; **lethal cancels** (the kill-race, symmetric) |
+| Rollover order | swing → counter → dump → deal → telegraph | `src/engine/combat.ts` (`rollover`) | Player swing FIRST; **lethal cancels** (the kill-race, symmetric). UI plays it as the `EXCHANGE_BEATS` table (`src/ui/app.ts`): entry thunk 0 · swing drain 800 · counter drain 1950 · tide+knit 3150 · release/stamp 4150, hitstop 4500 (reduced-motion: 2250) |
 | Wound inflict | `floor(bite / (maxHP/10))` per EXCHANGE, cap 5 | `src/engine/triggers.ts` (`inflictWounds`) | Computed, never authored; Defend is the primary prevention |
 | Wound repair | `ceil(heal / (maxHP/10))` | `src/engine/ops.ts` (`healPlayer`) | Any heal knits wounds; keyed to the heal's SIZE (full-HP heals still repair) |
 | Wound recovery | 1 per draw phase; all at combat end | `src/engine/combat.ts` | Wound pendings never time-reform |

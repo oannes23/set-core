@@ -238,7 +238,7 @@ function tick(s: CombatState, dtMs: number, deps: Deps, sink: EventSink): void {
 }
 
 /** The rollover exchange — the v3 grammar's heartbeat, resolved atomically (the UI choreographs
- *  the emitted events as the ≤2.5s diegetic beat). Fixed order: ① player swing (LETHAL CANCELS —
+ *  the emitted events as the staged diegetic exchange beat (EXCHANGE_BEATS, app.ts)). Fixed order: ① player swing (LETHAL CANCELS —
  *  the kill-race; symmetric: banked lethal beats incoming death) → ② enemy swing minus Block,
  *  damage suffered computes wounds → ③ the guard drops (excess block = pure loss) → ④ Maneuver dump
  *  → ⑤ the deal: one wound knits, the queued stance locks → ⑥ the new round + its telegraph. */

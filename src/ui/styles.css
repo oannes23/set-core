@@ -616,6 +616,11 @@ button.cta:disabled { opacity: .4; cursor: not-allowed; }
 @media (prefers-reduced-motion: reduce) {
   .card.src-churn, .card.src-drift, .card.src-trick, .card.src-trap { animation-duration: .01s; }
   .sprite, .tugbar .tug-marker { transition: none; }
+  /* the exchange beat compresses (EXCHANGE_BEATS_REDUCED in app.ts): no thunk/stamp motion, instant numbers */
+  .boardwrap.exenter { animation: none; }
+  .exbeat.big.go { animation: none; }
+  .roundstamp.go { animation: none; opacity: 1; }
+  .draining { transform: none; }
 }
 
 /* TELEGRAPHED EXCHANGES — the foe rears as its exchange swing draws near (the scoreboard holds the number) */
@@ -635,11 +640,54 @@ button.cta:disabled { opacity: .4; cursor: not-allowed; }
 .sprite .stb { position: absolute; right: -13px; top: -7px; font-size: 13px; opacity: .55; filter: drop-shadow(0 1px 3px #000c); transition: opacity .3s ease; }
 .sprite .stb.armed { opacity: 1; }
 
-/* THE ROLLOVER CHOREOGRAPHY — beat ① "the exchange" flag over the board (diegetic, never a modal) */
+/* THE ROLLOVER CHOREOGRAPHY — the exchange owns the whole field for ~4.3s (EXCHANGE_BEATS in
+   app.ts). Beat ① shifts the field's mode: the board dims under a vignette with a low visual
+   thunk, the flag stamps BIG and holds, the scoreboard lights; ②/③ drain their numbers on the
+   scoreboard; ④ half-lifts the dim so the board's churn reads bright; ⑤ releases everything. */
 .exbeat { position: absolute; left: 50%; top: 38%; transform: translate(-50%, -50%) scale(.92); pointer-events: none; z-index: 7;
   font-family: "Syne", sans-serif; font-weight: 800; font-size: 19px; letter-spacing: .16em; text-transform: uppercase;
   color: var(--gold); text-shadow: 0 0 18px rgba(245, 197, 66, .45), 0 2px 8px #000c;
   opacity: 0; transition: opacity .25s ease, transform .25s ease; white-space: nowrap; }
 .exbeat.go { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+/* the amplified flag: big, stamps in hard, holds through the beats, lifts at the release */
+.exbeat.big { font-size: 29px; top: 32%; letter-spacing: .22em; transition: opacity .4s ease, transform .4s ease; }
+.exbeat.big.go { animation: exflagin .55s cubic-bezier(.18, 1.3, .34, 1); }
+@keyframes exflagin {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(1.75); filter: blur(3px); }
+  55% { opacity: 1; transform: translate(-50%, -50%) scale(.96); filter: none; }
+  100% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+/* the field-mode shift: the board dims + desaturates under an inset vignette (floaters/flag/ghosts
+   live on the layer ABOVE it and stay bright); exit re-brightens on the same transitions */
+.boardwrap::after { content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 5;
+  border-radius: 16px; box-shadow: inset 0 0 90px 16px #000d; opacity: 0; transition: opacity .55s ease; }
+.boardwrap.exmode::after { opacity: 1; }
+.boardwrap.exmode .board { filter: brightness(.52) saturate(.7); }
+/* beat ④ — the board takes the stage back: the dim half-lifts so the tide's churn reads bright */
+.boardwrap.exmode.extide .board { filter: brightness(.88) saturate(.95); }
+.boardwrap.exmode.extide::after { opacity: .45; }
+/* the entry THUNK — a one-beat drop/squash as the exchange seizes the field (class removed after) */
+.boardwrap.exenter { animation: exthunk .5s ease; }
+@keyframes exthunk { 0% { transform: translateY(0) scale(1); } 30% { transform: translateY(3px) scale(.992); } 100% { transform: none; } }
+/* the scoreboard is the STAGE of beats ②/③ — it lights gold while the exchange owns it */
+.exchange { transition: border-color .45s ease, box-shadow .45s ease; }
+.exchange.live { border-color: var(--gold); box-shadow: 0 0 16px -5px var(--gold), inset 0 0 0 1px rgba(245, 197, 66, .22); }
+/* a DRAINING number — scaled up + glowing while its quantity visibly transfers */
+.ex-val, .ex-guard, #phpv, #ehpv { display: inline-block; transition: transform .25s ease, filter .25s ease; }
+.draining { transform: scale(1.3); filter: brightness(1.6); text-shadow: 0 0 12px currentColor; }
+.ex-guard.draining { transform: scale(1.18); }
+/* the wound-knit holds as a dark gap while the churn morphs play, then flares closed (cardknit) */
+.card.knitwait { opacity: 0; }
+/* "Round N" stamps over the board at the release — the new round's punctuation */
+.roundstamp { position: absolute; left: 50%; top: 34%; transform: translate(-50%, -50%) scale(1.6); pointer-events: none; z-index: 7;
+  font-family: "Syne", sans-serif; font-weight: 800; font-size: 25px; letter-spacing: .18em; text-transform: uppercase;
+  color: var(--phos); text-shadow: 0 0 16px rgba(94, 234, 212, .5), 0 2px 8px #000c; opacity: 0; white-space: nowrap; }
+.roundstamp.go { animation: stampin 1.15s ease forwards; }
+@keyframes stampin {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(1.7); }
+  16% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  72% { opacity: 1; }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(1); }
+}
 /* a "wasted" floater (sated/overflow Block) — grey, smaller, sinks the eye instead of rewarding it */
 .floater.wasted { font-size: 13px; font-weight: 600; opacity: .9; font-style: italic; }
