@@ -22,44 +22,54 @@ function foe(id: string, rng = mulberry32(1)) {
   return assembleFoe(id, GAMEDATA.dungeons.training, GAMEDATA, rng)!
 }
 
-// ---- resolution math (Model B: sets steer, stats carry; base 2/2/2 = old-system parity) ----
-const STATS = { power: 2, endurance: 2, speed: 2 }
-test('resolveSet (Model B): shape picks the stat, magnitude is quality', () => {
-  const r = resolveSet([card(0, 1, 0), card(0, 1, 1), card(0, 1, 2)], STATS, mulberry32(1)) // all Defend, all red
-  expect(r.block).toBe(1 + 2 + 3) // Endurance 2 × q(0.7/1/1.4), rounded per card = parity
+// ---- resolution math (v3 contests: per card = rate(yourStat, theirOpposed) × quality) ----
+const STATS = { power: 10, endurance: 10, speed: 10 }
+const FOE_PAR = { power: 10, endurance: 10, speed: 10 }
+test('resolveSet (v3): each lane is an opposed-stat rate × quality', () => {
+  const r = resolveSet([card(0, 1, 0), card(0, 1, 1), card(0, 1, 2)], STATS, FOE_PAR, mulberry32(1)) // all Defend, all red
+  expect(r.block).toBe(6 + 8 + 11) // parity rate 8 × q(0.7/1/1.4), rounded per card → a mag-6 set ≈ 25
   expect(r.damage).toBe(0)
   expect(r.mana).toEqual([3, 0, 0]) // all-red → 3 Fire
-  const r2 = resolveSet([card(0, 2, 0), card(1, 2, 0), card(2, 2, 0)], STATS, mulberry32(1)) // all Move ①, all-diff colour
-  expect(r2.damage).toBe(0) // Move carries no number (charges count cards in the reducer — v3)
+  const r2 = resolveSet([card(0, 2, 0), card(1, 2, 0), card(2, 2, 0)], STATS, FOE_PAR, mulberry32(1)) // all Move ①, all-diff colour
+  expect(r2.charges).toBeCloseTo(3 * 0.7) // Move lane: parity rate 1 × q, in charge points
   expect(r2.block).toBe(0)
   expect(r2.mana).toEqual([1, 1, 1])
-  const r3 = resolveSet([card(0, SHAPE_ATTACK, 2), card(1, SHAPE_ATTACK, 2), card(2, SHAPE_ATTACK, 2)], STATS, mulberry32(1))
-  expect(r3.damage).toBe(9) // DETERMINISTIC now: three heavy swings of Power 2 → 3+3+3
-  const r4 = resolveSet([card(0, SHAPE_ATTACK, 2), card(1, SHAPE_ATTACK, 2), card(2, SHAPE_ATTACK, 2)], { ...STATS, power: 4 }, mulberry32(1))
-  expect(r4.damage).toBe(18) // stats CARRY: Power 4 → round(4×1.4)=6 per heavy swing
+  const r3 = resolveSet([card(0, SHAPE_ATTACK, 2), card(1, SHAPE_ATTACK, 2), card(2, SHAPE_ATTACK, 2)], STATS, FOE_PAR, mulberry32(1))
+  expect(r3.damage).toBe(33) // DETERMINISTIC: three heavy swings at parity rate 8 → 11×3
+  const r4 = resolveSet([card(0, SHAPE_ATTACK, 2), card(1, SHAPE_ATTACK, 2), card(2, SHAPE_ATTACK, 2)], { ...STATS, power: 14 }, FOE_PAR, mulberry32(1))
+  expect(r4.damage).toBe(48) // the CONTEST: +4 Power edge → rate 11.2 → round(15.68)=16 per heavy swing
 })
 
 // ---- ROUNDS v3: the telegraph reveals at the deal; the exchange lands exactly ----
-test('rounds: a heavy foe skips round 1, telegraphs at the deal, and the exchange lands exactly', () => {
+test('rounds: the TEMPO LAW — a giant strikes every 3rd round, telegraphed at its deal, exactly', () => {
   const rng = mulberry32(21)
-  const f = foe('limbless_zombie', rng) // lumbering → strikes every OTHER exchange
-  expect(f.strikeEvery).toBe(2)
+  const f = foe('dread_behemoth', rng) // P 14 vs S 6 → diff −8 → every 3rd round, triple budget
+  expect(f.strikeEvery).toBe(3)
   expect(f.swings).toBe(1)
   const s = createCombat({ foe: f, gen: GEN }, rng)
-  expect(s.incoming).toBeNull() // a heavy foe gives a free first round
-  // round 1 elapses — the rollover deals round 2 and REVEALS the telegraph
+  expect(s.incoming).toBeNull() // free rounds while the mountain rises
   const r1 = reduce(s, { type: 'tick', dtMs: ROUND_MS + 100 }, { data: GAMEDATA, rng })
   expect(r1.state.round).toBe(2)
   expect(r1.events.some((e) => e.type === 'roundEnded')).toBe(true)
-  const tele = r1.events.find((e) => e.type === 'windup') as { amount: number } | undefined
-  expect(tele).toBeTruthy()
-  expect(r1.state.incoming).toBe(tele!.amount)
-  // round 2 elapses — the strike lands EXACTLY the telegraphed amount (block 0)
+  expect(r1.state.incoming).toBeNull()
+  // the deal of round 3 (its strike round) REVEALS the telegraph
   const r2 = reduce(r1.state, { type: 'tick', dtMs: ROUND_MS + 100 }, { data: GAMEDATA, rng })
-  const hit = r2.events.find((e) => e.type === 'playerDamaged') as { amount: number } | undefined
-  expect(hit?.amount).toBe(tele!.amount)
   expect(r2.state.round).toBe(3)
-  expect(r2.state.incoming).toBeNull() // every-other-round striker rests in round 3
+  const tele = r2.events.find((e) => e.type === 'windup') as { amount: number } | undefined
+  expect(tele).toBeTruthy()
+  expect(r2.state.incoming).toBe(tele!.amount)
+  // round 3 elapses — the strike lands EXACTLY the telegraphed amount (block 0; likely lethal — the point)
+  const r3 = reduce(r2.state, { type: 'tick', dtMs: ROUND_MS + 100 }, { data: GAMEDATA, rng })
+  const hit = r3.events.find((e) => e.type === 'playerDamaged') as { amount: number } | undefined
+  expect(hit?.amount).toBe(tele!.amount)
+})
+
+test('rounds: the tempo law packages a shambler as 2 modest swings every round', () => {
+  const z = foe('limbless_zombie') // P 7 (tier 8 − heft 1) vs S 6 → diff −1 → 2 swings/round
+  expect(z.strikeEvery).toBe(1)
+  expect(z.swings).toBe(2)
+  const s = createCombat({ foe: z, gen: GEN }, mulberry32(2))
+  expect(s.incoming).not.toBeNull() // telegraphed (the swings summed) from the first deal
 })
 
 test('rounds: banked Attack lands at the exchange, player swing FIRST (the kill-race)', () => {
@@ -72,7 +82,7 @@ test('rounds: banked Attack lands at the exchange, player swing FIRST (the kill-
   s.board[2] = card(2, SHAPE_ATTACK, 2)
   let r = reduce(s, { type: 'completeSet', slots: [0, 1, 2] }, { data: GAMEDATA, rng })
   expect(r.state.enemyHP).toBe(5) // nothing lands mid-round…
-  expect(r.state.roundAttack).toBe(9) // …it BANKS toward the exchange
+  expect(r.state.roundAttack).toBe(33) // …it BANKS toward the exchange (parity rate 8, heavy ×3)
   expect(r.events.some((e) => e.type === 'attackBanked')).toBe(true)
   r = reduce(r.state, { type: 'tick', dtMs: ROUND_MS + 100 }, { data: GAMEDATA, rng })
   expect(r.events.some((e) => e.type === 'won')).toBe(true)
@@ -81,12 +91,14 @@ test('rounds: banked Attack lands at the exchange, player swing FIRST (the kill-
 
 test('wounds: floor(bite/(maxHP/10)) per exchange; heals repair ceil(heal/quantum); one knits per deal', () => {
   const s = createCombatStub(Array.from({ length: 15 }, (_, i) => card(i % 3, i % 3, (i >> 2) % 3)))
+  s.incoming = null // quiet the foe — this test watches the wound laws, not its exchange
+  s.nextStrikeRound = 99
   const sink = new EventSink()
-  // playerMax 30 → quantum 3: an 11-bite scars floor(11/3) = 3 runes
-  inflictWounds(s, 11, mulberry32(3), sink)
+  // playerMax 100 → quantum 10: a 35-bite scars floor(35/10) = 3 runes
+  inflictWounds(s, 35, mulberry32(3), sink)
   expect(woundedSlots(s)).toHaveLength(3)
   // chip damage under the quantum never scars
-  inflictWounds(s, 2, mulberry32(3), sink)
+  inflictWounds(s, 7, mulberry32(3), sink)
   expect(woundedSlots(s)).toHaveLength(3)
   // wounds never time-reform mid-round…
   const rng = mulberry32(3)
@@ -95,8 +107,8 @@ test('wounds: floor(bite/(maxHP/10)) per exchange; heals repair ceil(heal/quantu
   // …but ONE knits with the deal
   r = reduce(r.state, { type: 'tick', dtMs: ROUND_MS }, { data: GAMEDATA, rng })
   expect(woundedSlots(r.state)).toHaveLength(2)
-  // and a heal repairs ceil(4/3) = 2 by law
-  healPlayer(r.state, 4, mulberry32(4), sink)
+  // and a heal repairs ceil(11/10) = 2 by law
+  healPlayer(r.state, 11, mulberry32(4), sink)
   expect(woundedSlots(r.state)).toHaveLength(0)
 })
 
@@ -163,18 +175,19 @@ test('selectSlots: geometry ∩ value, and lock/transmute board verbs', () => {
 // ---- foe assembly ----
 test('assembleFoe resolves stats, triggers, rules', () => {
   const z = foe('limbless_zombie')
-  expect(z.hp).toBe(30)
-  expect(z.cadence).toBe(24) // lumbering (authored data — v3 derives exchange cadence from it)
-  expect(z.damage).toBe(4)
-  expect(z.strikeEvery).toBe(2) // lumbering → strikes every other exchange
-  expect(z.swings).toBe(1)
+  expect(z.hp).toBe(100) // legacy 30, rebased to the HP-100 world
+  expect(z.cadence).toBe(24) // lumbering (authored data — feeds the first-cut derivations)
+  expect(z.stats).toEqual({ power: 7, endurance: 10, speed: 6 }) // tier 8 − heft 1 · parity · lumbering
+  expect(z.strikeEvery).toBe(1)
+  expect(z.swings).toBe(2) // diff −1 → two modest swings
   expect(z.triggers.map((t) => t.name)).toContain('Limbless')
   const g = foe('unstable_ethereal_goblin')
   expect(g.rules.immune_card_damage).toBe(true)
   expect(g.rules.ability_damage).toBe('mana_spent')
   const b = foe('dread_behemoth')
   expect(b.cadence).toBe(120) // numeric speed
-  expect(b.strikeEvery).toBe(2) // ≥16s authored cadence → every other exchange
+  expect(b.stats).toEqual({ power: 14, endurance: 12, speed: 6 }) // elite 11 + heft 3 · elite bump
+  expect(b.strikeEvery).toBe(3) // the tempo law: diff −8 → a giant — every 3rd round, triple budget
   expect(b.triggers.find((t) => t.name === 'Outmaneuvered')?.kind).toBe('trick')
 })
 

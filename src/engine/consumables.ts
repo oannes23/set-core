@@ -37,13 +37,13 @@ const TIERS = [
   { key: 'major', label: 'Major ' },
 ]
 TIERS.forEach((t, i) => {
-  const hp = 10 * (i + 1) // 10 / 20 / 30
+  const hp = 30 * (i + 1) // 30 / 60 / 90 (HP-100 rebase, first-cut ×3)
   reg({
     id: `hp_${t.key}`, name: `${t.label}Healing Potion`, kind: 'potion', icon: '💗', color: COLOR_GREEN,
     desc: `restore ${hp} HP (knits wounds by law)`,
     use(s, rng, sink) { healPlayer(s, hp, rng, sink) },
   })
-  const armor = 10 * (i + 1) // 10 / 20 / 30
+  const armor = 30 * (i + 1) // 30 / 60 / 90
   reg({
     id: `stoneskin_${t.key}`, name: `${t.label}Stoneskin Potion`, kind: 'potion', icon: '🪨', color: null,
     desc: `gain ${armor} Block`,
@@ -136,18 +136,18 @@ function deadestNonColor(s: CombatState, color: number, k: number): number[] {
 
 reg({
   id: 'fire_breathing', name: 'Fire Breathing Potion', kind: 'potion', icon: '🐉', color: COLOR_RED,
-  desc: 'flood the least-red row, burn 1 per red card, clear them · 50% to repeat',
-  use(s, rng, sink) { cascade(s, rng, sink, COLOR_RED, (st) => fewestColorRow(st, COLOR_RED), (st, n, _r, sk) => { dealAbilityDamage(st, n, sk) }) },
+  desc: 'flood the least-red row, burn 3 per red card, clear them · 50% to repeat',
+  use(s, rng, sink) { cascade(s, rng, sink, COLOR_RED, (st) => fewestColorRow(st, COLOR_RED), (st, n, _r, sk) => { dealAbilityDamage(st, n * 3, sk) }) },
 })
 reg({
   id: 'regeneration', name: 'Regeneration Potion', kind: 'potion', icon: '🌱', color: COLOR_GREEN,
-  desc: 'green the 2 least-green columns, heal 1 per green card, clear them · 50% to repeat',
-  use(s, rng, sink) { cascade(s, rng, sink, COLOR_GREEN, (st) => fewestColorCols(st, COLOR_GREEN, 2), (st, n, r, sk) => { healPlayer(st, n, r, sk) }) },
+  desc: 'green the 2 least-green columns, heal 3 per green card, clear them · 50% to repeat',
+  use(s, rng, sink) { cascade(s, rng, sink, COLOR_GREEN, (st) => fewestColorCols(st, COLOR_GREEN, 2), (st, n, r, sk) => { healPlayer(st, n * 3, r, sk) }) },
 })
 reg({
   id: 'mind_reading', name: 'Mind Reading Potion', kind: 'potion', icon: '🔮', color: COLOR_BLUE,
-  desc: 'turn the 3 deadest cards blue, gain 1 Block per blue card, clear them · 50% to repeat',
-  use(s, rng, sink) { cascade(s, rng, sink, COLOR_BLUE, (st) => deadestNonColor(st, COLOR_BLUE, 3), (st, n, r, sk) => { gainBlock(st, n, r, sk) }) },
+  desc: 'turn the 3 deadest cards blue, gain 3 Block per blue card, clear them · 50% to repeat',
+  use(s, rng, sink) { cascade(s, rng, sink, COLOR_BLUE, (st) => deadestNonColor(st, COLOR_BLUE, 3), (st, n, r, sk) => { gainBlock(st, n * 3, r, sk) }) },
 })
 
 // --- threat-layer / board-shaping utility potions ---

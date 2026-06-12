@@ -10,9 +10,10 @@ import type { EventSink } from './events'
 import { weightedRoll } from './resolve'
 
 /** Add to the Block accumulator (capped at max HP). Block mitigates THIS round's telegraphed
- *  exchange and resets at the rollover; leftover past the telegraph converts there (1 per 2 —
- *  CRAWL §5.6). Block past the HP cap converts live at the same rate, and the Overflow passive
- *  (Sentinel) independently spills the FULL overcap into a weighted attack — both stack. */
+ *  exchange and resets at the rollover; anything past the telegraph (or the cap) is PURE LOSS —
+ *  over-matching Defend is a visible skill cost (settled 2026-06-11; the charge faucet belongs to
+ *  the Speed contest alone). The one PAID exception: the Overflow passive (Sentinel) spills the
+ *  overcap into a weighted attack — class identity, priced at a passive slot. */
 export function gainBlock(s: CombatState, n: number, rng: Rng, sink: EventSink): number {
   if (n <= 0) return 0
   const room = Math.max(0, s.playerMax - s.block)
@@ -23,14 +24,12 @@ export function gainBlock(s: CombatState, n: number, rng: Rng, sink: EventSink):
   }
   const overflow = n - applied
   if (overflow > 0) {
-    const charges = Math.floor(overflow / 2)
-    if (charges > 0) addCharges(s, charges, sink, 'overflow')
     if (s.passives.includes('overflow')) {
-      const dmg = weightedRoll(overflow, rng) // Sentinel: the full overflow ALSO becomes a weighted attack
+      const dmg = weightedRoll(overflow, rng) // Sentinel: the overcap becomes a weighted attack
       const dealt = dealAbilityDamage(s, dmg, sink)
       if (dealt > 0) sink.emit({ type: 'passiveProc', id: 'overflow', label: `⚔ +${dealt}` })
-    } else if (overflow - charges * 2 > 0) {
-      sink.emit({ type: 'blockOverflow', amount: overflow - charges * 2 }) // the unconverted remainder is wasted
+    } else {
+      sink.emit({ type: 'blockOverflow', amount: overflow }) // wasted — the feedback the skill reads
     }
   }
   return applied

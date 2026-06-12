@@ -1056,10 +1056,12 @@ function interpret(events: CombatEvent[]): void {
           : `<b>Round ${e.round}</b> — the ${foe} circles (no strike this round).`, 'foe')
         kickClock() // the bar refills with the deal
         break
-      case 'tacticsDumped':
-        if (e.churned > 0) log(`<b>Maneuver</b> — the tide turns: <b>${e.spent}</b> charge${e.spent > 1 ? 's' : ''} redraw <b>${e.churned}</b> card${e.churned > 1 ? 's' : ''}.`, 'you')
-        else if (e.spent > 0) log(`<b>Maneuver</b> — <b>${e.spent}</b> charge${e.spent > 1 ? 's' : ''} burn with nothing left to turn.`, 'you')
+      case 'tacticsDumped': {
+        const spent = Math.floor(e.spent)
+        if (e.churned > 0) log(`<b>Maneuver</b> — the tide turns: <b>${spent}</b> charge${spent > 1 ? 's' : ''} redraw <b>${e.churned}</b> card${e.churned > 1 ? 's' : ''}.`, 'you')
+        else if (spent > 0) log(`<b>Maneuver</b> — <b>${spent}</b> charge${spent > 1 ? 's' : ''} burn with nothing left to turn.`, 'you')
         break
+      }
       case 'enemyDamaged': {
         if (e.immune) { log('Swords pass through — only magic bites this foe.', 'foe'); floatBoard('blocked', 'var(--ink-faint)', 'enemy'); break } // fixed rule line — never varied
         floatBoard(`-${e.amount}`, e.magic ? 'var(--gold)' : 'var(--red)', 'enemy')
@@ -1462,7 +1464,7 @@ function updateBar(): void {
   V.refs.enemylab.textContent = s.foe.name
   V.refs.tac.style.width = `${(s.charges / CHARGE_CAP) * 100}%`
   V.refs.tac.classList.remove('spinup') // v3: spin-up is gone — the draw-phase lock is the commitment
-  V.refs.tacv.textContent = `${s.charges}/${CHARGE_CAP}`
+  V.refs.tacv.textContent = `${Math.floor(s.charges)}/${CHARGE_CAP}` // charge POINTS floor into pips
   V.refs.m0.textContent = String(s.mana[0])
   V.refs.m1.textContent = String(s.mana[1])
   V.refs.m2.textContent = String(s.mana[2])

@@ -11,7 +11,7 @@ import type { Rng } from '../core/rng'
 import type { GameData } from '../data/schema'
 import { type CombatState, type FoeRuntime, type Pending, type TacticKind, type ManeuverBias, type StatBlock, MANA_CAP, DEFAULT_PLAYER_MAX, BASE_STATS, ROUND_MS } from './state'
 import { type CombatEvent, EventSink } from './events'
-import { type Resolution, resolveSet, weightedRoll, SHAPE_MOVE } from './resolve'
+import { type Resolution, resolveSet, weightedRoll } from './resolve'
 import { fireTriggers, runTrigger, inflictWounds, hurtPlayer, reformSlots, EMPTY_DESC } from './triggers'
 import { gainBlock, addCharges } from './ops'
 import { firePassives } from './passives'
@@ -118,9 +118,10 @@ function applyResolution(s: CombatState, res: Resolution, rng: Rng, sink: EventS
     }
   }
   if (res.block > 0) gainBlock(s, res.block, rng, sink)
-  // Charge income (CRAWL §5.6): +1 per Move CARD in the set; Combined Arms (Warlord) adds +1 on
-  // any shape-rainbow set. (Excess-timer income died with the clock.)
-  let charges = res.desc.shapes.filter((sh) => sh === SHAPE_MOVE).length
+  // Charge income (CRAWL §5.6, contested): the Move lane's rate × quality, in charge POINTS
+  // (the Speed contest — a fast foe suppresses your board game). Combined Arms (Warlord) adds
+  // +1 on any shape-rainbow set.
+  let charges = res.charges
   if (s.passives.includes('combined_arms') && res.desc.sameShape === null) {
     charges += 1
     sink.emit({ type: 'passiveProc', id: 'combined_arms', label: '+1 ⚙' })
@@ -154,7 +155,7 @@ function completeSet(s: CombatState, slots: [number, number, number], deps: Deps
   if (!isSet(ca, cb, cc)) return // invalid pick — no-op (the UI handles misread feedback)
   if (s.attackFrozen) { s.attackFrozen = false; sink.emit({ type: 'buffFaded', id: 'invisibility', label: 'Invisibility fades — the enemy sees you again' }) }
   const cards: [Card, Card, Card] = [ca, cb, cc]
-  const res = resolveSet(cards, s.stats, deps.rng)
+  const res = resolveSet(cards, s.stats, s.foe.stats, deps.rng)
   applyResolution(s, res, deps.rng, sink)
   sink.emit({ type: 'setResolved', damage: res.damage, block: res.block, mana: res.mana, slots })
   // character-innate passives react to this match's signature (Momentum may steer the refill below)...
@@ -269,12 +270,9 @@ function rollover(s: CombatState, deps: Deps, sink: EventSink): void {
       sink.emit({ type: 'playerBlocked' })
     }
   }
-  // ③ leftover Block past the telegraph trickles to charges (1 per 2), then the guard drops
-  if (s.block > 0) {
-    const trickle = Math.floor(s.block / 2)
-    s.block = 0
-    if (trickle > 0) addCharges(s, trickle, sink, 'overflow')
-  }
+  // ③ the guard drops — leftover Block past the telegraph is PURE LOSS (settled 2026-06-11:
+  // over-matching Defend is a visible skill cost, and the Speed contest owns the charge faucet)
+  s.block = 0
   // ④ the Maneuver dump — all charges burn into the tide (Stand Ground banks carry instead)
   rolloverDump(s, deps.rng, sink)
   // ⑤ the deal — one wound knits shut; the queued stance locks as the cards settle

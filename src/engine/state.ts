@@ -20,11 +20,11 @@ export interface Pending {
   wound?: boolean
 }
 
-/** Resolution v2 ("sets steer, stats carry") — the character's stat block. Sets choose and aim the
- *  action; these carry its size: Power sizes Attack swings, Endurance sizes Defend guards. Base
- *  2/2/2 = parity with the old card-magnitude system; gear/levels grow them.
- *  ⚠ v3 OPEN (numbers workshop): Speed lost its job with the clock (it sized Move's clock-push);
- *  the likely rebase is charge-income scaling. It stays in the block, currently unread. */
+/** Resolution v3 ("sets steer, stats carry, stats CONTEST") — BOTH combatants carry this block.
+ *  Every per-card value is an opposed-stat rate (resolve.ts): your Power vs their Endurance is
+ *  your damage, their Power vs your Endurance is the telegraph, Speed vs Speed is the charge
+ *  economy (Speed's settled job — agency, not tempo). Baseline 10/10/10 (the decimal rebase);
+ *  gear/levels/tiers move the differences. */
 export interface StatBlock {
   power: number
   endurance: number
@@ -42,18 +42,20 @@ export interface ManeuverBias {
 }
 
 /** A fielded foe, resolved from data (creature ⊕ variant ⊕ template) into runtime numbers.
- *  v3: foe speed = round BEHAVIOR, not round length — `strikeEvery` rounds between exchanges,
- *  `swings` hits per exchange (each rolled, summed into one telegraph). Derived from the authored
- *  speed bands until the numbers workshop authors per-foe exchange cadence. */
+ *  v3: foes carry a full P/E/S StatBlock (the contest's other side), and their attack behavior
+ *  DERIVES from it via the TEMPO LAW (foe.ts): Speed−Power difference picks the packaging —
+ *  swarm chips / clean hits / every-other-round giants — while the per-round damage budget stays
+ *  Power-determined (damage conservation). `damage` = the per-SWING roll budget, post-packaging. */
 export interface FoeRuntime {
   id: string
   name: string
   tier: Tier | null
-  hp: number // max HP for this encounter
-  damage: number
-  cadence: number // authored seconds-between-attacks (data); v3 derives exchange cadence from it
-  strikeEvery: number // rounds between exchanges (1 = strikes every round, 2 = every other)
-  swings: number // hits per exchange (frenzied foes swing twice; telegraph shows the sum)
+  hp: number // max HP for this encounter (the kill-budget lever — authored, not a contest stat)
+  damage: number // per-swing roll budget (derived: Power budget × strikeEvery / swings)
+  stats: StatBlock // the foe's side of every contest (derived first-cut from legacy data — foe.ts)
+  cadence: number // legacy authored seconds-between-attacks (data); feeds the first-cut derivations
+  strikeEvery: number // rounds between exchanges (1 = strikes every round, 2 = every other…)
+  swings: number // hits per exchange (telegraph shows the sum)
   triggers: Trigger[] // resolved traps/tricks (each carries `kind`)
   drift: Trigger | null
   rules: FoeRules
@@ -115,7 +117,7 @@ export const ROUND_MS = 20000 // round length; everything else tunes relative to
  *  current round, capped at this many bonus seconds per round (uncapped potions bypass). */
 export const ROUND_EXTEND_CAP_S = 10
 
-export const DEFAULT_PLAYER_MAX = 30 // createCombat's default playerMax; the save layer mirrors it
+export const DEFAULT_PLAYER_MAX = 100 // the decimal rebase: HP 100 so the /10 wound laws read clean
 // Tactics v3 (CRAWL §5.6) — tuning defaults
 export const CHARGE_CAP = 15 // exact both ways: a max 5-wound haymaker (5×3) or a whole-board (15) dump
 export const WOUND_WARD_COST = 3 // Stand Ground's live cost to fizzle ONE incoming wound (board verbs cost 1)
@@ -123,6 +125,6 @@ export const MANA_CAP = 15 // per color; gains past it are pure loss (gear may r
 // Wounds (CRAWL §5.6) — computed, never authored. Both laws share one quantum: a tenth of max HP.
 export const WOUND_CAP_PER_EXCHANGE = 5
 export const woundQuantum = (s: CombatState): number => s.playerMax / 10
-// Resolution v2 (unchanged)
-export const BASE_STATS: StatBlock = { power: 2, endurance: 2, speed: 2 } // parity statline (per-card 1/2/3)
+// Resolution v3 — the decimal rebase: stats 10 give the contests room to breathe
+export const BASE_STATS: StatBlock = { power: 10, endurance: 10, speed: 10 }
 export const START_GRACE_MS = 3000 // UI freezes the round this long after Engage (read the board, no ticks advance)

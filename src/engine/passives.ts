@@ -29,9 +29,9 @@ function proc(sink: EventSink, id: string, label: string): void {
 
 export const PASSIVES: Record<string, Passive> = {
   flameshield: {
-    id: 'flameshield', name: 'Flame Shield', icon: '🔥', on: 'match', desc: 'all-red match → +3 Block',
+    id: 'flameshield', name: 'Flame Shield', icon: '🔥', on: 'match', desc: 'all-red match → +9 Block',
     test: (d) => d.sameColor === COLOR_RED,
-    fire(s, rng, sink) { gainBlock(s, 3, rng, sink); proc(sink, 'flameshield', '🛡 +3') },
+    fire(s, rng, sink) { gainBlock(s, 9, rng, sink); proc(sink, 'flameshield', '🛡 +9') },
   },
   permafrost: {
     id: 'permafrost', name: 'Permafrost', icon: '❄️', on: 'match', desc: 'all-blue match → +2s round time',
@@ -39,14 +39,14 @@ export const PASSIVES: Record<string, Passive> = {
     fire(s, _rng, sink) { extendRound(s, 2, sink); proc(sink, 'permafrost', '+2s') },
   },
   photosynthesis: {
-    id: 'photosynthesis', name: 'Photosynthesis', icon: '🌿', on: 'match', desc: 'all-green match → +3 HP',
+    id: 'photosynthesis', name: 'Photosynthesis', icon: '🌿', on: 'match', desc: 'all-green match → +9 HP',
     test: (d) => d.sameColor === COLOR_GREEN,
-    fire(s, rng, sink) { healPlayer(s, 3, rng, sink); proc(sink, 'photosynthesis', '+3 hp') },
+    fire(s, rng, sink) { healPlayer(s, 9, rng, sink); proc(sink, 'photosynthesis', '+9 hp') },
   },
   bloodlust: {
-    id: 'bloodlust', name: 'Bloodlust', icon: '⚔️', on: 'match', desc: 'all-Attack match → +4 damage',
+    id: 'bloodlust', name: 'Bloodlust', icon: '⚔️', on: 'match', desc: 'all-Attack match → +12 damage',
     test: (d) => d.sameShape === SHAPE_ATTACK,
-    fire(s, _rng, sink) { dealAbilityDamage(s, 4, sink); proc(sink, 'bloodlust', '⚔ +4') },
+    fire(s, _rng, sink) { dealAbilityDamage(s, 12, sink); proc(sink, 'bloodlust', '⚔ +12') },
   },
   // Hooked directly in ops.gainBlock (not via firePassives) — fires on any block gain, not a match.
   overflow: {
@@ -71,8 +71,8 @@ export const PASSIVES: Record<string, Passive> = {
     fire() {},
   },
   spellecho: {
-    id: 'spellecho', name: 'Spell Echo', icon: '⚡', on: 'ability', desc: 'every ability cast → +3 bonus damage',
-    fire(s, _rng, sink) { dealAbilityDamage(s, 3, sink); proc(sink, 'spellecho', '⚡ +3') },
+    id: 'spellecho', name: 'Spell Echo', icon: '⚡', on: 'ability', desc: 'every ability cast → +9 bonus damage',
+    fire(s, _rng, sink) { dealAbilityDamage(s, 9, sink); proc(sink, 'spellecho', '⚡ +9') },
   },
 }
 

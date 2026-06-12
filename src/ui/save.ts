@@ -53,8 +53,12 @@ export function sanitizeChar(x: unknown): SavedChar | null {
   if (typeof x !== 'object' || x === null) return null
   const c = x as Partial<SavedChar>
   if (typeof c.id !== 'string' || !c.id || typeof c.name !== 'string' || typeof c.classId !== 'string') return null
-  const maxHp = clampInt(c.maxHp, 1, 999, DEFAULT_MAX_HP)
-  const hp = clampInt(c.hp, 0, maxHp, maxHp)
+  let maxHp = clampInt(c.maxHp, 1, 999, DEFAULT_MAX_HP)
+  let hp = clampInt(c.hp, 0, maxHp, maxHp)
+  if (maxHp === 30) { // pre-rebase save (the HP-30 world) → migrate to HP 100, hp scaled in proportion
+    hp = Math.round((hp / 30) * DEFAULT_MAX_HP)
+    maxHp = DEFAULT_MAX_HP
+  }
   const consumables = Array.isArray(c.consumables)
     ? c.consumables.filter((s): s is string => typeof s === 'string').slice(0, CONSUMABLE_SLOTS)
     : STARTER_CONSUMABLES.slice()

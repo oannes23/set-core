@@ -681,17 +681,20 @@ constants staged in `TUNING.md` ("Rounds v3 — PLANNED"); code remains v2 until
 **The round (20s, tunable).** Matches accumulate by shape verb; nothing cashes until the
 exchange. Stats still carry (Model B per-card math, §5.5):
 - **Attack matches** → the player's exchange swing (per card `round(Power × q)`, summed).
-- **Defend matches** → mitigation of THIS round's telegraphed hit (per card
-  `round(Endurance × q)`). Overflow past the telegraph trickles to charges (1:2, the
-  v2 excess-block rule, re-denominated). The round is one continuous allocation
+- **Defend matches** → mitigation of THIS round's telegraphed hit. Block past the
+  telegraph (or the HP cap) is **PURE LOSS** (settled 2026-06-11 — no charge trickle:
+  the faucet belongs to the Speed contest, and over-matching Defend is a visible skill
+  cost the player learns to read). The one paid exception: Sentinel's Overflow passive
+  spills the overcap into a weighted attack — class identity, priced at a slot.
+  UI cue (the wheel batch): the block badge goes **"sated"** once it meets the
+  telegraph, so the waste is learnable. The round is one continuous allocation
   question: kill faster vs blunt the known hit.
-- **Move matches** → Tactics charges (+1 per Move card; the stance economy below).
+- **Move matches** → Tactics charge points (the Speed contest — see Resolution v3 below).
 - **Round reset:** Attack/Defend accumulators and the Maneuver bank zero at the
   exchange; mana, the Stand Ground bank, and HP carry. Each round is a fresh question.
-- ⚠ OPEN (numbers workshop): **Speed's new job.** v2 gave Move `round(Speed × q)`
-  clock-push seconds; the clock is gone. Natural rebase: Speed scales charge income
-  (Power→damage, Endurance→block, Speed→agency) — but the small-integer charge economy
-  (cap 5) must rescale to absorb it. Decide in the derivation-sheet pass.
+- **Speed's job — SETTLED (2026-06-11):** Speed is the **agency stat**, contested
+  against the foe's Speed for charge income (Resolution v3 below). The clock-push
+  era is fully closed.
 
 **Live mid-round** (the real-time half of the grammar):
 - **Mana + spells** — instant, outside round ordering; the panic-button slot Move used
@@ -713,11 +716,11 @@ exchange. Stats still carry (Model B per-card math, §5.5):
 5. **Next telegraph reveals + the queued stance locks.** The breath; next round's plan forms.
 
 **Foe speed = round BEHAVIOR, not round length.** The speed bands (24…9s) retire. Every
-foe gives the same 20s of scan; quickness becomes exchange cadence: a frenzied foe swings
-every round, maybe as ⚔4×2; a lumbering one every other round, huge — "— (winding up:
-⚔18 next round)". The telegraph is part of the deal, so Defend allocation is a decision,
-never a guess. This is the structural fix for the quick-foe sweet spot: scan pressure was
-the problem, and it's gone.
+foe gives the same 20s of scan; quickness becomes exchange cadence — and cadence is not
+authored but **DERIVED from the statline by the tempo law** (Resolution v3 below): swarm
+chips, clean hits, or every-Nth-round giants, all from Speed−Power. The telegraph is part
+of the deal, so Defend allocation is a decision, never a guess. This is the structural
+fix for the quick-foe sweet spot: scan pressure was the problem, and it's gone.
 
 **The stance economy — banker vs dumper.** Charges accumulate in EVERY stance (income
 above). The stances differ in their relationship to the bank AND in resolution timing:
@@ -785,6 +788,40 @@ above). The stances differ in their relationship to the bank AND in resolution t
   (⚔N−X — time magic slows the blow), delay/skip a foe's exchange round, or convert to
   charges. Settle in the v3 translation pass. Chronomancer's excess-timer-engine note
   (§5.5 ⚠) dies with the income rule.
+
+**RESOLUTION v3 — the stat contests + the tempo law (SETTLED 2026-06-11; engine built).**
+Foes carry the same **Power / Endurance / Speed** block as players, and every per-card
+value is an **opposed-stat rate × quality** — one stat pair per lane, each stat used
+exactly once per direction (no double-dipping):
+- **Attack card** → `rate(your Power, their Endurance) × q` banked toward the exchange.
+- **Defend card** → `rate(your Endurance, their Power) × q` banked as Block.
+- **Move card** → `rate(your Speed, their Speed) × q` banked as charge points (fractional
+  under the hood; the gauge shows whole pips). A fast foe suppresses your board game —
+  not your eyes.
+- **The telegraph** is the foe's own Power expressed: round budget = `Power × K`,
+  un-discounted (the contest is felt through your block math, not double-counted).
+- Rates are **difference-based with clamps** (legible + bounded under gear; ratios
+  compound viciously). At parity (10 vs 10) an Attack/Defend card is worth `8 × q` —
+  a magnitude-6 set ≈ 25, the even-exchange quantum. Constants in `TUNING.md`.
+
+**The TEMPO LAW — attack behavior derives from the statline.** `Speed − Power` picks the
+packaging while Power fixes the per-round budget (damage conservation): diff ≥ +4 → 3 chip
+swings/round · −1..+3 → 2 swings (equals → two hits) · −4..−2 → one clean hit ·
+−7..−5 → every 2nd round at double budget · ≤ −8 → every 3rd round at triple (the
+Behemoth: certain death on a visible schedule). Packaging is mechanically real through
+the wound law — swarms chip below the quantum and never scar; giants concentrate damage
+and scar hard — and it seeds the B3 affix taxonomy (flat per-hit reduction = anti-swarm;
+wards/burst = anti-giant). An authored override field stays available for exceptional
+foes; derivation is the default.
+
+**The 6/6/6 baseline axiom (the balancing anchor).** Casual/baseline play = one
+magnitude-6 set per verb per round (~a match every 6–7s; measured experienced play runs
+4–6 sets/round, so competent ≈ ×2). At stat parity and baseline play the exchange is
+even: a mag-6 Defend set neutralizes the average telegraph, a mag-6 Attack set deals the
+baseline quantum (~25). **Tiers are output multipliers** — minion balanced at ×1.0
+baseline output, elite ×1.5, boss ×2.0 — so skill and gear are interchangeable
+currencies against the ladder. First-cut foe stats are tier-anchored (TUNING.md);
+kill budgets per tier are the open derivation-sheet item.
 
 **The feel target (user, 2026-06-11 — keep verbatim):** "you play the round in a quick
 frantic pace making matches, resisting the drift, using spells. You probably bias toward

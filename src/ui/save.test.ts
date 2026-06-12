@@ -30,24 +30,25 @@ test('parseRoster migrates a legacy bare-array (v1) payload and backfills consum
   const legacy = JSON.stringify([{ id: 'id1', name: 'Rook', classId: 'sentinel', hp: 12, maxHp: 30 }])
   const r = parseRoster(legacy)
   expect(r).toHaveLength(1)
-  expect(r[0]).toMatchObject({ id: 'id1', hp: 12, maxHp: 30, consumables: STARTER_CONSUMABLES })
+  // a pre-rebase (HP-30) save migrates to the HP-100 world, hp scaled in proportion (12/30 → 40/100)
+  expect(r[0]).toMatchObject({ id: 'id1', hp: 40, maxHp: 100, consumables: STARTER_CONSUMABLES })
 })
 
 test('parseRoster reads the v2 envelope and round-trips clean chars unchanged', () => {
-  const env = JSON.stringify({ v: 2, chars: [{ id: 'a', name: 'A', classId: 'rogue', hp: 5, maxHp: 30, consumables: ['hp_std'] }] })
-  expect(parseRoster(env)[0]).toEqual({ id: 'a', name: 'A', classId: 'rogue', hp: 5, maxHp: 30, consumables: ['hp_std'] })
+  const env = JSON.stringify({ v: 2, chars: [{ id: 'a', name: 'A', classId: 'rogue', hp: 50, maxHp: 100, consumables: ['hp_std'] }] })
+  expect(parseRoster(env)[0]).toEqual({ id: 'a', name: 'A', classId: 'rogue', hp: 50, maxHp: 100, consumables: ['hp_std'] })
 })
 
 test('parseRoster drops unsalvageable entries and clamps corrupt numerics', () => {
   const env = JSON.stringify({ v: 2, chars: [
     null,
     { name: 'no-id', classId: 'rogue' },
-    { id: 'b', name: 'B', classId: 'rogue', hp: 999, maxHp: 30 }, // hp > maxHp → clamp
+    { id: 'b', name: 'B', classId: 'rogue', hp: 999, maxHp: 100 }, // hp > maxHp → clamp
     { id: 'c', name: 'C', classId: 'rogue', hp: 'x', maxHp: 'y' }, // garbage numerics → defaults
   ] })
   const r = parseRoster(env)
   expect(r.map((c) => c.id)).toEqual(['b', 'c'])
-  expect(r[0].hp).toBe(30)
+  expect(r[0].hp).toBe(100)
   expect(r[1]).toMatchObject({ hp: DEFAULT_MAX_HP, maxHp: DEFAULT_MAX_HP })
 })
 

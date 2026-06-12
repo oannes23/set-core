@@ -69,7 +69,7 @@ test('Photosynthesis heals on an all-green match', () => {
   const r = reduce(s, { type: 'completeSet', slots: [0, 1, 2] }, deps())
   expect(r.events.some((e) => e.type === 'passiveProc' && e.id === 'photosynthesis')).toBe(true)
   const healed = r.events.find((e) => e.type === 'playerHealed') as { amount: number } | undefined
-  expect(healed?.amount).toBe(3)
+  expect(healed?.amount).toBe(9)
 })
 
 test('Momentum biases the refill on an all-Move match, then clears', () => {
@@ -135,7 +135,7 @@ test('Combined Arms (Warlord): a shape-rainbow set banks +1 bonus charge', () =>
   s.board[1] = card(1, SHAPE_DEFEND, 1)
   s.board[2] = card(2, SHAPE_MOVE, 2)
   const r = reduce(s, { type: 'completeSet', slots: [0, 1, 2] }, deps())
-  expect(r.state.charges).toBe(2) // 1 (the Move card) + 1 (Combined Arms)
+  expect(r.state.charges).toBeCloseTo(2.4) // 1.4 (the heavy Move card at parity rate) + 1 (Combined Arms)
   expect(r.events.some((e) => e.type === 'passiveProc' && e.id === 'combined_arms')).toBe(true)
 })
 
@@ -163,9 +163,9 @@ test('Stand Ground wards a wound for 3 charges; the HP damage already landed (Bl
   s.charges = 4
   const sink = new EventSink()
   const before = s.board.filter(Boolean).length
-  // playerMax 30 → quantum 3: a 7-bite = 2 wounds. The ward eats ONE (3 charges); the
+  // playerMax 100 → quantum 10: a 25-bite = 2 wounds. The ward eats ONE (3 charges); the
   // remaining 1 charge can't pay for the second — it scars through.
-  inflictWounds(s, 7, mulberry32(5), sink)
+  inflictWounds(s, 25, mulberry32(5), sink)
   expect(sink.events.filter((e) => e.type === 'warded' && e.what === 'shatter')).toHaveLength(1)
   expect(sink.events.some((e) => e.type === 'cardsShattered')).toBe(true)
   expect(s.board.filter(Boolean).length).toBe(before - 1)
@@ -178,7 +178,7 @@ test('charge income: +1 per Move card matched, flat (clock income died with the 
   s.board[1] = card(1, SHAPE_MOVE, 1)
   s.board[2] = card(2, SHAPE_MOVE, 2)
   const r = reduce(s, { type: 'completeSet', slots: [0, 1, 2] }, deps())
-  expect(r.state.charges).toBe(3)
+  expect(r.state.charges).toBeCloseTo(0.7 + 1 + 1.4) // parity rate 1 × quality, in charge points
 })
 
 test('mana caps at MANA_CAP — gains past it are pure loss', () => {
@@ -203,26 +203,28 @@ test('flee forfeits the encounter at any time (not gated by the meter)', () => {
 test('an exchange hit past Block scars by the wound law — and one wound knits with the deal', () => {
   const s = combat('limbless_zombie')
   s.block = 0
-  s.incoming = 9 // force this round's telegraph: bite 9 → floor(9 / (30/10)) = 3 wounds
+  s.incoming = 35 // force this round's telegraph: bite 35 → floor(35 / (100/10)) = 3 wounds
   const before = s.board.filter(Boolean).length
   const t = reduce(s, { type: 'tick', dtMs: 20_100 }, deps()) // the rollover exchange
-  expect(t.events.some((e) => e.type === 'playerDamaged' && e.amount === 9)).toBe(true)
+  expect(t.events.some((e) => e.type === 'playerDamaged' && e.amount === 35)).toBe(true)
   expect(t.events.some((e) => e.type === 'cardsShattered')).toBe(true)
   expect(t.state.board.filter(Boolean).length).toBe(before - 2) // 3 scarred, 1 knit at the draw phase
   expect([...t.state.pending.values()].filter((p) => p.wound)).toHaveLength(2)
 })
 
-test('block never exceeds the cap — Defend overflow converts to charges (1 per 2)', () => {
+test('block never exceeds the cap — and overflow is PURE LOSS (no charge trickle)', () => {
   const s = combat('training_dummy')
   s.playerMax = 30
   s.block = 30 // full → the whole gain overflows
   s.charges = 0
-  gainBlock(s, 20, mulberry32(1), new EventSink())
+  const sink = new EventSink()
+  gainBlock(s, 20, mulberry32(1), sink)
   expect(s.block).toBe(30) // capped — never creeps past the limit (this was the bug)
-  expect(s.charges).toBe(10) // floor(20/2) = 10 (fits the v3 cap of 15)
+  expect(s.charges).toBe(0) // settled 2026-06-11: over-matching Defend is a visible skill cost
+  expect(sink.events.some((e) => e.type === 'blockOverflow' && e.amount === 20)).toBe(true)
 })
 
-test('Sentinel (Overflow) stacks: overflow becomes BOTH a weighted attack and charges', () => {
+test('Sentinel (Overflow): the overcap spills into a weighted attack — the PAID exception', () => {
   const s = combat('limbless_zombie', { passives: ['overflow'] })
   s.enemyHP = 100
   s.playerMax = 30
@@ -230,8 +232,8 @@ test('Sentinel (Overflow) stacks: overflow becomes BOTH a weighted attack and ch
   s.charges = 0
   for (let i = 0; i < 4; i++) gainBlock(s, 12, mulberry32(i + 3), new EventSink())
   expect(s.block).toBe(30) // block never exceeds the cap
-  expect(s.charges).toBeGreaterThan(0) // the charge conversion happened
-  expect(s.enemyHP).toBeLessThan(100) // AND the Sentinel attack landed (both bonuses apply)
+  expect(s.charges).toBe(0) // no charge trickle for anyone — the faucet belongs to the Speed contest
+  expect(s.enemyHP).toBeLessThan(100) // but the Sentinel attack landed (class identity, priced at a slot)
 })
 
 // ---- determinism with casts in the mix ----

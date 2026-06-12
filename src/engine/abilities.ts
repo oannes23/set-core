@@ -51,26 +51,26 @@ function deadestN(s: CombatState, n: number, rng: Rng): number[] {
 export const ABILITIES: Record<string, Ability> = {
   // ---- AUTO-TARGET bolts: aim at a random deadest off-colour card, reforge it toward colour + verb ----
   firebolt: {
-    id: 'firebolt', name: 'Firebolt', icon: '🔥', cost: [4, 0, 0], desc: '15 dmg · burns a deadest off-red card → Fire/Attack',
+    id: 'firebolt', name: 'Firebolt', icon: '🔥', cost: [4, 0, 0], desc: '45 dmg · burns a deadest off-red card → Fire/Attack',
     cast(s, rng, sink) {
-      dealRolled(s, 15, rng, sink)
+      dealRolled(s, 45, rng, sink)
       const pick = randOf(deadestCandidates(s, COLOR_RED), rng)
       if (pick != null) transmute(s, [pick], { bias: { color: COLOR_RED, colorW: BIAS_W, shape: SHAPE_ATTACK, shapeW: BIAS_W } }, sink)
     },
   },
   frostbolt: {
-    id: 'frostbolt', name: 'Frostbolt', icon: '❄️', cost: [0, 0, 5], desc: '8 dmg · +5s round · freezes a deadest off-blue card → Frost/Move',
+    id: 'frostbolt', name: 'Frostbolt', icon: '❄️', cost: [0, 0, 5], desc: '24 dmg · +5s round · freezes a deadest off-blue card → Frost/Move',
     cast(s, rng, sink) {
-      dealRolled(s, 8, rng, sink)
+      dealRolled(s, 24, rng, sink)
       extendRound(s, 5, sink) // ⚠ INTERIM stall re-anchor: time magic stretches the round (capped)
       const pick = randOf(deadestCandidates(s, COLOR_BLUE), rng)
       if (pick != null) transmute(s, [pick], { bias: { color: COLOR_BLUE, colorW: BIAS_W, shape: SHAPE_MOVE, shapeW: BIAS_W } }, sink)
     },
   },
   heal: {
-    id: 'heal', name: 'Heal', icon: '💚', cost: [0, 5, 0], desc: '15 HP max · knits wounds (by law) + reseeds green',
+    id: 'heal', name: 'Heal', icon: '💚', cost: [0, 5, 0], desc: '45 HP max · knits wounds (by law) + reseeds green',
     cast(s, rng, sink) {
-      healPlayer(s, weightedRoll(15, rng), rng, sink) // the v3 heal law knits wounds — no manual closing
+      healPlayer(s, weightedRoll(45, rng), rng, sink) // the v3 heal law knits wounds — no manual closing
       const greenBias: FavorBias = { color: COLOR_GREEN, colorW: BIAS_W } // keep green, redraw shape/number
       const roll = Math.floor(rng() * 6) // 0..5 slots reseeded green
       const greens = pickPreferred(s, liveSlots(s, (c) => cardColor(c) === COLOR_GREEN), roll, () => 1, rng)
@@ -78,9 +78,9 @@ export const ABILITIES: Record<string, Ability> = {
     },
   },
   block: {
-    id: 'block', name: 'Block', icon: '🛡️', cost: [2, 2, 2], desc: '+10 block · churns up to 3 Defends',
+    id: 'block', name: 'Block', icon: '🛡️', cost: [2, 2, 2], desc: '+30 block · churns up to 3 Defends',
     cast(s, rng, sink) {
-      gainBlock(s, 10, rng, sink)
+      gainBlock(s, 30, rng, sink)
       // scatter up to 3 spent Defend cards — favour colour variety + lighter ones; regen is neutral
       const picks = pickPreferred(s, liveSlots(s, (c) => cardShape(c) === SHAPE_DEFEND), 3, prefAll(prefLowMag, prefColorDiverse), rng)
       if (picks.length) transmute(s, picks, {}, sink)
@@ -93,7 +93,7 @@ export const ABILITIES: Record<string, Ability> = {
       const center = randOf(deadestCandidates(s, COLOR_RED), rng)
       const hits = center == null ? [] : offsetSlots(s, center, FIREBALL_BLAST).filter((i) => s.board[i] && !s.pending.has(i) && !s.locked.has(i))
       if (!hits.length) { fizzle(sink, 'fireball'); return }
-      const cap = hits.reduce((acc, i) => acc + cardMag(s.board[i]!) + 2, 0) // each razed card worth 2/3/4
+      const cap = hits.reduce((acc, i) => acc + (cardMag(s.board[i]!) + 2) * 3, 0) // each razed card worth 6/9/12
       dealAbilityDamage(s, weightedRoll(cap, rng), sink)
       transmute(s, hits, { bias: { color: COLOR_RED, colorW: BIAS_W, shape: SHAPE_ATTACK, shapeW: BIAS_W } }, sink)
     },
@@ -115,7 +115,7 @@ export const ABILITIES: Record<string, Ability> = {
       const picks = pickPreferred(s, liveSlots(s), 3, prefHighMag, rng)
       if (!picks.length) { fizzle(sink, 'wildgrowth'); return }
       const ripeness = picks.reduce((acc, i) => acc + cardMag(s.board[i]!) + 1, 0)
-      healPlayer(s, ripeness * 2, rng, sink)
+      healPlayer(s, ripeness * 6, rng, sink)
       transmute(s, picks, { bias: { color: COLOR_GREEN, colorW: BIAS_W, mag: 0, magW: BIAS_W } }, sink) // green · light
     },
   },
@@ -148,9 +148,9 @@ export const ABILITIES: Record<string, Ability> = {
   },
   // ---- SHAPE consumers: reshape the board along the verb axis ----
   cleave: {
-    id: 'cleave', name: 'Cleave', icon: '🪓', cost: [4, 0, 0], desc: '15 dmg · razes a deadest card → heavy Attack',
+    id: 'cleave', name: 'Cleave', icon: '🪓', cost: [4, 0, 0], desc: '45 dmg · razes a deadest card → heavy Attack',
     cast(s, rng, sink) {
-      dealRolled(s, 15, rng, sink)
+      dealRolled(s, 45, rng, sink)
       const pick = randOf(deadestCandidates(s, COLOR_RED), rng)
       if (pick != null) transmute(s, [pick], { bias: { shape: SHAPE_ATTACK, shapeW: BIAS_W, mag: 2, magW: BIAS_W } }, sink)
     },
@@ -164,15 +164,15 @@ export const ABILITIES: Record<string, Ability> = {
     cast(s, rng, sink) {
       const atk = liveSlots(s, (c) => cardShape(c) === SHAPE_ATTACK)
       if (!atk.length) { fizzle(sink, 'rampage'); return }
-      const cap = atk.reduce((acc, i) => acc + cardMag(s.board[i]!) + 2, 0) // each Attack worth 2/3/4
+      const cap = atk.reduce((acc, i) => acc + (cardMag(s.board[i]!) + 2) * 3, 0) // each Attack worth 6/9/12
       dealAbilityDamage(s, weightedRoll(cap, rng), sink)
       transmute(s, atk, {}, sink)
     },
   },
   bulwark: {
-    id: 'bulwark', name: 'Bulwark', icon: '🧱', cost: [2, 2, 2], desc: '+8 block · every non-Defend → Defend',
+    id: 'bulwark', name: 'Bulwark', icon: '🧱', cost: [2, 2, 2], desc: '+24 block · every non-Defend → Defend',
     cast(s, rng, sink) {
-      gainBlock(s, 8, rng, sink)
+      gainBlock(s, 24, rng, sink)
       // shape-only: a MAGNITUDE flood made every set a 9-value print (the "Bulwark loop") — never again
       transmute(s, liveSlots(s, (c) => cardShape(c) !== SHAPE_DEFEND), { bias: { shape: SHAPE_DEFEND, shapeW: BIAS_W } }, sink)
     },
@@ -181,34 +181,34 @@ export const ABILITIES: Record<string, Ability> = {
     id: 'quickstrike', name: 'Quick Strike', icon: '🗡️', cost: [3, 0, 0], desc: 'damage per Attack, then they flow into Moves',
     cast(s, rng, sink) {
       const atk = liveSlots(s, (c) => cardShape(c) === SHAPE_ATTACK)
-      const cap = atk.reduce((acc, i) => acc + cardMag(s.board[i]!) + 1, 0) || 4
+      const cap = atk.reduce((acc, i) => acc + (cardMag(s.board[i]!) + 1) * 3, 0) || 12
       dealRolled(s, cap, rng, sink)
       if (atk.length) transmute(s, atk, { bias: { shape: SHAPE_MOVE, shapeW: BIAS_W } }, sink)
     },
   },
   smokebomb: {
-    id: 'smokebomb', name: 'Smoke Bomb', icon: '💨', cost: [0, 3, 0], desc: '+6 block · +8s round (vanish into the haze)',
-    cast(s, rng, sink) { gainBlock(s, 6, rng, sink); extendRound(s, 8, sink) },
+    id: 'smokebomb', name: 'Smoke Bomb', icon: '💨', cost: [0, 3, 0], desc: '+18 block · +8s round (vanish into the haze)',
+    cast(s, rng, sink) { gainBlock(s, 18, rng, sink); extendRound(s, 8, sink) },
   },
   // ---- GREEN sinks (a mono-green defensive + a mono-green strike) so every class can spend Nature ----
   thornwall: {
-    id: 'thornwall', name: 'Thornwall', icon: '🌵', cost: [0, 4, 0], desc: '+8 block · every Attack → Defend (briars)',
+    id: 'thornwall', name: 'Thornwall', icon: '🌵', cost: [0, 4, 0], desc: '+24 block · every Attack → Defend (briars)',
     cast(s, rng, sink) {
-      gainBlock(s, 8, rng, sink)
+      gainBlock(s, 24, rng, sink)
       transmute(s, liveSlots(s, (c) => cardShape(c) === SHAPE_ATTACK), { bias: { shape: SHAPE_DEFEND, shapeW: BIAS_W } }, sink)
     },
   },
   venomstrike: {
-    id: 'venomstrike', name: 'Venom Strike', icon: '🐍', cost: [0, 4, 0], desc: '12 dmg · poisons a deadest off-green card → Nature/Attack',
+    id: 'venomstrike', name: 'Venom Strike', icon: '🐍', cost: [0, 4, 0], desc: '36 dmg · poisons a deadest off-green card → Nature/Attack',
     cast(s, rng, sink) {
-      dealRolled(s, 12, rng, sink)
+      dealRolled(s, 36, rng, sink)
       const pick = randOf(deadestCandidates(s, COLOR_GREEN), rng)
       if (pick != null) transmute(s, [pick], { bias: { color: COLOR_GREEN, colorW: BIAS_W, shape: SHAPE_ATTACK, shapeW: BIAS_W } }, sink)
     },
   },
   thornvines: {
-    id: 'thornvines', name: 'Thorn Vines', icon: '🌹', cost: [0, 4, 0], desc: '10 dmg · +5s round (thorns ensnare)',
-    cast(s, rng, sink) { dealRolled(s, 10, rng, sink); extendRound(s, 5, sink) }, // green offence + crowd control
+    id: 'thornvines', name: 'Thorn Vines', icon: '🌹', cost: [0, 4, 0], desc: '30 dmg · +5s round (thorns ensnare)',
+    cast(s, rng, sink) { dealRolled(s, 30, rng, sink); extendRound(s, 5, sink) }, // green offence + crowd control
   },
   // ---- BLUE sinks (control/tempo, not just frost-caster) so martial classes can spend Frost too ----
   rally: {
@@ -224,17 +224,17 @@ export const ABILITIES: Record<string, Ability> = {
     },
   },
   coldblade: {
-    id: 'coldblade', name: 'Cold Blade', icon: '🥶', cost: [0, 0, 3], desc: '10 dmg · +4s round (a frigid strike)',
-    cast(s, rng, sink) { dealRolled(s, 10, rng, sink); extendRound(s, 4, sink) },
+    id: 'coldblade', name: 'Cold Blade', icon: '🥶', cost: [0, 0, 3], desc: '30 dmg · +4s round (a frigid strike)',
+    cast(s, rng, sink) { dealRolled(s, 30, rng, sink); extendRound(s, 4, sink) },
   },
   riposte: {
-    id: 'riposte', name: 'Riposte', icon: '🤺', cost: [0, 0, 4], desc: '+6 block · 8 dmg counter',
-    cast(s, rng, sink) { gainBlock(s, 6, rng, sink); dealRolled(s, 8, rng, sink) },
+    id: 'riposte', name: 'Riposte', icon: '🤺', cost: [0, 0, 4], desc: '+18 block · 24 dmg counter',
+    cast(s, rng, sink) { gainBlock(s, 18, rng, sink); dealRolled(s, 24, rng, sink) },
   },
   timewarp: {
-    id: 'timewarp', name: 'Time Warp', icon: '⏳', cost: [2, 2, 2], desc: 'stretch the round to its full cap + 6 dmg',
+    id: 'timewarp', name: 'Time Warp', icon: '⏳', cost: [2, 2, 2], desc: 'stretch the round to its full cap + 18 dmg',
     cast(s, rng, sink) {
-      dealRolled(s, 6, rng, sink)
+      dealRolled(s, 18, rng, sink)
       extendRound(s, ROUND_EXTEND_CAP_S, sink) // slam the round to its extension cap (whatever remains)
     },
   },

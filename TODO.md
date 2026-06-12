@@ -157,15 +157,24 @@ Build scope (before B3 gear; doesn't collide with B2's run shell — combat-only
   timer). INTERIM rulings (flagged in code, settle in the workshop): stall verbs EXTEND the
   round (cap +10s, uncapped potions bypass); strikeEvery/swings derived from speed bands;
   Invisibility keeps its authored +5 (not a full fill of the new cap). 91 tests passing.
-- `[ ]` **Numbers workshop (still open, settle in the derivation-sheet pass):** Speed's new
-  job (clock-push is gone — likely charge-income scaling: Power→damage, Endurance→block,
-  Speed→agency; the charge economy must absorb it) · stall-kit re-anchor (timewarp/glaciate/
-  frostbolt/smokebomb/thornvines lose the clock — candidates: shave the telegraph / delay an
-  exchange / convert to charges) · derivation sheet in TUNING.md (≈6 axioms) + headless
-  budget-conformance sim · per-foe exchange-cadence authoring (replaces the speed bands).
+- `[x]` **Resolution v3 — the STAT CONTESTS + the TEMPO LAW (settled & built 2026-06-11,
+  same day):** foes carry full P/E/S; every per-card value = `rate(yourStat, theirOpposed) × q`
+  (Attack: P vs E · Defend: E vs P · Move: S vs S in charge POINTS — **Speed's job settled:
+  agency, contested**); telegraph = foe Power budget; **tempo law** derives attack packaging
+  from S−P (3 chip swings ↔ every-3rd-round giants, damage-conserving); 6/6/6 baseline axiom +
+  tier-multiplier ladder (×1.0/×1.5/×2.0); decimal rebase landed (HP 100 / stats 10, save
+  migration, ×3 player-number sweep, legacy trap-damage scale); **Defend overflow → charges
+  REMOVED** (excess block = pure loss; Sentinel = the paid exception). Axioms + first-cut
+  constants: `TUNING.md`; spec: CRAWL §5.6. 92 tests passing.
+- `[ ]` **Numbers workshop (remaining):** the headless **budget-conformance sim** vs the
+  axioms (A6 kill budgets per tier = the open number) · the **data rebase** (author P/E/S per
+  creature; retire the foe.ts bridge + legacy ×10/3 scales; variant/template `stat_mod` →
+  stat deltas; per-foe tempo OVERRIDE field for exceptions) · stall-kit FINAL ruling (round
+  extension is the flagged interim) · re-derive the player ×3 sweep properly.
 - `[ ]` **UI:** the Tactics wheel (7 states; lit = locked, ghost = queued), round bar (the bar
   IS the round), rollover choreography (swing→swing→dump→deal→telegraph), wound-row rendering,
-  dev instruments grow a **sets/round** readout (expect ~4–6 from current sets/min).
+  the **"sated guard" cue** (block badge dims once it meets the telegraph — over-matching must
+  be learnable), dev instruments grow a **sets/round** readout (~3 baseline / 4–6 competent).
 - `[ ]` **Coach:** low-match-count player takes ≥4 wounds in one exchange → cooldowned
   "Stand Ground to stabilize" reminder (rides the explain-mid-play variant below).
 - `[ ]` **Sim:** assert FLOOR under worst-case wounds(5)+locks; re-read reshape share + spring

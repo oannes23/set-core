@@ -78,22 +78,48 @@ export function assembleFoe(creatureId: string, dungeon: Dungeon | null, data: G
   const name = (templateName ? templateName + ' ' : '') + (variantName ? variantName + ' ' : '') + base.name
   const drift = dungeon?.drift ? (data.drifts[dungeon.drift] ?? null) : null
   const cadence = speedSeconds(data, base.speed, bandShift)
+
+  // ---- RESOLUTION v3 FIRST-CUT STAT DERIVATION (⚠ sim-fodder — the data rebase will author
+  // P/E/S directly; until then the legacy hp/damage/speed-band numbers convert here, one place).
+  // Speed stat: the old band, read as the agency contest (lumbering 6 … frenzied 14).
+  const speedStat = dmg <= 0 ? 10 : cadence >= 20 ? 6 : cadence >= 16 ? 8 : cadence >= 13 ? 10 : cadence >= 10 ? 12 : 14
+  // Power: TIER-ANCHORED (the old DPS numbers were balanced for a different block/clock model and
+  // do not transfer — minions sit below the parity-25 budget, elites above, bosses on top), with a
+  // small offset for the foe's authored per-hit heft so heavy hitters keep their identity.
+  const tierP = base.tier === 'boss' ? 13 : base.tier === 'elite' ? 11 : 8
+  const heft = Math.max(-3, Math.min(3, Math.round((dmg / 30 - 0.4) * 5)))
+  const power = dmg <= 0 ? 0 : Math.min(20, Math.max(1, tierP + heft))
+  // Endurance: parity baseline + a tier bump (elites/bosses blunt your per-card damage).
+  const endurance = 10 + (base.tier === 'boss' ? 4 : base.tier === 'elite' ? 2 : 0)
+
+  // ---- THE TEMPO LAW (CRAWL §5.6): Speed−Power picks the PACKAGING; Power fixes the budget.
+  // diff ≥ +4 → 3 chip swings/round · −1..+3 → 2 swings (equals → two hits) · −4..−2 → one clean
+  // hit · −7..−5 → every 2nd round at double budget · ≤ −8 → every 3rd round at triple.
+  const diff = speedStat - power
+  const strikeEvery = dmg <= 0 ? 1 : diff <= -8 ? 3 : diff <= -5 ? 2 : 1
+  const swings = dmg <= 0 ? 1 : strikeEvery > 1 ? 1 : diff >= 4 ? 3 : diff >= -1 ? 2 : 1
+  // Damage conservation: per-swing roll budget keeps round-rate = Power × DMG_BUDGET_K.
+  const perSwing = dmg <= 0 ? 0 : Math.max(1, Math.round((power * DMG_BUDGET_K * strikeEvery) / swings))
+
   return {
     id: creatureId,
     name,
     tier: base.tier,
-    hp: Math.max(1, hp | 0),
-    damage: Math.max(0, dmg | 0),
+    hp: Math.max(1, Math.round((hp * LEGACY_HP_SCALE) / 5) * 5), // HP-100 world (kill budgets re-derive in the sim)
+    damage: perSwing,
+    stats: { power, endurance, speed: speedStat },
     cadence,
-    // ROUNDS v3 ⚠ INTERIM derivation (per-foe exchange authoring = numbers-workshop item):
-    // foe speed = round BEHAVIOR — heavy bands (lumbering 24 / slow 19) strike every OTHER
-    // exchange; frenzied (9) swings TWICE per exchange (telegraph shows the sum). DPS roughly
-    // tracks the old continuous cadences against the 20s round.
-    strikeEvery: cadence >= 16 ? 2 : 1,
-    swings: cadence <= 10 ? 2 : 1,
+    strikeEvery,
+    swings,
     triggers,
     drift,
     rules: base.rules ?? {},
     desc: base.desc ?? null,
   }
 }
+
+/** Round damage budget per point of foe Power (parity Power 10 → ~25/round, the even-exchange
+ *  quantum a magnitude-6 Defend set neutralizes). First-cut constant — TUNING.md. */
+export const DMG_BUDGET_K = 2.5
+/** Legacy data → HP-100 world scale (the data rebase retires this). */
+export const LEGACY_HP_SCALE = 10 / 3

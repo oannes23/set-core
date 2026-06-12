@@ -3,61 +3,56 @@
 **The numbers below live in code; this file is a mirror, not an authority.**
 Design docs should cite `TUNING.md` instead of inlining numbers — when a
 constant changes in code, update it here (one place) rather than chasing prose
-across the design docs. Verified against `src/` on 2026-06-10 (incl. the Resolution v2 retune: slower bands, ~+25% creature damage — fewer, weightier, telegraphed exchanges).
+across the design docs. Verified against `src/` on 2026-06-11 (the ROUNDS v3 +
+Resolution v3 contests build). ⚠ Every contest/tier constant is a **first cut**
+pending the derivation-sheet sim — directionally settled, numerically sim-fodder.
 
-## Resolution v2 — "sets steer, stats carry" (Model B)
+## The derivation sheet — axioms (CRAWL §5.6; the sim validates against these)
 
-| Constant | Value | File | Meaning |
-|---|---|---|---|
-| `BASE_STATS` | power 2 · endurance 2 · speed 2 | `src/engine/state.ts` | The parity statline (per-card values 1/2/3, identical to the old magnitude system) |
-| `QUALITY` | ① ×0.7 · ② ×1.0 · ③ ×1.4 | `src/engine/resolve.ts` | Card magnitude = action quality; per card `round(stat × q)` |
-| Set damage | deterministic | `src/engine/resolve.ts` | A set always delivers exactly what it reads (no roll); `weightedRoll` remains for enemy strikes + abilities |
-| `DEFAULT_WINDUP_S` | 4 | `src/engine/state.ts` | Telegraphed-exchange windup: the strike is pre-rolled, REVEALED, and COMMITTED (Move pushes → charges) |
-| Authored windups | Behemoth 8 · King 6 · Butcher 6 | `src/data/game-data.ts` (`windup`) | Heavy hitters rise visibly longer |
-
-## Rounds v3 — PLANNED (settled 2026-06-11; **NOT in code yet**, spec in `CRAWL-DESIGN.md` §5.6)
-
-Design targets for the next combat build. The round is THE pacing constant; combat
-time numbers rebase from seconds to rounds.
-
-| Constant / law | Target | Meaning |
+| # | Axiom | Value |
 |---|---|---|
-| `ROUND_S` | 20 | Round length — the axiom every other pacing number tunes against (~4–6 sets/round at current sets/min) |
-| Rollover beat | ≤ ~2.5s | Diegetic choreography (player swing → enemy swing → dump → deal → telegraph); never a modal |
-| Kill-race | player swing first | Lethal cancels the enemy swing (symmetric: banked lethal beats incoming death) |
-| Wound inflict | `floor(dmgSuffered / (maxHP/10))` per EXCHANGE (swings summed), cap 5 | Computed, never authored; Defend is primary prevention (wounds key to damage *suffered*) |
-| Wound repair | `ceil(heal / (maxHP/10))` | Any heal repairs wounds; floor-vs-ceil asymmetry is deliberately player-generous |
-| Wound recovery | 1 per draw phase; all at combat end | Replaces `DMG_REGEN_MS` |
-| Ward cost (SG, live) | board verb 1 · wound 3 | Stand Ground intercepts live and carries its bank across rollovers |
-| `CHARGE_CAP` | **15** (up from 5) | Exact both ways: full bank = a max 5-wound haymaker (5×3) or a whole-board (15-card) Maneuver dump |
-| Maneuver dump | all charges at rollover → N deadest NOT-already-matching cards redraw to bias; bank zeroes | Overflow past available non-matching cards burns unused |
-| Defend overflow | 1 charge per 2 past the telegraph | The v2 excess-block rule, re-denominated |
-| Mid-round regen | NEUTRAL | `BIAS_W` expresses only via the Maneuver rollover dump |
-| Round reset | Attack/Defend accumulators + Maneuver bank → 0; mana + SG bank + HP carry | Each round a fresh allocation question |
-| Decimal rebase | HP 100 · stats 10 | Lands WITH v3 (the /10 wound laws confirm the package) |
+| A1 | The round is THE pacing constant | `ROUND_S` 20 · rollover ≤ ~2.5s diegetic, never a modal |
+| A2 | Baseline play = **6/6/6** | one magnitude-6 set per verb per round (~a match / 6–7s); competent ≈ ×2 (measured 4–6 sets/round) |
+| A3 | The decimal rebase | HP 100 · stats 10 (both combatants carry P/E/S) |
+| A4 | Even = average | at stat parity + baseline play the exchange is even: a mag-6 Defend set ≈ neutralizes the average telegraph (~25); a mag-6 Attack set ≈ 25 |
+| A5 | Tiers are output multipliers | minion ×1.0 · elite ×1.5 · boss ×2.0 of baseline output (skill and gear are interchangeable against the ladder) |
+| A6 | Kill budgets per tier | **OPEN** — rounds-to-kill targets, set with the headless budget-conformance sim |
 
-**Retired by v3:** `SWAP_SPINUP_MS` (the draw-phase stance lock IS the commitment),
-`CLOCK_CAP` + excess-timer income (no clock), `DMG_REGEN_MS`, the speed bands (foe speed
-= exchange cadence/behavior, authored per foe), the continuous `BIAS_W` regen tilt.
-**Open numbers:** Speed's new job (likely charge-income scaling) · stall-kit re-anchor ·
-the per-foe cadence table. Remap: Adaptive Tactics → **Combined Arms** (+1 charge on
-shape-rainbow sets).
+## Rounds v3 — the round grammar (LIVE)
 
-## Combat & Tactics (v2)
+| Constant / law | Value | File | Meaning |
+|---|---|---|---|
+| `ROUND_MS` | 20 000 | `src/engine/state.ts` | Round length (A1) |
+| Rollover order | swing → counter → dump → deal → telegraph | `src/engine/combat.ts` (`rollover`) | Player swing FIRST; **lethal cancels** (the kill-race, symmetric) |
+| Wound inflict | `floor(bite / (maxHP/10))` per EXCHANGE, cap 5 | `src/engine/triggers.ts` (`inflictWounds`) | Computed, never authored; Defend is the primary prevention |
+| Wound repair | `ceil(heal / (maxHP/10))` | `src/engine/ops.ts` (`healPlayer`) | Any heal knits wounds; keyed to the heal's SIZE (full-HP heals still repair) |
+| Wound recovery | 1 per draw phase; all at combat end | `src/engine/combat.ts` | Wound pendings never time-reform |
+| Ward cost (SG, live) | board verb 1 · wound `WOUND_WARD_COST` 3 | `src/engine/ops.ts` (`tryWard`) | Stand Ground intercepts live; bank carries across rollovers |
+| `CHARGE_CAP` | 15 | `src/engine/state.ts` | Exact both ways: a max 5-wound haymaker (5×3) or a whole-board dump |
+| Maneuver dump | ALL charges at rollover → ⌊bank⌋ deadest NOT-matching cards → bias; bank zeroes | `src/engine/tactics.ts` (`rolloverDump`) | No-bias holds (no waste); overflow past available cards burns |
+| Stance lock | `setTactic`/`setBias` QUEUE; lock at the deal | `src/engine/tactics.ts` | The round-lock IS the commitment (spin-up retired) |
+| Block reset | accumulators + Maneuver bank → 0 at the exchange; mana + SG bank + HP carry | `src/engine/combat.ts` | Excess block = **pure loss** (no trickle — settled 2026-06-11); Sentinel's Overflow passive is the paid exception |
+| `ROUND_EXTEND_CAP_S` | 10 | `src/engine/state.ts` | ⚠ INTERIM stall re-anchor: clock-push verbs stretch the round, capped (uncapped potions bypass) |
+| `MANA_CAP` | 15 / color | `src/engine/state.ts` | Gains past it are pure loss |
+| `DEFAULT_PLAYER_MAX` | 100 | `src/engine/state.ts` | A3; the save layer migrates HP-30 saves in proportion |
+| `START_GRACE_MS` | 3000 | `src/engine/state.ts` | UI freezes the round after Engage |
+
+## Resolution v3 — the stat contests (LIVE, first-cut)
+
+Per card: `rate(yourStat, theirOpposed) × QUALITY[mag]`, QUALITY = ①×0.7 ②×1.0 ③×1.4.
 
 | Constant | Value | File | Meaning |
 |---|---|---|---|
-| `CHARGE_CAP` | 5 | `src/engine/state.ts` | Tactics charge queue/bank cap; overflow income is wasted |
-| `CHURN_MS` | 800 | `src/engine/state.ts` | Maneuver spends ONE charge per this interval (serial, never a batch) |
-| `SWAP_SPINUP_MS` | 3000 | `src/engine/state.ts` | After a tactic swap, charges reset and income is lost until spin-up elapses |
-| `MANA_CAP` | 15 | `src/engine/state.ts` | Per-color mana cap; gains past it are pure loss (gear may raise later) |
-| `CLOCK_CAP` | 20 | `src/engine/state.ts` | Move-stall cap on the enemy clock = `max(20s, foe cadence)` |
-| `DMG_REGEN_MS` | 10000 | `src/engine/state.ts` | A shattered (wounded) card reforms after this |
-| `START_GRACE_MS` | 3000 | `src/engine/state.ts` | UI freezes the clock after Engage (read the board, no ticks advance) |
-| `DEFAULT_PLAYER_MAX` | 30 | `src/engine/state.ts` | `createCombat`'s default player max HP; the save layer mirrors it |
-| `BIAS_W` | 8 | `src/engine/select.ts` | Transmute-regen weight toward the favoured color/shape/magnitude |
+| `BASE_STATS` | P/E/S 10/10/10 | `src/engine/state.ts` | Parity statline, both sides (A3) |
+| `RATE_BASE` / `RATE_K` | 8 / 0.8 | `src/engine/resolve.ts` | Attack/Defend lanes: `clamp(8 + 0.8·(A−B), 2, 20)`; parity mag-6 set ≈ 25 (A4) |
+| `MOVE_RATE_*` | base 1 · k 0.1 · clamp 0.2–3 | `src/engine/resolve.ts` | Move lane, in charge POINTS (fractional; gauge floors into pips) |
+| `DMG_BUDGET_K` | 2.5 | `src/engine/foe.ts` | Foe round damage budget = `Power × 2.5` (parity → 25) |
+| Tempo law | diff = S−P: ≥+4 → 3 swings · −1..+3 → 2 · −4..−2 → 1 · −7..−5 → every 2nd ×2 · ≤−8 → every 3rd ×3 | `src/engine/foe.ts` | Packaging derives from the statline; per-swing budget conserves the round rate |
+| Foe stat bridge | tier P anchor 8/11/13 ± heft(±3 from legacy per-hit) · E = 10 + 2 elite / + 4 boss · S from band (6/8/10/12/14) | `src/engine/foe.ts` | ⚠ FIRST-CUT bridge from legacy data — the data rebase authors P/E/S directly and retires it |
+| `LEGACY_HP_SCALE` / `LEGACY_DMG_SCALE` | ×10/3 | `src/engine/foe.ts` / `src/engine/triggers.ts` | Legacy creature HP + trap damage → HP-100 world (retired by the data rebase) |
+| Player numbers sweep | abilities/potions/passives ×3 | `abilities.ts` / `consumables.ts` / `passives.ts` | ⚠ Mechanical first cut for HP-100 — re-derive in the sim |
 
-## Board generation
+## Board generation (unchanged)
 
 | Constant | Value | File | Meaning |
 |---|---|---|---|
@@ -65,25 +60,28 @@ shape-rainbow sets).
 | `COMBAT_GEN.active` | `[0, 1, 3]` | `src/engine/combat.ts` | Active axes: color, shape, number — shading (axis 2) dropped/pinned |
 | `COMBAT_GEN.camoDepth` | 1 | `src/engine/combat.ts` | Target easiest-k (gimmes always present) |
 | `COMBAT_GEN.escapeRoutes` | 6 | `src/engine/combat.ts` | Sets at the easiest k |
-| `COMBAT_GEN.floor` | 1 | `src/engine/combat.ts` | Minimum sets on the board, always |
+| `COMBAT_GEN.floor` | 1 | `src/engine/combat.ts` | Minimum makeable sets, always (⚠ assert vs worst-case wounds+locks in the sim) |
+| `BIAS_W` | 8 | `src/engine/select.ts` | Transmute favour weight (mid-round regen is NEUTRAL — bias expresses only via the dump) |
 
-## Enemy pacing
-
-| Constant | Value | File | Meaning |
-|---|---|---|---|
-| Speed bands | lumbering 24s · slow 19s · steady 15s · swift 12s · frenzied 9s | `src/data/game-data.ts` (`speed`) | Per-foe attack cadence (TRAPS.md §7.2) |
-| Ember Drift `every` | 7s | `src/data/game-data.ts` (`drifts.ember`) | The shipped dungeon drift: 1 card / 7s toward red (per-dungeon tuning lever) |
-| Enemy hit → wound | 1 rune shattered | `src/engine/triggers.ts` (`shatterCard`) | A hit that bites HP past Block shatters one card (a Wound); it reforms after `DMG_REGEN_MS` |
-
-## Trap severity law
+## Trap severity law (unchanged)
 
 | Rule | Value | File | Meaning |
 |---|---|---|---|
-| `scale: 'set_mag'` | `max(1, totalMagnitude − 4)` | `src/engine/triggers.ts` (`scaledBySetMag`), `src/data/schema.ts` | Effect severity scales with the springing set's total magnitude (1·1·1 → 1 … 3·3·3 → 5). Used by Confusion v2 |
+| `scale: 'set_mag'` | `max(1, totalMagnitude − 4)` | `src/engine/triggers.ts` (`scaledBySetMag`) | Severity scales with the springing set's weight (1·1·1 → 1 … 3·3·3 → 5); seconds-valued effects act on the ROUND now |
+
+## Retired by v3 (for the record)
+
+`CLOCK_CAP` + `clockCapMs` + excess-timer income (no clock) · `SWAP_SPINUP_MS` (the
+draw-phase lock is the commitment) · `CHURN_MS` (serial churn → the rollover dump) ·
+`DMG_REGEN_MS` (wounds knit per draw phase / by heals) · `DEFAULT_WINDUP_S` + per-foe
+`windup` (the telegraph reveals at the deal) · speed bands as cadence (→ the Speed stat
++ the tempo law) · **Defend overflow → charges** (both the 1:2 rollover trickle and the
+live overcap conversion — excess block is pure loss; Sentinel is the paid exception).
 
 ## Dev-instrument design targets (measured live in the combat dev panel)
 
 | Instrument | Target | Source |
 |---|---|---|
-| Reshape share (player-driven board change vs drift/trap/trick) | **65–70% player** | TRAPS.md §5.5; measured in `src/ui/app.ts` dev panel |
-| Trap-spring rate (hostile traps sprung per match) | **~30%** | TRAPS.md §2 master tuning law; measured in `src/ui/app.ts` dev panel |
+| Reshape share (player-driven board change vs drift/trap/trick) | **65–70% player** | TRAPS.md §5.5 — ⚠ re-read post-v3 (the dump changes who moves the board, when) |
+| Trap-spring rate (hostile traps sprung per match) | **~30%** | TRAPS.md §2 master tuning law |
+| Sets/round | ~3 = baseline (A2) · 4–6 = competent | NEW — add to the dev row in the wheel batch |

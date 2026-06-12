@@ -1,13 +1,14 @@
-/* engine/resolve — turn a found set into combat effects. RESOLUTION v2 ("Model B" — sets STEER,
-   stats CARRY) under the ROUNDS v3 grammar (CRAWL §5.6): each card in a set is one action of the
-   character's build — an Attack card banks Power toward the exchange swing, a Defend guards with
-   Endurance against the telegraph, a Move feeds the Tactics bank — and the card's MAGNITUDE is the
-   action's QUALITY (① glancing ×0.7 · ② solid ×1.0 · ③ heavy ×1.4), not its size.
-   Deterministic on purpose (the deliberate-grind direction): a set always delivers exactly what it
-   reads. At the base statline (2/2/2) per-card values are 1/2/3 — exact parity with the old system.
-   `weightedRoll` remains for ENEMY attacks and ability rolls.
-   ⚠ v3 OPEN (numbers workshop): Move's per-card `round(Speed × q)` died with the clock; charges
-   count Move CARDS flat for now. Speed's new job (likely charge-income scaling) is the open item. */
+/* engine/resolve — turn a found set into combat effects. RESOLUTION v3 ("sets steer, stats carry,
+   STATS CONTEST" — CRAWL §5.6): foes carry the same Power/Endurance/Speed block as players, and
+   every per-card value is an OPPOSED-STAT RATE × the card's QUALITY (① glancing ×0.7 · ② solid
+   ×1.0 · ③ heavy ×1.4). One stat pair per lane, each stat used exactly once per direction:
+   • Attack card  → rate(your Power,     their Endurance) banked toward the exchange swing
+   • Defend card  → rate(your Endurance, their Power)     banked as Block vs the telegraph
+   • Move card    → rate(your Speed,     their Speed)     banked as Tactics charge points
+   The telegraph itself is the foe's Power expressed (budgeted + packaged in foe.ts — the tempo law).
+   Rates are DIFFERENCE-based with clamps (legible + bounded under gear, unlike ratios).
+   Deterministic on purpose: a set always delivers exactly what it reads; `weightedRoll` remains
+   for ENEMY strikes and ability rolls. All constants are first-cut sim-fodder (TUNING.md). */
 
 import type { Card } from '../core/affine'
 import type { Rng } from '../core/rng'
@@ -19,6 +20,27 @@ export const QUALITY = [0.7, 1, 1.4] as const
 export const SHAPE_ATTACK = 0
 export const SHAPE_DEFEND = 1
 export const SHAPE_MOVE = 2
+
+// ---- the contested-rate laws (CRAWL §5.6; derivation sheet in TUNING.md) ----
+// At stat parity (10 vs 10) an Attack/Defend card is worth RATE_BASE × q → a magnitude-6 set ≈ 25,
+// which is the 6/6/6 baseline axiom's even-exchange quantum (player HP 100).
+export const RATE_BASE = 8
+export const RATE_K = 0.8 // value per point of stat edge
+export const RATE_MIN = 2 // never useless…
+export const RATE_MAX = 20 // …never absurd (gear stacking stays bounded)
+/** Damage/Block lane rate: your stat vs the opposed stat, difference-based, clamped. */
+export function contestRate(yours: number, theirs: number): number {
+  return Math.min(RATE_MAX, Math.max(RATE_MIN, RATE_BASE + RATE_K * (yours - theirs)))
+}
+// The Move lane runs in CHARGE POINTS (the bank shows whole pips; fractions accumulate).
+// Parity = 1 point per Move card × quality ≈ 3/set — continuity with the flat v3 income.
+export const MOVE_RATE_BASE = 1
+export const MOVE_RATE_K = 0.1
+export const MOVE_RATE_MIN = 0.2
+export const MOVE_RATE_MAX = 3
+export function moveRate(yourSpeed: number, theirSpeed: number): number {
+  return Math.min(MOVE_RATE_MAX, Math.max(MOVE_RATE_MIN, MOVE_RATE_BASE + MOVE_RATE_K * (yourSpeed - theirSpeed)))
+}
 
 /** Triangular-weighted roll: value v in [1,max] drawn with P(v) ∝ v (favours max, weak hits possible). */
 export function weightedRoll(max: number, rng: Rng): number {
@@ -59,30 +81,35 @@ export interface Resolution {
   dmgMed: number
   dmgHeavy: number
   block: number
+  charges: number // Move lane: charge POINTS (fractional; the bank floors into pips)
   mana: [number, number, number]
   allSameColor: boolean
   desc: MatchDescriptor
 }
 
-/** Resolve a set (Model B, v3): each card fires its shape's stat at its magnitude's quality —
- *  Attack → round(Power × q) banked toward the exchange · Defend → round(Endurance × q) Block.
- *  Move cards carry no number here (charge income counts cards in the reducer — Speed's job is
- *  the open workshop item). Mana routes by colour signature: all-same → 3, all-diff → 1 each. */
-export function resolveSet(cards: [Card, Card, Card], stats: StatBlock, _rng: Rng): Resolution {
+/** Resolve a set (v3 contests): each card banks its lane's contested rate × its quality.
+ *  Mana routes by colour signature: all-same → 3 in that pool, all-diff → 1 each. */
+export function resolveSet(cards: [Card, Card, Card], stats: StatBlock, foeStats: StatBlock, _rng: Rng): Resolution {
+  const atkRate = contestRate(stats.power, foeStats.endurance)
+  const defRate = contestRate(stats.endurance, foeStats.power)
+  const mvRate = moveRate(stats.speed, foeStats.speed)
   let dmgLight = 0
   let dmgMed = 0
   let dmgHeavy = 0
   let block = 0
+  let charges = 0
   for (const c of cards) {
     const shape = c[1]
     const q = QUALITY[c[3]] // card magnitude = the action's quality tier
     if (shape === SHAPE_ATTACK) {
-      const hit = Math.round(stats.power * q)
+      const hit = Math.round(atkRate * q)
       if (c[3] === 0) dmgLight += hit
       else if (c[3] === 1) dmgMed += hit
       else dmgHeavy += hit
     } else if (shape === SHAPE_DEFEND) {
-      block += Math.round(stats.endurance * q)
+      block += Math.round(defRate * q)
+    } else {
+      charges += mvRate * q // fractional on purpose — the Speed contest needs the granularity
     }
   }
   const damage = dmgLight + dmgMed + dmgHeavy
@@ -95,5 +122,5 @@ export function resolveSet(cards: [Card, Card, Card], stats: StatBlock, _rng: Rn
     mana[1] = 1
     mana[2] = 1
   }
-  return { damage, dmgLight, dmgMed, dmgHeavy, block, mana, allSameColor, desc: matchDescriptor(cards) }
+  return { damage, dmgLight, dmgMed, dmgHeavy, block, charges, mana, allSameColor, desc: matchDescriptor(cards) }
 }

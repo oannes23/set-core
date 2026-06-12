@@ -31,8 +31,8 @@ test('the registry has tiered staples (no combo brews) + a scroll for every abil
   expect(CONSUMABLES.hp_std?.kind).toBe('potion')
 })
 
-test('healing draughts restore HP by tier (10/20/30) and are spent from the slot', () => {
-  for (const [tier, amt] of [['minor', 10], ['std', 20], ['major', 30]] as const) {
+test('healing draughts restore HP by tier (30/60/90) and are spent from the slot', () => {
+  for (const [tier, amt] of [['minor', 30], ['std', 60], ['major', 90]] as const) {
     const s = combat([`hp_${tier}`])
     s.playerMax = 99 // above the major amount so nothing caps
     s.playerHP = 1
@@ -52,8 +52,8 @@ test('mana potions grant their colour by tier (5/10/15)', () => {
   }
 })
 
-test('stoneskin grants Block by tier (10/20/30)', () => {
-  for (const [tier, amt] of [['minor', 10], ['std', 20], ['major', 30]] as const) {
+test('stoneskin grants Block by tier (30/60/90)', () => {
+  for (const [tier, amt] of [['minor', 30], ['std', 60], ['major', 90]] as const) {
     const s = combat([`stoneskin_${tier}`])
     s.block = 0
     s.playerMax = 99 // above the major amount so nothing caps

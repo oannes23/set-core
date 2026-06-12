@@ -15,6 +15,12 @@ import type { EventSink } from './events'
 import { type MatchDescriptor, weightedRoll } from './resolve'
 import { cardColor, cardShape, cardMag, isLive, liveSlots, pickRandom, gridDims, rowSlots, colSlots } from './select'
 
+/** ⚠ LEGACY SCALE: trap/trick damage + enemy-heal amounts in game-data are still authored against
+ *  the HP-30 world; this converts them to the HP-100 rebase in ONE place. The data rebase
+ *  (numbers workshop) re-authors the amounts and retires this. */
+const LEGACY_DMG_SCALE = 10 / 3
+const legacyDmg = (n: number): number => Math.max(1, Math.round(n * LEGACY_DMG_SCALE))
+
 const TOKEN_COLOR: Record<string, number> = { red: 0, green: 1, blue: 2 }
 const TOKEN_SHAPE: Record<string, number> = { attack: 0, defend: 1, move: 2 }
 const TOKEN_NUMBER: Record<string, number> = { one: 0, two: 1, three: 2 }
@@ -172,7 +178,8 @@ function runEffect(s: CombatState, e: Effect, desc: MatchDescriptor, rng: Rng, s
   if (e.chance != null && rng() >= e.chance) return null
   switch (e.effect) {
     case 'damage': {
-      const amt = e.scale === 'set_mag' ? scaledBySetMag(desc) : e.amount != null ? e.amount : weightedRoll(e.max ?? 4, rng)
+      const raw = e.scale === 'set_mag' ? scaledBySetMag(desc) : e.amount != null ? e.amount : weightedRoll(e.max ?? 4, rng)
+      const amt = legacyDmg(raw)
       hurtPlayer(s, amt, s.foe.name, sink)
       return `⚔${amt}`
     }
@@ -192,7 +199,7 @@ function runEffect(s: CombatState, e: Effect, desc: MatchDescriptor, rng: Rng, s
       return applied > 0 ? `+${applied}s` : null
     }
     case 'enemy_heal': {
-      const a = e.amount ?? 4
+      const a = legacyDmg(e.amount ?? 4)
       const before = s.enemyHP
       s.enemyHP = Math.min(s.enemyMax, s.enemyHP + a)
       const healed = s.enemyHP - before
