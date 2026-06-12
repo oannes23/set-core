@@ -302,20 +302,29 @@ The four run-exits are strictly ordered (each rung worse than the one above):
   `FABLE.md` §8.1) should land *with* B2, not after.
 
 ### Phase B2 — run loop + first loot (consumables)
-- `[ ]` **Room = encounter + reward** — on win, roll loot / gold / XP (`CRAWL-DESIGN.md` §3).
-- `[ ]` **HP-only intra-run persistence** (§6) — everything but HP resets each room; HP carries as the
-  run's attrition clock. *Replaces* the full-heal-between-gauntlet-foes behavior (`combat.ts` `onWin`).
-  (The cross-room **HP-carry banner** feel idea rides here.)
-- `[~]` **Consumables — DONE as a system; loot acquisition pending the run loop** (`CRAWL-DESIGN.md` §4).
-  Built (`engine/consumables.ts`): heal potion, 9 colour×shape combo brews, 3 mana potions, haste,
-  stoneskin, and a free one-shot **scroll for every ability**; a `useConsumable` action; a 3-slot
-  **loadout** equipped in the Hub + used (art chips) in combat. For now the loadout is re-equippable
-  (refreshes each delve); a consumed **inventory + common drops** arrives with the run loop. (Still
-  open: a player heal-over-time — the friendly mirror of the enemy `condition` tick.)
-- `[ ]` **Run-state model** — seed + room chain + run gold/XP/inventory; reuse the `session.ts` shape.
-- `[ ]` **Loss / retreat** — build the settled **exit ladder** (plan above / `CRAWL-DESIGN.md` §6):
-  between-rooms cash-out, flee → fork (parting blow, reroll, elite reset), death → carried loot
-  lost + tithe + XP banks. The Flee button's *engine* side exists; the run-loop side is new.
+**FIRST CUT SHIPPED (2026-06-12) — the delve flow.** `engine/delve.ts` (pure, tested:
+`delve.test.ts`) + the UI run loop in `app.ts`: **🕯 Delve** on dungeon select (boss dungeons; the
+foe picker stays as “⚔ Single fight”) → rooms roll boss-law → elite-sawtooth → weighted table →
+the **between-rooms fork** (press on / return to town) with the **dread meter** (thematic bands over
+the true cumulative), the run **satchel** (loadout + loot, cap 10, consumed-is-gone across rooms),
+and **HP carry** room to room. Flee falls back to the fork (no spoils, reroll, sawtooth reset);
+death ends the run and drops the satchel; the boss win is the clear. Constants in `TUNING.md`.
+- `[~]` **Room = encounter + reward** — encounter rolling DONE; reward is the PLACEHOLDER one-random-
+  consumable roll (`rollDelveLoot`). Real loot / gold / XP rolls (`CRAWL-DESIGN.md` §3) still open.
+- `[x]` **HP-only intra-run persistence** (§6) — HP carries as the run's attrition clock (each room is
+  a fresh combat seeded at carried HP; mana/charges/board reset). The gauntlet's full-heal behavior
+  remains for the Training sequence only. (The cross-room **HP-carry banner** feel idea still open.)
+- `[~]` **Consumables — system DONE; first drops LIVE via the placeholder room loot.** Built
+  (`engine/consumables.ts`): tiered staples, special potions, a scroll for every ability; a 3-slot
+  loadout equipped in the Hub. In a delve the loadout becomes the run **satchel** (consumed-is-gone,
+  loot accrues, cap 10); satchel loot is run-scoped — banking it home needs the account store (below).
+  (Still open: a player heal-over-time — the friendly mirror of the enemy `condition` tick.)
+- `[~]` **Run-state model** — room chain + satchel DONE (UI-held `DELVE` + pure `DelveState`); still
+  open: fold the delve into the `session.ts` seam (seeded/replayable runs — `bossRoll` is already one
+  draw from a seed) + run gold/XP.
+- `[~]` **Loss / retreat** — the exit-ladder SKELETON is in: between-rooms cash-out (keep everything),
+  flee → fork (reroll + elite reset + boss-room-stays-found; **parting blow still open**), death →
+  satchel lost (**tithe + XP-banks open** — no gold/XP yet).
 
 ### Phase B3 — equipment / gear (`CRAWL-DESIGN.md` §7 taxonomy)
 - `[ ]` Gear slots + affixes (flat per-card scaling), armor/relic base-types, Move affixes re-anchored

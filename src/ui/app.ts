@@ -22,8 +22,9 @@ import { PASSIVES } from '../engine/passives'
 import { assembleFoe, pickWeightedFoe } from '../engine/foe'
 import { colsForN, COMBAT_GEN, type Deps, type CombatAction } from '../engine/combat'
 import { createRun, runReduce, type RunState } from '../engine/run'
+import { createDelve, nextEncounter, fleeReroll, dreadBand, rollDelveLoot, RUN_BAG_CAP, type DelveState, type EncounterTier } from '../engine/delve'
 import { CONSUMABLES } from '../engine/consumables'
-import type { CombatState, ManeuverBias } from '../engine/state'
+import type { CombatState, FoeRuntime, ManeuverBias } from '../engine/state'
 import { CHARGE_CAP, MANA_CAP, BASE_STATS, START_GRACE_MS, ROUND_MS, WOUND_WARD_COST, WOUND_CAP_PER_EXCHANGE, woundQuantum } from '../engine/state'
 import type { CombatEvent } from '../engine/events'
 import { bumpTurn, pick, strikeWord, healWord, drainWord, magicLead, tierOf, joinClauses, voiceOf, ABILITY_FLAVOR } from './flavor'
@@ -205,7 +206,13 @@ function hideTip(): void { tipEl?.classList.remove('show') }
    ============================================================ */
 let selectedCharId: string | null = null // persists the chosen hero across scene + combat transitions
 
+/** The LIVE DELVE (null = a lone practice fight). Survives scene transitions room → fork → room:
+ *  the encounter schema state (engine/delve) + the run's consumable SATCHEL (what you carried in,
+ *  minus what you drank, plus what you looted — HP-only attrition's sibling) + the current tier. */
+let DELVE: { d: DelveState; bag: string[]; tier: EncounterTier } | null = null
+
 function characterSelectScene(root: HTMLElement): void {
+  DELVE = null // any road back to town ends the run
   const wrap = $(`<div class="wrap"></div>`)
   wrap.appendChild($(`<h1>set.core</h1>`))
   wrap.appendChild($(`<div class="sub">town · choose your hero</div>`))
@@ -416,18 +423,23 @@ function dungeonSelectScene(root: HTMLElement, char: SavedChar): void {
     }
   }
 
-  dSel.addEventListener('change', () => { dungeonId = dSel.value; fillFoes(); renderSummary() })
   fSel.addEventListener('change', () => { foeVal = fSel.value })
   fillFoes(); renderSummary(); renderLoadout()
 
-  // FOOTER: back to the roster, or enter the dungeon
+  // FOOTER: back to the roster · DELVE (the real run — boss dungeons only) · a lone practice fight
   const back = $<HTMLButtonElement>(`<button class="cta ghost">◀ Back</button>`)
   back.addEventListener('click', () => goScene(characterSelectScene))
   footer.appendChild(back)
-  const enter = $<HTMLButtonElement>(`<button class="cta bob"${char.hp <= 0 ? ' disabled' : ''}>▶ Enter dungeon</button>`)
+  const delve = $<HTMLButtonElement>(`<button class="cta bob"${char.hp <= 0 ? ' disabled' : ''} data-tip-title="Delve" data-tip="Enter the dungeon proper: rooms roll from the encounter table — elites recur, the boss waits somewhere in the deep. Between rooms you choose: press on or carry your spoils home. Your HP carries room to room.">🕯 Delve</button>`)
+  delve.addEventListener('click', () => { if (char.hp > 0) beginDelve(char, dungeonId) })
+  footer.appendChild(delve)
+  const enter = $<HTMLButtonElement>(`<button class="cta"${char.hp <= 0 ? ' disabled' : ''}>⚔ Single fight</button>`)
   enter.addEventListener('click', () => { if (char.hp > 0) goScene((r) => begin(r, char, dungeonId, foeVal)) })
   footer.appendChild(enter)
   if (char.hp <= 0) footer.appendChild($(`<span class="sub" style="align-self:center;text-transform:none;letter-spacing:0">0 HP — Rest first (◀ Back).</span>`))
+  const syncFooter = (): void => { delve.style.display = GAMEDATA.dungeons[dungeonId].boss ? '' : 'none' } // no boss → nothing to delve toward (tutorial/training)
+  dSel.addEventListener('change', () => { dungeonId = dSel.value; fillFoes(); renderSummary(); syncFooter() })
+  syncFooter()
 }
 
 /** Loadout summary for the class blurb: tagline + ability names + passive name. */
@@ -439,7 +451,9 @@ function classBlurbHTML(id: string): string {
 }
 
 // ---- begin combat ----
+/** The practice path: one chosen fight (or the authored gauntlet), no room chain. */
 function begin(root: HTMLElement, char: SavedChar, dungeonId: string, foeVal: string): void {
+  DELVE = null
   const rng: Rng = systemRng
   const dg: Dungeon = GAMEDATA.dungeons[dungeonId]
   let foeId: string
@@ -454,8 +468,39 @@ function begin(root: HTMLElement, char: SavedChar, dungeonId: string, foeVal: st
   }
   const foe = assembleFoe(foeId, dg, GAMEDATA, rng)
   if (!foe) return
+  startCombat(root, char, dungeonId, foe, sequence, char.consumables)
+}
+
+/** The DELVE path (TODO §B2 first cut): start a run — the encounter schema rolls every room. */
+function beginDelve(char: SavedChar, dungeonId: string): void {
+  DELVE = {
+    d: createDelve(dungeonId, systemRng),
+    bag: char.consumables.filter((id) => !!id && !!CONSUMABLES[id]), // the loadout becomes the run satchel
+    tier: 'minion',
+  }
+  goScene((r) => delveRoom(r, char))
+}
+
+/** Enter the next room of the live delve: roll the encounter (boss law → elite sawtooth → table),
+ *  then fight it carrying the run's HP + satchel. */
+function delveRoom(root: HTMLElement, char: SavedChar): void {
+  if (!DELVE) return
+  const rng: Rng = systemRng
+  const dg = GAMEDATA.dungeons[DELVE.d.dungeonId]
+  const enc = nextEncounter(DELVE.d, dg, rng)
+  DELVE.d = enc.delve
+  DELVE.tier = enc.tier
+  const foe = assembleFoe(enc.foeId, dg, GAMEDATA, rng)
+  if (!foe) return
+  startCombat(root, char, DELVE.d.dungeonId, foe, null, DELVE.bag)
+}
+
+/** Mount the combat scene for one assembled foe (shared by the practice path and the delve). */
+function startCombat(root: HTMLElement, char: SavedChar, dungeonId: string, foe: FoeRuntime, sequence: string[] | null, consumables: string[]): void {
+  const rng: Rng = systemRng
+  const dg: Dungeon = GAMEDATA.dungeons[dungeonId]
   const cls = classById(char.classId)
-  const run = createRun({ foe, gen: GEN, playerMax: char.maxHp, stats: cls.stats, passives: cls.passives, consumables: char.consumables, sequence, dungeonId }, rng)
+  const run = createRun({ foe, gen: GEN, playerMax: char.maxHp, stats: cls.stats, passives: cls.passives, consumables, sequence, dungeonId }, rng)
   run.combat.playerHP = Math.max(0, Math.min(char.maxHp, char.hp)) // the hero enters at their persisted HP, not full
   V = { root, deps: { data: GAMEDATA, rng }, run, state: run.combat, char, actions: [], classId: cls.id, loadout: cls.abilities.slice(), coach: !!dg.coach, coachCue: null, manaColor: dominantManaColor(cls.abilities), paused: true, hitstopUntil: 0, holdHud: false, preview: null, selected: [], raf: 0, lastT: 0, boardSig: '', refs: {}, stats: { dealt: 0, taken: 0, blocked: 0, healed: 0, sets: 0, traps: 0 }, morphSrc: new Map(), dev: { reshapeYou: 0, reshapeFoe: 0, matches: 0, springs: 0, k1: 0, wards: 0, churns: 0 } }
   buildPlay()
@@ -576,7 +621,7 @@ function buildPlay(): void {
   renderStrip()
   renderConsumables()
   updateCastables()
-  V.refs.foename.textContent = V.state.foe.name + (V.run.sequence ? `  ·  ${V.run.seqIdx + 1}/${V.run.sequence.length}` : '')
+  V.refs.foename.textContent = V.state.foe.name + (V.run.sequence ? `  ·  ${V.run.seqIdx + 1}/${V.run.sequence.length}` : DELVE ? `  ·  room ${DELVE.d.room}` : '')
   V.refs.foedesc.innerHTML = V.state.foe.desc ?? ''
 }
 
@@ -1059,7 +1104,9 @@ function onFlee(): void {
   V.paused = true // freeze the clock while the dialog is open (a custom modal doesn't block like confirm())
   confirmModal({
     title: 'Flee combat?',
-    body: 'You forfeit this encounter and retreat to town.',
+    body: DELVE
+      ? 'You forfeit this room’s spoils and fall back to the junction. The next chamber is rerolled — press on or go home from there.'
+      : 'You forfeit this encounter and retreat to town.',
     confirmLabel: '🏃 Flee', danger: true,
     onConfirm: () => { if (V) dispatch({ type: 'flee' }) },
     onCancel: () => { if (V) V.paused = false },
@@ -2215,9 +2262,17 @@ function endScreen(result: 'win' | 'lose' | 'flee'): void {
   // persist the hero's HP across the hub↔combat boundary (the seed of the run-attrition layer)
   V.char.hp = Math.max(0, Math.min(V.char.maxHp, V.state.playerHP))
   upsertChar(V.char)
+  if (DELVE) { delveFork(result); return } // the delve owns its own end beat (the between-rooms fork)
   const text = result === 'win' ? '★ Victory' : result === 'flee' ? '🏃 Fled' : '✖ Defeat'
   const banner = $(`<div class="banner ${result === 'win' ? 'win' : 'lose'}">${text}</div>`)
-  const st = V.stats
+  const again = $<HTMLButtonElement>(`<button class="cta" style="display:block;margin:0 auto">▶ Back to town</button>`)
+  V.refs.boardwrap.replaceChildren(banner, combatChart(), again)
+  again.addEventListener('click', () => goScene(characterSelectScene))
+}
+
+/** The end-of-combat contribution chart (shared by the lone-fight end card and the delve's enders). */
+function combatChart(): HTMLElement {
+  const st = V!.stats
   const rows: [string, number, string][] = [
     ['Damage dealt', st.dealt, 'var(--red)'],
     ['Damage taken', st.taken, 'var(--warn)'],
@@ -2227,13 +2282,96 @@ function endScreen(result: 'win' | 'lose' | 'flee'): void {
     ['Traps sprung', st.traps, 'var(--gold)'],
   ]
   const max = Math.max(1, ...rows.map((r) => r[1]))
-  const summary = $(`<div class="summary">${rows
+  return $(`<div class="summary">${rows
     .map(([l, v, c]) => `<div class="feat"><span class="fl">${l}</span><span class="fbar"><span style="width:${(v / max) * 100}%;background:${c}"></span></span><span class="fv">${v}</span></div>`)
     .join('')}</div>`)
-  const again = $<HTMLButtonElement>(`<button class="cta" style="display:block;margin:0 auto">▶ Back to town</button>`)
-  const root = V.root
-  V.refs.boardwrap.replaceChildren(banner, summary, again)
-  again.addEventListener('click', () => goScene(characterSelectScene))
+}
+
+/* ---- THE BETWEEN-ROOMS FORK — the delve's heartbeat (CRAWL §2 / §6 first cut) ----
+   Win → loot (PLACEHOLDER: one random consumable into the satchel) + the fork: press on or carry
+   the spoils home. Flee → the same fork at a price: no spoils, the next chamber rerolled, the
+   elite sawtooth reset. Boss win → the dungeon is CLEARED (the run's best exit). Death → the run
+   and the satchel are lost where you fell. Still TODO from the exit ladder: the parting blow on
+   flee, gold/XP on the loot roll, the death tithe — they land with the economy (TODO §B2). */
+function delveFork(result: 'win' | 'lose' | 'flee'): void {
+  if (!V || !DELVE) return
+  const char = V.char
+  const host = V.refs.boardwrap
+  DELVE.bag = V.state.consumables.slice() // what survived the fight IS the satchel (drunk = gone)
+  const room = DELVE.d.room
+  const dgName = GAMEDATA.dungeons[DELVE.d.dungeonId]?.name ?? 'the dungeon'
+
+  // DEATH — the run ends; the satchel is lost (the worst rung of the exit ladder)
+  if (result === 'lose') {
+    DELVE = null
+    const home = $<HTMLButtonElement>(`<button class="cta" style="display:block;margin:0 auto">🏠 Back to town</button>`)
+    home.addEventListener('click', () => goScene(characterSelectScene))
+    host.replaceChildren(
+      $(`<div class="banner lose">✖ Slain — room ${room} claims you</div>`),
+      $(`<div class="forksub">Your satchel is lost where you fell.</div>`),
+      combatChart(), home,
+    )
+    return
+  }
+
+  // BOSS DOWN — the dungeon is cleared (the run's best exit; the "big loot" roll is still the placeholder)
+  if (result === 'win' && DELVE.tier === 'boss') {
+    const lootEl = delveLootRoll()
+    const bag = DELVE.bag
+    DELVE = null
+    const home = $<HTMLButtonElement>(`<button class="cta bob" style="display:block;margin:0 auto">🏆 Carry the spoils home</button>`)
+    home.addEventListener('click', () => goScene(characterSelectScene))
+    host.replaceChildren(
+      $(`<div class="banner win">🏆 ${dgName} — CLEARED in ${room} rooms</div>`),
+      lootEl, $(satchelHTML(bag)), combatChart(), home,
+    )
+    return
+  }
+
+  // THE FORK — press on or go home (between rooms only, after a clear; flee pays its price here)
+  const fork = $(`<div class="forkwrap"></div>`)
+  if (result === 'win') {
+    fork.appendChild($(`<div class="banner win">★ Room ${room} cleared</div>`))
+    fork.appendChild(delveLootRoll())
+  } else {
+    DELVE.d = fleeReroll(DELVE.d) // the sawtooth resets; the next chamber rerolls (bossFound holds)
+    fork.appendChild($(`<div class="banner lose">🏃 You slip away</div>`))
+    fork.appendChild($(`<div class="forksub">No spoils from this room. The passages shift behind you — the next chamber is rerolled.</div>`))
+  }
+  fork.appendChild($(satchelHTML(DELVE.bag)))
+  const band = dreadBand(DELVE.d)
+  const pips = '●'.repeat(band.step + 1) + '○'.repeat(4 - band.step)
+  fork.appendChild($(`<div class="dread" data-tip-title="Dread" data-tip="The deeper you press, the surer the throne room. Each room entered walks the curve — cleared or fled."><span class="pips">${pips}</span>${band.label}</div>`))
+  const btns = $(`<div class="forkbtns"></div>`)
+  const home = $<HTMLButtonElement>(`<button class="cta ghost">🏠 Return to town</button>`)
+  home.addEventListener('click', () => goScene(characterSelectScene))
+  const deeper = $<HTMLButtonElement>(`<button class="cta bob">▶ Delve deeper</button>`)
+  deeper.addEventListener('click', () => goScene((r) => delveRoom(r, char)))
+  btns.append(home, deeper)
+  fork.appendChild(btns)
+  host.replaceChildren(fork)
+}
+
+/** Roll the placeholder room loot into the satchel and return its reveal card (or the full-bag note). */
+function delveLootRoll(): HTMLElement {
+  const id = rollDelveLoot(systemRng)
+  const c = CONSUMABLES[id]
+  if (!DELVE || !c) return $(`<div class="forksub">The room holds nothing of value.</div>`)
+  if (DELVE.bag.length >= RUN_BAG_CAP) return $(`<div class="forksub">Satchel full — the ${c.name} is left behind.</div>`)
+  DELVE.bag.push(id)
+  const tint = c.color != null ? `var(--c${c.color})` : 'var(--line2)'
+  return $(`<div class="lootcard"><span class="loot-lab">loot</span><span class="cons-slot${c.kind === 'scroll' ? ' scroll' : ''}" style="--cc:${tint}"><span class="cons-ic">${c.icon}</span></span><div class="loot-id"><div class="ln">${c.name}</div><div class="ld">${c.desc}</div></div></div>`)
+}
+
+/** The run satchel as a chip row (the carried consumables — next room's combat loadout). */
+function satchelHTML(bag: string[]): string {
+  const chips = bag.map((id) => {
+    const c = CONSUMABLES[id]
+    if (!c) return ''
+    const tint = c.color != null ? `var(--c${c.color})` : 'var(--line2)'
+    return `<span class="cons-slot${c.kind === 'scroll' ? ' scroll' : ''}" style="--cc:${tint}" data-tip-title="${c.name}" data-tip="${c.desc}"><span class="cons-ic">${c.icon}</span></span>`
+  }).join('')
+  return `<div class="satchel"><span class="satchel-lab">satchel ${bag.length}/${RUN_BAG_CAP}</span>${chips || '<span class="forksub">empty</span>'}</div>`
 }
 
 /* ---- pre-combat briefing ---- */
@@ -2263,7 +2401,7 @@ function showBriefing(onEngage: () => void): void {
     : `<div class="btraps" style="margin-top:14px"><div class="briefnote">No traps — a plain foe. Hit it until it falls.</div></div>`
   const counters = f.triggers.some((t) => t.kind !== 'trick' && countersBuild(t.when))
   const modal = $(`<div id="briefing" class="show"><div class="briefcard">
-    ${seq ? `<div class="bseq">Gauntlet · ${V.run.seqIdx + 1} of ${seq.length}</div>` : ''}
+    ${seq ? `<div class="bseq">Gauntlet · ${V.run.seqIdx + 1} of ${seq.length}</div>` : DELVE ? `<div class="bseq">Room ${DELVE.d.room}${DELVE.tier === 'boss' ? ' · the throne room' : ''}</div>` : ''}
     <div class="bhead">${tier ? `<span class="btier ${tier}">${tier}</span>` : ''}<h2 class="bname">${f.name}</h2>${counters ? '<span class="bcounter">⚔ counters your build</span>' : ''}</div>
     ${f.desc ? `<div class="bdesc">${f.desc}</div>` : ''}
     <div class="bstats">${statsHTML}</div>

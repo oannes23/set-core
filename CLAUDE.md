@@ -87,9 +87,11 @@ foundation migration is complete (TODO §A); next is **set.crawl on the modules*
 - **DONE: crawl Phase B1** — scene router + town screens (character select /
   dungeon select) + persisted roster (`save.ts`) + the run layer (`run.ts`).
   No run-map yet — that's B2.
-- **NEXT BUILD: `set.crawl` Phase B2** — the run loop + exit ladder
-  (`CRAWL-DESIGN.md` §2/§6, plan in `TODO.md`): room chain, boss/elite rolls,
-  loot, the flee/death/cash-out fork.
+- **IN PROGRESS: `set.crawl` Phase B2** — the **delve flow first cut shipped 2026-06-12**
+  (`engine/delve.ts` + the run loop in `app.ts`): room chain, boss inverse-CDF + elite
+  sawtooth rolls, the between-rooms fork (dread meter, satchel, HP carry), placeholder
+  one-consumable room loot. Still open (`TODO.md` §B2): real loot/gold/XP, the flee
+  parting blow, the death tithe, folding the delve into the `session.ts` seam.
 - **DONE: Resolution v2 "sets steer, stats carry"** (Model B) — stats P/E/S carry the
   numbers, sets steer; telegraphed exchanges. Built 2026-06-10; B3 gear designs
   against the stat block.
