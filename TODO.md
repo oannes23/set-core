@@ -150,11 +150,13 @@ Move never denominated in HP (the Dodge-stance idea died — Defend owns round-s
 Lands WITH the decimal rebase (HP 100 / stats 10 — the /10 wound laws confirm the package).
 
 Build scope (before B3 gear; doesn't collide with B2's run shell — combat-only):
-- `[ ]` **Engine:** round state machine (verb accumulators, rollover order, kill-race
-  symmetry), telegraph-at-deal, stance lock/queue (the wheel sets NEXT round's pick), SG live
-  wards (wound = 3), Maneuver rollover dump (deadest NOT-matching filter; overflow burns),
-  neutral mid-round regen, wound inflict/repair/recovery laws, CHARGE_CAP → 15, retire the
-  clock + excess-timer income + `SWAP_SPINUP_MS` + `DMG_REGEN_MS`.
+- `[x]` **Engine — BUILT (2026-06-11):** round state machine (verb accumulators, rollover
+  order, kill-race symmetry), telegraph-at-deal, stance lock/queue, SG live wards (wound = 3),
+  Maneuver rollover dump (deadest NOT-matching; no-bias holds), neutral mid-round regen, wound
+  inflict/repair/recovery laws, CHARGE_CAP 15, clock retired (+ SWAP_SPINUP/DMG_REGEN/excess
+  timer). INTERIM rulings (flagged in code, settle in the workshop): stall verbs EXTEND the
+  round (cap +10s, uncapped potions bypass); strikeEvery/swings derived from speed bands;
+  Invisibility keeps its authored +5 (not a full fill of the new cap). 91 tests passing.
 - `[ ]` **Numbers workshop (still open, settle in the derivation-sheet pass):** Speed's new
   job (clock-push is gone — likely charge-income scaling: Power→damage, Endurance→block,
   Speed→agency; the charge economy must absorb it) · stall-kit re-anchor (timewarp/glaciate/
