@@ -166,11 +166,18 @@ Build scope (before B3 gear; doesn't collide with B2's run shell — combat-only
   migration, ×3 player-number sweep, legacy trap-damage scale); **Defend overflow → charges
   REMOVED** (excess block = pure loss; Sentinel = the paid exception). Axioms + first-cut
   constants: `TUNING.md`; spec: CRAWL §5.6. 92 tests passing.
-- `[ ]` **Numbers workshop (remaining):** the headless **budget-conformance sim** vs the
-  axioms (A6 kill budgets per tier = the open number) · the **data rebase** (author P/E/S per
-  creature; retire the foe.ts bridge + legacy ×10/3 scales; variant/template `stat_mod` →
-  stat deltas; per-foe tempo OVERRIDE field for exceptions) · stall-kit FINAL ruling (round
-  extension is the flagged interim) · re-derive the player ×3 sweep properly.
+- `[ ]` **Numbers workshop (remaining — RESCOPED 2026-06-12, now gates the progression
+  package too):** the headless **budget-conformance sim** vs the axioms (A6 kill budgets per
+  tier = the open number) · the **re-denomination** (the +3/+2/+1 level arc widens the stat
+  band ~6× → re-derive `RATE_K`/`MOVE_RATE_K`/tempo bands/tier anchors in ONE pass; endgame
+  foes authored ≈ 40–80) · the **data rebase** (author P/E/S per creature ON THE WIDE BAND;
+  retire the foe.ts bridge + legacy ×10/3 scales + the authored `xp` field — XP is computed
+  now; variant/template `stat_mod` → stat deltas; per-foe tempo OVERRIDE field) · **XP-curve
+  derivation** (geometric ~×1.45 anchored dummy→2 / gauntlet→3 / warren=fresh-3; warren
+  re-tunes slightly harder, erring easy) · **dodge EV parity** (charges + dodge jointly ≈ a
+  P/E point) · **mitigation-efficiency vs strikeEvery** assertion (confirms the guard-carry
+  fix levels the speed tiers) · stall-kit FINAL ruling (round extension is the flagged
+  interim) · re-derive the player ×3 sweep properly.
 - `[ ]` **UI:** the Tactics wheel (7 states; lit = locked, ghost = queued), round bar (the bar
   IS the round), rollover choreography (swing→swing→dump→deal→telegraph), wound-row rendering,
   the **"sated guard" cue** (block badge dims once it meets the telegraph — over-matching must
@@ -209,6 +216,35 @@ Build scope (before B3 gear; doesn't collide with B2's run shell — combat-only
   clock; its v3 identity rides the stall-kit re-anchor above.)
 
 ---
+
+## ⭐ SETTLED (2026-06-12) — THE PROGRESSION PACKAGE (specs: CRAWL §3 + §5.7; numbers: TUNING.md "PLANNED")
+
+One design session settled the whole progression spine + the Speed/guard/tide combat
+amendments. Headlines: **cap 21 (★)** · **+5 HP & +3/+2/+1 allocated stats per level**
+(→ the re-denomination, sim-gated) · **XP computed from the foe statline** (×2/×4 elite/boss
+mults beat grinding) · curve anchored **dummy→2 / gauntlet→3 / warren = fresh level 3** ·
+**gear = ~25% of stats** (its identity = per-card riders + slot mechanics) · **loot =
+category-first nested tables** (per-tier weights + quality advantage + guaranteed gold +
+depth scaling + gear pity sawtooth) · **tithe ~12%** · **dodge rolled at the deal, folded
+into the telegraph** (Speed = whether/when; Defend = how much; crits deferred to gear) ·
+**guard carries through windups** (capped at the early-revealed telegraph) · **Maneuver
+live-burn** (~1/s, gather to enter, instant bail-out) · Speed riders (parting blow ↓, start
+grace ↑) · smash-art declarations (Persona/Mörk Borg register) over a paused, dimmed board.
+
+Build order (everything sim-gated where it touches contest constants):
+- `[ ]` **The sim pass** — the rescoped numbers workshop above is the GATE for the
+  re-denomination, the XP curve, dodge K, and the warren re-tune. Run it FIRST.
+- `[ ]` **Combat amendments batch** (engine+UI, after the sim): per-swing deal-time dodge +
+  💨 telegraph tags + the DODGED! smash card & free-round guard cue · guard carry through
+  windups + early telegraph reveal + sated-cue extension · Maneuver live-burn (gather /
+  bail-out asymmetry; burn rate = the scan-stability dial) · parting blow & start-grace
+  Speed riders (parting blow lands with the exit-ladder build, §B2).
+- `[ ]` **Levels & XP** (rides the B2 economy build): XP from the computed law + the level-up
+  flow (allocate +3/+2/+1, +5 HP, ★ at 21) + save-schema bump (level/xp/allocations).
+- `[ ]` **Loot tables v1** (replaces the delve's placeholder roll): category-first tables +
+  per-tier weights + guaranteed gold + quality advantage + depth scaling + gear pity; gold
+  drops live now, gear/spellbook entries stage in at B3/B4. Instrument gold/run + XP/run in
+  the dev panel (tune the faucet only after the shop lands).
 
 ## Open — combat polish (small, optional)
 - `[ ]` **Explain-mid-play tutorial variant** — fire explain-popovers at trigger points during a
@@ -383,4 +419,6 @@ design session: what each axis directs, what magnitude becomes, and the clock-fe
 - ~~Loss-condition framing + the flee penalty~~ — **SETTLED 2026-06-09: the exit ladder** (above).
 - Ability slots vs. a known-ability library (implies a loadout screen in town).
 - Cooldowns vs. resource-only gating for actives.
-- Level / XP / HP / gold curves; inventory limits; the death-tithe %.
+- ~~Level / XP / HP / gold curves; the death-tithe %~~ — **SETTLED 2026-06-12: the progression
+  package** (CRAWL §3 + §5.7; first-cut numbers in TUNING.md, sim-gated). Inventory limits:
+  run satchel 10 (live) · Storage 20 (B2 economy build).

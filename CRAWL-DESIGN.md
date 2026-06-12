@@ -152,10 +152,34 @@ The game is **two top-level scenes**, not one screen: the **Hub** (town/menu) an
 
 ---
 
-## 3. Progression & economy
+## 3. Progression & economy *(SETTLED 2026-06-12 — numbers are first-cut, GATED by the
+budget-conformance sim; constants tabled in `TUNING.md` "Progression & loot — PLANNED")*
 
-- **XP** per enemy → **levels**. Each level grants **+HP** and (periodically) **+1
-  ability slot**. (Curve TBD.)
+### Leveling (settled)
+- **Cap: level 21** — numeric to 20; the 21st renders as a **★** (the cap badge).
+- **Per level: +5 max HP** (base 100 → **200 at cap**; gear/passives can add ~+100 more for a
+  practical ~300 ceiling on a dedicated build) **+ stat points +3/+2/+1, player-allocated**
+  (+3 to one of P/E/S, your pick; +2 and +1 to the others) → +6/level, **+120 over the arc**;
+  a focused main stat ends ~+60 over base, a balanced spread ~+40 each. Pre-gear build
+  identity lives here (classes start stat-uniform).
+- **The re-denomination corollary:** contests are DIFFERENCE-based, so the wide point arc
+  re-derives every per-point constant in one pass — `RATE_K` ÷ ~6, the tempo-law bands × ~6,
+  dodge-K, the tier budget anchors — and endgame foes are authored on the wider band (≈ 40–80).
+  Folds into the **data rebase**; the sim is the gate. The wound/heal laws are already
+  scale-free (`maxHP/10`). The prize difference-math hands us free: outleveled content goes
+  automatically trivial — returning to the warren at 15 and flattening goblins is a real reward.
+- **XP is COMPUTED from the foe statline, never authored** (the wounds/tempo-law aesthetic —
+  new foes self-price): `XP = (hp/10 + P + E + S) × (1 + 0.15·trapCount) × tierMult`, with
+  **tierMult ×1 / ×2 / ×4** (minion/elite/boss) — deliberately ABOVE the stat ladder's
+  ×1/×1.5/×2, so harder targets always beat grinding per minute (the economic anti-stall).
+  The authored `xp` field retires with the data rebase.
+- **Curve anchors (settled):** geometric (~×1.45/level), pinned at the bottom: beating the
+  **tutorial dummy → level 2**; clearing the **training gauntlet → level 3**; the real dungeons
+  assume a **fresh level-3 entrant** (⚠ re-tune the warren slightly harder for stat growth —
+  but err EASY, new players land there). A skilled player skipping the tutorials hits 2 off
+  their **first warren minion** and 3 a few minions (or one elite) later. **XP always banks,
+  even on death** — the curve itself is the catch-up valve.
+- Each level grants **+HP + stat points** as above and (periodically) **+1 ability slot**.
 - **Classes** start with **~4 abilities + 1 signature set-passive** (the class
   identity trigger, e.g. Rogue's Move→Attack bias). Ability slots cap how many
   abilities you can equip at once; leveling widens the loadout.
@@ -170,10 +194,39 @@ The game is **two top-level scenes**, not one screen: the **Hub** (town/menu) an
   ability (even outside your class — Firebolt is on Wizard, Sorcerer, *and*
   Pyromancer), or **sell** it in town for gold. This is how a build escapes its class
   starting kit.
-- **Gold** sinks: shop purchases, (maybe) respecs/healing. Sources: enemy loot rolls,
-  selling unwanted gear/spellbooks.
-- **Loot roll per enemy** (weighted): **gold · consumable · gear · spellbook**, with
-  quality scaled by enemy level + dungeon level.
+### Gear vs levels — the stat share (settled)
+**~75% of endgame STATS come from levels** (+120 points); a full endgame kit contributes
+**~+30–40 stat points** (≈ +5–7/slot). Gear's real identity is NOT stats — it's the **flat
+per-card riders, slot-personality mechanics, and set bonuses** (§7). Rationale: difference-based
+contests punish stat-stacked gear (one lucky drop = a permanent edge in *every* contest, exactly
+what the rate clamp exists to bound); bounded riders don't. This also protects the leveling
+fantasy — a drop makes you stronger, never makes levels feel optional. HP mirrors the share
+(~+100 of the ~300 ceiling from gear/passives).
+
+### Loot (settled — category-first nested tables)
+- **Drop count by tier:** minion **1** · elite **2–3** + **guaranteed gold (×2 standard)** ·
+  boss **5** + guaranteed gold (×4). The guarantee is the WAGE; the drops are the lottery.
+- Each drop rolls a **CATEGORY** (per-tier weights — minion **60/30/10**
+  gold/consumable/gear · elite **45/35/20** · boss **30/40/30**), then a sub-table within it.
+  Elites/bosses also roll **quality with advantage** (roll twice, keep better). *(Rejected:
+  "roll N, keep highest" across categories — there's no natural cross-category ordering;
+  shifted weights buy the same skew transparently.)*
+- **Sub-tables:** **gold** = a number, kept SMALL (minions ~3–8g; a full warren clear ≈
+  100–150g — a moderate player banks **hundreds**, chase items price in **thousands**).
+  **Consumables** = 60% potions / 35% scrolls / 5% spellbooks (scrolls double as one-shot
+  DEMOS of the abilities spellbooks teach — the table advertises its own chase item; potion
+  tier rides the quality roll). **Gear** = slot split × rarity (→ affix count) × loot-tier
+  (→ affix power), per §7. Table entries **STAGE IN** as their systems land (gear at B3,
+  spellbooks at B4) — the loadout-sequencing pattern.
+- **Depth scaling:** loot quality / gold weight climbs with room number (~+5–10%/room) — aligns
+  greed with the dread meter ("one more room" is always the loot-maximizing gamble) and
+  economically kills shallow clear-and-cash-out farming.
+- **Gear pity sawtooth:** the gear category's weight ticks up per gear-less drop, resets on a
+  hit — the elite-sawtooth pattern reused as bad-luck protection.
+- **Death tithe: ~12% of banked gold** (the exit ladder's last open number, now settled).
+- **Gold** sinks unchanged: shop purchases, amenities, learning abilities (Rest stays free).
+  Sources: the loot rolls above + selling unwanted gear/spellbooks. ⚠ Tune the faucet only
+  AFTER the shop (the sink) lands — until then, instrument gold/run in the dev panel.
 
 **Abilities can be shared across classes.** An ability is a standalone data object;
 classes (and spellbooks) merely *reference* it. Firebolt exists once; Wizard,
@@ -842,6 +895,58 @@ lands (the rollover dump changes who moves the board, and when).
 
 ---
 
+## 5.7 Speed, the guard & the live tide — combat amendments (SETTLED 2026-06-12; sim/playtest-gated)
+
+The progression workshop surfaced two structural reads: **Speed under-buys** (`MOVE_RATE_K` is
+~1/10th of `RATE_K` per point) and **slow foes overperform their budget** — the guard zeroes
+every rollover, so against a `strikeEvery: 3` giant two rounds of board-forced Defends are
+wasted *by rule*, then one round of Defend income faces a triple budget. The round-scoped guard
+vs. multi-round threat mismatch, not the statline, is the difficulty skew. The settled package:
+
+- **The distinctness law, amended:** *Speed owns WHETHER/WHEN; Defend owns HOW MUCH.* Speed may
+  negate **whole swings** (binary, timing-flavored) but never does partial mitigation — Defend's
+  territory stays intact. (This is what the old "Move never denominated in HP" law was reaching
+  for; the Dodge-*stance* stays dead.)
+- **Dodge — rolled at the DEAL, folded into the telegraph.** Each foe swing independently checks
+  the Speed-diff dodge chance *at telegraph time*; dodged swings vanish from the revealed ⚔
+  (💨 swing tags). Determinism-at-reveal — the same pattern as the already-random `weightedRoll`
+  strike: the player always plans against a true number. The asymmetry falls out free:
+  single-swing giants fully whiff with chance *p* (the spike-relief moment); multi-swing foes
+  shed swings smoothly (full whiff = *p*^swings). Dodge applies to **strikes only** — never
+  traps, drift, or dread ticks (Speed does not buy out of the board game). **Stat weight:
+  charges + dodge JOINTLY ≈ a P/E point** — dodge alone can't carry parity (the EV math needs
+  ~+8–10%/pt, which is a difficulty toggle, not a stat). First cut: base ~10% at parity,
+  clamped, per-point K set with the re-denomination.
+- **Dodge feedback is a DEAL-TIME smash card.** A full whiff slams **"DODGED!"** over a paused,
+  dimmed board — sprite sidestep, the foe read shows *swinging at shadows*, and the guard cell
+  flags a **FREE ROUND** ("no need to Defend" is *displayed*, not implied). Partial dodges tag
+  the telegraph 💨×N.
+- **Crits: deferred to gear/abilities (B3+).** Player set output stays deterministic — "a set
+  delivers exactly what it reads" holds hard. If crit ever exists it's a deterministic gear hook
+  (e.g. a Speed-keyed relic: "your exchange swing crits when you banked ≥ 30").
+- **The guard CARRIES through windups.** `strikeEvery > 1` foes reveal their strike at windup
+  start ("⚔75 — lands in 2 rounds"); Block persists across the windup rounds, **capped at the
+  revealed telegraph** (the sated cue marks the stop), and drops only after a strike resolves.
+  Slow foes become a **savings test** (the Punch-Out fantasy); fast foes stay the cash-flow
+  test. Off-turn Defends become meaningful instead of insulting.
+- **Maneuver goes LIVE-BURN.** Replaces the rollover dump (the playtest record argued for it:
+  churns ≈ 0 across the warren sweep — a back-loaded payoff that usually never landed). Maneuver
+  burns **~1 charge/sec** into the deadest-first churn toward your bias, starting after a short
+  **gather** (~1.5–2s — damps wheel-drumming). **Bail-out is asymmetric:** swapping back to
+  Stand Ground is INSTANT — keeps the remainder, stops the burn, resumes warding (the panic
+  button always works); *entering* the tide pays the gather. Maneuver still never wards — its
+  cost is now legible in real time (you watch wards not-happen while you're greedy). Burn rate
+  is the scan-stability dial (fallback 1/1.5–2s if the board reads as a river). The tide beat
+  shrinks to knit/deal/stance-lock; **the exchange gets LOUDER**.
+- **Speed riders:** the flee **parting blow scales down with Speed edge** (Speed = the escape
+  stat; lands with the exit-ladder build) · the pre-round **start grace stretches** with Speed
+  edge ("you size them up") · B3 gives Speed its gear hooks (Speed-keyed relics).
+- **Presentation direction:** big Persona / Mörk Borg-style **smash-art declarations** (DODGED!,
+  the exchange beats) over a paused, dimmed board + sprite acting — extends the existing
+  bamWord impact-card system; reduced-motion falls back per the established pattern.
+
+---
+
 ## 6. Open questions
 
 - ~~⭐ **rework Move's core**~~ — **RESOLVED: the Tactics meter (§5.5).** Move now
@@ -873,7 +978,7 @@ lands (the rollover dump changes who moves the board, and when).
      *Intended play:* a timid player can duck an elite and farm minions for early
      gold/XP — paying HP per duck, since the parting blow scales with the foe.
   3. **Death.** The run inventory and all gold carried this run are **lost**, plus a
-     **tithe: a % of banked gold** (a recovery fee; % is a tuning number). **XP always
+     **tithe: ~12% of banked gold** (settled 2026-06-12; a recovery fee). **XP always
      banks, even on death** — the struggling player still inches forward. Equipped
      gear and the hero survive. True permadeath is deferred to a future *opt-in*
      hardcore flag (the roster already supports it cheaply).
@@ -882,8 +987,9 @@ lands (the rollover dump changes who moves the board, and when).
     free, permanently** — gold's sinks live elsewhere (base-building amenities, shop
     gear, consumables, learning abilities; see §6 economy note). **A fled room DOES
     advance the boss running-total** (settled — boss % keys to encounters *entered*,
-    §2), and the boss, once appeared, persists through flees (§2). Still open: the
-    tithe % (a tuning number).
+    §2), and the boss, once appeared, persists through flees (§2). The tithe is settled
+    (~12%, §3); the **parting blow scales down with the player's Speed edge** (§5.7 —
+    Speed is the escape stat).
   - ⚠ Interaction flag: free Rest + flee-farming + in-combat sustain builds
     (Druid/Sentinel healing loops) = unbounded minion farming with no attrition. This
     raises the priority of a **structural anti-stall** (universal soft-enrage /
@@ -902,7 +1008,11 @@ lands (the rollover dump changes who moves the board, and when).
 - **Ability slots vs. known abilities** — do you *learn* a growing library but only
   *equip* slot-many? (Implies a loadout screen in town.)
 - **Cooldowns vs. resource-only** gating for actives.
-- **Level/XP curve, HP curve, gold economy balance.**
+- ~~**Level/XP curve, HP curve, gold economy balance.**~~ — **SETTLED 2026-06-12: the
+  progression package (§3).** Cap 21 (★), +5 HP & +3/+2/+1 allocated stats per level, XP
+  computed from the foe statline (×2/×4 elite/boss), curve anchored dummy→2 / gauntlet→3 /
+  warren = fresh level 3; loot = category-first nested tables with depth scaling + gear pity;
+  tithe ~12%. First-cut numbers sim-gated (`TUNING.md`).
 - ~~**Mana persistence**~~ — **resolved: HP is the only cross-room persistence
   layer.** On entering each room, **everything except HP resets** — mana, Tactics, and
   any active DoTs/dread all clear to zero; HP carries over (the run's attrition clock).

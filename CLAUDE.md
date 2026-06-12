@@ -100,6 +100,12 @@ foundation migration is complete (TODO §A); next is **set.crawl on the modules*
   verbs accumulate → exchange at the rollover (kill-race ordering), Tactics wheel
   (Stand Ground banker vs Maneuver dumper, CHARGE_CAP 15), computed wound laws, the
   decimal rebase (HP 100 / stats 10). Combat-only; lands before B3 gear.
+- **SETTLED 2026-06-12: the progression package** (`CRAWL-DESIGN.md` §3 + §5.7; first-cut
+  numbers in `TUNING.md` "PLANNED", gated by the budget sim): level cap 21 (★), +5 HP &
+  +3/+2/+1 allocated stats/level (→ the stat re-denomination), XP computed from foe statlines,
+  curve anchored dummy→2 / gauntlet→3, category-first loot tables, tithe ~12%, dodge-at-the-deal,
+  guard-carry through windups, Maneuver live-burn. The rescoped **numbers workshop** (TODO.md)
+  is the gate; run the sim before building.
 - Still open (see `TRAPS.md` §8 / `CRAWL-DESIGN.md` §6): per-foe transmute *numbers*
-  (framework set, tune in play); XP/HP/gold curves; whether
-  the enemy ever gets an active resource-spending layer.
+  (framework set, tune in play); ability slots vs. learned library; cooldowns vs.
+  resource-only; whether the enemy ever gets an active resource-spending layer.

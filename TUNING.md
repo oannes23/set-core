@@ -39,6 +39,11 @@ pending the derivation-sheet sim — directionally settled, numerically sim-fodd
 
 ## Resolution v3 — the stat contests (LIVE, first-cut)
 
+> ⚠ **Re-denomination incoming** (the progression package, above): the +3/+2/+1 level arc
+> widens the stat band ~6×, so `RATE_K`, `MOVE_RATE_K`, the tempo-law bands, and the tier
+> anchors below all re-derive together in the sim pass. The values below are the LIVE code
+> values until that lands.
+
 Per card: `rate(yourStat, theirOpposed) × QUALITY[mag]`, QUALITY = ①×0.7 ②×1.0 ③×1.4.
 
 | Constant | Value | File | Meaning |
@@ -62,6 +67,34 @@ Per card: `rate(yourStat, theirOpposed) × QUALITY[mag]`, QUALITY = ①×0.7 ②
 | `COMBAT_GEN.escapeRoutes` | 6 | `src/engine/combat.ts` | Sets at the easiest k |
 | `COMBAT_GEN.floor` | 1 | `src/engine/combat.ts` | Minimum makeable sets, always (⚠ assert vs worst-case wounds+locks in the sim) |
 | `BIAS_W` | 8 | `src/engine/select.ts` | Transmute favour weight (mid-round regen is NEUTRAL — bias expresses only via the dump) |
+
+## Progression & loot — PLANNED (settled 2026-06-12; NOT yet in code, GATED by the budget sim)
+
+The full design: `CRAWL-DESIGN.md` §3 (progression/loot) + §5.7 (combat amendments). Every
+number below is a first cut for the sim to confirm or move.
+
+| Constant | Value | Meaning |
+|---|---|---|
+| Level cap | **21** (numeric to 20, then ★) | the cap badge |
+| HP / level | **+5** | 100 → 200 at cap; gear/passives ~+100 → ~300 practical ceiling |
+| Stat points / level | **+3/+2/+1, player-allocated** | +6/level, +120 arc; focused main ≈ +60 |
+| Re-denomination | `RATE_K` ÷ ~6 · tempo bands × ~6 · endgame foes ≈ 40–80 | difference-based contests; re-derive per-point constants in ONE sim pass (with the data rebase) |
+| XP law | `(hp/10 + P + E + S) × (1 + 0.15·traps) × tierMult` | computed, never authored; retires the `xp` field |
+| XP tier mult | **×1 / ×2 / ×4** | deliberately above the stat ladder (×1/×1.5/×2) — risk beats grinding |
+| XP curve | geometric **~×1.45**, anchored dummy→L2 · gauntlet→L3 · warren = fresh L3 | XP always banks, even on death |
+| Gear stat share | **~25%** of endgame stats (~+30–40 pts/kit, ≈+5–7/slot) | gear's identity = per-card riders + slot mechanics (§7), not stats |
+| Drop count | minion **1** · elite **2–3** · boss **5** | plus guaranteed gold ×2 / ×4 (elite/boss) |
+| Category weights | minion **60/30/10** · elite **45/35/20** · boss **30/40/30** (gold/cons/gear) | elites+bosses roll quality with ADVANTAGE (2×, keep better) |
+| Consumable sub-table | **60% potion / 35% scroll / 5% spellbook** | entries stage in as systems land (gear B3, books B4) |
+| Gold scale | minion drop ~3–8g · full warren clear ≈ 100–150g | moderate player banks hundreds; chase items in thousands |
+| Depth scaling | **~+5–10%/room** loot-quality/gold weight | greed aligns with dread; kills shallow cash-out farming |
+| Gear pity | gear weight ticks up per gear-less drop, resets on hit | the elite-sawtooth pattern as bad-luck protection |
+| Death tithe | **~12%** of banked gold | the exit ladder's last number |
+| Dodge | base **~10%** at parity · per **swing** · rolled AT THE DEAL, folded into the ⚔ | strikes only; Speed weight = charges + dodge jointly ≈ a P/E point; per-point K set with the re-denomination |
+| Guard carry | Block persists through windups, **capped at the revealed telegraph** | strikeEvery>1 foes reveal ⚔ at windup start; guard drops only after a strike resolves |
+| Maneuver live-burn | **~1 charge/sec**, gather **~1.5–2s** to enter, bail-out to SG instant (keeps remainder) | replaces the rollover dump; burn rate = the scan-stability dial |
+| Speed riders | parting blow ↓ with Speed edge · start grace ↑ with Speed edge | the escape stat |
+| Crits | **deferred** to gear/abilities (deterministic hooks only) | set output stays exact |
 
 ## Delve encounter schema (LIVE, first cut — CRAWL §2)
 
