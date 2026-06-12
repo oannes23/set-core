@@ -621,6 +621,7 @@ button.cta:disabled { opacity: .4; cursor: not-allowed; }
   .exbeat.big.go { animation: none; }
   .roundstamp.go { animation: none; opacity: 1; }
   .draining { transform: none; }
+  .bam.go { animation: none; opacity: 1; transform: translate(-50%, -50%); font-size: 26px; } /* belt-and-suspenders past bamWord's own branch */
 }
 
 /* TELEGRAPHED EXCHANGES — the foe rears as its exchange swing draws near (the scoreboard holds the number) */
@@ -640,10 +641,11 @@ button.cta:disabled { opacity: .4; cursor: not-allowed; }
 .sprite .stb { position: absolute; right: -13px; top: -7px; font-size: 13px; opacity: .55; filter: drop-shadow(0 1px 3px #000c); transition: opacity .3s ease; }
 .sprite .stb.armed { opacity: 1; }
 
-/* THE ROLLOVER CHOREOGRAPHY — the exchange owns the whole field for ~4.3s (EXCHANGE_BEATS in
+/* THE ROLLOVER CHOREOGRAPHY — the exchange owns the whole field for ~6s (EXCHANGE_BEATS in
    app.ts). Beat ① shifts the field's mode: the board dims under a vignette with a low visual
-   thunk, the flag stamps BIG and holds, the scoreboard lights; ②/③ drain their numbers on the
-   scoreboard; ④ half-lifts the dim so the board's churn reads bright; ⑤ releases everything. */
+   thunk, the flag stamps BIG and holds, the scoreboard lights, the cards LOCK; ②/③ drain their
+   numbers on the scoreboard, comic impact cards (BAM!/CLANG!/POW!) stamping each landing; ④
+   half-lifts the dim so the board's churn reads bright; ⑤ releases everything. */
 .exbeat { position: absolute; left: 50%; top: 38%; transform: translate(-50%, -50%) scale(.92); pointer-events: none; z-index: 7;
   font-family: "Syne", sans-serif; font-weight: 800; font-size: 19px; letter-spacing: .16em; text-transform: uppercase;
   color: var(--gold); text-shadow: 0 0 18px rgba(245, 197, 66, .45), 0 2px 8px #000c;
@@ -676,6 +678,11 @@ button.cta:disabled { opacity: .4; cursor: not-allowed; }
 .ex-val, .ex-guard, #phpv, #ehpv { display: inline-block; transition: transform .25s ease, filter .25s ease; }
 .draining { transform: scale(1.3); filter: brightness(1.6); text-shadow: 0 0 12px currentColor; }
 .ex-guard.draining { transform: scale(1.18); }
+/* BOARD LOCKOUT — from the rollover until the release the cards are out of reach: no picks, no
+   hover, and even the tide's half-lift stays a notch dimmer/greyer so it READS "look, don't touch" */
+.boardwrap.exlocked .board { pointer-events: none; }
+.boardwrap.exlocked { cursor: not-allowed; }
+.boardwrap.exmode.extide.exlocked .board { filter: brightness(.8) saturate(.78); }
 /* the wound-knit holds as a dark gap while the churn morphs play, then flares closed (cardknit) */
 .card.knitwait { opacity: 0; }
 /* "Round N" stamps over the board at the release — the new round's punctuation */
@@ -691,3 +698,28 @@ button.cta:disabled { opacity: .4; cursor: not-allowed; }
 }
 /* a "wasted" floater (sated/overflow Block) — grey, smaller, sinks the eye instead of rewarding it */
 .floater.wasted { font-size: 13px; font-weight: 600; opacity: .9; font-style: italic; }
+
+/* BAM/POW IMPACT CARDS — comic burst words stamped over each beat's target (bamWord in app.ts;
+   #bamlayer is a body-level singleton in viewport coords, so the words stay bright over the dimmed
+   board). Pop-in with a squash overshoot, hold, fade; --rot walks a fixed ±6° cycle, --sc scales
+   with the moment's magnitude. Outlined dual-tone: bright face over a dark same-family understroke. */
+#bamlayer { position: fixed; inset: 0; pointer-events: none; z-index: 39; }
+.bam { position: absolute; opacity: 0; transform: translate(-50%, -50%) rotate(var(--rot, 0deg)) scale(calc(var(--sc, 1) * .3));
+  font-family: "Syne", sans-serif; font-weight: 800; font-size: 54px; letter-spacing: .03em; text-transform: uppercase;
+  white-space: nowrap; -webkit-text-stroke: 2.5px #10131b; paint-order: stroke fill;
+  text-shadow: 0 4px 0 #10131b, 0 0 30px currentColor; }
+.bam.go { animation: bampop 1.05s cubic-bezier(.22, 1.3, .36, 1) forwards; }
+@keyframes bampop {
+  0% { opacity: 0; transform: translate(-50%, -50%) rotate(var(--rot, 0deg)) scale(calc(var(--sc, 1) * .3)); }
+  16% { opacity: 1; transform: translate(-50%, -50%) rotate(var(--rot, 0deg)) scale(calc(var(--sc, 1) * 1.22), calc(var(--sc, 1) * .85)); } /* the squash */
+  32% { transform: translate(-50%, -50%) rotate(var(--rot, 0deg)) scale(var(--sc, 1)); }
+  74% { opacity: 1; }
+  100% { opacity: 0; transform: translate(-50%, -50%) rotate(var(--rot, 0deg)) scale(calc(var(--sc, 1) * 1.05)); }
+}
+.bam-hit { color: var(--gold); text-shadow: 0 4px 0 #6e1518, 0 0 30px var(--red); } /* your swing: gold over red */
+.bam-guard { color: var(--blue); text-shadow: 0 4px 0 #142a55, 0 0 30px var(--blue); } /* the guard holds */
+.bam-pain { color: var(--red); text-shadow: 0 4px 0 #4a0d10, 0 0 30px var(--red); } /* their strike bites */
+.bam-tide { color: var(--phos); text-shadow: 0 4px 0 #0c4038, 0 0 30px var(--phos); } /* the Maneuver tide */
+.bam-soft { color: var(--ink-dim); font-size: 26px; -webkit-text-stroke: 1.5px #10131b; text-shadow: 0 2px 0 #10131b; } /* the quiet SHFF */
+/* reduced motion: bamWord adds .static instead of .go — a brief, unanimated read */
+.bam.static { animation: none; opacity: 1; transform: translate(-50%, -50%); font-size: 26px; }

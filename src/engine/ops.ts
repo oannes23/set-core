@@ -109,8 +109,11 @@ export function castDamageHook(s: CombatState, cost: [number, number, number], s
   if (s.foe.rules.ability_damage !== 'mana_spent') return
   const spent = cost[0] + cost[1] + cost[2]
   if (spent <= 0) return
-  s.enemyHP = Math.max(0, s.enemyHP - spent)
-  sink.emit({ type: 'enemyDamaged', amount: spent, magic: true })
+  // HP-100 rebase: his HP scaled ×10/3 but mana didn't — rebase the exchange rate so the
+  // authored economy holds (≈15 mana total still dispels him). First-cut, data rebase retires it.
+  const drain = Math.round(spent * (10 / 3))
+  s.enemyHP = Math.max(0, s.enemyHP - drain)
+  sink.emit({ type: 'enemyDamaged', amount: drain, magic: true })
 }
 
 /** ⚠ INTERIM stall re-anchor (CRAWL §5.6 open item): clock-push verbs now EXTEND the current round

@@ -123,7 +123,7 @@ export function mountApp(root: HTMLElement): void {
    ============================================================ */
 let ROOT: HTMLElement | null = null
 // the briefing/coach/FX/vignette layers live on <body>; #tooltip is app-global (hidden, not swept)
-const BODY_SINGLETONS = ['coachscrim', 'coachpop', 'briefing', 'burstlayer', 'ptint']
+const BODY_SINGLETONS = ['coachscrim', 'coachpop', 'briefing', 'burstlayer', 'bamlayer', 'ptint']
 let sceneTimers: number[] = []
 /** A setTimeout whose callback dies with the scene — use for ALL scene-scoped delays/FX. */
 function sceneTimeout(fn: () => void, ms: number): number {
@@ -828,6 +828,7 @@ function glowSet(s: CombatState, sel: number[], sets: [number, number, number][]
 // ---- input ----
 function onBoardClick(e: Event): void {
   if (!V || !V.state.running || V.paused) return // board is inert during a coaching/briefing freeze
+  if (V.holdHud) return // …and LOCKED through the whole rollover choreography (selection cleared at entry)
   const el = (e.target as HTMLElement).closest('.card') as HTMLElement | null
   if (!el || el.dataset.i == null) return
   const i = +el.dataset.i
@@ -852,7 +853,7 @@ function onBoardClick(e: Event): void {
     bad.forEach((j) => V!.refs.board.querySelector(`[data-i="${j}"]`)?.classList.add('bad'))
     log('A misread — those three are not a set.', 'foe')
     sceneTimeout(() => {
-      if (V) renderBoard()
+      if (V && !V.holdHud) renderBoard() // a rollover that started mid-shake owns the next paint
     }, 320)
     return
   }
@@ -1073,7 +1074,7 @@ function verbsFromEvents(events: CombatEvent[]): Map<number, CardVerb> {
 /** Full-screen feedback priority — a wound out-shouts a trap spring (TRAPS layering scheme). */
 const FLASH_PRI: Record<string, number> = { wound: 3, trap: 2, trick: 2 }
 
-/** Event → feedback. A batch containing a rollover is CHOREOGRAPHED (the ~4.3s diegetic exchange
+/** Event → feedback. A batch containing a rollover is CHOREOGRAPHED (the ~6s diegetic exchange
  *  beat, CRAWL §5.6 — never a modal; timings in EXCHANGE_BEATS); everything else plays immediately.
  *  Returns true when the choreography owns the board render (dispatch must not double-render). */
 function interpret(events: CombatEvent[]): boolean {
@@ -1086,25 +1087,29 @@ function interpret(events: CombatEvent[]): boolean {
 }
 
 /* THE ROLLOVER CHOREOGRAPHY — the engine resolves the exchange atomically; the UI plays it back as
-   a ~4.3s cinematic beat (playtest 2026-06: the pause must be FELT — long enough to register your
-   matches and watch each quantity visibly TRANSFER): ① the field shifts mode (board dims under a
-   vignette, the flag stamps big, the scoreboard lights) → ② YOUR SWING: the banked ⚔ counts down
-   to 0 while the foe's HP drains with it → ③ THEIR STRIKE: the telegraph ⚔ drains into your guard
-   🛡; the bite past it drains your HP, wound shatters popping as it lands → ④ THE TIDE & THE DEAL:
-   the board takes the stage (churn morphs first, the wound-knit flare after) → ⑤ RELEASE: the field
-   re-brightens, "Round N" stamps, the fresh telegraph reveals. Input stays live; ticks freeze
-   (the hitstop spans the WHOLE beat, so the new round still opens with a full clock). The HUD holds
-   its pre-exchange read until ⑤ — every number lands on its beat, never all at once at dispatch. */
+   a ~6s cinematic beat (playtest 2026-06-11: "even a little slower and more telegraphed out" —
+   each quantity must visibly TRANSFER, each landing stamped with a comic BAM/POW impact card):
+   ① the field shifts mode (board dims under a vignette, the flag stamps big, the scoreboard
+   lights) → ② YOUR SWING: the banked ⚔ counts down to 0 while the foe's HP drains with it
+   ("BAM!"/"CRUNCH!"/"LETHAL!" over the foe) → ③ THEIR STRIKE: the telegraph ⚔ drains into your
+   guard 🛡 ("CLANG!" when it holds outright); the bite past it drains your HP ("OOMF!"/"POW!",
+   wound shatters popping with a "CRACK!") → ④ THE TIDE & THE DEAL: the board takes the stage
+   (churn morphs first — "SWOOSH!" on a Maneuver dump — the wound-knit flare after) → ⑤ RELEASE:
+   the field re-brightens, "Round N" stamps, the fresh telegraph reveals. CARD INPUT LOCKS for the
+   whole beat (selection cleared at entry, board inert + dimmed until ⑤ — playtest 2026-06-11);
+   abilities/consumables/flee stay live. Ticks freeze (the hitstop spans the WHOLE beat, so the new
+   round still opens with a full clock). The HUD holds its pre-exchange read until ⑤ — every number
+   lands on its beat, never all at once at dispatch. */
 const EXCHANGE_BEATS = {
-  swing: 800, // ② your swing begins (the ① mode-shift owns 0–800ms)
-  swingDrain: 650, // …the banked-⚔ → foe-HP count-down tween
-  counter: 1950, // ③ their strike begins
-  guardDrain: 450, // …the telegraph → guard absorb tween
-  hpDrain: 550, // …the remaining bite → your-HP tween (runs after the absorb)
-  tide: 3150, // ④ the tide + the deal (the board's own unhurried window)
-  knitHold: 550, // …the wound-knit flare fires this long after the churn morphs start
-  deal: 4150, // ⑤ release — the HUD snaps to the new round
-  releasePad: 350, // hitstop runs to deal+pad: the freeze covers every beat with margin
+  swing: 1100, // ② your swing begins (the ① mode-shift owns 0–1100ms)
+  swingDrain: 880, // …the banked-⚔ → foe-HP count-down tween
+  counter: 2700, // ③ their strike begins
+  guardDrain: 600, // …the telegraph → guard absorb tween
+  hpDrain: 750, // …the remaining bite → your-HP tween (runs after the absorb)
+  tide: 4300, // ④ the tide + the deal (the board's own unhurried window)
+  knitHold: 750, // …the wound-knit flare fires this long after the churn morphs start
+  deal: 5600, // ⑤ release — the HUD snaps to the new round
+  releasePad: 400, // hitstop runs to deal+pad (~6s): the freeze covers every beat with margin
 }
 /** prefers-reduced-motion: the old compact ~2.25s pacing; the numbers snap instead of tweening. */
 const EXCHANGE_BEATS_REDUCED: typeof EXCHANGE_BEATS = { swing: 350, swingDrain: 0, counter: 900, guardDrain: 0, hpDrain: 0, tide: 1450, knitHold: 0, deal: 2000, releasePad: 250 }
@@ -1146,7 +1151,11 @@ function choreographRollover(events: CombatEvent[]): void {
 
   V.holdHud = true
   hitstop(B.deal + B.releasePad) // the freeze covers the WHOLE beat — the new round opens with a full clock
-  exchangeEnter() // ① the field shifts mode
+  // BOARD LOCKOUT — clear any half-made pick NOW (it can't survive the deal anyway) and strip its
+  // glow from the still-dimming board; onBoardClick ignores the field until ⑤ (holdHud is the lock)
+  V.selected = []
+  V.refs.board?.querySelectorAll('.card.sel, .card.badpair, .card.bad').forEach((el) => el.classList.remove('sel', 'badpair', 'bad'))
+  exchangeEnter() // ① the field shifts mode (+ .exlocked: the board reads out-of-reach)
   log(`<span style="opacity:.8">— the exchange —</span>`, 'you')
 
   // ② YOUR SWING — the banked ⚔ counts down to 0 as the foe's HP drains with it (one visible transfer)
@@ -1154,7 +1163,11 @@ function choreographRollover(events: CombatEvent[]): void {
     if (!V || !V.holdHud) return
     if (swingDmg <= 0) { floatBoard('no swing banked', 'var(--ink-faint)', 'enemy'); return } // brief + grey
     drainCls(true, V.refs.exatk, V.refs.ehpv)
-    sceneTimeout(() => { if (V?.holdHud) interpretChunk(seg.swing) }, Math.round(B.swingDrain * 0.35)) // the lunge/float/flash land mid-tween
+    sceneTimeout(() => { // the lunge/float/flash land mid-tween — the impact card stamps with them
+      if (!V?.holdHud) return
+      interpretChunk(seg.swing)
+      bamWord(won ? 'LETHAL!' : tierOf(swingDmg, 12) === 'heavy' ? 'CRUNCH!' : 'BAM!', 'hit', V.refs.spfoe, won ? 1.3 : tierOf(swingDmg, 12) === 'heavy' ? 1.15 : 1)
+    }, Math.round(B.swingDrain * 0.35))
     exTween(B.swingDrain, (k) => {
       if (!V) return
       V.refs.exatk.textContent = `⚔ ${Math.round(swingDmg * (1 - k))}`
@@ -1178,6 +1191,11 @@ function choreographRollover(events: CombatEvent[]): void {
       if (!V || !V.holdHud) return
       interpretChunk(seg.counter)
       for (const sl of shatters) boomSlot(sl, verbs)
+      // the impact card: a held guard goes "CLANG!", a bite lands "OOMF!"/"POW!" (bigger when wounds
+      // shatter, with a "CRACK!" stamped over the board as they pop)
+      if (bite > 0) bamWord(tierOf(bite, V.state.foe.damage) === 'light' ? 'OOMF!' : 'POW!', 'pain', V.refs.spyou, shatters.length ? 1.3 : 1.05)
+      else if (raw > 0) bamWord('CLANG!', 'guard', V.refs.exguard, 1)
+      if (shatters.length) sceneTimeout(() => { if (V?.holdHud) bamWord('CRACK!', 'pain', V.refs.boardwrap, 1.1) }, 140)
       if (bite > 0) {
         drainCls(true, V.refs.phpv)
         const preYouHP = postYouHP + bite
@@ -1207,7 +1225,11 @@ function choreographRollover(events: CombatEvent[]): void {
     if (!V || !V.holdHud) return
     V.refs.boardwrap?.classList.add('extide') // the eye moves to the board
     interpretChunk(seg.tide)
-    if (boardSignature(V.state) !== V.boardSig) renderBoard(verbs)
+    const changed = boardSignature(V.state) !== V.boardSig
+    if (changed) renderBoard(verbs)
+    // the tide's own impact card: the Maneuver dump goes "SWOOSH!"; a plain reshuffle gets a soft "SHFF"
+    if (seg.tide.some((e) => e.type === 'tacticsDumped' && e.churned > 0)) bamWord('SWOOSH!', 'tide', V.refs.boardwrap, 1.05)
+    else if (changed) bamWord('SHFF', 'soft', V.refs.boardwrap, 0.85)
     holdKnits(knits, B.knitHold)
   }, B.tide)
 
@@ -1288,7 +1310,7 @@ function holdKnits(slots: number[], holdMs: number): void {
 function exchangeEnter(): void {
   if (!V) return
   const bw = V.refs.boardwrap
-  if (bw) { bw.classList.add('exmode'); bw.classList.add('exenter'); sceneTimeout(() => bw.classList.remove('exenter'), 600) }
+  if (bw) { bw.classList.add('exmode', 'exlocked'); bw.classList.add('exenter'); sceneTimeout(() => bw.classList.remove('exenter'), 600) } // exlocked: cards out of reach until the release
   V.refs.exatk?.closest('.exchange')?.classList.add('live')
   const layer = V.refs.floatlayer
   if (!layer) return
@@ -1301,7 +1323,7 @@ function exchangeEnter(): void {
 /** Beat ⑤ / defensive cleanup — release: the board re-brightens, the flag lifts, the glows settle. */
 function exchangeExit(): void {
   if (!V) return
-  V.refs.boardwrap?.classList.remove('exmode', 'extide', 'exenter')
+  V.refs.boardwrap?.classList.remove('exmode', 'extide', 'exenter', 'exlocked') // the lockout ALWAYS lifts here (release beat + the defensive endScreen path)
   V.refs.exatk?.closest('.exchange')?.classList.remove('live')
   drainCls(false, V.refs.exatk, V.refs.ehpv, V.refs.phpv, V.refs.exinc, V.refs.exguard)
   const flag = document.getElementById('exflag')
@@ -1326,6 +1348,35 @@ function pulseTelegraph(): void {
   el.classList.remove('reveal')
   void el.offsetWidth
   el.classList.add('reveal')
+}
+
+/* BAM/POW IMPACT CARDS — old-Batman burst words stamped over each beat's target at its impact
+   moment (playtest 2026-06-11: the hits/defends/mutations need BIG comic punctuation). One body-level
+   layer (#bamlayer, a BODY_SINGLETON); rotation walks a fixed ±6° cycle for the hand-stamped feel. */
+const BAM_ROT = [-6, 4, -3, 6, -5, 3]
+let bamCycle = 0
+/** Stamp `word` centered over `anchor` (viewport coords — survives the board's dim filter).
+ *  cls picks the palette (hit=gold/red · guard=blue · pain=red · tide=phosphor · soft=faint);
+ *  scale grows the stamp with the moment's magnitude. Reduced motion: brief static text, no pop. */
+function bamWord(word: string, cls: 'hit' | 'guard' | 'pain' | 'tide' | 'soft', anchor: HTMLElement | null | undefined, scale = 1): void {
+  if (!anchor || !anchor.isConnected) return
+  let layer = document.getElementById('bamlayer')
+  if (!layer) { layer = $(`<div id="bamlayer"></div>`); document.body.appendChild(layer) }
+  const r = anchor.getBoundingClientRect()
+  const el = $(`<div class="bam bam-${cls}">${word}</div>`)
+  el.style.left = `${r.left + r.width / 2}px`
+  el.style.top = `${r.top + r.height / 2}px`
+  el.style.setProperty('--rot', `${BAM_ROT[bamCycle++ % BAM_ROT.length]}deg`)
+  el.style.setProperty('--sc', String(scale))
+  layer.appendChild(el)
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    el.classList.add('static') // no animation — a brief static read, then gone
+    sceneTimeout(() => el.remove(), 650)
+    return
+  }
+  void el.offsetWidth
+  el.classList.add('go')
+  sceneTimeout(() => el.remove(), 1150) // past the 1.05s pop-fade
 }
 
 function interpretChunk(events: CombatEvent[]): void {

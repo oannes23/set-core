@@ -52,11 +52,11 @@ test('an unaffordable ability is a no-op (no mana spent, no events)', () => {
 test('ethereal rule: intrinsic ability damage is replaced by mana-spent drain', () => {
   const s = combat('unstable_ethereal_goblin')
   const r = reduce(s, { type: 'castAbility', abilityId: 'firebolt' }, deps(mulberry32(2)))
-  // firebolt's 15-dmg roll is nullified; the foe loses exactly the 4 mana spent (magic), nothing more
+  // firebolt's damage roll is nullified; the foe loses the 4 mana spent × the rebased rate (10/3)
   const dmg = r.events.filter((e) => e.type === 'enemyDamaged') as Array<{ amount: number; magic?: boolean }>
   expect(dmg).toHaveLength(1)
-  expect(dmg[0]).toMatchObject({ amount: 4, magic: true })
-  expect(r.state.enemyHP).toBe(996)
+  expect(dmg[0]).toMatchObject({ amount: 13, magic: true })
+  expect(r.state.enemyHP).toBe(987)
 })
 
 // ---- passives ----

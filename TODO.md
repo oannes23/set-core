@@ -181,6 +181,13 @@ Build scope (before B3 gear; doesn't collide with B2's run shell — combat-only
   round-lock flow). Verdict: "the exchange felt pretty good; goblins quick, pretty easy" —
   minion tier reading player-favored as designed. Main feedback: **UI badly needs the v3
   facelift** (→ the UI batch below).
+- **Post-facelift playtests (2026-06-11/12):** warren — reshape 56% (⚠ LOW now) · spring 45%
+  (⚠ HIGH) · sets/rnd 2.8 · gimme 64 · wards 2 · **churns 3 (the wheel works)** · tutorial —
+  reshape 62 / spring 16 / sets/rnd 9.0 (⚠ hot) / churns 30 · dummy — reshape 100 / churns 15.
+  Fixed: ethereal goblin's mana-kill cost (drain now spent×10/3 — his HP rebased but mana
+  hadn't). Asked + built: even slower, MORE telegraphed exchange w/ BAM/POW impact cards;
+  board locked + deselected during the rollover. Watch for the sim: reshape↓/spring↑ in the
+  warren post-wheel.
 - `[ ]` **Coach:** low-match-count player takes ≥4 wounds in one exchange → cooldowned
   "Stand Ground to stabilize" reminder (rides the explain-mid-play variant below).
 - `[ ]` **Sim:** assert FLOOR under worst-case wounds(5)+locks; re-read reshape share + spring
