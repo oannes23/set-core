@@ -48,7 +48,7 @@ export const ABILITY_FLAVOR: Record<string, string> = {
   heal: 'You <b>Heal</b> — wounds close and green seeds the board',
   block: 'You raise a <b>Block</b> — Defends churn up a heavier guard',
   smokebomb: 'You drop a <b>Smoke Bomb</b> — the foe gropes blindly, slowed',
-  timewarp: 'You bend time — the foe’s clock slams back and it reels',
+  timewarp: 'You bend time — the round stretches and the exchange recedes',
 }
 
 let _turn = 0

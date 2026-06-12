@@ -175,6 +175,12 @@ Build scope (before B3 gear; doesn't collide with B2's run shell — combat-only
   IS the round), rollover choreography (swing→swing→dump→deal→telegraph), wound-row rendering,
   the **"sated guard" cue** (block badge dims once it meets the telegraph — over-matching must
   be learnable), dev instruments grow a **sets/round** readout (~3 baseline / 4–6 competent).
+- **First v3 playtest (2026-06-11, vs Goblin Warlord):** reshape 70% (ON target) · spring 19%
+  (low vs ~30) · sets/min 16.0 · gimme 100% (⚠ watch) · wards 7 · **churns 0** (⚠ never
+  dumped — likely a queue-discoverability symptom: the old toggle+chips UI hides the
+  round-lock flow). Verdict: "the exchange felt pretty good; goblins quick, pretty easy" —
+  minion tier reading player-favored as designed. Main feedback: **UI badly needs the v3
+  facelift** (→ the UI batch below).
 - `[ ]` **Coach:** low-match-count player takes ≥4 wounds in one exchange → cooldowned
   "Stand Ground to stabilize" reminder (rides the explain-mid-play variant below).
 - `[ ]` **Sim:** assert FLOOR under worst-case wounds(5)+locks; re-read reshape share + spring

@@ -1,8 +1,9 @@
 /* ui/app — a functional, playable UI over the engine. Renders the board/HUD, turns clicks into
-   `completeSet` actions, runs the clock via `tick`, and interprets CombatEvents into feedback.
+   `completeSet` actions, runs the frame loop via `tick`, and interprets CombatEvents into feedback.
    Intentionally a clean rebuild (not pixel-parity with the prototype). Layout: a compact board on the
-   left + a side rail (abilities/tactics stub, combat log) on the right — the abilities panel goes live
-   in step 5. Plays the reactive board game: matches, traps & tricks, Tactics meter, enemy clock, gauntlets. */
+   left + a side rail (Tactics wheel, abilities, combat log) on the right. Plays the ROUNDS v3 game
+   (CRAWL §5.6): matches accumulate by verb, the round bar drains to the rollover exchange (a
+   choreographed diegetic beat — never a modal), the Tactics wheel queues next round's stance. */
 
 import { systemRng, type Rng } from '../core/rng'
 import { type Card, isSet, third, keyOf } from '../core/affine'
@@ -19,8 +20,8 @@ import { assembleFoe, pickWeightedFoe } from '../engine/foe'
 import { colsForN, COMBAT_GEN, type Deps, type CombatAction } from '../engine/combat'
 import { createRun, runReduce, type RunState } from '../engine/run'
 import { CONSUMABLES } from '../engine/consumables'
-import type { CombatState } from '../engine/state'
-import { CHARGE_CAP, BASE_STATS, START_GRACE_MS, ROUND_MS } from '../engine/state'
+import type { CombatState, ManeuverBias } from '../engine/state'
+import { CHARGE_CAP, BASE_STATS, START_GRACE_MS, ROUND_MS, WOUND_WARD_COST } from '../engine/state'
 import type { CombatEvent } from '../engine/events'
 import { bumpTurn, pick, strikeWord, healWord, drainWord, magicLead, tierOf, joinClauses, voiceOf, ABILITY_FLAVOR } from './flavor'
 import { type SavedChar, loadRoster, upsertChar, deleteChar, makeChar, freshId, CONSUMABLE_SLOTS } from './save'
@@ -91,6 +92,7 @@ interface View {
   manaColor: number // the colour the loadout needs most (dominant total cost) — glowed in the mana stage
   paused: boolean // coaching/briefing freeze gate — the clock loop stops dispatching ticks
   hitstopUntil: number // performance.now() until which ticks are frozen (impact freeze)
+  holdHud: boolean // rollover choreography: HP/exchange/round HUD holds its pre-exchange read until the deal beat
   preview: number[] | null // board slots currently ringed by an ability hover
   selected: number[]
   raf: number
@@ -450,7 +452,7 @@ function begin(root: HTMLElement, char: SavedChar, dungeonId: string, foeVal: st
   const cls = classById(char.classId)
   const run = createRun({ foe, gen: GEN, playerMax: char.maxHp, stats: cls.stats, passives: cls.passives, consumables: char.consumables, sequence, dungeonId }, rng)
   run.combat.playerHP = Math.max(0, Math.min(char.maxHp, char.hp)) // the hero enters at their persisted HP, not full
-  V = { root, deps: { data: GAMEDATA, rng }, run, state: run.combat, char, actions: [], classId: cls.id, loadout: cls.abilities.slice(), coach: !!dg.coach, coachCue: null, manaColor: dominantManaColor(cls.abilities), paused: true, hitstopUntil: 0, preview: null, selected: [], raf: 0, lastT: 0, boardSig: '', refs: {}, stats: { dealt: 0, taken: 0, blocked: 0, healed: 0, sets: 0, traps: 0 }, morphSrc: new Map(), dev: { reshapeYou: 0, reshapeFoe: 0, matches: 0, springs: 0, k1: 0, wards: 0, churns: 0 } }
+  V = { root, deps: { data: GAMEDATA, rng }, run, state: run.combat, char, actions: [], classId: cls.id, loadout: cls.abilities.slice(), coach: !!dg.coach, coachCue: null, manaColor: dominantManaColor(cls.abilities), paused: true, hitstopUntil: 0, holdHud: false, preview: null, selected: [], raf: 0, lastT: 0, boardSig: '', refs: {}, stats: { dealt: 0, taken: 0, blocked: 0, healed: 0, sets: 0, traps: 0 }, morphSrc: new Map(), dev: { reshapeYou: 0, reshapeFoe: 0, matches: 0, springs: 0, k1: 0, wards: 0, churns: 0 } }
   buildPlay()
   renderBoard()
   updateBar()
@@ -490,11 +492,24 @@ function buildPlay(): void {
       <div class="gauge you"><div class="lab"><span class="youname">You <span class="blockbadge" id="block"></span><span class="buffbadge" id="buffind"></span></span><span id="phpv"></span></div><div class="track"><span class="fill php" id="php"></span></div></div>
       <div class="gauge"><div class="lab"><span id="enemylab">Enemy</span><span id="ehpv"></span></div><div class="track"><span class="fill ehp" id="ehp"></span></div></div>
     </div>`))
-  // enemy attack timer — a full-width meter that empties toward the next strike
+  // ROUND BAR (v3): the bar IS the round — full at the deal, empty at the rollover exchange
   left.appendChild($(`
-    <div class="timerbar">
-      <div class="lab"><span>⚔ Enemy attack</span><span id="clock">—</span></div>
-      <div class="track"><span class="fill atk" id="atkfill"></span></div>
+    <div class="timerbar roundbar">
+      <div class="lab"><span id="roundlab">Round 1</span><span id="clock">—</span></div>
+      <div class="track"><span class="fill rnd" id="roundfill"></span></div>
+    </div>`))
+  // THE EXCHANGE SCOREBOARD — both pending exchange numbers, all round: your banked swing VS their
+  // telegraph (+ your guard beneath it). The round is one allocation question: kill faster vs blunt
+  // the known hit — this row is where that read lives.
+  left.appendChild($(`
+    <div class="exchange" id="exchange">
+      <div class="ex-side you" id="exyou" data-tip-title="Your swing" data-tip="Attack matches BANK here all round and land as one blow at the exchange. Reach the foe's remaining HP and it reads LETHAL — a lethal swing lands first and cancels their strike entirely.">
+        <span class="ex-lab">your swing</span><span class="ex-val" id="exatk">⚔ 0</span><span class="ex-lethal" id="exlethal">LETHAL</span>
+      </div>
+      <div class="ex-vs">vs</div>
+      <div class="ex-side foe" id="exfoe" data-tip-title="Their strike" data-tip="The foe's telegraphed exchange total, revealed at the deal — this is exactly what lands at the round's end. Defend matches raise your guard against it; once the guard meets the telegraph (✓), further Block is wasted.">
+        <span class="ex-lab">their strike</span><span class="ex-stack"><span class="ex-val" id="exinc">—</span><span class="ex-guard" id="exguard">🛡 0</span></span>
+      </div>
     </div>`))
   // the TUG BAR — board composition: enemy theme share vs your Maneuver-bias share (shown when both exist)
   left.appendChild($(`
@@ -526,7 +541,7 @@ function buildPlay(): void {
   if (!document.getElementById('ptint')) document.body.appendChild($(`<div id="ptint"></div>`)) // low-HP vignette (body-level)
 
   V.refs = {}
-  for (const id of ['foename', 'foedesc', 'fleebtn', 'enemylab', 'phpv', 'ehpv', 'php', 'ehp', 'clock', 'atkfill', 'tacv', 'tac', 'biasrow', 'standnote', 'm0', 'm1', 'm2', 'block', 'buffind', 'strip', 'boardwrap', 'board', 'tugbar', 'tugmarker', 'tugfoe', 'tugyou', 'devstats', 'spyou', 'spfoe', 'stancebadge', 'log', 'abilities', 'tactics', 'passives', 'consumables', 'floatlayer']) {
+  for (const id of ['foename', 'foedesc', 'fleebtn', 'enemylab', 'phpv', 'ehpv', 'php', 'ehp', 'clock', 'roundlab', 'roundfill', 'exatk', 'exinc', 'exguard', 'exyou', 'exfoe', 'tacv', 'tacpips', 'm0', 'm1', 'm2', 'block', 'buffind', 'strip', 'boardwrap', 'board', 'tugbar', 'tugmarker', 'tugfoe', 'tugyou', 'devstats', 'spyou', 'spfoe', 'stancebadge', 'log', 'abilities', 'tactics', 'passives', 'consumables', 'floatlayer']) {
     const el = wrap.querySelector('#' + id)
     if (el) V.refs[id] = el as HTMLElement
   }
@@ -535,8 +550,7 @@ function buildPlay(): void {
   V.refs.abilities?.addEventListener('click', onAbilityClick)
   V.refs.abilities?.addEventListener('mouseover', onAbilityHover)
   V.refs.abilities?.addEventListener('mouseout', clearPreview)
-  V.refs.tactics?.addEventListener('click', onTacticClick)
-  V.refs.biasrow?.addEventListener('click', onTacticClick) // the bias chips are a SIBLING row, not inside #tactics
+  V.refs.tactics?.addEventListener('click', onWheelClick) // #tactics IS the wheel now (7 states, one tap)
   V.refs.consumables?.addEventListener('click', onConsumableClick)
   renderStrip()
   renderConsumables()
@@ -545,38 +559,45 @@ function buildPlay(): void {
   V.refs.foedesc.innerHTML = V.state.foe.desc ?? ''
 }
 
-/** The live castable panel: the class loadout (mana-gated click-to-cast), the Tactics v2 controls
- *  (tactic toggle + Maneuver's bias picker + the charge gauge), and the always-on passive chips. */
+/** The live castable panel: the Tactics WHEEL (ROUNDS v3 — one control, seven states, one tap),
+ *  the charge pips, the class loadout (mana-gated click-to-cast), and the always-on passive chips. */
 const MANA_ICON = ['🔥', '🌿', '❄']
-const TAC_BTNS: { k: 'maneuver' | 'stand'; label: string; tip: string }[] = [
-  { k: 'maneuver', label: '⚔ Maneuver', tip: 'Charges spend themselves morphing the DEADEST card toward your chosen bias — one card at a time. Pick the bias below.' },
-  { k: 'stand', label: '🛡 Stand Ground', tip: 'Charges bank as a shield: each enemy board-meddle (drift, warp, lock, wound) eats one charge and fizzles. Damage still hurts — only the board holds.' },
+/** Friendly bias names by axis (logs + the stance badge). The mag axis stays for enemy/gear effects
+ *  even though the wheel deliberately cut it (heavy boards = gear/Hone only — CRAWL §5.6). */
+const BIAS_NAME: Record<string, string[]> = {
+  color: ['🔥 Fire', '🌿 Nature', '❄ Frost'],
+  shape: ['⚔ Attack', '🛡 Defend', '👟 Move'],
+  mag: ['① light', '② middling', '③ heavy'],
+}
+/** The six Maneuver spokes: top arc = shape biases ("steer what you can DO", Defend top-middle),
+ *  bottom arc = colour biases ("steer what you can CAST", Blue straight down). */
+const WHEEL_SPOKES: { axis: 'color' | 'shape'; value: number; icon: string; pos: string; tip: string }[] = [
+  { axis: 'shape', value: 0, icon: '⚔', pos: 'tl', tip: 'Steer what you can DO — the rollover tide redraws the deadest cards toward <b>Attacks</b>.' },
+  { axis: 'shape', value: 1, icon: '🛡', pos: 'tm', tip: 'Steer what you can DO — the rollover tide redraws the deadest cards toward <b>Defends</b>.' },
+  { axis: 'shape', value: 2, icon: '👟', pos: 'tr', tip: 'Steer what you can DO — the rollover tide redraws the deadest cards toward <b>Moves</b>.' },
+  { axis: 'color', value: 0, icon: '🔥', pos: 'bl', tip: 'Steer what you can CAST — the rollover tide redraws the deadest cards toward <b>red (Fire)</b>.' },
+  { axis: 'color', value: 2, icon: '❄️', pos: 'bm', tip: 'Steer what you can CAST — the rollover tide redraws the deadest cards toward <b>blue (Frost)</b>.' },
+  { axis: 'color', value: 1, icon: '🌿', pos: 'br', tip: 'Steer what you can CAST — the rollover tide redraws the deadest cards toward <b>green (Nature)</b>.' },
 ]
-const BIAS_CHIPS: { axis: 'color' | 'shape' | 'mag'; value: number; label: string; tip: string }[] = [
-  { axis: 'color', value: 0, label: '🔥', tip: 'Churn toward red (Fire)' },
-  { axis: 'color', value: 1, label: '🌿', tip: 'Churn toward green (Nature)' },
-  { axis: 'color', value: 2, label: '❄', tip: 'Churn toward blue (Frost)' },
-  { axis: 'shape', value: 0, label: '⚔', tip: 'Churn toward Attacks' },
-  { axis: 'shape', value: 1, label: '🛡', tip: 'Churn toward Defends' },
-  { axis: 'shape', value: 2, label: '➤', tip: 'Churn toward Moves' },
-  { axis: 'mag', value: 0, label: '①', tip: 'Churn toward 1s (light)' },
-  { axis: 'mag', value: 1, label: '②', tip: 'Churn toward 2s' },
-  { axis: 'mag', value: 2, label: '③', tip: 'Churn toward 3s (heavy)' },
-]
+// the hub's braced stick-figure (Stand Ground — planted wide, shield up), inline so it tints with state
+const HUB_SVG = `<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+  <circle cx="10.5" cy="4.6" r="2.2"/><path d="M10.5 7.2v6"/><path d="M10.5 13.2l-4 7"/><path d="M10.5 13.2l4.4 6.6"/><path d="M10.5 8.8l4.8 1.8"/><path d="M17.4 7.3a7 7 0 0 1 0 7.6"/></svg>`
 function buildCastPanel(): HTMLElement {
   const cls = classById(V!.classId)
   const panel = $(`<div class="panel"></div>`)
-  // TACTICS section (meter built in, above abilities) — coach-gateable as one region
+  // TACTICS section (charge pips + the wheel) — coach-gateable as one region
   const tacSec = $(`<div class="coach-sec" data-sec="tactics"></div>`)
   tacSec.appendChild($(`<div class="panelhd"><label>Tactics</label><span class="stub-note" id="tacv">0/${CHARGE_CAP}</span></div>`))
-  tacSec.appendChild($(`<div class="track tacmeter" data-tip-title="Tactics charges" data-tip="Banked by matching Move cards (+1 each), and by tempo/Block wasted past their caps. Your selected tactic below spends them."><span class="fill tac" id="tac"></span></div>`))
-  const row = $(`<div class="tactics-row" id="tactics"></div>`)
-  for (const t of TAC_BTNS) row.appendChild($(`<div class="tac-btn" data-tac="${t.k}" data-tip-title="${t.label}" data-tip="${t.tip} Swapping tactics resets your charges (a few seconds to re-engage).">${t.label}</div>`))
-  tacSec.appendChild(row)
-  const biasRow = $(`<div class="bias-row" id="biasrow"></div>`)
-  for (const b of BIAS_CHIPS) biasRow.appendChild($(`<div class="bias-chip" data-axis="${b.axis}" data-value="${b.value}" data-tip-title="Maneuver bias" data-tip="${b.tip}. Click again to clear.">${b.label}</div>`))
-  tacSec.appendChild(biasRow)
-  tacSec.appendChild($(`<div class="standnote" id="standnote">charges ward off enemy board-meddling</div>`))
+  // the charge gauge: 15 thin pips, grouped in threes (one wound-ward each — CHARGE_CAP = 5 × 3)
+  const pips = $(`<div class="tacpips" id="tacpips" data-tip-title="Tactics charges" data-tip="Banked by matching Move cards — each Move card's worth is a Speed contest (yours vs theirs). Your stance spends them: <b>Stand Ground</b> wards enemy meddling live (board verbs 1 · wounds ${WOUND_WARD_COST}) and carries the bank; <b>Maneuver</b> burns ALL charges at the rollover, redrawing the deadest cards toward your bias. Pips group in threes — one warded wound each."></div>`)
+  for (let i = 0; i < CHARGE_CAP; i++) pips.appendChild($(`<span class="pip"></span>`))
+  tacSec.appendChild(pips)
+  // THE WHEEL — center: Stand Ground · top arc: shape biases · bottom arc: colour biases.
+  // One tap queues next round's stance (it LOCKS at the deal — the commitment mechanic).
+  const wheel = $(`<div class="wheel" id="tactics"></div>`)
+  for (const sp of WHEEL_SPOKES) wheel.appendChild($(`<div class="spoke pos-${sp.pos}" data-axis="${sp.axis}" data-value="${sp.value}" data-tip-title="Maneuver · ${BIAS_NAME[sp.axis][sp.value]}" data-tip="${sp.tip} Locks at the next deal; the dump burns the whole bank.">${sp.icon}</div>`))
+  wheel.appendChild($(`<div class="hub" data-tip-title="🛡 Stand Ground" data-tip="Hold the line — charges ward enemy meddling live (a warp or lock costs 1, a wound costs ${WOUND_WARD_COST}), and the bank carries across rounds. Locks at the next deal.">${HUB_SVG}</div>`))
+  tacSec.appendChild(wheel)
   panel.appendChild(tacSec)
   // ABILITIES section (mana display built into the header) + grid + passive chips
   const abSec = $(`<div class="coach-sec" data-sec="abilities" style="margin-top:14px"></div>`)
@@ -655,12 +676,14 @@ function renderBoard(verbs?: Map<number, CardVerb>): void {
   const board = V.refs.board
   // crossfade: snapshot current cards; ghost-out any whose content is about to change (verb picks the motion)
   const oldKeys: Record<number, string> = {}
+  const oldWounds = new Set<number>() // slots that WERE wounds — their refill reads as the knit (healing)
   const layer = V.refs.floatlayer
   const bw = V.refs.boardwrap?.getBoundingClientRect()
   board.querySelectorAll<HTMLElement>('.card').forEach((old) => {
     if (old.dataset.i == null) return
     const i = +old.dataset.i
     oldKeys[i] = old.dataset.key ?? ''
+    if (old.classList.contains('wound')) oldWounds.add(i)
     const c = s.board[i]
     const newKey = c ? String(keyOf(c)) : ''
     if (layer && bw && old.dataset.key && old.dataset.key !== newKey) {
@@ -684,8 +707,10 @@ function renderBoard(verbs?: Map<number, CardVerb>): void {
   const bait = driftColor(s) // the dungeon-drift colour: those cards shimmer temptingly (the lure to resist)
   s.board.forEach((c, i) => {
     if (!c) {
-      // a damage-shattered (or transmuting) hole reads as a Wound — dashed gap, not a neutral empty slot
-      board.appendChild($(`<div class="card ${s.pending.has(i) ? 'gap' : 'empty'}"></div>`))
+      // WOUNDS (pending.wound) read as cracked scars — they never time-reform (one knits per deal,
+      // heals repair), so NO countdown; an ordinary reforming hole is a neutral dashed gap.
+      const p = s.pending.get(i)
+      board.appendChild($(`<div class="card ${p?.wound ? 'wound' : p ? 'gap' : 'empty'}" data-i="${i}"></div>`))
       return
     }
     const locked = s.locked.has(i)
@@ -700,6 +725,7 @@ function renderBoard(verbs?: Map<number, CardVerb>): void {
     if (!firstRender && oldKeys[i] !== key) {
       cls.push('enter')
       if (verbs?.get(i) === 'reform') cls.push('reform')
+      if (oldWounds.has(i)) cls.push('knit') // a wound closing reads as HEALING, not a mere refill
       const src = V!.morphSrc.get(i) // tug attribution: tint the arrival by who pulled it
       if (src) { cls.push(`src-${src}`); V!.morphSrc.delete(i) }
     } // new/changed → fade in (reform = materialize)
@@ -884,22 +910,28 @@ function onFlee(): void {
   })
 }
 
-function onTacticClick(e: Event): void {
+/** The wheel: one tap QUEUES next round's stance (setTactic/setBias queue; the pick locks at the
+ *  deal). A spoke = Maneuver with that bias (the v2 verb-then-parameter two-step, collapsed into
+ *  one gesture); the hub = Stand Ground. Re-tapping the already-effective pick is a no-op. */
+function onWheelClick(e: Event): void {
   if (!V || !V.state.running || V.paused) return // input frozen during a pause
-  const tEl = (e.target as HTMLElement).closest('.tac-btn') as HTMLElement | null
-  if (tEl?.dataset.tac) {
-    const tactic = tEl.dataset.tac as 'maneuver' | 'stand'
-    if (tactic !== V.state.tactic) dispatch({ type: 'setTactic', tactic })
+  const s = V.state
+  if ((e.target as HTMLElement).closest('.hub')) {
+    if (s.tactic === 'stand' && !s.queuedTactic) return // already holding the line, nothing queued away
+    dispatch({ type: 'setTactic', tactic: 'stand' })
     return
   }
-  const bEl = (e.target as HTMLElement).closest('.bias-chip') as HTMLElement | null
-  if (bEl?.dataset.axis) {
-    const axis = bEl.dataset.axis as 'color' | 'shape' | 'mag'
-    const value = +bEl.dataset.value!
-    const cur = V.state.maneuverBias
-    // clicking the active chip clears the bias (toggle off)
-    dispatch({ type: 'setBias', bias: cur && cur.axis === axis && cur.value === value ? null : { axis, value } })
-  }
+  const sp = (e.target as HTMLElement).closest('.spoke') as HTMLElement | null
+  if (!sp?.dataset.axis) return
+  const axis = sp.dataset.axis as 'color' | 'shape'
+  const value = +sp.dataset.value!
+  // queue Maneuver if the stance at the next deal wouldn't already be Maneuver
+  const needTactic = s.tactic !== 'maneuver' || s.queuedTactic === 'stand'
+  // queue the bias if the bias at the next deal wouldn't already be this spoke
+  const effBias = s.queuedBias ? s.queuedBias.bias : s.maneuverBias
+  const needBias = !(effBias && effBias.axis === axis && effBias.value === value)
+  if (needTactic) dispatch({ type: 'setTactic', tactic: 'maneuver' })
+  if (needBias) dispatch({ type: 'setBias', bias: { axis, value } })
 }
 
 /** Refresh ability/tactic affordances — runs every frame so they track mana + the armed meter live.
@@ -913,32 +945,49 @@ function updateCastables(): void {
     el.classList.toggle('ready', ready)
     if (V!.coach) setCoachArrow(el, ready)
   })
-  V.refs.tactics?.querySelectorAll<HTMLElement>('.tac-btn').forEach((el) => {
-    el.classList.toggle('on', s.running && el.dataset.tac === s.tactic)
-  })
-  const maneuver = s.tactic === 'maneuver'
-  if (V.refs.biasrow) V.refs.biasrow.style.display = maneuver ? '' : 'none'
-  if (V.refs.standnote) V.refs.standnote.style.display = maneuver ? 'none' : ''
-  V.refs.biasrow?.querySelectorAll<HTMLElement>('.bias-chip').forEach((el) => {
-    const b = s.maneuverBias
-    el.classList.toggle('on', !!b && el.dataset.axis === b.axis && +el.dataset.value! === b.value)
-  })
+  updateWheel()
   if (V.coach) {
-    // guided Tactics stage: beckon the Maneuver button while on Stand Ground (the default), then
-    // the bias row once a charge is banked (pick what to do with it)
-    setCoachArrow(V.refs.tactics, COACH.await === 'tactic' && !maneuver)
-    setCoachArrow(V.refs.biasrow, COACH.await === 'tactic' && s.charges > 0 && maneuver)
+    // guided Tactics stage: beckon the wheel until a spoke is picked (coachNotify clears the await)
+    setCoachArrow(V.refs.tactics, COACH.await === 'tactic')
     // staged tutorial cues — teach how to GET there, scoped to the current guided stage:
     const cue = V.coachCue
     // Tactics stage: STRONG glow on Move cards + LIGHT pulse on the gauge (until a charge banks).
     const moveGlow = cue === 'moves' && s.charges === 0
     updateMoveHints(moveGlow)
-    document.querySelector('[data-sec="tactics"] .tacmeter')?.classList.toggle('meterhint', moveGlow)
+    document.querySelector('[data-sec="tactics"] .tacpips')?.classList.toggle('meterhint', moveGlow)
     // Abilities stage: while nothing's affordable, glow the colour the loadout needs most; once an
     // ability lights up, drop the card glow (its own ready-arrow takes over the focus).
     const anyAfford = V.loadout.some((id) => { const a = ABILITIES[id]; return !!a && canAfford(s, a.cost) })
     updateColorHints(cue === 'mana' && !anyAfford ? V.manaColor : null)
   }
+}
+
+/** Paint the wheel's seven states: LIT = the locked current stance (hub gold, spoke phosphor);
+ *  GHOST (dashed, pulsing) = the queued next-round pick from queuedTactic/queuedBias — visibly
+ *  different, because the queue only locks at the deal. Runs per frame off updateCastables. */
+function updateWheel(): void {
+  if (!V) return
+  const s = V.state
+  const wheel = V.refs.tactics
+  if (!wheel) return
+  // what locks at the next deal (null = no change queued)
+  const qStand = s.queuedTactic === 'stand'
+  let qBias: ManeuverBias | null = null
+  if (!qStand && (s.queuedTactic === 'maneuver' || (s.queuedBias && s.tactic === 'maneuver'))) {
+    const b = s.queuedBias ? s.queuedBias.bias : s.maneuverBias
+    if (b) qBias = b
+  }
+  wheel.querySelectorAll<HTMLElement>('.spoke, .hub').forEach((el) => {
+    const isHub = el.classList.contains('hub')
+    const lit = s.running && (isHub
+      ? s.tactic === 'stand'
+      : s.tactic === 'maneuver' && !!s.maneuverBias && el.dataset.axis === s.maneuverBias.axis && +el.dataset.value! === s.maneuverBias.value)
+    const queued = s.running && !lit && (isHub
+      ? qStand
+      : !!qBias && el.dataset.axis === qBias.axis && +el.dataset.value! === qBias.value)
+    el.classList.toggle('lit', lit)
+    el.classList.toggle('queued', queued)
+  })
 }
 
 /** The colour the loadout needs most: sum each ability's [r,g,b] cost across the loadout, take the max. */
@@ -1001,8 +1050,8 @@ function dispatch(action: CombatAction): void {
   V.actions.push(action) // record the session log (the seam): a server could replay these
   // drop any selected slot a board verb just removed (transmute/shatter), so the glow can't dangle
   V.selected = V.selected.filter((i) => state.board[i] != null && !state.locked.has(i))
-  interpret(events)
-  if (boardSignature(state) !== V.boardSig) renderBoard(verbsFromEvents(events))
+  const choreographed = interpret(events) // a rollover batch sequences its own beats + board render
+  if (!choreographed && boardSignature(state) !== V.boardSig) renderBoard(verbsFromEvents(events))
   if (events.some((e) => e.type === 'consumableUsed')) renderConsumables() // a slot was spent
   updateBar()
 }
@@ -1023,8 +1072,86 @@ function verbsFromEvents(events: CombatEvent[]): Map<number, CardVerb> {
 
 /** Full-screen feedback priority — a wound out-shouts a trap spring (TRAPS layering scheme). */
 const FLASH_PRI: Record<string, number> = { wound: 3, trap: 2, trick: 2 }
-function interpret(events: CombatEvent[]): void {
+
+/** Event → feedback. A batch containing a rollover is CHOREOGRAPHED (the ~2s diegetic exchange
+ *  beat, CRAWL §5.6 — never a modal); everything else plays immediately. Returns true when the
+ *  choreography owns the board render (dispatch must not double-render). */
+function interpret(events: CombatEvent[]): boolean {
+  if (!V) return false
+  const cut = events.findIndex((e) => e.type === 'roundEnded')
+  if (cut < 0) { interpretChunk(events); return false }
+  interpretChunk(events.slice(0, cut)) // same-tick pre-rollover events (drift etc.) land normally
+  choreographRollover(events.slice(cut))
+  return true
+}
+
+/* THE ROLLOVER CHOREOGRAPHY — the engine resolves the exchange atomically; the UI plays it back as
+   beats: ① "the exchange" flag → ② your swing lands → ③ their swing (or "no strike") → ④ the
+   Maneuver tide + the deal (cards morph/reform; wound gaps appear, one knits) → ⑤ the new telegraph
+   reveals as the round opens. Fast and skippable-feeling: input stays live, ticks freeze (hitstop)
+   so the new round's clock starts when the beat ends. The HUD holds its pre-exchange read until ⑤. */
+const EX_BEAT = { swing: 350, counter: 900, tide: 1450, deal: 2000 }
+function choreographRollover(events: CombatEvent[]): void {
   if (!V) return
+  const seg: Record<'swing' | 'counter' | 'tide' | 'deal', CombatEvent[]> = { swing: [], counter: [], tide: [], deal: [] }
+  let won = false
+  for (const e of events) {
+    switch (e.type) {
+      case 'roundEnded': break // the beat itself (the banner below)
+      case 'won': won = true; seg.swing.push(e); break
+      case 'enemyDamaged': seg.swing.push(e); break
+      case 'playerDamaged': case 'playerBlocked': case 'cardsShattered': case 'warded': case 'lost': seg.counter.push(e); break
+      case 'windup': case 'roundStarted': seg.deal.push(e); break
+      default: seg.tide.push(e) // dump/deal/stance-lock + anything unforeseen rides the tide beat
+    }
+  }
+  const verbs = verbsFromEvents(events) // booms (wounds) + morphs (tide) + reforms (knit/deal), one render
+  V.holdHud = true
+  hitstop(EX_BEAT.deal + 250)
+  exchangeBeat()
+  log(`<span style="opacity:.8">— the exchange —</span>`, 'you')
+  sceneTimeout(() => { if (V) interpretChunk(seg.swing) }, EX_BEAT.swing)
+  sceneTimeout(() => {
+    if (!V) return
+    if (seg.counter.length) interpretChunk(seg.counter)
+    else if (!won) { floatBoard('no strike', 'var(--ink-faint)', 'enemy'); log(`<span style="opacity:.7">The ${V.state.foe.name} doesn't strike.</span>`, 'foe') }
+  }, EX_BEAT.counter)
+  sceneTimeout(() => {
+    if (!V) return
+    interpretChunk(seg.tide)
+    if (boardSignature(V.state) !== V.boardSig) renderBoard(verbs) // the tide comes in WITH the deal
+  }, EX_BEAT.tide)
+  sceneTimeout(() => {
+    if (!V) return
+    V.holdHud = false // the HUD snaps to the new round: fresh bar, fresh accumulators…
+    interpretChunk(seg.deal)
+    pulseTelegraph() // …and the new telegraph reveals with a flourish
+  }, EX_BEAT.deal)
+}
+
+/** The "— the exchange —" flag over the board: beat ① of the rollover (diegetic, never a modal). */
+function exchangeBeat(): void {
+  const layer = V?.refs.floatlayer
+  if (!layer) return
+  const el = $(`<div class="exbeat">— the exchange —</div>`)
+  layer.appendChild(el)
+  void el.offsetWidth
+  el.classList.add('go')
+  sceneTimeout(() => el.classList.remove('go'), 1100)
+  sceneTimeout(() => el.remove(), 1500)
+}
+
+/** Beat ⑤: the scoreboard's foe side flares as the fresh telegraph lands. */
+function pulseTelegraph(): void {
+  const el = V?.refs.exfoe
+  if (!el) return
+  el.classList.remove('reveal')
+  void el.offsetWidth
+  el.classList.add('reveal')
+}
+
+function interpretChunk(events: CombatEvent[]): void {
+  if (!V || !events.length) return
   const MANA = ['Fire', 'Nature', 'Frost']
   logGroup = $(`<div class="loggroup"></div>`) // collect this batch's log lines into one cascade unit
   bumpTurn() // advance the flavour-variety counter once per batch (verbs rotate, stable across re-renders)
@@ -1045,16 +1172,14 @@ function interpret(events: CombatEvent[]): void {
       case 'attackBanked':
         // v3: an Attack set BANKS toward the exchange — show the building swing, not a hit
         floatBoard(`⚔ +${e.amount}`, 'var(--red)', 'enemy')
+        flashStat('exatk') // the scoreboard's your-swing number punches as it grows
         V.stats.dealt += e.amount
-        break
-      case 'roundEnded':
-        log(`<span style="opacity:.8">— the exchange —</span>`, 'you')
         break
       case 'roundStarted':
         log(e.incoming != null
-          ? `<b>Round ${e.round}</b> — the ${foe} winds up <b>⚔${e.incoming}</b>.`
-          : `<b>Round ${e.round}</b> — the ${foe} circles (no strike this round).`, 'foe')
-        kickClock() // the bar refills with the deal
+          ? `<b>Round ${e.round}</b> — the ${foe} telegraphs <b>⚔${e.incoming}</b>.`
+          : `<b>Round ${e.round}</b> — the ${foe} circles: <b>no strike</b> this round.`, 'foe')
+        kickClock() // the round bar refills with the deal
         break
       case 'tacticsDumped': {
         const spent = Math.floor(e.spent)
@@ -1084,19 +1209,21 @@ function interpret(events: CombatEvent[]): void {
         if (actor) { actor.heal += e.amount; break }
         log(`You ${healWord()} — <b>+${e.amount}</b> HP.`, 'you')
         break
-      case 'blockGained':
-        floatBoard(`+${e.amount}🛡`, 'var(--blue)', 'you')
+      case 'blockGained': {
+        // sated guard cue: the gain past an already-met telegraph is waste — say so, greyly
+        const wasSated = V.state.incoming != null && V.state.block - e.amount >= V.state.incoming
+        floatBoard(wasSated ? `+${e.amount}🛡 wasted` : `+${e.amount}🛡`, wasSated ? 'var(--ink-faint)' : 'var(--blue)', 'you', wasSated ? 'wasted' : undefined)
         if (actor) { actor.block += e.amount; break }
-        log(`You brace — <b>+${e.amount}</b> Defend.`, 'you')
+        log(wasSated ? `<span style="opacity:.7">You brace — but the guard already meets their strike.</span>` : `You brace — <b>+${e.amount}</b> Defend.`, 'you')
+        break
+      }
+      case 'blockOverflow':
+        // pure loss past the cap (the skill signal — never reward-colored)
+        floatBoard(`${e.amount} block wasted`, 'var(--ink-faint)', 'you', 'wasted')
+        log(`<span style="opacity:.7">Your guard can hold no more — <b>${e.amount}</b> Block wasted.</span>`, 'foe')
         break
       case 'manaGained':
         if (actor) for (let i = 0; i < 3; i++) actor.mana[i] += e.mana[i] // fold potion/ability mana into its line
-        break
-      case 'chargesGained':
-        if (e.source === 'overflow') { // Block past the cap converts to charges — call it out
-          log(`Defend overflows — <b>+${e.amount}</b> Tactics charge${e.amount > 1 ? 's' : ''}.`, 'you')
-          floatBoard(`+${e.amount} ⚡`, 'var(--gold)', 'you')
-        }
         break
       case 'cardsTransmuted': {
         // tug attribution: remember who pulled each slot (tints the reform) + a loud glyph now
@@ -1123,8 +1250,8 @@ function interpret(events: CombatEvent[]): void {
         floatBoard('🛡 warded', 'var(--gold)', 'you')
         V.dev.wards++
         V.dev.reshapeFoe++ // the enemy ATTEMPTED a reshape — count the attempt or the share reads false-high
-        // the ward BEAT: burn the pip on the gauge + a one-beat shield shimmer on the board edge
-        const meter = document.querySelector('[data-sec="tactics"] .tacmeter')
+        // the ward BEAT: burn the pip(s) on the gauge + a one-beat shield shimmer on the board edge
+        const meter = document.querySelector('[data-sec="tactics"] .tacpips')
         meter?.classList.remove('wardpulse'); void (meter as HTMLElement | null)?.offsetWidth; meter?.classList.add('wardpulse')
         const bw = V.refs.boardwrap
         if (bw) { bw.classList.remove('wardshield'); void bw.offsetWidth; bw.classList.add('wardshield') }
@@ -1156,8 +1283,8 @@ function interpret(events: CombatEvent[]): void {
           break
         }
         log(e.tactic === 'stand'
-          ? 'You <b>Stand Ground</b> — charges now ward the board against enemy meddling.'
-          : 'You shift to <b>Maneuver</b> — charges bank toward the rollover tide.', 'you')
+          ? `You <b>Stand Ground</b> — charges now ward enemy meddling (a wound costs ${WOUND_WARD_COST}).`
+          : 'You shift to <b>Maneuver</b> — the whole bank dumps into the tide at the rollover.', 'you')
         const bw = V.refs.boardwrap
         if (bw) {
           bw.classList.remove('stance-stand', 'stance-maneuver')
@@ -1168,13 +1295,13 @@ function interpret(events: CombatEvent[]): void {
         break
       }
       case 'biasChanged': {
-        const lbl = e.bias ? BIAS_CHIPS.find((b) => b.axis === e.bias!.axis && b.value === e.bias!.value)?.tip : null
+        const name = e.bias ? BIAS_NAME[e.bias.axis]?.[e.bias.value] : null
         if (e.queued) {
-          log(e.bias && lbl ? `Bias readied — <i>${lbl.toLowerCase()}</i> locks at the next deal.` : 'Bias clear readied — locks at the next deal.', 'you')
+          log(e.bias && name ? `You steer toward <b>${name}</b> — locks at the next deal.` : 'Bias clear readied — locks at the next deal.', 'you')
         } else {
-          log(e.bias && lbl ? `Maneuver set — <i>${lbl.toLowerCase()}</i>.` : 'Maneuver bias cleared — charges hold.', 'you')
+          log(e.bias && name ? `The tide sets — Maneuver toward <b>${name}</b>.` : 'Maneuver bias cleared — charges hold.', 'you')
         }
-        if (e.bias) coachNotify('tactic') // guided intro: "set your bias" step
+        if (e.bias) coachNotify('tactic') // guided intro: "pick a wheel spoke" step
         break
       }
       case 'consumableUsed': {
@@ -1189,7 +1316,13 @@ function interpret(events: CombatEvent[]): void {
         log(`The ${foe} ${drainWord()} your ${MANA[e.color]} — <b>−${e.amount}</b>.`, 'foe')
         break
       case 'clockChanged':
-        if (e.deltaSeconds > 0) kickClock() // a Move shoved the strike back → the timer bar recoils
+        // v3 interim stall re-anchor: a stall verb STRETCHES the round (+) / an enemy yank shortens it (−)
+        if (e.deltaSeconds > 0) {
+          kickClock() // the round bar recoils + visibly refills as roundEndsAt moves out
+          log(`<span style="opacity:.85">⏳ The round stretches — <b>+${e.deltaSeconds}s</b>.</span>`, 'you')
+        } else if (e.deltaSeconds < 0) {
+          log(`The ${foe} hurries the exchange — <b>${e.deltaSeconds}s</b>.`, 'foe')
+        }
         break
       case 'setResolved': {
         V.dev.matches++
@@ -1317,10 +1450,10 @@ function floatAtSlot(slot: number, text: string, color: string): void {
   sceneTimeout(() => el.remove(), 1000)
 }
 
-function floatBoard(text: string, color: string, side?: 'you' | 'enemy'): void {
+function floatBoard(text: string, color: string, side?: 'you' | 'enemy', cls?: string): void {
   const layer = V?.refs.floatlayer
   if (!layer) return
-  const el = $(`<div class="floater">${text}</div>`)
+  const el = $(`<div class="floater${cls ? ` ${cls}` : ''}">${text}</div>`)
   el.style.color = color
   el.style.left = side === 'you' ? `${14 + Math.random() * 16}%` : side === 'enemy' ? `${64 + Math.random() * 18}%` : `${34 + Math.random() * 32}%`
   el.style.top = `${30 + Math.random() * 26}%`
@@ -1399,7 +1532,8 @@ function ripple(slots: number[]): void {
   r.addEventListener('animationend', () => r.remove())
 }
 
-/** Recoil the attack-timer bar when a Move shoves the strike back — tempo, made tactile. */
+/** Recoil the ROUND bar — fired at each deal (the refill) and when a stall verb stretches the
+ *  round. (Name is a clock-era holdover; it now kicks the round bar.) */
 function kickClock(): void {
   const el = document.querySelector('.timerbar')
   if (!el) return
@@ -1457,19 +1591,47 @@ function updateBar(): void {
   if (!V) return
   const s = V.state
   const pct = (a: number, b: number) => `${b > 0 ? Math.max(0, Math.min(100, (a / b) * 100)) : 0}%`
-  V.refs.php.style.width = pct(s.playerHP, s.playerMax)
-  V.refs.ehp.style.width = pct(s.enemyHP, s.enemyMax)
-  V.refs.phpv.textContent = `${s.playerHP}/${s.playerMax}`
-  V.refs.ehpv.textContent = `${s.enemyHP}/${s.enemyMax}`
+  const remain = Math.max(0, (s.roundEndsAt - s.now) / 1000)
+  // during the rollover choreography the HP/exchange/round HUD HOLDS its pre-exchange read —
+  // the numbers land on their beats (swing → counter → deal), not all at once at dispatch
+  if (!V.holdHud) {
+    V.refs.php.style.width = pct(s.playerHP, s.playerMax)
+    V.refs.ehp.style.width = pct(s.enemyHP, s.enemyMax)
+    V.refs.phpv.textContent = `${s.playerHP}/${s.playerMax}`
+    V.refs.ehpv.textContent = `${s.enemyHP}/${s.enemyMax}`
+    V.refs.block.textContent = s.block > 0 ? `🛡 ${s.block}` : ''
+    V.refs.block.classList.toggle('on', s.block > 0)
+    // ROUNDS v3: the bar IS the round — full at the deal, empty at the rollover. Pure time:
+    // the telegraph lives in the exchange scoreboard, so low/crit colors only mean "ending".
+    const roundLen = ROUND_MS / 1000 + s.roundExtendedS
+    V.refs.roundlab.textContent = s.running ? `Round ${s.round}${s.roundExtendedS > 0 ? ` · +${s.roundExtendedS}s` : ''}` : 'Round —'
+    const clk = V.refs.clock
+    clk.textContent = !s.running ? '—' : `${Math.ceil(remain)}s`
+    clk.classList.toggle('low', remain <= 5 && remain > 2.5)
+    clk.classList.toggle('crit', remain <= 2.5)
+    const frac = Math.max(0, Math.min(1, remain / roundLen))
+    V.refs.roundfill.style.width = `${s.running ? frac * 100 : 100}%`
+    V.refs.roundfill.classList.toggle('low', remain <= 5 && remain > 2.5)
+    V.refs.roundfill.classList.toggle('crit', remain <= 2.5)
+    // THE EXCHANGE SCOREBOARD — your banked swing VS their telegraph, with your guard beneath it
+    V.refs.exatk.textContent = `⚔ ${Math.round(s.roundAttack)}`
+    const lethal = s.running && s.roundAttack > 0 && s.roundAttack >= s.enemyHP
+    V.refs.exyou.classList.toggle('lethal', lethal) // the kill-race read: this swing ends it
+    V.refs.exinc.textContent = s.incoming != null ? `⚔ ${s.incoming}` : 'no strike'
+    V.refs.exfoe.classList.toggle('idle', s.incoming == null)
+    const sated = s.incoming != null && s.block >= s.incoming // guard meets the telegraph: more Defend = waste
+    V.refs.exguard.textContent = `🛡 ${s.block}${sated ? ' ✓' : ''}`
+    V.refs.exguard.classList.toggle('sated', sated)
+    V.refs.block.classList.toggle('sated', sated)
+    // the charge pips (floor of the fractional bank; the dump zeroes them on its beat)
+    const lit = Math.floor(s.charges)
+    V.refs.tacpips?.querySelectorAll<HTMLElement>('.pip').forEach((p, i) => p.classList.toggle('fl', i < lit))
+    V.refs.tacv.textContent = `${lit}/${CHARGE_CAP}` // charge POINTS floor into pips
+  }
   V.refs.enemylab.textContent = s.foe.name
-  V.refs.tac.style.width = `${(s.charges / CHARGE_CAP) * 100}%`
-  V.refs.tac.classList.remove('spinup') // v3: spin-up is gone — the draw-phase lock is the commitment
-  V.refs.tacv.textContent = `${Math.floor(s.charges)}/${CHARGE_CAP}` // charge POINTS floor into pips
   V.refs.m0.textContent = String(s.mana[0])
   V.refs.m1.textContent = String(s.mana[1])
   V.refs.m2.textContent = String(s.mana[2])
-  V.refs.block.textContent = s.block > 0 ? `🛡 ${s.block}` : ''
-  V.refs.block.classList.toggle('on', s.block > 0)
   // active transient buffs — persist on the bar while live, vanish as each fades (logged separately)
   const buffs: string[] = []
   if (s.attackFrozen) buffs.push('👻 Invisible')
@@ -1477,20 +1639,8 @@ function updateBar(): void {
   if (s.tickSuppressedUntil > s.now) buffs.push(`⏳ ${Math.ceil((s.tickSuppressedUntil - s.now) / 1000)}s`)
   V.refs.buffind.textContent = buffs.join('  ')
   V.refs.buffind.classList.toggle('on', buffs.length > 0)
-  // ROUNDS v3: the bar IS the round — it empties toward the rollover exchange. The telegraph
-  // (⚔N, revealed at the deal) shows WHAT the exchange holds, the timer shows WHEN.
-  const remain = Math.max(0, (s.roundEndsAt - s.now) / 1000)
-  const roundLen = ROUND_MS / 1000 + s.roundExtendedS
-  const clk = V.refs.clock
-  clk.textContent = !s.running ? '—' : s.incoming != null ? `⚔${s.incoming} · ${Math.ceil(remain)}s` : `${Math.ceil(remain)}s`
-  clk.classList.toggle('low', remain <= 5 && remain > 2.5)
-  clk.classList.toggle('crit', remain <= 2.5)
-  const frac = Math.max(0, Math.min(1, remain / roundLen))
-  V.refs.atkfill.style.width = `${s.running ? frac * 100 : 100}%`
-  V.refs.atkfill.classList.toggle('low', remain <= 5 && remain > 2.5)
-  V.refs.atkfill.classList.toggle('crit', remain <= 2.5)
-  V.refs.atkfill.classList.toggle('windup', s.incoming != null)
-  V.refs.spfoe?.classList.toggle('winding', s.running && s.incoming != null && remain <= 5)
+  // the foe rears as its telegraphed exchange draws near (behavior cue, not a second timer)
+  V.refs.spfoe?.classList.toggle('winding', s.running && s.incoming != null && remain <= 5 && !V.holdHud)
   // ambient dread: a low-HP vignette + HP-bar glow band (transitions, not animations → survive the pause)
   const hpf = s.playerMax > 0 ? s.playerHP / s.playerMax : 1
   const band = !s.running ? '' : hpf <= 0.35 ? 'crit' : hpf <= 0.7 ? 'low' : ''
@@ -1528,7 +1678,7 @@ function updateBar(): void {
 
 // the tug + dev instruments (board composition, reshape share) — cheap; run per frame off updateBar
 const TOKEN_VAL: Record<string, number> = { red: 0, green: 1, blue: 2, attack: 0, defend: 1, move: 2, one: 0, two: 1, three: 2 }
-const AXIS_ICONS: Record<string, string[]> = { color: ['🔥', '🌿', '❄'], shape: ['⚔', '🛡', '➤'], number: ['①', '②', '③'], mag: ['①', '②', '③'] }
+const AXIS_ICONS: Record<string, string[]> = { color: ['🔥', '🌿', '❄'], shape: ['⚔', '🛡', '👟'], number: ['①', '②', '③'], mag: ['①', '②', '③'] }
 const axisIdx = (axis: string): number => (axis === 'color' ? 0 : axis === 'shape' ? 1 : 3)
 
 /** The TUG, as board composition: enemy-theme share vs your-bias share over live cards. The bar
@@ -1561,7 +1711,7 @@ function updateTugAndSprites(): void {
   if (bw) {
     const standing = s.running && s.tactic === 'stand'
     bw.classList.toggle('guarded', standing && s.charges > 0)
-    if (standing) bw.style.setProperty('--guard', String(s.charges / 5))
+    if (standing) bw.style.setProperty('--guard', String(Math.min(1, s.charges / CHARGE_CAP)))
     bw.classList.toggle('flowing', s.running && s.tactic === 'maneuver' && !!s.maneuverBias && s.charges > 0)
   }
   if (V.refs.stancebadge) {
@@ -1587,10 +1737,13 @@ function renderDevStats(): void {
   const spring = d.matches ? Math.round((d.springs / d.matches) * 100) : null
   const gimme = d.matches ? Math.round((d.k1 / d.matches) * 100) : null
   const spm = s.now > 10_000 ? (d.matches / (s.now / 60_000)).toFixed(1) : '—'
+  // sets/round vs the A2 axiom: ~3 = baseline, 4–6 = competent (warn outside 2..7)
+  const spr = s.now > 10_000 && s.round > 0 ? d.matches / s.round : null
   const cell = (k: string, v: string, off: boolean) => `<span class="${off ? 'off' : ''}">${k} <b>${v}</b></span>`
   const html = [
     cell('reshape', share == null ? '—' : `${share}% <i>→65–70</i>`, share != null && (share < 60 || share > 78)),
     cell('spring', spring == null ? '—' : `${spring}% <i>→~30</i>`, spring != null && (spring < 15 || spring > 45)),
+    cell('sets/rnd', spr == null ? '—' : `${spr.toFixed(1)} <i>→3–6</i>`, spr != null && (spr < 2 || spr > 7)),
     cell('sets/min', spm, false),
     cell('gimme', gimme == null ? '—' : `${gimme}%`, false),
     cell('wards', String(d.wards), false),
@@ -1618,6 +1771,8 @@ function endScreen(result: 'win' | 'lose' | 'flee'): void {
   if (!V) return
   coachFinish() // close any open guided step before the end banner
   V.paused = false // a flee-confirm pause must not survive onto the end card (frozen animations)
+  V.holdHud = false // a mid-choreography end must not leave the HUD frozen on stale numbers…
+  updateBar() // …so paint the final read once before the loop dies
   cancelAnimationFrame(V.raf)
   if (V.refs.fleebtn) V.refs.fleebtn.style.display = 'none' // no fleeing a finished fight
   document.getElementById('ptint')?.classList.remove('low', 'crit') // drop the low-HP vignette on the end card
@@ -1646,9 +1801,12 @@ function endScreen(result: 'win' | 'lose' | 'flee'): void {
 }
 
 /* ---- pre-combat briefing ---- */
-function cadenceBand(sec: number): string {
-  // recalibrated: ~12s = average (Steady), ~10s = quick (Swift), ~8s = very fast (Frenzied)
-  return sec >= 40 ? 'Glacial' : sec >= 24 ? 'Torpid' : sec >= 18 ? 'Lumbering' : sec >= 14 ? 'Slow' : sec >= 11 ? 'Steady' : sec >= 9 ? 'Swift' : 'Frenzied'
+/** v3: foe quickness is exchange BEHAVIOR (the tempo law), never scan pressure — every foe gives
+ *  the same 20s round. Describe the packaging the statline derives. */
+function tempoLabel(f: CombatState['foe']): string {
+  if (f.damage <= 0) return 'never strikes'
+  if (f.strikeEvery > 1) return `every ${f.strikeEvery === 2 ? '2nd' : `${f.strikeEvery}rd`} round`
+  return f.swings > 1 ? `${f.swings} swings<small> / round</small>` : 'every round'
 }
 function showBriefing(onEngage: () => void): void {
   if (!V) return
@@ -1657,8 +1815,8 @@ function showBriefing(onEngage: () => void): void {
   const seq = V.run.sequence
   const stats: [string, string][] = [
     ['HP', String(V.state.enemyMax)],
-    ['Damage', `${f.damage}<small> max</small>`],
-    ['Speed', `${cadenceBand(f.cadence)}<small> · ${f.cadence}s</small>`],
+    ['Damage', `${f.damage}<small> max / swing</small>`],
+    ['Tempo', tempoLabel(f)],
   ]
   if (f.drift) stats.push(['Drift', `${f.drift.icon ?? ''} ${f.drift.name.replace(/ Drift$/, '')}`])
   const statsHTML = stats.map(([l, v]) => `<div class="bs"><div class="l">${l}</div><div class="v">${v}</div></div>`).join('')
@@ -1775,23 +1933,23 @@ function buildCoachUI(): void {
 // the guided intro script (3b): a gradual reveal, ONE play-element per stage
 const GUIDED_STEPS: GuidedStep[] = [
   { icon: '🃏', title: 'Read the board', hold: true,
-    body: 'Every card shows three traits — a <b>colour</b>, a <b>shape</b>, and a <b>number</b> (1–3). The clock is frozen; take your time looking them over.' },
+    body: 'Every card shows three traits — a <b>colour</b>, a <b>shape</b>, and a <b>number</b> (1–3). The round is frozen; take your time looking them over.' },
   { icon: '✨', title: 'Make your first set', spot: '#board', await: 'match',
     hint: '▸ Click cards on and off to watch the gold set-mates light up, then complete a set.',
     body: 'A <b>set</b> is three cards where each trait is <b>all the same</b> or <b>all different</b> across the three. Pick any card — its <b>set-mates light up gold</b>. Try clicking a few cards on and off to see how the possibilities shift; pick a second and the card that <b>finishes the set</b> glows brightest. (If a pair can’t finish, both turn <b>red</b>.) Complete a set now.',
-    done: 'Nice. A set resolves all three cards at once — that one act does several things together: <b>Attacks</b> deal damage, <b>Defends</b> raise <b>Block</b> that soaks the enemy\'s next hit, and <b>Moves</b> shove the attack timer back. The <b>colours</b> feed mana too: three of one colour banks a big chunk of that element, one-of-each banks a little of all three. Every match is offence, defence, tempo, and resources in one move.' },
+    done: 'Nice. A set resolves all three cards at once — that one act does several things together: <b>Attacks</b> bank damage toward your end-of-round swing, <b>Defends</b> raise <b>Block</b> against the foe\'s telegraphed strike, and <b>Moves</b> bank <b>Tactics charges</b>. Everything cashes out at the round\'s end — the <b>exchange</b>. The <b>colours</b> feed mana too: three of one colour banks a big chunk of that element, one-of-each banks a little of all three. Every match is offence, defence, agency, and resources in one move.' },
   { icon: '⚠️', title: 'Watch for traps', spot: '#strip', reveal: ['traps'], hold: true,
     body: "Tougher foes carry <b>traps</b> — rules that punish (or reward!) certain matches, shown in the <b>trap strip</b> above the board. This dummy has none, but the <b>Training · Gauntlet</b> has foes whose lines you must read, dodge, or deliberately spring." },
-  { icon: '🎯', title: 'Use Tactics', reveal: ['tactics'], await: 'tactic', cue: 'moves',
-    hint: '▸ Press ⚔ Maneuver, match a set with a Move (➤) to bank a charge, then pick a bias chip.',
-    body: 'Matching <b>Move</b> cards banks <b>Tactics charges</b>. You start in <b>Stand Ground</b> — charges shield your board from enemy meddling. Press <b>⚔ Maneuver</b> to go on the offensive instead: pick a <b>bias</b> — what you want more of — and your charges spend themselves, steadily morphing the deadest card toward it. Swap, bank a charge, and set your bias now.',
-    done: 'That is your tide. <b>Maneuver</b> pulls the board toward your build one card at a time, while the dungeon pulls it the other way — a tug-of-war you fund with Moves. <b>Stand Ground</b> banks the same charges as a shield that eats enemy board-meddling (warps, locks, wounds). Swapping tactics resets your charges — pick a stance and commit.' },
+  { icon: '🎯', title: 'Use the Tactics wheel', reveal: ['tactics'], await: 'tactic', cue: 'moves',
+    hint: '▸ Tap a spoke on the wheel (top arc = shapes, bottom arc = colours) — it locks at the next deal.',
+    body: 'Matching <b>Move</b> cards (👟) banks <b>Tactics charges</b>. The <b>wheel</b> decides what they do — and your pick <b>locks at each deal</b>: the centre is <b>Stand Ground</b> (charges ward enemy board-meddling, live), the six spokes are <b>Maneuver</b> biases — what you want more of. Tap a spoke now to steer the next deal.',
+    done: 'That is your tide. With <b>Maneuver</b>, the rollover burns ALL your charges at once, redrawing the deadest cards toward your spoke — the board exhales fresh possibility. <b>Stand Ground</b> instead spends charges live as a shield that eats enemy warps, locks, even wounds (3 charges), and the bank carries over. The stance <b>locks at each deal</b> — pick the round\'s posture and commit to it.' },
   { icon: '🔥', title: 'Cast an ability', reveal: ['abilities'], await: 'ability', cue: 'mana',
     hint: '▸ Match the highlighted cards (all one colour) to bank that mana; when an ability lights up, click it.',
     body: 'Matches also generate <b>mana</b> by colour. The cards of the colour your spells need most are <b>highlighted</b> — match them to bank that mana. When you can afford an ability it lights up with an arrow. Build mana and cast one.',
     done: 'Abilities are your burst — far bigger than a single match: heavy damage, healing, board-warping floods, hard enemy slows. Banking the right colour and spending it at the right moment is how you swing a fight, so read your spells and aim your matches at the mana they need.' },
   { icon: '🎓', title: "You're ready", spot: null, hold: true, finishLabel: 'Begin! ▸',
-    body: "That's the whole loop: <b>find sets</b>, dodge traps, bank <b>Tactics</b>, spend <b>mana</b>. The clock resumes when you close this — good luck." },
+    body: "That's the whole loop: <b>find sets</b>, dodge traps, steer the <b>wheel</b>, spend <b>mana</b> — and cash it all out at each <b>exchange</b>. The round resumes when you close this — good luck." },
 ]
 
 function coachStartGuided(): void {
