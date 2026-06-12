@@ -1,10 +1,13 @@
 /* engine/resolve — turn a found set into combat effects. RESOLUTION v2 ("Model B" — sets STEER,
-   stats CARRY, CRAWL §5.5): each card in a set is one action of the character's build — an Attack
-   card swings with Power, a Defend guards with Endurance, a Move steps with Speed — and the card's
-   MAGNITUDE is the action's QUALITY (① glancing ×0.7 · ② solid ×1.0 · ③ heavy ×1.4), not its size.
+   stats CARRY) under the ROUNDS v3 grammar (CRAWL §5.6): each card in a set is one action of the
+   character's build — an Attack card banks Power toward the exchange swing, a Defend guards with
+   Endurance against the telegraph, a Move feeds the Tactics bank — and the card's MAGNITUDE is the
+   action's QUALITY (① glancing ×0.7 · ② solid ×1.0 · ③ heavy ×1.4), not its size.
    Deterministic on purpose (the deliberate-grind direction): a set always delivers exactly what it
    reads. At the base statline (2/2/2) per-card values are 1/2/3 — exact parity with the old system.
-   `weightedRoll` remains for ENEMY attacks and ability rolls. */
+   `weightedRoll` remains for ENEMY attacks and ability rolls.
+   ⚠ v3 OPEN (numbers workshop): Move's per-card `round(Speed × q)` died with the clock; charges
+   count Move CARDS flat for now. Speed's new job (likely charge-income scaling) is the open item. */
 
 import type { Card } from '../core/affine'
 import type { Rng } from '../core/rng'
@@ -56,21 +59,20 @@ export interface Resolution {
   dmgMed: number
   dmgHeavy: number
   block: number
-  boot: number
   mana: [number, number, number]
   allSameColor: boolean
   desc: MatchDescriptor
 }
 
-/** Resolve a set (Model B): each card fires its shape's stat at its magnitude's quality —
- *  Attack → round(Power × q) damage · Defend → round(Endurance × q) Block · Move → round(Speed × q)
- *  clock-boost seconds. Mana routes by colour signature: all-same → 3 in that pool, all-diff → 1 each. */
+/** Resolve a set (Model B, v3): each card fires its shape's stat at its magnitude's quality —
+ *  Attack → round(Power × q) banked toward the exchange · Defend → round(Endurance × q) Block.
+ *  Move cards carry no number here (charge income counts cards in the reducer — Speed's job is
+ *  the open workshop item). Mana routes by colour signature: all-same → 3, all-diff → 1 each. */
 export function resolveSet(cards: [Card, Card, Card], stats: StatBlock, _rng: Rng): Resolution {
   let dmgLight = 0
   let dmgMed = 0
   let dmgHeavy = 0
   let block = 0
-  let boot = 0
   for (const c of cards) {
     const shape = c[1]
     const q = QUALITY[c[3]] // card magnitude = the action's quality tier
@@ -81,8 +83,6 @@ export function resolveSet(cards: [Card, Card, Card], stats: StatBlock, _rng: Rn
       else dmgHeavy += hit
     } else if (shape === SHAPE_DEFEND) {
       block += Math.round(stats.endurance * q)
-    } else {
-      boot += Math.round(stats.speed * q)
     }
   }
   const damage = dmgLight + dmgMed + dmgHeavy
@@ -95,5 +95,5 @@ export function resolveSet(cards: [Card, Card, Card], stats: StatBlock, _rng: Rn
     mana[1] = 1
     mana[2] = 1
   }
-  return { damage, dmgLight, dmgMed, dmgHeavy, block, boot, mana, allSameColor, desc: matchDescriptor(cards) }
+  return { damage, dmgLight, dmgMed, dmgHeavy, block, mana, allSameColor, desc: matchDescriptor(cards) }
 }

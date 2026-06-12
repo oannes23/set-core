@@ -62,25 +62,25 @@ test('stoneskin grants Block by tier (10/20/30)', () => {
   }
 })
 
-test('a haste potion stalls the enemy clock (uncapped by tier)', () => {
+test('a haste potion stretches the round (uncapped by tier — bypasses the extension cap)', () => {
   const s = combat(['speed_major'])
-  const before = s.nextAttackAt
+  const before = s.roundEndsAt
   const r = reduce(s, { type: 'useConsumable', slot: 0 }, deps())
-  expect(r.state.nextAttackAt).toBe(before + 30_000)
+  expect(r.state.roundEndsAt).toBe(before + 30_000)
 })
 
-test('invisibility fills the charge queue and freezes the enemy attack until the next Set', () => {
+test('invisibility banks +5 charges and freezes the round until the next Set', () => {
   const s = combat(['invisibility'])
-  s.tactic = 'maneuver' // hold the queue (default Stand Ground would SPEND charges warding board verbs)
+  s.tactic = 'maneuver' // hold the bank (default Stand Ground would SPEND charges warding board verbs)
   s.charges = 0
   const r = reduce(s, { type: 'useConsumable', slot: 0 }, deps())
-  expect(r.state.charges).toBe(5) // CHARGE_CAP
+  expect(r.state.charges).toBe(5)
   expect(r.state.attackFrozen).toBe(true)
-  // ticking far past the attack interval does NOT trigger an enemy attack while frozen
+  // ticking far past the round does NOT roll over while frozen — no exchange, no enemy swing
   const t = reduce(r.state, { type: 'tick', dtMs: 60_000 }, deps())
-  expect(t.events.some((e) => e.type === 'playerDamaged' || e.type === 'enemyStrikes')).toBe(false)
+  expect(t.events.some((e) => e.type === 'playerDamaged' || e.type === 'roundEnded')).toBe(false)
   expect(t.state.attackFrozen).toBe(true)
-  expect(t.state.charges).toBe(5) // no bias set → Maneuver queues and waits (no waste)
+  expect(t.state.charges).toBe(5) // no bias set → Maneuver holds (no waste)
 })
 
 test('strength triples the next attacking set, then is spent', () => {
@@ -105,12 +105,12 @@ test('regeneration heals from green cards on the board', () => {
   expect(r.state.playerHP).toBeGreaterThan(1)
 })
 
-test('hourglass resets the enemy clock to full and arms tick-suppression', () => {
+test('hourglass restores the round to a clean full 20s and arms tick-suppression', () => {
   const s = combat(['hourglass'])
   s.now = 5000
-  s.nextAttackAt = 5500 // about to attack
+  s.roundEndsAt = 5500 // the exchange looms
   const r = reduce(s, { type: 'useConsumable', slot: 0 }, deps())
-  expect(r.state.nextAttackAt).toBe(s.now + s.foe.cadence * 1000)
+  expect(r.state.roundEndsAt).toBe(s.now + 20_000)
   expect(r.state.tickSuppressedUntil).toBe(s.now + 6000)
   // once the window elapses, suppression clears and a buffFaded note fires
   const t = reduce(r.state, { type: 'tick', dtMs: 7000 }, deps())

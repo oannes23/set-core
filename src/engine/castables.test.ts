@@ -7,12 +7,12 @@ import type { Card } from '../core/affine'
 import type { GenConfig } from '../core/generate'
 import { GAMEDATA } from '../data/game-data'
 import { assembleFoe } from './foe'
-import { runTrigger, EMPTY_DESC } from './triggers'
+import { runTrigger, inflictWounds, EMPTY_DESC } from './triggers'
 import { createCombat, reduce } from './combat'
-import { SHAPE_ATTACK, SHAPE_MOVE } from './resolve'
+import { SHAPE_ATTACK, SHAPE_DEFEND, SHAPE_MOVE } from './resolve'
 import { gainBlock, addCharges } from './ops'
 import { EventSink } from './events'
-import { CHARGE_CAP, CHURN_MS, SWAP_SPINUP_MS, MANA_CAP } from './state'
+import { MANA_CAP, ROUND_MS } from './state'
 import type { CombatState } from './state'
 
 const GEN: GenConfig = { n: 15, active: [0, 1, 3], pin: [0, 0, 0, 0], camoDepth: 1, escapeRoutes: 6, floor: 1 }
@@ -90,53 +90,53 @@ test('Overflow (Sentinel) spills block past the cap into the enemy', () => {
   expect(r.state.enemyHP).toBeLessThan(1000)
 })
 
-// ---- Tactics v2: the charge queue + Maneuver / Stand Ground ----
-test('Maneuver churn: one charge spends per CHURN_MS, morphing the deadest card toward the bias', () => {
+// ---- Tactics v3: the charge bank + the round-locked stances (CRAWL §5.6) ----
+test('Maneuver dump: nothing churns mid-round; the rollover batch-redraws toward the bias', () => {
   const s = combat('training_dummy')
-  s.tactic = 'maneuver' // Stand Ground is the default — churn tests opt into Maneuver
+  s.tactic = 'maneuver' // Stand Ground is the default — dump tests opt into Maneuver
   s.charges = 3
   s.maneuverBias = { axis: 'shape', value: SHAPE_ATTACK }
   s.board = s.board.map((_, i) => card(i % 3, SHAPE_MOVE, i % 3)) // nothing conforms → plenty to churn
-  const r1 = reduce(s, { type: 'tick', dtMs: 100 }, deps())
-  expect(r1.events.filter((e) => e.type === 'cardsTransmuted')).toHaveLength(1) // ONE card, never a batch
-  expect(r1.state.charges).toBe(2)
-  const r2 = reduce(r1.state, { type: 'tick', dtMs: 100 }, deps())
-  expect(r2.events.some((e) => e.type === 'cardsTransmuted')).toBe(false) // serial cadence: still cooling down
-  expect(r2.state.charges).toBe(2)
-  const r3 = reduce(r2.state, { type: 'tick', dtMs: CHURN_MS }, deps())
-  expect(r3.events.filter((e) => e.type === 'cardsTransmuted')).toHaveLength(1)
-  expect(r3.state.charges).toBe(1)
+  const r1 = reduce(s, { type: 'tick', dtMs: 2000 }, deps())
+  expect(r1.events.some((e) => e.type === 'cardsTransmuted')).toBe(false) // the tide waits for the deal
+  expect(r1.state.charges).toBe(3)
+  const r2 = reduce(r1.state, { type: 'tick', dtMs: ROUND_MS }, deps())
+  const ct = r2.events.find((e) => e.type === 'cardsTransmuted') as { slots: number[] } | undefined
+  expect(ct?.slots).toHaveLength(3) // the whole bank, as one tide
+  expect(r2.state.charges).toBe(0) // burned back to zero
+  expect(r2.events.some((e) => e.type === 'tacticsDumped')).toBe(true)
 })
 
-test('Maneuver holds charges with no bias set (queue and wait, no waste)', () => {
+test('Maneuver holds charges with no bias set (no waste, even across the rollover)', () => {
   const s = combat('training_dummy')
   s.tactic = 'maneuver'
   s.charges = 2
-  const r = reduce(s, { type: 'tick', dtMs: 2000 }, deps())
+  const r = reduce(s, { type: 'tick', dtMs: ROUND_MS + 1000 }, deps())
   expect(r.state.charges).toBe(2)
   expect(r.events.some((e) => e.type === 'cardsTransmuted')).toBe(false)
 })
 
-test('setTactic swaps the verb, RESETS charges, and spins up (income lost meanwhile)', () => {
+test('setTactic QUEUES: the stance locks at the draw phase — no charge reset, no spin-up', () => {
   const s = combat('training_dummy') // default tactic = stand
   s.charges = 4
   const r = reduce(s, { type: 'setTactic', tactic: 'maneuver' }, deps())
-  expect(r.events.some((e) => e.type === 'tacticChanged' && e.tactic === 'maneuver')).toBe(true)
-  expect(r.state.charges).toBe(0) // the commitment cost
-  expect(r.state.tacticReadyAt).toBe(r.state.now + SWAP_SPINUP_MS)
-  // income during the spin-up is lost
+  expect(r.events.some((e) => e.type === 'tacticChanged' && e.queued)).toBe(true)
+  expect(r.state.tactic).toBe('stand') // this round's stance is already locked
+  expect(r.state.queuedTactic).toBe('maneuver')
+  expect(r.state.charges).toBe(4) // no commitment tax — the round-lock IS the commitment
   const sink = new EventSink()
   addCharges(r.state, 3, sink)
-  expect(r.state.charges).toBe(0)
-  expect(sink.events).toHaveLength(0)
+  expect(r.state.charges).toBe(7) // income flows freely (the spin-up gate is gone)
 })
 
-test('Adaptive Tactics (Warlord): charges persist through a swap, no spin-up', () => {
-  const s = combat('training_dummy', { passives: ['adaptive'] })
-  s.charges = 4
-  const r = reduce(s, { type: 'setTactic', tactic: 'maneuver' }, deps())
-  expect(r.state.charges).toBe(4)
-  expect(r.state.tacticReadyAt).toBe(0)
+test('Combined Arms (Warlord): a shape-rainbow set banks +1 bonus charge', () => {
+  const s = combat('training_dummy', { passives: ['combined_arms'] })
+  s.board[0] = card(0, SHAPE_ATTACK, 0) // colours/shapes/numbers all-different — a valid rainbow
+  s.board[1] = card(1, SHAPE_DEFEND, 1)
+  s.board[2] = card(2, SHAPE_MOVE, 2)
+  const r = reduce(s, { type: 'completeSet', slots: [0, 1, 2] }, deps())
+  expect(r.state.charges).toBe(2) // 1 (the Move card) + 1 (Combined Arms)
+  expect(r.events.some((e) => e.type === 'passiveProc' && e.id === 'combined_arms')).toBe(true)
 })
 
 test('Stand Ground intercepts a hostile transmute (1 charge), but a TRICK passes through', () => {
@@ -157,29 +157,28 @@ test('Stand Ground intercepts a hostile transmute (1 charge), but a TRICK passes
   expect(s.charges).toBe(1) // untouched
 })
 
-test('Stand Ground intercepts the wound-shatter; the damage still lands', () => {
-  const s = combat('limbless_zombie')
+test('Stand Ground wards a wound for 3 charges; the HP damage already landed (Block’s lane)', () => {
+  const s = combat('training_dummy')
   s.tactic = 'stand'
-  s.charges = 1
-  s.block = 0
+  s.charges = 4
+  const sink = new EventSink()
   const before = s.board.filter(Boolean).length
-  const t = reduce(s, { type: 'tick', dtMs: 25000 }, deps()) // past cadence → it attacks
-  expect(t.events.some((e) => e.type === 'playerDamaged')).toBe(true) // damage is Block's lane, not Ward's
-  expect(t.events.some((e) => e.type === 'warded' && e.what === 'shatter')).toBe(true)
-  expect(t.events.some((e) => e.type === 'cardsShattered')).toBe(false)
-  expect(t.state.board.filter(Boolean).length).toBe(before) // the board held its shape
-  expect(t.state.charges).toBe(0)
+  // playerMax 30 → quantum 3: a 7-bite = 2 wounds. The ward eats ONE (3 charges); the
+  // remaining 1 charge can't pay for the second — it scars through.
+  inflictWounds(s, 7, mulberry32(5), sink)
+  expect(sink.events.filter((e) => e.type === 'warded' && e.what === 'shatter')).toHaveLength(1)
+  expect(sink.events.some((e) => e.type === 'cardsShattered')).toBe(true)
+  expect(s.board.filter(Boolean).length).toBe(before - 1)
+  expect(s.charges).toBe(1)
 })
 
-test('charge income: +1 per Move card matched, plus clock-overflow seconds', () => {
+test('charge income: +1 per Move card matched, flat (clock income died with the clock)', () => {
   const s = combat('training_dummy')
-  s.nextAttackAt = s.now + 999_000 // clock pinned WAY past the cap → every boot second overflows
-  s.board[0] = card(0, SHAPE_MOVE, 0) // all-Move (colours all-different): 3 Move cards, boot 1+2+3=6
+  s.board[0] = card(0, SHAPE_MOVE, 0) // all-Move (colours all-different): 3 Move cards
   s.board[1] = card(1, SHAPE_MOVE, 1)
   s.board[2] = card(2, SHAPE_MOVE, 2)
   const r = reduce(s, { type: 'completeSet', slots: [0, 1, 2] }, deps())
-  // income = 3 (Move cards) + 6 (all boot wasted) = 9 → capped at CHARGE_CAP
-  expect(r.state.charges).toBe(CHARGE_CAP)
+  expect(r.state.charges).toBe(3)
 })
 
 test('mana caps at MANA_CAP — gains past it are pure loss', () => {
@@ -201,15 +200,16 @@ test('flee forfeits the encounter at any time (not gated by the meter)', () => {
 })
 
 // ---- wound (shatter) + Defend overflow ----
-test('a landed enemy hit shatters a board rune (a Wound)', () => {
-  const s = combat('limbless_zombie') // damage 4, no variants, lumbering 24s — survives, deterministic
+test('an exchange hit past Block scars by the wound law — and one wound knits with the deal', () => {
+  const s = combat('limbless_zombie')
   s.block = 0
+  s.incoming = 9 // force this round's telegraph: bite 9 → floor(9 / (30/10)) = 3 wounds
   const before = s.board.filter(Boolean).length
-  const t = reduce(s, { type: 'tick', dtMs: 25000 }, deps()) // past the cadence → it attacks
-  expect(t.events.some((e) => e.type === 'playerDamaged')).toBe(true)
+  const t = reduce(s, { type: 'tick', dtMs: 20_100 }, deps()) // the rollover exchange
+  expect(t.events.some((e) => e.type === 'playerDamaged' && e.amount === 9)).toBe(true)
   expect(t.events.some((e) => e.type === 'cardsShattered')).toBe(true)
-  expect(t.state.board.filter(Boolean).length).toBe(before - 1) // one slot emptied (wounded)
-  expect(t.state.pending.size).toBe(1) // it reforms after DMG_REGEN_MS
+  expect(t.state.board.filter(Boolean).length).toBe(before - 2) // 3 scarred, 1 knit at the draw phase
+  expect([...t.state.pending.values()].filter((p) => p.wound)).toHaveLength(2)
 })
 
 test('block never exceeds the cap — Defend overflow converts to charges (1 per 2)', () => {
@@ -219,7 +219,7 @@ test('block never exceeds the cap — Defend overflow converts to charges (1 per
   s.charges = 0
   gainBlock(s, 20, mulberry32(1), new EventSink())
   expect(s.block).toBe(30) // capped — never creeps past the limit (this was the bug)
-  expect(s.charges).toBe(CHARGE_CAP) // floor(20/2)=10 → capped at 5
+  expect(s.charges).toBe(10) // floor(20/2) = 10 (fits the v3 cap of 15)
 })
 
 test('Sentinel (Overflow) stacks: overflow becomes BOTH a weighted attack and charges', () => {

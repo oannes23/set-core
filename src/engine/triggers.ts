@@ -6,11 +6,11 @@ import type { Card } from '../core/affine'
 import type { Board } from '../core/sets'
 import { countSetsExcluding } from '../core/sets'
 import type { Rng } from '../core/rng'
-import { patch, patchFavor, type FavorBias } from '../core/generate'
+import type { FavorBias } from '../core/generate'
 import type { Condition, Selector, Bias, Effect, Trigger } from '../data/schema'
 import type { CombatState, Pending } from './state'
-import { DMG_REGEN_MS } from './state'
-import { pushClock, tryWard } from './ops'
+import { WOUND_CAP_PER_EXCHANGE, woundQuantum } from './state'
+import { extendRound, shortenRound, tryWard, reformSlots } from './ops'
 import type { EventSink } from './events'
 import { type MatchDescriptor, weightedRoll } from './resolve'
 import { cardColor, cardShape, cardMag, isLive, liveSlots, pickRandom, gridDims, rowSlots, colSlots } from './select'
@@ -181,14 +181,14 @@ function runEffect(s: CombatState, e: Effect, desc: MatchDescriptor, rng: Rng, s
       sink.emit({ type: 'enemyStrikes' })
       return 'strikes!'
     case 'advance_timer': {
+      // v3: the enemy yanks the ROUND shorter — the exchange comes sooner
       const sec = e.scale === 'set_mag' ? scaledBySetMag(desc) : (e.seconds ?? 3)
-      s.nextAttackAt -= sec * 1000
-      sink.emit({ type: 'clockChanged', deltaSeconds: -sec })
-      return `−${sec}s`
+      const applied = shortenRound(s, sec, sink)
+      return applied > 0 ? `−${applied}s` : null
     }
     case 'delay_attack': {
       const sec = e.seconds ?? 5
-      const applied = pushClock(s, sec, sink)
+      const applied = extendRound(s, sec, sink)
       return applied > 0 ? `+${applied}s` : null
     }
     case 'enemy_heal': {
@@ -291,48 +291,44 @@ export function hurtPlayer(s: CombatState, raw: number, source: string, sink: Ev
   }
 }
 
-/** A landed standard attack shatters a live rune — a Wound: that slot can't reform for DMG_REGEN_MS.
- *  Stand Ground intercepts the shatter (the board verb) — the DAMAGE still landed (Block's lane). */
-export function shatterCard(s: CombatState, rng: Rng, sink: EventSink): void {
-  if (tryWard(s, 'shatter', sink)) return
-  const [i] = pickRandom(liveSlots(s), 1, rng)
-  if (i == null) return
-  s.board[i] = null
-  s.pending.set(i, { reformAt: s.now + DMG_REGEN_MS })
-  sink.emit({ type: 'cardsShattered', slots: [i] })
+/** The v3 WOUND LAW (CRAWL §5.6 — computed, never authored): wounds = floor(hpDamage / (maxHP/10)),
+ *  capped per exchange. Each wound shatters a live rune; it never time-reforms — one knits per draw
+ *  phase, heals repair by law, all reform at combat end. Stand Ground intercepts each wound for 3
+ *  charges (the backstop — Defend allocation is the PRIMARY prevention, since wounds key to damage
+ *  SUFFERED). The HP damage itself already landed (Block's lane). */
+export function inflictWounds(s: CombatState, hpDamage: number, rng: Rng, sink: EventSink): void {
+  if (hpDamage <= 0) return
+  const n = Math.min(WOUND_CAP_PER_EXCHANGE, Math.floor(hpDamage / woundQuantum(s)))
+  const shattered: number[] = []
+  for (let k = 0; k < n; k++) {
+    if (tryWard(s, 'shatter', sink)) continue
+    const [i] = pickRandom(liveSlots(s), 1, rng)
+    if (i == null) break
+    s.board[i] = null
+    s.pending.set(i, { reformAt: 0, wound: true }) // never time-reforms (the reducer skips wound pendings)
+    shattered.push(i)
+  }
+  if (shattered.length) sink.emit({ type: 'cardsShattered', slots: shattered })
 }
 
-/** The enemy's scheduled (or instant) attack. 0-damage foes (the dummy) can't hurt you. A hit that
- *  beats Block and bites actual HP also shatters a rune (a Wound) — traps that deal damage do not. */
+/** An INSTANT attack (trap `instant_attack` effects) — lands mid-round, outside the exchange.
+ *  Rolls fresh (traps stay surprising; the telegraph stays honest), consumes Block, and wounds
+ *  by the law against its own bite. 0-damage foes (the dummy) can't hurt you. */
 export function enemyAttack(s: CombatState, rng: Rng, sink: EventSink): void {
-  // a telegraphed strike lands EXACTLY what it promised; an un-telegraphed one (instant_attack
-  // trap effects, advance_timer yanks) rolls fresh — traps stay surprising, the clock stays honest
-  const raw = s.incoming ?? (s.foe.damage > 0 ? weightedRoll(s.foe.damage, rng) : 0)
-  s.incoming = null
+  const raw = s.foe.damage > 0 ? weightedRoll(s.foe.damage, rng) : 0
   if (raw === 0) {
     sink.emit({ type: 'playerBlocked' })
-  } else {
-    const hpBefore = s.playerHP
-    hurtPlayer(s, raw, s.foe.name, sink)
-    if (s.running && s.playerHP < hpBefore) shatterCard(s, rng, sink)
+    return
   }
-  s.nextAttackAt = s.now + s.foe.cadence * 1000
+  const bite = Math.max(0, raw - s.block)
+  hurtPlayer(s, raw, s.foe.name, sink)
+  if (s.running && bite > 0) inflictWounds(s, bite, rng, sink)
 }
 
 export const EMPTY_DESC: MatchDescriptor = {
   sameColor: null, sameShape: null, sameNumber: null, colors: [0, 0, 0], shapes: [0, 0, 0], numbers: [0, 0, 0],
 }
 
-/** Reform-on-tick is handled by the reducer; expose the regen helper it uses (bias-aware).
- *  Locked slots are excluded from the floor count, so the reform restores a MAKEABLE set —
- *  the lock-layer invariant (TRAPS.md §6.1), not just a paper floor through a locked card. */
-export function reformSlots(s: CombatState, slots: number[], bias: FavorBias | undefined, rng: Rng): void {
-  const fill = slots.filter((i) => s.board[i] == null)
-  if (!fill.length) return
-  const locked = s.locked.size ? new Set(s.locked.keys()) : undefined
-  const next = bias ? patchFavor(s.board, fill, s.gen, rng, bias, locked) : patch(s.board, fill, s.gen, rng, undefined, locked)
-  for (const i of fill) {
-    s.board[i] = next[i]
-    s.pending.delete(i)
-  }
-}
+/** The regen helper moved to ops.ts (healPlayer's wound repair needs it without a cycle);
+ *  re-exported here so existing imports (combat, abilities) keep working. */
+export { reformSlots }

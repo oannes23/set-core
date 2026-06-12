@@ -8,11 +8,12 @@ import { assembleFoe } from './foe'
 import { createCombat, reduce, colsForN } from './combat'
 import { createRun, runReduce } from './run'
 import { resolveSet, SHAPE_ATTACK, SHAPE_MOVE } from './resolve'
-import { condMet, selectSlots, transmute, lockSlots, runTrigger, EMPTY_DESC } from './triggers'
-import { pushClock } from './ops'
+import { condMet, selectSlots, transmute, lockSlots, runTrigger, inflictWounds, EMPTY_DESC } from './triggers'
+import { extendRound, healPlayer } from './ops'
+import { woundedSlots } from './select'
 import { EventSink } from './events'
 import type { CombatState } from './state'
-import { clockCapMs } from './state'
+import { ROUND_MS, ROUND_EXTEND_CAP_S } from './state'
 
 const GEN: GenConfig = { n: 15, active: [0, 1, 3], pin: [0, 0, 0, 0], camoDepth: 1, escapeRoutes: 6, floor: 1 }
 const card = (col: number, sh: number, num: number): Card => [col, sh, 0, num]
@@ -26,11 +27,11 @@ const STATS = { power: 2, endurance: 2, speed: 2 }
 test('resolveSet (Model B): shape picks the stat, magnitude is quality', () => {
   const r = resolveSet([card(0, 1, 0), card(0, 1, 1), card(0, 1, 2)], STATS, mulberry32(1)) // all Defend, all red
   expect(r.block).toBe(1 + 2 + 3) // Endurance 2 × q(0.7/1/1.4), rounded per card = parity
-  expect(r.boot).toBe(0)
   expect(r.damage).toBe(0)
   expect(r.mana).toEqual([3, 0, 0]) // all-red → 3 Fire
   const r2 = resolveSet([card(0, 2, 0), card(1, 2, 0), card(2, 2, 0)], STATS, mulberry32(1)) // all Move ①, all-diff colour
-  expect(r2.boot).toBe(3)
+  expect(r2.damage).toBe(0) // Move carries no number (charges count cards in the reducer — v3)
+  expect(r2.block).toBe(0)
   expect(r2.mana).toEqual([1, 1, 1])
   const r3 = resolveSet([card(0, SHAPE_ATTACK, 2), card(1, SHAPE_ATTACK, 2), card(2, SHAPE_ATTACK, 2)], STATS, mulberry32(1))
   expect(r3.damage).toBe(9) // DETERMINISTIC now: three heavy swings of Power 2 → 3+3+3
@@ -38,26 +39,87 @@ test('resolveSet (Model B): shape picks the stat, magnitude is quality', () => {
   expect(r4.damage).toBe(18) // stats CARRY: Power 4 → round(4×1.4)=6 per heavy swing
 })
 
-test('telegraphed exchange: the windup reveals the strike, commits the clock, and lands exactly', () => {
+// ---- ROUNDS v3: the telegraph reveals at the deal; the exchange lands exactly ----
+test('rounds: a heavy foe skips round 1, telegraphs at the deal, and the exchange lands exactly', () => {
   const rng = mulberry32(21)
-  const f = foe('limbless_zombie', rng) // lumbering 24s · windup 4s · damage 4
+  const f = foe('limbless_zombie', rng) // lumbering → strikes every OTHER exchange
+  expect(f.strikeEvery).toBe(2)
+  expect(f.swings).toBe(1)
   const s = createCombat({ foe: f, gen: GEN }, rng)
-  // approach: Moves still push the clock
-  const r1 = reduce(s, { type: 'tick', dtMs: 1000 }, { data: GAMEDATA, rng })
-  expect(r1.state.incoming).toBeNull()
-  // cross into the windup (24s cadence − 4s windup = 20s)
-  const r2 = reduce(r1.state, { type: 'tick', dtMs: 19_500 }, { data: GAMEDATA, rng })
-  const tele = r2.events.find((e) => e.type === 'windup') as { amount: number } | undefined
+  expect(s.incoming).toBeNull() // a heavy foe gives a free first round
+  // round 1 elapses — the rollover deals round 2 and REVEALS the telegraph
+  const r1 = reduce(s, { type: 'tick', dtMs: ROUND_MS + 100 }, { data: GAMEDATA, rng })
+  expect(r1.state.round).toBe(2)
+  expect(r1.events.some((e) => e.type === 'roundEnded')).toBe(true)
+  const tele = r1.events.find((e) => e.type === 'windup') as { amount: number } | undefined
   expect(tele).toBeTruthy()
-  expect(r2.state.incoming).toBe(tele!.amount)
-  // committed: a clock push applies 0 (it would all overflow to charges in a Move set)
-  const sink = new EventSink()
-  expect(pushClock(r2.state, 10, sink)).toBe(0)
-  // the strike lands EXACTLY the telegraphed amount (block 0)
-  const r3 = reduce(r2.state, { type: 'tick', dtMs: 5000 }, { data: GAMEDATA, rng })
-  const hit = r3.events.find((e) => e.type === 'playerDamaged') as { amount: number } | undefined
+  expect(r1.state.incoming).toBe(tele!.amount)
+  // round 2 elapses — the strike lands EXACTLY the telegraphed amount (block 0)
+  const r2 = reduce(r1.state, { type: 'tick', dtMs: ROUND_MS + 100 }, { data: GAMEDATA, rng })
+  const hit = r2.events.find((e) => e.type === 'playerDamaged') as { amount: number } | undefined
   expect(hit?.amount).toBe(tele!.amount)
-  expect(r3.state.incoming).toBeNull() // cleared — next approach begins
+  expect(r2.state.round).toBe(3)
+  expect(r2.state.incoming).toBeNull() // every-other-round striker rests in round 3
+})
+
+test('rounds: banked Attack lands at the exchange, player swing FIRST (the kill-race)', () => {
+  const rng = mulberry32(42)
+  const f = foe('goblin', rng)
+  const s = createCombat({ foe: f, gen: GEN }, rng)
+  s.enemyHP = 5
+  s.board[0] = card(0, SHAPE_ATTACK, 2)
+  s.board[1] = card(1, SHAPE_ATTACK, 2)
+  s.board[2] = card(2, SHAPE_ATTACK, 2)
+  let r = reduce(s, { type: 'completeSet', slots: [0, 1, 2] }, { data: GAMEDATA, rng })
+  expect(r.state.enemyHP).toBe(5) // nothing lands mid-round…
+  expect(r.state.roundAttack).toBe(9) // …it BANKS toward the exchange
+  expect(r.events.some((e) => e.type === 'attackBanked')).toBe(true)
+  r = reduce(r.state, { type: 'tick', dtMs: ROUND_MS + 100 }, { data: GAMEDATA, rng })
+  expect(r.events.some((e) => e.type === 'won')).toBe(true)
+  expect(r.events.some((e) => e.type === 'playerDamaged')).toBe(false) // lethal cancels their swing
+})
+
+test('wounds: floor(bite/(maxHP/10)) per exchange; heals repair ceil(heal/quantum); one knits per deal', () => {
+  const s = createCombatStub(Array.from({ length: 15 }, (_, i) => card(i % 3, i % 3, (i >> 2) % 3)))
+  const sink = new EventSink()
+  // playerMax 30 → quantum 3: an 11-bite scars floor(11/3) = 3 runes
+  inflictWounds(s, 11, mulberry32(3), sink)
+  expect(woundedSlots(s)).toHaveLength(3)
+  // chip damage under the quantum never scars
+  inflictWounds(s, 2, mulberry32(3), sink)
+  expect(woundedSlots(s)).toHaveLength(3)
+  // wounds never time-reform mid-round…
+  const rng = mulberry32(3)
+  let r = reduce(s, { type: 'tick', dtMs: 15000 }, { data: GAMEDATA, rng })
+  expect(woundedSlots(r.state)).toHaveLength(3)
+  // …but ONE knits with the deal
+  r = reduce(r.state, { type: 'tick', dtMs: ROUND_MS }, { data: GAMEDATA, rng })
+  expect(woundedSlots(r.state)).toHaveLength(2)
+  // and a heal repairs ceil(4/3) = 2 by law
+  healPlayer(r.state, 4, mulberry32(4), sink)
+  expect(woundedSlots(r.state)).toHaveLength(0)
+})
+
+test('stance picks QUEUE and lock at the draw phase; Maneuver dumps at the NEXT rollover', () => {
+  const rng = mulberry32(8)
+  const f = foe('training_dummy', rng)
+  const s = createCombat({ foe: f, gen: GEN }, rng)
+  s.charges = 6
+  let r = reduce(s, { type: 'setTactic', tactic: 'maneuver' }, { data: GAMEDATA, rng })
+  r = reduce(r.state, { type: 'setBias', bias: { axis: 'color', value: 0 } }, { data: GAMEDATA, rng })
+  expect(r.state.tactic).toBe('stand') // still locked this round
+  expect(r.state.queuedTactic).toBe('maneuver')
+  // the deal locks the stance — Stand Ground held through THIS rollover, so the bank CARRIED
+  r = reduce(r.state, { type: 'tick', dtMs: ROUND_MS + 100 }, { data: GAMEDATA, rng })
+  expect(r.state.tactic).toBe('maneuver')
+  expect(r.state.maneuverBias).toEqual({ axis: 'color', value: 0 })
+  expect(r.state.charges).toBe(6)
+  // the NEXT rollover dumps the whole bank into the tide
+  r = reduce(r.state, { type: 'tick', dtMs: ROUND_MS + 100 }, { data: GAMEDATA, rng })
+  expect(r.state.charges).toBe(0)
+  const dump = r.events.find((e) => e.type === 'tacticsDumped') as { spent: number; churned: number } | undefined
+  expect(dump?.spent).toBe(6)
+  expect(dump && dump.churned > 0).toBe(true)
 })
 
 // ---- trigger conditions ----
@@ -102,16 +164,17 @@ test('selectSlots: geometry ∩ value, and lock/transmute board verbs', () => {
 test('assembleFoe resolves stats, triggers, rules', () => {
   const z = foe('limbless_zombie')
   expect(z.hp).toBe(30)
-  expect(z.cadence).toBe(24) // lumbering (telegraphed-exchange retune)
+  expect(z.cadence).toBe(24) // lumbering (authored data — v3 derives exchange cadence from it)
   expect(z.damage).toBe(4)
-  expect(z.windupMs).toBe(4000) // default windup
-  expect(foe('dread_behemoth').windupMs).toBe(8000) // authored long windup (you see the mountain rise)
+  expect(z.strikeEvery).toBe(2) // lumbering → strikes every other exchange
+  expect(z.swings).toBe(1)
   expect(z.triggers.map((t) => t.name)).toContain('Limbless')
   const g = foe('unstable_ethereal_goblin')
   expect(g.rules.immune_card_damage).toBe(true)
   expect(g.rules.ability_damage).toBe('mana_spent')
   const b = foe('dread_behemoth')
   expect(b.cadence).toBe(120) // numeric speed
+  expect(b.strikeEvery).toBe(2) // ≥16s authored cadence → every other exchange
   expect(b.triggers.find((t) => t.name === 'Outmaneuvered')?.kind).toBe('trick')
 })
 
@@ -139,29 +202,32 @@ test('the boss actually fields the signature trap his elites telegraph', () => {
   expect(king.traps).toContain('war_cry') // the Lesser War Cry foretaste must be true
 })
 
-// ---- reducer: a real match + the enemy clock ----
-test('completeSet damages the foe / banks mana; tick fires the enemy attack', () => {
+// ---- reducer: a real match + the round exchange ----
+test('completeSet banks toward the exchange / banks mana; the rollover lands the strikes', () => {
   const rng = mulberry32(42)
   const f = foe('goblin', rng)
   const s = createCombat({ foe: f, gen: GEN }, rng)
+  expect(s.incoming).not.toBeNull() // a quick foe strikes round 1 — telegraphed from the first deal
   const sets = findSets(s.board)
   expect(sets.length).toBeGreaterThan(0)
   const r = reduce(s, { type: 'completeSet', slots: sets[0] }, { data: GAMEDATA, rng })
   expect(r.events.some((e) => e.type === 'setResolved')).toBe(true)
   expect(r.events.some((e) => e.type === 'manaGained')).toBe(true)
-  expect(r.state.board.filter(Boolean).length).toBe(15) // refilled
-  // advance past any possible clock (cadence ≤ 10s, Move boots cap at 20s out) → it attacks
+  expect(r.state.board.filter(Boolean).length).toBe(15) // refilled instantly mid-round
+  // the round elapses → the exchange: its strike lands (or breaks on block)
   const t = reduce(r.state, { type: 'tick', dtMs: 21000 }, { data: GAMEDATA, rng })
   expect(t.events.some((e) => e.type === 'playerDamaged' || e.type === 'playerBlocked')).toBe(true)
 })
 
-test('the training dummy (0 damage) cannot hurt the player', () => {
+test('the training dummy (0 damage) never telegraphs and cannot hurt the player', () => {
   const rng = mulberry32(5)
   const f = foe('training_dummy', rng)
   const s = createCombat({ foe: f, gen: GEN }, rng)
-  const t = reduce(s, { type: 'tick', dtMs: 31000 }, { data: GAMEDATA, rng }) // cadence 30s
+  expect(s.incoming).toBeNull()
+  const t = reduce(s, { type: 'tick', dtMs: 21000 }, { data: GAMEDATA, rng })
   expect(t.state.playerHP).toBe(t.state.playerMax)
-  expect(t.events.some((e) => e.type === 'playerBlocked')).toBe(true) // harmless swing
+  expect(t.state.round).toBe(2) // the rounds turn regardless
+  expect(t.events.some((e) => e.type === 'playerDamaged')).toBe(false)
 })
 
 test('immune foe (ethereal goblin) takes no card damage', () => {
@@ -186,7 +252,9 @@ test('gauntlet (run layer): killing a foe mid-sequence advances to the next', ()
   run.combat.board[0] = card(0, SHAPE_ATTACK, 2)
   run.combat.board[1] = card(1, SHAPE_ATTACK, 2)
   run.combat.board[2] = card(2, SHAPE_ATTACK, 2)
-  const r = runReduce(run, { type: 'completeSet', slots: [0, 1, 2] }, { data: GAMEDATA, rng })
+  let r = runReduce(run, { type: 'completeSet', slots: [0, 1, 2] }, { data: GAMEDATA, rng })
+  expect(r.run.combat.enemyHP).toBe(1) // banked, not landed — the exchange delivers it
+  r = runReduce(r.run, { type: 'tick', dtMs: 21000 }, { data: GAMEDATA, rng })
   expect(r.events.some((e) => e.type === 'foeChanged')).toBe(true)
   expect(r.run.seqIdx).toBe(1)
   expect(r.run.combat.foe.name).toContain('Behemoth')
@@ -203,7 +271,8 @@ test('gauntlet (run layer): winning the LAST foe ends the run with a win', () =>
   run.combat.board[0] = card(0, SHAPE_ATTACK, 2)
   run.combat.board[1] = card(1, SHAPE_ATTACK, 2)
   run.combat.board[2] = card(2, SHAPE_ATTACK, 2)
-  const r = runReduce(run, { type: 'completeSet', slots: [0, 1, 2] }, { data: GAMEDATA, rng })
+  let r = runReduce(run, { type: 'completeSet', slots: [0, 1, 2] }, { data: GAMEDATA, rng })
+  r = runReduce(r.run, { type: 'tick', dtMs: 21000 }, { data: GAMEDATA, rng })
   expect(r.events.some((e) => e.type === 'won')).toBe(true)
   expect(r.run.running).toBe(false)
   expect(r.run.result).toBe('win')
@@ -224,40 +293,28 @@ test('determinism: same seed + actions → identical state', () => {
   expect(run()).toEqual(run())
 })
 
-// ---- clock cap: the ceiling clamps the GAIN, never pulls the clock backward (FABLE E1) ----
-test('pushClock: capped pushes never pull an above-cap clock backward', () => {
+// ---- the INTERIM stall re-anchor: round extension, capped per round ----
+test('extendRound: stall verbs stretch the round up to the cap; uncapped potions bypass', () => {
   const s = createCombatStub(Array.from({ length: 15 }, (_, i) => card(i % 3, i % 3, (i >> 2) % 3)))
   const sink = new EventSink()
-  // an uncapped premium stall (Speed Potion) pushes well past the ceiling…
-  pushClock(s, 30, sink, true)
-  const stalled = s.nextAttackAt
-  expect(stalled).toBeGreaterThan(s.now + clockCapMs(s))
-  // …then a capped push (Frostbolt / a Move set) must apply 0, not crater the stall to the cap
-  const applied = pushClock(s, 5, sink)
-  expect(applied).toBe(0)
-  expect(s.nextAttackAt).toBe(stalled)
+  const ends0 = s.roundEndsAt
+  expect(extendRound(s, 6, sink)).toBe(6)
+  expect(extendRound(s, 6, sink)).toBe(ROUND_EXTEND_CAP_S - 6) // clamped to the per-round cap
+  expect(extendRound(s, 6, sink)).toBe(0) // the cap is spent
+  expect(s.roundEndsAt).toBe(ends0 + ROUND_EXTEND_CAP_S * 1000)
+  expect(extendRound(s, 30, sink, true)).toBe(30) // premium stall (Speed Potion) bypasses
 })
 
-test('pushClock: a capped push clamps the gain at the ceiling and reports seconds applied', () => {
-  const s = createCombatStub(Array.from({ length: 15 }, (_, i) => card(i % 3, i % 3, (i >> 2) % 3)))
-  const sink = new EventSink()
-  s.now = 0
-  s.nextAttackAt = 5000
-  const applied = pushClock(s, 100, sink) // way past the cap
-  expect(s.nextAttackAt).toBe(clockCapMs(s)) // exactly the ceiling
-  expect(applied).toBe(Math.round((clockCapMs(s) - 5000) / 1000))
-  expect(applied).toBeGreaterThanOrEqual(0) // never negative → Move overflow can never be inflated
-})
-
-test('Time Warp slams to the cap but never pulls an above-cap clock earlier', () => {
+test('Time Warp stretches the round to its full extension cap, once per round', () => {
   const rng = mulberry32(9)
   const f = foe('goblin', rng)
-  let s = createCombat({ foe: f, gen: GEN }, rng)
-  s.mana = [2, 2, 2]
-  s.nextAttackAt = s.now + clockCapMs(s) + 15000 // Speed-Potion territory
-  const stalled = s.nextAttackAt
-  const r = reduce(s, { type: 'castAbility', abilityId: 'timewarp' }, { data: GAMEDATA, rng })
-  expect(r.state.nextAttackAt).toBe(stalled) // the bigger stall survives
+  const s = createCombat({ foe: f, gen: GEN }, rng)
+  s.mana = [4, 4, 4]
+  const ends0 = s.roundEndsAt
+  let r = reduce(s, { type: 'castAbility', abilityId: 'timewarp' }, { data: GAMEDATA, rng })
+  expect(r.state.roundEndsAt).toBe(ends0 + ROUND_EXTEND_CAP_S * 1000)
+  r = reduce(r.state, { type: 'castAbility', abilityId: 'timewarp' }, { data: GAMEDATA, rng })
+  expect(r.state.roundEndsAt).toBe(ends0 + ROUND_EXTEND_CAP_S * 1000) // cap spent — no further stretch
   expect(r.events.some((e) => e.type === 'clockChanged')).toBe(false)
 })
 
@@ -295,17 +352,17 @@ test('highest_mag selection takes the TOP of the sort, not a random sample', () 
   expect(s.board[7]).toBeNull() // the heaviest rune, specifically, was plucked
 })
 
-test('scale:set_mag severity — a modest rainbow pays 2s, a greedy 3/3/3 pays 5s', () => {
+test('scale:set_mag severity — a modest rainbow pays 2s, a greedy 3/3/3 pays 5s (off the round)', () => {
   const mk = (numbers: [number, number, number]) => ({ ...EMPTY_DESC, sameColor: null, numbers })
   const trig = { name: 'Confusion', icon: 'x', on: 'match' as const, do: [{ effect: 'advance_timer' as const, scale: 'set_mag' as const }] }
   const a = createCombatStub(Array.from({ length: 15 }, (_, i) => card(i % 3, i % 3, (i >> 2) % 3)))
-  const beforeA = a.nextAttackAt
+  const beforeA = a.roundEndsAt
   runTrigger(a, trig, mk([0, 1, 2]), mulberry32(1), new EventSink()) // 1+2+3 = 6 → 2s
-  expect(beforeA - a.nextAttackAt).toBe(2000)
+  expect(beforeA - a.roundEndsAt).toBe(2000)
   const b = createCombatStub(Array.from({ length: 15 }, (_, i) => card(i % 3, i % 3, (i >> 2) % 3)))
-  const beforeB = b.nextAttackAt
+  const beforeB = b.roundEndsAt
   runTrigger(b, trig, mk([2, 2, 2]), mulberry32(1), new EventSink()) // 3+3+3 = 9 → 5s
-  expect(beforeB - b.nextAttackAt).toBe(5000)
+  expect(beforeB - b.roundEndsAt).toBe(5000)
 })
 
 test('shape floods no longer bias magnitude (the Bulwark loop is dead)', () => {

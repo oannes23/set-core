@@ -6,10 +6,10 @@
 import type { Rng } from '../core/rng'
 import type { Card } from '../core/affine'
 import type { CombatState } from './state'
-import { CHARGE_CAP } from './state'
+import { ROUND_MS } from './state'
 import type { EventSink } from './events'
 import { transmute } from './triggers'
-import { healPlayer, gainBlock, pushClock, addCharges, grantMana, dealAbilityDamage } from './ops'
+import { healPlayer, gainBlock, extendRound, addCharges, grantMana, dealAbilityDamage } from './ops'
 import { COLOR_RED, COLOR_GREEN, COLOR_BLUE, BIAS_W, cardColor, cardMag, comboCounts, isLive, liveSlots, gridDims, rowSlots, colSlots } from './select'
 import { ABILITIES } from './abilities'
 
@@ -40,8 +40,8 @@ TIERS.forEach((t, i) => {
   const hp = 10 * (i + 1) // 10 / 20 / 30
   reg({
     id: `hp_${t.key}`, name: `${t.label}Healing Potion`, kind: 'potion', icon: '💗', color: COLOR_GREEN,
-    desc: `restore ${hp} HP`,
-    use(s, _rng, sink) { healPlayer(s, hp, sink) },
+    desc: `restore ${hp} HP (knits wounds by law)`,
+    use(s, rng, sink) { healPlayer(s, hp, rng, sink) },
   })
   const armor = 10 * (i + 1) // 10 / 20 / 30
   reg({
@@ -52,8 +52,8 @@ TIERS.forEach((t, i) => {
   const secs = 10 * (i + 1) // 10s / 20s / 30s
   reg({
     id: `speed_${t.key}`, name: `${t.label}Speed Potion`, kind: 'potion', icon: '⏱️', color: COLOR_BLUE,
-    desc: `stall the enemy +${secs}s`,
-    use(s, _rng, sink) { pushClock(s, secs, sink, true) }, // premium stall: bypass the Move clock cap
+    desc: `stretch the round +${secs}s`,
+    use(s, _rng, sink) { extendRound(s, secs, sink, true) }, // premium stall: bypasses the extension cap
   })
   const mana = 5 * (i + 1) // 5 / 10 / 15 per colour
   for (let c = 0; c < 3; c++) {
@@ -74,8 +74,9 @@ TIERS.forEach((t, i) => {
 // --- special potions (one-off effects, no tiers) ---
 reg({
   id: 'invisibility', name: 'Invisibility Potion', kind: 'potion', icon: '👻', color: null,
-  desc: 'fill your Tactics charges · freeze the enemy until your next Set',
-  use(s, _rng, sink) { addCharges(s, CHARGE_CAP, sink); s.attackFrozen = true },
+  desc: 'bank +5 Tactics charges · freeze the round until your next Set',
+  // v3: cap rose 5→15, so "fill the bank" would have tripled this — keep the authored +5 magnitude
+  use(s, _rng, sink) { addCharges(s, 5, sink); s.attackFrozen = true },
 })
 reg({
   id: 'strength', name: 'Strength Potion', kind: 'potion', icon: '💪', color: COLOR_RED,
@@ -141,7 +142,7 @@ reg({
 reg({
   id: 'regeneration', name: 'Regeneration Potion', kind: 'potion', icon: '🌱', color: COLOR_GREEN,
   desc: 'green the 2 least-green columns, heal 1 per green card, clear them · 50% to repeat',
-  use(s, rng, sink) { cascade(s, rng, sink, COLOR_GREEN, (st) => fewestColorCols(st, COLOR_GREEN, 2), (st, n, _r, sk) => { healPlayer(st, n, sk) }) },
+  use(s, rng, sink) { cascade(s, rng, sink, COLOR_GREEN, (st) => fewestColorCols(st, COLOR_GREEN, 2), (st, n, r, sk) => { healPlayer(st, n, r, sk) }) },
 })
 reg({
   id: 'mind_reading', name: 'Mind Reading Potion', kind: 'potion', icon: '🔮', color: COLOR_BLUE,
@@ -152,12 +153,12 @@ reg({
 // --- threat-layer / board-shaping utility potions ---
 reg({
   id: 'hourglass', name: 'Hourglass Draught', kind: 'potion', icon: '⏳', color: COLOR_BLUE,
-  desc: 'reset the enemy clock to full · suppress drift & DoTs for 6s',
+  desc: 'restore the round to a clean full 20s · suppress drift & DoTs for 6s',
   use(s, _rng, sink) {
-    const before = s.nextAttackAt
-    s.nextAttackAt = s.now + s.foe.cadence * 1000 // a clean, guaranteed full interval
-    const applied = Math.round((s.nextAttackAt - before) / 1000)
-    if (applied !== 0) sink.emit({ type: 'clockChanged', deltaSeconds: applied })
+    const before = s.roundEndsAt
+    s.roundEndsAt = Math.max(before, s.now + ROUND_MS) // a clean, guaranteed full round (never shortens)
+    const applied = Math.round((s.roundEndsAt - before) / 1000)
+    if (applied > 0) sink.emit({ type: 'clockChanged', deltaSeconds: applied })
     s.tickSuppressedUntil = s.now + 6000
   },
 })

@@ -1,46 +1,63 @@
 /* engine/state — the combat state the engine reduces over. Pure data: no DOM, no timers. Time is
-   explicit (`now`, advanced by tick actions) so the whole thing is deterministic + replayable. */
+   explicit (`now`, advanced by tick actions) so the whole thing is deterministic + replayable.
+
+   ROUNDS v3 (CRAWL §5.6): combat runs in 20-second ROUNDS. Verbs ACCUMULATE during the round
+   (Attack → roundAttack, Defend → block, Move → charges) and cash out at the rollover exchange:
+   player swing first (lethal cancels — the kill-race), enemy swing minus block, Maneuver dump,
+   the deal, next telegraph. Spells/mana, traps/tricks, drift, and Stand Ground wards stay LIVE
+   mid-round. The round is THE pacing constant — time numbers denominate in rounds, not seconds. */
 
 import type { Board } from '../core/sets'
 import type { GenConfig, FavorBias } from '../core/generate'
 import type { Trigger, FoeRules, Tier } from '../data/schema'
 
-/** A board slot emptied by a transmute/shatter, reforming at `reformAt` (optionally biased). */
+/** A board slot emptied by a transmute/shatter, reforming at `reformAt` (optionally biased).
+ *  `wound: true` = a Wound (exchange damage scar): it never time-reforms — one knits per draw
+ *  phase, heals repair them by law (ops.healPlayer), all reform at combat end. */
 export interface Pending {
   reformAt: number
   bias?: FavorBias
+  wound?: boolean
 }
 
 /** Resolution v2 ("sets steer, stats carry") — the character's stat block. Sets choose and aim the
- *  action; these carry its size: Power sizes Attack swings, Endurance sizes Defend guards, Speed
- *  sizes Move steps. Base 2/2/2 = parity with the old card-magnitude system; gear/levels grow them. */
+ *  action; these carry its size: Power sizes Attack swings, Endurance sizes Defend guards. Base
+ *  2/2/2 = parity with the old card-magnitude system; gear/levels grow them.
+ *  ⚠ v3 OPEN (numbers workshop): Speed lost its job with the clock (it sized Move's clock-push);
+ *  the likely rebase is charge-income scaling. It stays in the block, currently unread. */
 export interface StatBlock {
   power: number
   endurance: number
   speed: number
 }
 
-/** Tactics v2 — the selected tactic (the VERB charges are spent on; CRAWL §5.5). */
+/** Tactics (v3): the selected stance (the VERB charges are spent on; CRAWL §5.6). */
 export type TacticKind = 'maneuver' | 'stand'
-/** Maneuver's parameter: churn the deadest non-conforming card toward this axis/value. */
+/** Maneuver's parameter: at the rollover dump, redraw the deadest non-conforming cards toward this.
+ *  v3 cut: magnitude bias is GONE from the player wheel (heavy boards = gear/Hone only). The axis
+ *  stays in the type for enemy/gear effects; the UI wheel exposes only color + shape. */
 export interface ManeuverBias {
   axis: 'color' | 'shape' | 'mag'
   value: number // 0..2 on that axis
 }
 
-/** A fielded foe, resolved from data (creature ⊕ variant ⊕ template) into runtime numbers. */
+/** A fielded foe, resolved from data (creature ⊕ variant ⊕ template) into runtime numbers.
+ *  v3: foe speed = round BEHAVIOR, not round length — `strikeEvery` rounds between exchanges,
+ *  `swings` hits per exchange (each rolled, summed into one telegraph). Derived from the authored
+ *  speed bands until the numbers workshop authors per-foe exchange cadence. */
 export interface FoeRuntime {
   id: string
   name: string
   tier: Tier | null
   hp: number // max HP for this encounter
   damage: number
-  cadence: number // seconds between attacks
+  cadence: number // authored seconds-between-attacks (data); v3 derives exchange cadence from it
+  strikeEvery: number // rounds between exchanges (1 = strikes every round, 2 = every other)
+  swings: number // hits per exchange (frenzied foes swing twice; telegraph shows the sum)
   triggers: Trigger[] // resolved traps/tricks (each carries `kind`)
   drift: Trigger | null
   rules: FoeRules
   desc: string | null
-  windupMs: number // telegraphed-exchange windup: the strike is COMMITTED for this long before landing
 }
 
 export interface CombatState {
@@ -49,15 +66,16 @@ export interface CombatState {
   playerMax: number
   enemyHP: number
   enemyMax: number
-  block: number
+  block: number // Defend's round accumulator: mitigates THIS round's telegraph, resets at the exchange
   stats: StatBlock // Resolution v2: sets steer, these carry (Power/Endurance/Speed)
   mana: [number, number, number] // capped at MANA_CAP per color; gains past it are pure loss
-  // Tactics v2 (CRAWL §5.5): a charge queue spent by the selected tactic
+  // Tactics v3 (CRAWL §5.6): a charge bank spent by the selected stance
   tactic: TacticKind
-  maneuverBias: ManeuverBias | null // Maneuver's parameter; null = charges queue and wait
-  charges: number // queued (Maneuver) / banked (Stand Ground); ≤ CHARGE_CAP
-  nextChurnAt: number // serial spend cadence — Maneuver churns one card per CHURN_MS
-  tacticReadyAt: number // swap spin-up: income is LOST until `now` reaches this
+  maneuverBias: ManeuverBias | null // Maneuver's parameter; null = charges bank and wait
+  charges: number // banked; ≤ CHARGE_CAP. Stand Ground spends live (wards) + carries over;
+  // Maneuver hoards, dumps ALL at the rollover, zeroes.
+  queuedTactic: TacticKind | null // the wheel's NEXT-round pick (locks at the draw phase); null = no change
+  queuedBias: { bias: ManeuverBias | null } | null // queued bias change (wrapper ≠ "clear bias")
   // board
   board: Board
   cols: number // grid width (for geometry selectors); rows = ceil(board.length / cols)
@@ -68,16 +86,20 @@ export interface CombatState {
   passives: string[] // active passive ids (always-on triggers — fire on the bus)
   consumables: string[] // carried one-use items (potions/scrolls); spent via the useConsumable action
   // transient effect flags (set by items/abilities, consumed by the reducer) — reusable buff slots
-  attackFrozen: boolean // enemy attack clock paused (e.g. Invisibility) until the player completes a Set
+  attackFrozen: boolean // the ROUND timer paused (e.g. Invisibility) until the player completes a Set
   nextSetDamageMult: number // multiplier on the next attacking Set's damage (e.g. Strength); 1 = none
   tickSuppressedUntil: number // on:tick effects (drift + dread DoTs) are paused while now < this (e.g. Hourglass)
   // foe
   foe: FoeRuntime
-  // clock (all ms, on the `now` timeline)
+  // the round clock (all ms, on the `now` timeline)
   now: number
-  nextAttackAt: number
-  /** the TELEGRAPH: pre-rolled strike damage, set when the windup begins (clock is then COMMITTED —
-   *  Move pushes convert fully to charges); cleared when the strike lands. null = approach phase. */
+  round: number // current round index (1-based)
+  roundEndsAt: number // when the rollover exchange fires
+  roundExtendedS: number // seconds of stall-spell extension already applied this round (capped)
+  roundAttack: number // Attack's round accumulator: lands as the player's exchange swing
+  nextStrikeRound: number // the round index of the foe's next exchange swing
+  /** the TELEGRAPH: this round's pre-rolled exchange total, revealed at the deal
+   *  (swings summed). null = the foe does not strike this round. */
   incoming: number | null
   tickAccum: Record<string, number> // trigger key -> seconds accumulated toward its `every`
   // run / gauntlet
@@ -87,21 +109,20 @@ export interface CombatState {
   gen: GenConfig
 }
 
-/** Effective clock ceiling: Moves push the foe's next attack up to its full cadence (or 20s),
- *  whichever is higher — never crater a slow foe's clock. (Ported from clockCapSec.) */
-export const CLOCK_CAP = 20
-export function clockCapMs(s: CombatState): number {
-  return Math.max(CLOCK_CAP, s.foe.cadence) * 1000
-}
+// ROUNDS v3 (CRAWL §5.6) — the temporal grammar. The round is THE pacing constant.
+export const ROUND_MS = 20000 // round length; everything else tunes relative to it
+/** INTERIM stall re-anchor (pending the v3 translation pass): clock-push verbs now EXTEND the
+ *  current round, capped at this many bonus seconds per round (uncapped potions bypass). */
+export const ROUND_EXTEND_CAP_S = 10
 
 export const DEFAULT_PLAYER_MAX = 30 // createCombat's default playerMax; the save layer mirrors it
-// Tactics v2 (CRAWL §5.5) — tuning defaults
-export const CHARGE_CAP = 5 // the queue/bank cap; overflow income is wasted
-export const CHURN_MS = 800 // Maneuver spends ONE charge per this interval (serial, never a batch)
-export const SWAP_SPINUP_MS = 3000 // after a tactic swap, income is lost until the spin-up elapses
+// Tactics v3 (CRAWL §5.6) — tuning defaults
+export const CHARGE_CAP = 15 // exact both ways: a max 5-wound haymaker (5×3) or a whole-board (15) dump
+export const WOUND_WARD_COST = 3 // Stand Ground's live cost to fizzle ONE incoming wound (board verbs cost 1)
 export const MANA_CAP = 15 // per color; gains past it are pure loss (gear may raise it later)
-// Resolution v2 / telegraphed exchanges
+// Wounds (CRAWL §5.6) — computed, never authored. Both laws share one quantum: a tenth of max HP.
+export const WOUND_CAP_PER_EXCHANGE = 5
+export const woundQuantum = (s: CombatState): number => s.playerMax / 10
+// Resolution v2 (unchanged)
 export const BASE_STATS: StatBlock = { power: 2, endurance: 2, speed: 2 } // parity statline (per-card 1/2/3)
-export const DEFAULT_WINDUP_S = 4 // seconds of committed windup before a strike (per-foe `windup` overrides)
-export const DMG_REGEN_MS = 10000 // a shattered (wounded) card reforms after this
-export const START_GRACE_MS = 3000 // UI freezes the clock this long after Engage (read the board, no ticks advance)
+export const START_GRACE_MS = 3000 // UI freezes the round this long after Engage (read the board, no ticks advance)

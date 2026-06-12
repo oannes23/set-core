@@ -3,7 +3,7 @@
 
 import type { Rng } from '../core/rng'
 import type { GameData, Dungeon, Trigger, SpeedBand, Speed } from '../data/schema'
-import { type FoeRuntime, DEFAULT_WINDUP_S } from './state'
+import type { FoeRuntime } from './state'
 
 const SPEED_ORDER: SpeedBand[] = ['lumbering', 'slow', 'steady', 'swift', 'frenzied']
 
@@ -77,14 +77,20 @@ export function assembleFoe(creatureId: string, dungeon: Dungeon | null, data: G
 
   const name = (templateName ? templateName + ' ' : '') + (variantName ? variantName + ' ' : '') + base.name
   const drift = dungeon?.drift ? (data.drifts[dungeon.drift] ?? null) : null
+  const cadence = speedSeconds(data, base.speed, bandShift)
   return {
     id: creatureId,
     name,
     tier: base.tier,
     hp: Math.max(1, hp | 0),
     damage: Math.max(0, dmg | 0),
-    cadence: speedSeconds(data, base.speed, bandShift),
-    windupMs: (base.windup ?? DEFAULT_WINDUP_S) * 1000,
+    cadence,
+    // ROUNDS v3 ⚠ INTERIM derivation (per-foe exchange authoring = numbers-workshop item):
+    // foe speed = round BEHAVIOR — heavy bands (lumbering 24 / slow 19) strike every OTHER
+    // exchange; frenzied (9) swings TWICE per exchange (telegraph shows the sum). DPS roughly
+    // tracks the old continuous cadences against the 20s round.
+    strikeEvery: cadence >= 16 ? 2 : 1,
+    swings: cadence <= 10 ? 2 : 1,
     triggers,
     drift,
     rules: base.rules ?? {},

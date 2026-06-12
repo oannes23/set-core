@@ -32,11 +32,11 @@ export function liveSlots(s: CombatState, pred?: (c: Card) => boolean): number[]
   return out
 }
 
-/** Empty slots still on cooldown — damage shattered them, not yet reformed (Heal can close these). */
+/** WOUND slots — exchange damage scarred them; they reform only via the draw phase or heals. */
 export function woundedSlots(s: CombatState): number[] {
   const out: number[] = []
   s.board.forEach((c, i) => {
-    if (c == null && s.pending.has(i)) out.push(i)
+    if (c == null && s.pending.get(i)?.wound) out.push(i)
   })
   return out
 }

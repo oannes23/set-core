@@ -17,7 +17,7 @@ function snap(s: CombatState) {
     board: s.board.map((c) => (c ? c.join('') : 'x')).join('|'),
     locked: [...s.locked.entries()].sort((a, b) => a[0] - b[0]),
     pending: [...s.pending.keys()].sort((a, b) => a - b),
-    now: s.now, nextAttackAt: s.nextAttackAt, foe: s.foe.id, running: s.running, result: s.result,
+    now: s.now, round: s.round, roundEndsAt: s.roundEndsAt, incoming: s.incoming, foe: s.foe.id, running: s.running, result: s.result,
   }
 }
 

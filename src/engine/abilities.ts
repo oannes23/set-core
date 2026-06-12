@@ -6,13 +6,13 @@
 import type { Rng } from '../core/rng'
 import type { FavorBias } from '../core/generate'
 import type { CombatState } from './state'
-import { clockCapMs } from './state'
+import { ROUND_EXTEND_CAP_S } from './state'
 import type { EventSink } from './events'
 import { weightedRoll } from './resolve'
 import { SHAPE_ATTACK, SHAPE_DEFEND, SHAPE_MOVE } from './resolve'
-import { transmute, reformSlots } from './triggers'
+import { transmute } from './triggers'
 import { firePassives } from './passives'
-import { gainBlock, healPlayer, dealAbilityDamage, castDamageHook, pushClock } from './ops'
+import { gainBlock, healPlayer, dealAbilityDamage, castDamageHook, extendRound } from './ops'
 import {
   COLOR_RED, COLOR_GREEN, COLOR_BLUE, BIAS_W,
   cardColor, cardShape, cardMag, liveSlots, woundedSlots, deadestCandidates, comboCounts, pickAllLowest,
@@ -59,26 +59,21 @@ export const ABILITIES: Record<string, Ability> = {
     },
   },
   frostbolt: {
-    id: 'frostbolt', name: 'Frostbolt', icon: '❄️', cost: [0, 0, 5], desc: '8 dmg · 5 slow · freezes a deadest off-blue card → Frost/Move',
+    id: 'frostbolt', name: 'Frostbolt', icon: '❄️', cost: [0, 0, 5], desc: '8 dmg · +5s round · freezes a deadest off-blue card → Frost/Move',
     cast(s, rng, sink) {
       dealRolled(s, 8, rng, sink)
-      pushClock(s, 5, sink) // a 5s slow, now CAPPED at the clock ceiling (respects the clock-cap invariant)
+      extendRound(s, 5, sink) // ⚠ INTERIM stall re-anchor: time magic stretches the round (capped)
       const pick = randOf(deadestCandidates(s, COLOR_BLUE), rng)
       if (pick != null) transmute(s, [pick], { bias: { color: COLOR_BLUE, colorW: BIAS_W, shape: SHAPE_MOVE, shapeW: BIAS_W } }, sink)
     },
   },
   heal: {
-    id: 'heal', name: 'Heal', icon: '💚', cost: [0, 5, 0], desc: '15 HP max · closes wounds + reseeds green',
+    id: 'heal', name: 'Heal', icon: '💚', cost: [0, 5, 0], desc: '15 HP max · knits wounds (by law) + reseeds green',
     cast(s, rng, sink) {
-      healPlayer(s, weightedRoll(15, rng), sink)
+      healPlayer(s, weightedRoll(15, rng), rng, sink) // the v3 heal law knits wounds — no manual closing
       const greenBias: FavorBias = { color: COLOR_GREEN, colorW: BIAS_W } // keep green, redraw shape/number
-      const roll = Math.floor(rng() * 6) // 0..5 total slots reseeded green
-      const wounds = woundedSlots(s).slice(0, roll) // close your wounds FIRST (immediately)...
-      const greens = pickPreferred(s, liveSlots(s, (c) => cardColor(c) === COLOR_GREEN), Math.max(0, roll - wounds.length), () => 1, rng)
-      if (wounds.length) {
-        reformSlots(s, wounds, greenBias, rng) // wounds knit shut now, no cooldown
-        sink.emit({ type: 'cardsReformed', slots: wounds })
-      }
+      const roll = Math.floor(rng() * 6) // 0..5 slots reseeded green
+      const greens = pickPreferred(s, liveSlots(s, (c) => cardColor(c) === COLOR_GREEN), roll, () => 1, rng)
       if (greens.length) transmute(s, greens, { bias: greenBias }, sink) // chosen greens burst + reform green
     },
   },
@@ -109,7 +104,7 @@ export const ABILITIES: Record<string, Ability> = {
     cast(s, rng, sink) {
       const attacks = liveSlots(s, (c) => cardShape(c) === SHAPE_ATTACK)
       if (!attacks.length) { fizzle(sink, 'glaciate'); return }
-      pushClock(s, attacks.length * 2, sink) // +2s per frozen Attack, capped
+      extendRound(s, attacks.length * 2, sink) // +2s round per frozen Attack, capped
       transmute(s, attacks, { bias: { shape: SHAPE_MOVE, shapeW: BIAS_W } }, sink) // shape-only: stays snappy
     },
   },
@@ -120,7 +115,7 @@ export const ABILITIES: Record<string, Ability> = {
       const picks = pickPreferred(s, liveSlots(s), 3, prefHighMag, rng)
       if (!picks.length) { fizzle(sink, 'wildgrowth'); return }
       const ripeness = picks.reduce((acc, i) => acc + cardMag(s.board[i]!) + 1, 0)
-      healPlayer(s, ripeness * 2, sink)
+      healPlayer(s, ripeness * 2, rng, sink)
       transmute(s, picks, { bias: { color: COLOR_GREEN, colorW: BIAS_W, mag: 0, magW: BIAS_W } }, sink) // green · light
     },
   },
@@ -192,8 +187,8 @@ export const ABILITIES: Record<string, Ability> = {
     },
   },
   smokebomb: {
-    id: 'smokebomb', name: 'Smoke Bomb', icon: '💨', cost: [0, 3, 0], desc: '+6 block · big enemy slow',
-    cast(s, rng, sink) { gainBlock(s, 6, rng, sink); pushClock(s, 8, sink) },
+    id: 'smokebomb', name: 'Smoke Bomb', icon: '💨', cost: [0, 3, 0], desc: '+6 block · +8s round (vanish into the haze)',
+    cast(s, rng, sink) { gainBlock(s, 6, rng, sink); extendRound(s, 8, sink) },
   },
   // ---- GREEN sinks (a mono-green defensive + a mono-green strike) so every class can spend Nature ----
   thornwall: {
@@ -212,8 +207,8 @@ export const ABILITIES: Record<string, Ability> = {
     },
   },
   thornvines: {
-    id: 'thornvines', name: 'Thorn Vines', icon: '🌹', cost: [0, 4, 0], desc: '10 dmg · roots the foe +5s (thorns ensnare)',
-    cast(s, rng, sink) { dealRolled(s, 10, rng, sink); pushClock(s, 5, sink) }, // green offence + crowd control
+    id: 'thornvines', name: 'Thorn Vines', icon: '🌹', cost: [0, 4, 0], desc: '10 dmg · +5s round (thorns ensnare)',
+    cast(s, rng, sink) { dealRolled(s, 10, rng, sink); extendRound(s, 5, sink) }, // green offence + crowd control
   },
   // ---- BLUE sinks (control/tempo, not just frost-caster) so martial classes can spend Frost too ----
   rally: {
@@ -229,22 +224,18 @@ export const ABILITIES: Record<string, Ability> = {
     },
   },
   coldblade: {
-    id: 'coldblade', name: 'Cold Blade', icon: '🥶', cost: [0, 0, 3], desc: '10 dmg · +4s tempo (a frigid strike)',
-    cast(s, rng, sink) { dealRolled(s, 10, rng, sink); pushClock(s, 4, sink) },
+    id: 'coldblade', name: 'Cold Blade', icon: '🥶', cost: [0, 0, 3], desc: '10 dmg · +4s round (a frigid strike)',
+    cast(s, rng, sink) { dealRolled(s, 10, rng, sink); extendRound(s, 4, sink) },
   },
   riposte: {
     id: 'riposte', name: 'Riposte', icon: '🤺', cost: [0, 0, 4], desc: '+6 block · 8 dmg counter',
     cast(s, rng, sink) { gainBlock(s, 6, rng, sink); dealRolled(s, 8, rng, sink) },
   },
   timewarp: {
-    id: 'timewarp', name: 'Time Warp', icon: '⏳', cost: [2, 2, 2], desc: 'slam enemy clock to its cap + 6 dmg',
+    id: 'timewarp', name: 'Time Warp', icon: '⏳', cost: [2, 2, 2], desc: 'stretch the round to its full cap + 6 dmg',
     cast(s, rng, sink) {
       dealRolled(s, 6, rng, sink)
-      // slam to the cap, but never pull an above-cap clock (uncapped Speed Potion) backward
-      const before = s.nextAttackAt
-      s.nextAttackAt = Math.max(before, s.now + clockCapMs(s))
-      const applied = Math.round((s.nextAttackAt - before) / 1000)
-      if (applied > 0) sink.emit({ type: 'clockChanged', deltaSeconds: applied })
+      extendRound(s, ROUND_EXTEND_CAP_S, sink) // slam the round to its extension cap (whatever remains)
     },
   },
 }

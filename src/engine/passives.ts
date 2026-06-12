@@ -8,7 +8,7 @@ import type { EventSink } from './events'
 import type { MatchDescriptor } from './resolve'
 import { SHAPE_ATTACK, SHAPE_MOVE } from './resolve'
 import { COLOR_RED, COLOR_GREEN, COLOR_BLUE, BIAS_W } from './select'
-import { gainBlock, healPlayer, dealAbilityDamage, pushClock } from './ops'
+import { gainBlock, healPlayer, dealAbilityDamage, extendRound } from './ops'
 
 export type PassiveEvent = 'match' | 'ability'
 
@@ -34,14 +34,14 @@ export const PASSIVES: Record<string, Passive> = {
     fire(s, rng, sink) { gainBlock(s, 3, rng, sink); proc(sink, 'flameshield', '🛡 +3') },
   },
   permafrost: {
-    id: 'permafrost', name: 'Permafrost', icon: '❄️', on: 'match', desc: 'all-blue match → +2s enemy clock',
+    id: 'permafrost', name: 'Permafrost', icon: '❄️', on: 'match', desc: 'all-blue match → +2s round time',
     test: (d) => d.sameColor === COLOR_BLUE,
-    fire(s, _rng, sink) { pushClock(s, 2, sink); proc(sink, 'permafrost', '+2s') },
+    fire(s, _rng, sink) { extendRound(s, 2, sink); proc(sink, 'permafrost', '+2s') },
   },
   photosynthesis: {
     id: 'photosynthesis', name: 'Photosynthesis', icon: '🌿', on: 'match', desc: 'all-green match → +3 HP',
     test: (d) => d.sameColor === COLOR_GREEN,
-    fire(s, _rng, sink) { healPlayer(s, 3, sink); proc(sink, 'photosynthesis', '+3 hp') },
+    fire(s, rng, sink) { healPlayer(s, 3, rng, sink); proc(sink, 'photosynthesis', '+3 hp') },
   },
   bloodlust: {
     id: 'bloodlust', name: 'Bloodlust', icon: '⚔️', on: 'match', desc: 'all-Attack match → +4 damage',
@@ -59,14 +59,15 @@ export const PASSIVES: Record<string, Passive> = {
     fire(s, _rng, sink) { s.pendingRegenBias = { shape: SHAPE_ATTACK, shapeW: BIAS_W }; proc(sink, 'momentum', '→⚔') },
   },
   quicken: {
-    id: 'quicken', name: 'Quicken', icon: '⏳', on: 'match', desc: 'any all-same-number match → +2s enemy clock',
+    id: 'quicken', name: 'Quicken', icon: '⏳', on: 'match', desc: 'any all-same-number match → +2s round time',
     test: (d) => d.sameNumber != null,
-    fire(s, _rng, sink) { pushClock(s, 2, sink); proc(sink, 'quicken', '+2s') },
+    fire(s, _rng, sink) { extendRound(s, 2, sink); proc(sink, 'quicken', '+2s') },
   },
-  // Hooked directly in tactics.setTactic (not via firePassives) — the Warlord stance-dances.
-  adaptive: {
-    id: 'adaptive', name: 'Adaptive Tactics', icon: '🎯', on: 'passive',
-    desc: 'your Tactics charges persist through a tactic swap (no spin-up)',
+  // Hooked directly in combat.applyResolution's charge income (not via firePassives) — v3's total
+  // rewrite of Adaptive Tactics: the swap-spin-up it negated died with the round-locked stance.
+  combined_arms: {
+    id: 'combined_arms', name: 'Combined Arms', icon: '🎯', on: 'passive',
+    desc: 'a shape-rainbow set (Attack+Defend+Move) banks +1 bonus Tactics charge',
     fire() {},
   },
   spellecho: {

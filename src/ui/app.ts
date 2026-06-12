@@ -20,7 +20,7 @@ import { colsForN, COMBAT_GEN, type Deps, type CombatAction } from '../engine/co
 import { createRun, runReduce, type RunState } from '../engine/run'
 import { CONSUMABLES } from '../engine/consumables'
 import type { CombatState } from '../engine/state'
-import { CHARGE_CAP, BASE_STATS, START_GRACE_MS } from '../engine/state'
+import { CHARGE_CAP, BASE_STATS, START_GRACE_MS, ROUND_MS } from '../engine/state'
 import type { CombatEvent } from '../engine/events'
 import { bumpTurn, pick, strikeWord, healWord, drainWord, magicLead, tierOf, joinClauses, voiceOf, ABILITY_FLAVOR } from './flavor'
 import { type SavedChar, loadRoster, upsertChar, deleteChar, makeChar, freshId, CONSUMABLE_SLOTS } from './save'
@@ -1042,6 +1042,24 @@ function interpret(events: CombatEvent[]): void {
   let actor: { el: HTMLElement; base: string; dmg: number; magic: boolean; heal: number; block: number; mana: [number, number, number] } | null = null
   for (const e of events) {
     switch (e.type) {
+      case 'attackBanked':
+        // v3: an Attack set BANKS toward the exchange — show the building swing, not a hit
+        floatBoard(`⚔ +${e.amount}`, 'var(--red)', 'enemy')
+        V.stats.dealt += e.amount
+        break
+      case 'roundEnded':
+        log(`<span style="opacity:.8">— the exchange —</span>`, 'you')
+        break
+      case 'roundStarted':
+        log(e.incoming != null
+          ? `<b>Round ${e.round}</b> — the ${foe} winds up <b>⚔${e.incoming}</b>.`
+          : `<b>Round ${e.round}</b> — the ${foe} circles (no strike this round).`, 'foe')
+        kickClock() // the bar refills with the deal
+        break
+      case 'tacticsDumped':
+        if (e.churned > 0) log(`<b>Maneuver</b> — the tide turns: <b>${e.spent}</b> charge${e.spent > 1 ? 's' : ''} redraw <b>${e.churned}</b> card${e.churned > 1 ? 's' : ''}.`, 'you')
+        else if (e.spent > 0) log(`<b>Maneuver</b> — <b>${e.spent}</b> charge${e.spent > 1 ? 's' : ''} burn with nothing left to turn.`, 'you')
+        break
       case 'enemyDamaged': {
         if (e.immune) { log('Swords pass through — only magic bites this foe.', 'foe'); floatBoard('blocked', 'var(--ink-faint)', 'enemy'); break } // fixed rule line — never varied
         floatBoard(`-${e.amount}`, e.magic ? 'var(--gold)' : 'var(--red)', 'enemy')
@@ -1099,7 +1117,7 @@ function interpret(events: CombatEvent[]): void {
         log(`The ${foe} rattles your focus — <b>−${e.amount}</b> Tactics charge${e.amount > 1 ? 's' : ''}.`, 'foe')
         break
       case 'warded': {
-        log(`<b>Stand Ground</b> — the ${e.what === 'lock' ? 'lock' : e.what === 'shatter' ? 'blow\u2019s shatter' : 'warp'} breaks against your line (−1 charge).`, 'you')
+        log(`<b>Stand Ground</b> — the ${e.what === 'lock' ? 'lock' : e.what === 'shatter' ? 'wound' : 'warp'} breaks against your line (−${e.cost} charge${e.cost > 1 ? 's' : ''}).`, 'you')
         floatBoard('🛡 warded', 'var(--gold)', 'you')
         V.dev.wards++
         V.dev.reshapeFoe++ // the enemy ATTEMPTED a reshape — count the attempt or the share reads false-high
@@ -1129,9 +1147,15 @@ function interpret(events: CombatEvent[]): void {
         pulsePassive(e.id)
         break
       case 'tacticChanged': {
+        if (e.queued) { // v3: the wheel queues — the stance locks at the draw phase
+          log(e.tactic === 'stand'
+            ? 'You ready <b>Stand Ground</b> — it locks at the next deal.'
+            : 'You ready <b>Maneuver</b> — it locks at the next deal.', 'you')
+          break
+        }
         log(e.tactic === 'stand'
           ? 'You <b>Stand Ground</b> — charges now ward the board against enemy meddling.'
-          : 'You shift to <b>Maneuver</b> — charges now churn the deadest cards toward your bias.', 'you')
+          : 'You shift to <b>Maneuver</b> — charges bank toward the rollover tide.', 'you')
         const bw = V.refs.boardwrap
         if (bw) {
           bw.classList.remove('stance-stand', 'stance-maneuver')
@@ -1143,7 +1167,11 @@ function interpret(events: CombatEvent[]): void {
       }
       case 'biasChanged': {
         const lbl = e.bias ? BIAS_CHIPS.find((b) => b.axis === e.bias!.axis && b.value === e.bias!.value)?.tip : null
-        log(e.bias && lbl ? `Maneuver set — <i>${lbl.toLowerCase()}</i>.` : 'Maneuver bias cleared — charges hold.', 'you')
+        if (e.queued) {
+          log(e.bias && lbl ? `Bias readied — <i>${lbl.toLowerCase()}</i> locks at the next deal.` : 'Bias clear readied — locks at the next deal.', 'you')
+        } else {
+          log(e.bias && lbl ? `Maneuver set — <i>${lbl.toLowerCase()}</i>.` : 'Maneuver bias cleared — charges hold.', 'you')
+        }
         if (e.bias) coachNotify('tactic') // guided intro: "set your bias" step
         break
       }
@@ -1171,7 +1199,6 @@ function interpret(events: CombatEvent[]): void {
         if (e.damage > 0) break
         const parts: string[] = []
         if (e.block > 0) parts.push(`<b>+${e.block}</b> block`)
-        if (e.boot > 0) parts.push(`<b>+${e.boot}s</b> clock`)
         const m = e.mana.findIndex((x) => x === 3)
         if (m >= 0) parts.push(`<b>+3 ${MANA[m]}</b>`)
         else if (e.mana.some((x) => x > 0)) parts.push('<b>+1</b> each essence')
@@ -1434,9 +1461,8 @@ function updateBar(): void {
   V.refs.ehpv.textContent = `${s.enemyHP}/${s.enemyMax}`
   V.refs.enemylab.textContent = s.foe.name
   V.refs.tac.style.width = `${(s.charges / CHARGE_CAP) * 100}%`
-  const spinup = s.now < s.tacticReadyAt
-  V.refs.tac.classList.toggle('spinup', spinup)
-  V.refs.tacv.textContent = spinup ? 're-forming…' : `${s.charges}/${CHARGE_CAP}`
+  V.refs.tac.classList.remove('spinup') // v3: spin-up is gone — the draw-phase lock is the commitment
+  V.refs.tacv.textContent = `${s.charges}/${CHARGE_CAP}`
   V.refs.m0.textContent = String(s.mana[0])
   V.refs.m1.textContent = String(s.mana[1])
   V.refs.m2.textContent = String(s.mana[2])
@@ -1449,19 +1475,20 @@ function updateBar(): void {
   if (s.tickSuppressedUntil > s.now) buffs.push(`⏳ ${Math.ceil((s.tickSuppressedUntil - s.now) / 1000)}s`)
   V.refs.buffind.textContent = buffs.join('  ')
   V.refs.buffind.classList.toggle('on', buffs.length > 0)
-  const remain = Math.max(0, (s.nextAttackAt - s.now) / 1000)
+  // ROUNDS v3: the bar IS the round — it empties toward the rollover exchange. The telegraph
+  // (⚔N, revealed at the deal) shows WHAT the exchange holds, the timer shows WHEN.
+  const remain = Math.max(0, (s.roundEndsAt - s.now) / 1000)
+  const roundLen = ROUND_MS / 1000 + s.roundExtendedS
   const clk = V.refs.clock
-  // a telegraphed windup shows WHAT is coming, not just when — Block to meet it, or finish him first
-  clk.textContent = !s.running ? '—' : s.incoming != null ? `⚔${s.incoming} in ${Math.ceil(remain)}s` : `${Math.ceil(remain)}s`
+  clk.textContent = !s.running ? '—' : s.incoming != null ? `⚔${s.incoming} · ${Math.ceil(remain)}s` : `${Math.ceil(remain)}s`
   clk.classList.toggle('low', remain <= 5 && remain > 2.5)
-  clk.classList.toggle('crit', s.incoming != null || remain <= 2.5)
-  // the attack timer empties as the strike nears (fraction of the foe's cadence)
-  const frac = s.foe.cadence > 0 ? Math.max(0, Math.min(1, remain / s.foe.cadence)) : 0
+  clk.classList.toggle('crit', remain <= 2.5)
+  const frac = Math.max(0, Math.min(1, remain / roundLen))
   V.refs.atkfill.style.width = `${s.running ? frac * 100 : 100}%`
   V.refs.atkfill.classList.toggle('low', remain <= 5 && remain > 2.5)
   V.refs.atkfill.classList.toggle('crit', remain <= 2.5)
   V.refs.atkfill.classList.toggle('windup', s.incoming != null)
-  V.refs.spfoe?.classList.toggle('winding', s.running && s.incoming != null)
+  V.refs.spfoe?.classList.toggle('winding', s.running && s.incoming != null && remain <= 5)
   // ambient dread: a low-HP vignette + HP-bar glow band (transitions, not animations → survive the pause)
   const hpf = s.playerMax > 0 ? s.playerHP / s.playerMax : 1
   const band = !s.running ? '' : hpf <= 0.35 ? 'crit' : hpf <= 0.7 ? 'low' : ''

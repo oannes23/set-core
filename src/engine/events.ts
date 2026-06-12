@@ -6,7 +6,11 @@ import type { Trigger, FoeRules } from '../data/schema'
 import type { TacticKind, ManeuverBias } from './state'
 
 export type CombatEvent =
-  | { type: 'setResolved'; damage: number; block: number; boot: number; mana: [number, number, number]; slots: number[] }
+  | { type: 'setResolved'; damage: number; block: number; mana: [number, number, number]; slots: number[] }
+  | { type: 'attackBanked'; amount: number; total: number } // v3: an Attack set banked toward the exchange swing
+  | { type: 'roundEnded'; round: number } // the rollover exchange begins (events between this and roundStarted ARE the exchange)
+  | { type: 'roundStarted'; round: number; incoming: number | null } // the deal settled; incoming = this round's telegraph (null = no strike)
+  | { type: 'tacticsDumped'; spent: number; churned: number } // the Maneuver rollover dump (spent ≥ churned; excess burned unused)
   | { type: 'enemyDamaged'; amount: number; immune?: boolean; magic?: boolean } // immune = card damage hit an immune foe; magic = ethereal mana-spent drain
   | { type: 'enemyHealed'; amount: number }
   | { type: 'playerDamaged'; amount: number; absorbed: number; source: string }
@@ -18,12 +22,12 @@ export type CombatEvent =
   | { type: 'manaDrained'; color: number; amount: number }
   | { type: 'chargesGained'; amount: number; source?: 'overflow' } // Tactics charges queued (source='overflow' = excess block)
   | { type: 'chargesDrained'; amount: number } // an enemy effect drained queued/banked charges
-  | { type: 'tacticChanged'; tactic: TacticKind } // the player swapped tactics (charges reset unless Adaptive)
-  | { type: 'biasChanged'; bias: ManeuverBias | null } // Maneuver's dial moved (free — no reset)
-  | { type: 'warded'; what: 'transmute' | 'lock' | 'shatter' } // Stand Ground ate a hostile board verb (1 charge)
-  | { type: 'clockChanged'; deltaSeconds: number } // + = pushed later (good), − = sooner (bad)
-  | { type: 'enemyStrikes' } // an instant attack was pulled to now
-  | { type: 'windup'; amount: number; strikesAt: number } // the foe TELEGRAPHS its strike (clock now committed)
+  | { type: 'tacticChanged'; tactic: TacticKind; queued?: boolean } // queued = the wheel's next-round pick; unqueued = locked at the deal
+  | { type: 'biasChanged'; bias: ManeuverBias | null; queued?: boolean } // bias rides the same round-lock queue
+  | { type: 'warded'; what: 'transmute' | 'lock' | 'shatter'; cost: number } // Stand Ground ate a hostile board verb (1 charge; a wound costs 3)
+  | { type: 'clockChanged'; deltaSeconds: number } // round stretched (+, stall spells — interim) or yanked shorter (−)
+  | { type: 'enemyStrikes' } // an instant attack landed mid-round (trap effect — outside the exchange)
+  | { type: 'windup'; amount: number; strikesAt: number } // the foe TELEGRAPHS this round's exchange total (revealed at the deal)
   | { type: 'cardsTransmuted'; slots: number[]; gapMs: number; hostile?: boolean; source?: 'churn' | 'drift' | 'trap' | 'trick' } // hostile = boomed; source = WHO pulled (undefined = a player cast) — the tug-attribution channel
   | { type: 'cardsReformed'; slots: number[] }
   | { type: 'cardsLocked'; slots: number[]; untilMs: number }
