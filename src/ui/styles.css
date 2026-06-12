@@ -88,41 +88,50 @@ button.cta.bob { animation: ctabob 1.6s ease-in-out infinite; }
 @keyframes barshove { 0%, 100% { transform: translateX(0); } 30% { transform: translateX(7px); } }
 #clock.low { color: var(--warn); } #clock.crit { color: var(--red); font-weight: 700; }
 
-/* THE EXCHANGE SCOREBOARD — both pending exchange numbers, all round: your banked swing (growing)
-   VS their telegraph, your guard beneath it. The Spire-turn read: kill faster vs blunt the known hit. */
-.exchange { display: flex; align-items: center; gap: 12px; background: #0e1118; border: 1px solid var(--line); border-radius: 10px; padding: 6px 12px; min-height: 46px; }
-.ex-side { flex: 1; display: flex; align-items: center; gap: 9px; min-width: 0; }
-.ex-side.foe { flex-direction: row-reverse; } /* mirrored: label at the outer edge, numbers toward the vs */
-.ex-stack { display: flex; flex-direction: column; align-items: flex-end; gap: 0; line-height: 1.25; } /* the guard sits BENEATH their telegraph */
+/* THE FOE BAND — the OPPOSING read in one row: the round bar (time until their strike) beside the
+   telegraph itself. Theirs/time up here; YOUR accumulators are the tri-counter hugging the board. */
+.foeband { display: flex; gap: 12px; align-items: stretch; }
+.foeband .timerbar { flex: 1; }
+.exchange.foeread { display: flex; align-items: center; gap: 9px; background: #0e1118; border: 1px solid var(--line); border-radius: 10px; padding: 4px 14px; }
 .ex-lab { font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-faint); white-space: nowrap; }
 .ex-val { font-size: 16px; font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; }
-#exatk { color: var(--red); }
-#exatk.hit { animation: stathit .42s ease; display: inline-block; } /* punches as the swing grows */
 #exinc { color: var(--warn); }
-.ex-vs { font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-faint); }
-.ex-guard { font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--blue); white-space: nowrap; }
-/* SATED guard — the block meets the telegraph: further Defend matches are waste (dimmed + ✓) */
-.ex-guard.sated { color: var(--ink-faint); }
-.blockbadge.sated { color: var(--ink-faint); border-color: var(--line2); background: transparent; }
 /* no strike this round — their side goes quiet */
-.ex-side.foe.idle .ex-val { color: var(--ink-faint); font-size: 12px; font-weight: 600; font-style: italic; }
-/* LETHAL — your banked swing already ends them (a lethal swing lands first and cancels theirs) */
-.ex-lethal { display: none; font-size: 9px; letter-spacing: .12em; text-transform: uppercase; color: var(--gold); border: 1px solid var(--gold); border-radius: 5px; padding: 1px 6px; }
-.ex-side.you.lethal .ex-lethal { display: inline-block; animation: lethalpulse .9s ease-in-out infinite; }
-.ex-side.you.lethal #exatk { color: var(--gold); animation: lethalpulse .9s ease-in-out infinite; }
-@keyframes lethalpulse { 0%, 100% { text-shadow: 0 0 3px rgba(245, 197, 66, .4); } 50% { text-shadow: 0 0 13px var(--gold); } }
+.exchange.foeread.idle .ex-val { color: var(--ink-faint); font-size: 12px; font-weight: 600; font-style: italic; }
 /* beat ⑤: the fresh telegraph reveals with a flourish */
-.ex-side.foe.reveal { animation: exreveal .55s ease; }
+.exchange.foeread.reveal { animation: exreveal .55s ease; }
 @keyframes exreveal { 0% { transform: translateX(4px); filter: brightness(2); } 100% { transform: none; filter: none; } }
+
+/* THE TRI-COUNTER — the round's three verb accumulators, THE primary HUD strip, directly above the
+   field: banked ⚔ Attack (red) · 🛡 Guard (blue) · ⚙ Tactics (phosphor). Big numerals; each cell
+   rings (.land) as its value banks; the exchange choreography drains these same numbers. */
+.tricounter { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.tc-cell { position: relative; display: flex; align-items: center; justify-content: center; gap: 8px;
+  background: #0e1118; border: 1px solid var(--line); border-top: 2px solid var(--vc); border-radius: 10px;
+  padding: 15px 10px 8px; min-height: 56px; }
+.tc-cell.atk { --vc: var(--red); } .tc-cell.grd { --vc: var(--blue); } .tc-cell.tac { --vc: var(--phos); }
+.tc-lab { position: absolute; top: 4px; left: 50%; transform: translateX(-50%); font-size: 8.5px;
+  letter-spacing: .16em; text-transform: uppercase; color: var(--ink-faint); white-space: nowrap; }
+.tc-ico { font-size: 15px; line-height: 1; opacity: .85; }
+.tc-val { font-size: 27px; font-weight: 800; line-height: 1; color: var(--vc); font-variant-numeric: tabular-nums; }
+.tc-cap { font-size: 12px; font-weight: 700; color: var(--ink-faint); font-variant-numeric: tabular-nums; align-self: flex-end; padding-bottom: 2px; }
+.tc-val.hit { animation: stathit .42s ease; } /* the number punches as it grows */
+.tc-cell.land { animation: tcland .5s ease; } /* …and the cell rings in its verb colour as the value LANDS */
+@keyframes tcland { 0% { box-shadow: 0 0 0 2px var(--vc), 0 0 20px -4px var(--vc); } 100% { box-shadow: none; } }
+.tc-tag { display: none; font-size: 9px; letter-spacing: .12em; text-transform: uppercase; border-radius: 5px; padding: 1px 6px; white-space: nowrap; }
+/* SATED guard — the block meets the telegraph: further Defend matches are waste (dimmed + ✓) */
+.tc-cell.grd.sated .tc-val { color: var(--ink-faint); }
+.tc-cell.grd.sated .tc-tag.ok { display: inline-block; color: var(--blue); border: 1px solid var(--blue); }
+/* LETHAL — your banked swing already ends them (a lethal swing lands first and cancels theirs) */
+.tc-cell.atk.lethal .tc-val { color: var(--gold); animation: lethalpulse .9s ease-in-out infinite; }
+.tc-cell.atk.lethal .tc-tag.lethal { display: inline-block; color: var(--gold); border: 1px solid var(--gold); animation: lethalpulse .9s ease-in-out infinite; }
+@keyframes lethalpulse { 0%, 100% { text-shadow: 0 0 3px rgba(245, 197, 66, .4); } 50% { text-shadow: 0 0 13px var(--gold); } }
 .rail { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
 .rail .panel { margin: 0; }
 @media (max-width: 760px) { .play { grid-template-columns: 1fr; } }
 
-/* block — prominent in the You gauge */
+/* the You gauge — buffs only (Block moved to the tri-counter: one number, one place) */
 .youname { display: inline-flex; align-items: center; }
-.blockbadge { display: none; margin-left: 8px; font-size: 13px; font-weight: 800; color: var(--blue);
-  background: rgba(91, 148, 245, .16); border: 1px solid var(--blue); border-radius: 7px; padding: 1px 8px; font-variant-numeric: tabular-nums; }
-.blockbadge.on { display: inline-block; }
 .buffbadge { display: none; margin-left: 6px; font-size: 12px; font-weight: 800; color: var(--gold);
   background: rgba(245, 197, 66, .14); border: 1px solid var(--gold); border-radius: 7px; padding: 1px 8px; font-variant-numeric: tabular-nums; }
 .buffbadge.on { display: inline-block; }
@@ -671,13 +680,13 @@ button.cta:disabled { opacity: .4; cursor: not-allowed; }
 /* the entry THUNK — a one-beat drop/squash as the exchange seizes the field (class removed after) */
 .boardwrap.exenter { animation: exthunk .5s ease; }
 @keyframes exthunk { 0% { transform: translateY(0) scale(1); } 30% { transform: translateY(3px) scale(.992); } 100% { transform: none; } }
-/* the scoreboard is the STAGE of beats ②/③ — it lights gold while the exchange owns it */
-.exchange { transition: border-color .45s ease, box-shadow .45s ease; }
+/* the tri-counter + foe read are the STAGE of beats ②/③ — they light gold while the exchange owns them */
+.exchange, .tricounter .tc-cell { transition: border-color .45s ease, box-shadow .45s ease; }
 .exchange.live { border-color: var(--gold); box-shadow: 0 0 16px -5px var(--gold), inset 0 0 0 1px rgba(245, 197, 66, .22); }
+.tricounter.live .tc-cell { border-color: var(--gold); border-top-color: var(--vc); box-shadow: 0 0 16px -5px var(--gold), inset 0 0 0 1px rgba(245, 197, 66, .18); }
 /* a DRAINING number — scaled up + glowing while its quantity visibly transfers */
-.ex-val, .ex-guard, #phpv, #ehpv { display: inline-block; transition: transform .25s ease, filter .25s ease; }
+.ex-val, .tc-val, #phpv, #ehpv { display: inline-block; transition: transform .25s ease, filter .25s ease; }
 .draining { transform: scale(1.3); filter: brightness(1.6); text-shadow: 0 0 12px currentColor; }
-.ex-guard.draining { transform: scale(1.18); }
 /* BOARD LOCKOUT — from the rollover until the release the cards are out of reach: no picks, no
    hover, and even the tide's half-lift stays a notch dimmer/greyer so it READS "look, don't touch" */
 .boardwrap.exlocked .board { pointer-events: none; }

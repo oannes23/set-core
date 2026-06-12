@@ -489,26 +489,20 @@ function buildPlay(): void {
   const left = $(`<div class="panel leftcol"></div>`)
   left.appendChild($(`
     <div class="bar combatbar">
-      <div class="gauge you"><div class="lab"><span class="youname">You <span class="blockbadge" id="block"></span><span class="buffbadge" id="buffind"></span></span><span id="phpv"></span></div><div class="track"><span class="fill php" id="php"></span></div></div>
+      <div class="gauge you"><div class="lab"><span class="youname">You <span class="buffbadge" id="buffind"></span></span><span id="phpv"></span></div><div class="track"><span class="fill php" id="php"></span></div></div>
       <div class="gauge"><div class="lab"><span id="enemylab">Enemy</span><span id="ehpv"></span></div><div class="track"><span class="fill ehp" id="ehp"></span></div></div>
     </div>`))
-  // ROUND BAR (v3): the bar IS the round — full at the deal, empty at the rollover exchange
+  // THE FOE BAND — the OPPOSING read, one row: the round bar (the time until their strike lands)
+  // beside their telegraphed strike. Theirs/time up here; YOUR accumulators live in the tri-counter
+  // hugging the board below. (The old two-sided exchange scoreboard's player half moved there.)
   left.appendChild($(`
-    <div class="timerbar roundbar">
-      <div class="lab"><span id="roundlab">Round 1</span><span id="clock">—</span></div>
-      <div class="track"><span class="fill rnd" id="roundfill"></span></div>
-    </div>`))
-  // THE EXCHANGE SCOREBOARD — both pending exchange numbers, all round: your banked swing VS their
-  // telegraph (+ your guard beneath it). The round is one allocation question: kill faster vs blunt
-  // the known hit — this row is where that read lives.
-  left.appendChild($(`
-    <div class="exchange" id="exchange">
-      <div class="ex-side you" id="exyou" data-tip-title="Your swing" data-tip="Attack matches BANK here all round and land as one blow at the exchange. Reach the foe's remaining HP and it reads LETHAL — a lethal swing lands first and cancels their strike entirely.">
-        <span class="ex-lab">your swing</span><span class="ex-val" id="exatk">⚔ 0</span><span class="ex-lethal" id="exlethal">LETHAL</span>
+    <div class="foeband">
+      <div class="timerbar roundbar">
+        <div class="lab"><span id="roundlab">Round 1</span><span id="clock">—</span></div>
+        <div class="track"><span class="fill rnd" id="roundfill"></span></div>
       </div>
-      <div class="ex-vs">vs</div>
-      <div class="ex-side foe" id="exfoe" data-tip-title="Their strike" data-tip="The foe's telegraphed exchange total, revealed at the deal — this is exactly what lands at the round's end. Defend matches raise your guard against it; once the guard meets the telegraph (✓), further Block is wasted.">
-        <span class="ex-lab">their strike</span><span class="ex-stack"><span class="ex-val" id="exinc">—</span><span class="ex-guard" id="exguard">🛡 0</span></span>
+      <div class="exchange foeread" id="exfoe" data-tip-title="Their strike" data-tip="The foe's telegraphed exchange total, revealed at the deal — this is exactly what lands when the round bar empties. Raise your guard 🛡 against it; once the guard meets the telegraph (✓), further Defend is wasted.">
+        <span class="ex-lab">their strike</span><span class="ex-val" id="exinc">—</span>
       </div>
     </div>`))
   // the TUG BAR — board composition: enemy theme share vs your Maneuver-bias share (shown when both exist)
@@ -519,6 +513,21 @@ function buildPlay(): void {
       <span class="tug-end you" id="tugyou">—</span>
     </div>`))
   left.appendChild($(`<div class="strip" id="strip"></div>`))
+  // THE TRI-COUNTER — the round's three verb accumulators, THE primary HUD (everything else is meta
+  // guiding it): banked ⚔ swing · 🛡 guard · ⚙ tactics. Big, verb-colored, directly above the field.
+  // Each cell pulses as its value lands; the exchange choreography drains these same numbers.
+  left.appendChild($(`
+    <div class="tricounter" id="tricounter">
+      <div class="tc-cell atk" id="tcatk" data-tip-title="⚔ Banked Attack" data-tip="Attack matches BANK damage here all round and land as ONE swing at the exchange. Reach the foe's remaining HP and it reads LETHAL — a lethal swing lands first and cancels their strike entirely.">
+        <span class="tc-lab">attack</span><span class="tc-ico">⚔</span><span class="tc-val" id="exatk">0</span><span class="tc-tag lethal" id="exlethal">LETHAL</span>
+      </div>
+      <div class="tc-cell grd" id="tcgrd" data-tip-title="🛡 Guard" data-tip="Defend matches raise your guard against the telegraphed strike — it absorbs that much at the exchange. Once the guard meets the telegraph (✓ sated) further Defend is pure waste: spend the round elsewhere.">
+        <span class="tc-lab">guard</span><span class="tc-ico">🛡</span><span class="tc-val" id="exguard">0</span><span class="tc-tag ok">✓</span>
+      </div>
+      <div class="tc-cell tac" id="tctac" data-tip-title="⚙ Tactics" data-tip="Move matches bank Tactics charges — a Speed contest, yours vs theirs. Your stance spends them: <b>Stand Ground</b> wards enemy meddling live (board verbs 1 · wounds ${WOUND_WARD_COST}); <b>Maneuver</b> burns the WHOLE bank at the rollover, redrawing the deadest cards toward your bias.">
+        <span class="tc-lab">tactics</span><span class="tc-ico">⚙</span><span class="tc-val" id="tcch">0</span><span class="tc-cap">/${CHARGE_CAP}</span>
+      </div>
+    </div>`))
   const boardWrap = $(`<div class="boardwrap" id="boardwrap"></div>`)
   const board = $(`<div class="board" id="board"></div>`)
   board.style.gridTemplateColumns = `repeat(${V.state.cols}, 1fr)`
@@ -541,7 +550,7 @@ function buildPlay(): void {
   if (!document.getElementById('ptint')) document.body.appendChild($(`<div id="ptint"></div>`)) // low-HP vignette (body-level)
 
   V.refs = {}
-  for (const id of ['foename', 'foedesc', 'fleebtn', 'enemylab', 'phpv', 'ehpv', 'php', 'ehp', 'clock', 'roundlab', 'roundfill', 'exatk', 'exinc', 'exguard', 'exyou', 'exfoe', 'tacv', 'tacpips', 'm0', 'm1', 'm2', 'block', 'buffind', 'strip', 'boardwrap', 'board', 'tugbar', 'tugmarker', 'tugfoe', 'tugyou', 'devstats', 'spyou', 'spfoe', 'stancebadge', 'log', 'abilities', 'tactics', 'passives', 'consumables', 'floatlayer']) {
+  for (const id of ['foename', 'foedesc', 'fleebtn', 'enemylab', 'phpv', 'ehpv', 'php', 'ehp', 'clock', 'roundlab', 'roundfill', 'exatk', 'exinc', 'exguard', 'exfoe', 'tricounter', 'tcatk', 'tcgrd', 'tctac', 'tcch', 'tacpips', 'm0', 'm1', 'm2', 'buffind', 'strip', 'boardwrap', 'board', 'tugbar', 'tugmarker', 'tugfoe', 'tugyou', 'devstats', 'spyou', 'spfoe', 'stancebadge', 'log', 'abilities', 'tactics', 'passives', 'consumables', 'floatlayer']) {
     const el = wrap.querySelector('#' + id)
     if (el) V.refs[id] = el as HTMLElement
   }
@@ -587,7 +596,7 @@ function buildCastPanel(): HTMLElement {
   const panel = $(`<div class="panel"></div>`)
   // TACTICS section (charge pips + the wheel) — coach-gateable as one region
   const tacSec = $(`<div class="coach-sec" data-sec="tactics"></div>`)
-  tacSec.appendChild($(`<div class="panelhd"><label>Tactics</label><span class="stub-note" id="tacv">0/${CHARGE_CAP}</span></div>`))
+  tacSec.appendChild($(`<div class="panelhd"><label>Tactics</label></div>`)) // the charge COUNT lives in the tri-counter (one number, one place); the pips here are the gauge
   // the charge gauge: 15 thin pips, grouped in threes (one wound-ward each — CHARGE_CAP = 5 × 3)
   const pips = $(`<div class="tacpips" id="tacpips" data-tip-title="Tactics charges" data-tip="Banked by matching Move cards — each Move card's worth is a Speed contest (yours vs theirs). Your stance spends them: <b>Stand Ground</b> wards enemy meddling live (board verbs 1 · wounds ${WOUND_WARD_COST}) and carries the bank; <b>Maneuver</b> burns ALL charges at the rollover, redrawing the deadest cards toward your bias. Pips group in threes — one warded wound each."></div>`)
   for (let i = 0; i < CHARGE_CAP; i++) pips.appendChild($(`<span class="pip"></span>`))
@@ -1107,12 +1116,13 @@ const EXCHANGE_BEATS = {
   guardDrain: 600, // …the telegraph → guard absorb tween
   hpDrain: 750, // …the remaining bite → your-HP tween (runs after the absorb)
   tide: 4300, // ④ the tide + the deal (the board's own unhurried window)
+  tideDrain: 650, // …the Maneuver dump's ⚙ counter + pips burn down with the churn
   knitHold: 750, // …the wound-knit flare fires this long after the churn morphs start
   deal: 5600, // ⑤ release — the HUD snaps to the new round
   releasePad: 400, // hitstop runs to deal+pad (~6s): the freeze covers every beat with margin
 }
 /** prefers-reduced-motion: the old compact ~2.25s pacing; the numbers snap instead of tweening. */
-const EXCHANGE_BEATS_REDUCED: typeof EXCHANGE_BEATS = { swing: 350, swingDrain: 0, counter: 900, guardDrain: 0, hpDrain: 0, tide: 1450, knitHold: 0, deal: 2000, releasePad: 250 }
+const EXCHANGE_BEATS_REDUCED: typeof EXCHANGE_BEATS = { swing: 350, swingDrain: 0, counter: 900, guardDrain: 0, hpDrain: 0, tide: 1450, tideDrain: 0, knitHold: 0, deal: 2000, releasePad: 250 }
 const exBeats = (): typeof EXCHANGE_BEATS => (matchMedia('(prefers-reduced-motion: reduce)').matches ? EXCHANGE_BEATS_REDUCED : EXCHANGE_BEATS)
 
 function choreographRollover(events: CombatEvent[]): void {
@@ -1170,7 +1180,7 @@ function choreographRollover(events: CombatEvent[]): void {
     }, Math.round(B.swingDrain * 0.35))
     exTween(B.swingDrain, (k) => {
       if (!V) return
-      V.refs.exatk.textContent = `⚔ ${Math.round(swingDmg * (1 - k))}`
+      V.refs.exatk.textContent = String(Math.round(swingDmg * (1 - k)))
       paintHP('e', Math.round(preFoeHP - (preFoeHP - postFoeHP) * k))
     }, () => {
       drainCls(false, V?.refs.exatk, V?.refs.ehpv)
@@ -1194,7 +1204,7 @@ function choreographRollover(events: CombatEvent[]): void {
       // the impact card: a held guard goes "CLANG!", a bite lands "OOMF!"/"POW!" (bigger when wounds
       // shatter, with a "CRACK!" stamped over the board as they pop)
       if (bite > 0) bamWord(tierOf(bite, V.state.foe.damage) === 'light' ? 'OOMF!' : 'POW!', 'pain', V.refs.spyou, shatters.length ? 1.3 : 1.05)
-      else if (raw > 0) bamWord('CLANG!', 'guard', V.refs.exguard, 1)
+      else if (raw > 0) bamWord('CLANG!', 'guard', V.refs.tcgrd, 1)
       if (shatters.length) sceneTimeout(() => { if (V?.holdHud) bamWord('CRACK!', 'pain', V.refs.boardwrap, 1.1) }, 140)
       if (bite > 0) {
         drainCls(true, V.refs.phpv)
@@ -1214,7 +1224,7 @@ function choreographRollover(events: CombatEvent[]): void {
       exTween(B.guardDrain, (k) => { // the guard ABSORBS: both numbers drain together
         if (!V) return
         V.refs.exinc.textContent = `⚔ ${Math.round(raw - absorbed * k)}`
-        V.refs.exguard.textContent = `🛡 ${Math.round(Math.max(0, preBlock - absorbed * k))}`
+        V.refs.exguard.textContent = String(Math.round(Math.max(0, preBlock - absorbed * k)))
       }, () => { drainCls(false, V?.refs.exguard); land() })
     } else land()
   }, B.counter)
@@ -1230,6 +1240,19 @@ function choreographRollover(events: CombatEvent[]): void {
     // the tide's own impact card: the Maneuver dump goes "SWOOSH!"; a plain reshuffle gets a soft "SHFF"
     if (seg.tide.some((e) => e.type === 'tacticsDumped' && e.churned > 0)) bamWord('SWOOSH!', 'tide', V.refs.boardwrap, 1.05)
     else if (changed) bamWord('SHFF', 'soft', V.refs.boardwrap, 0.85)
+    // the dump DRAINS the ⚙ counter (and its pips burn down with it) — the same visible-transfer
+    // grammar as the swing/guard beats: the bank is seen leaving, paid into the churn
+    const dump = seg.tide.find((e): e is Extract<CombatEvent, { type: 'tacticsDumped' }> => e.type === 'tacticsDumped')
+    if (dump && Math.floor(dump.spent) > 0) {
+      const preCh = domNum(V.refs.tcch, Math.floor(dump.spent))
+      drainCls(true, V.refs.tcch)
+      exTween(B.tideDrain, (k) => {
+        if (!V) return
+        const cur = Math.round(preCh * (1 - k))
+        V.refs.tcch.textContent = String(cur)
+        V.refs.tacpips?.querySelectorAll<HTMLElement>('.pip').forEach((p, i) => p.classList.toggle('fl', i < cur))
+      }, () => drainCls(false, V?.refs.tcch))
+    }
     holdKnits(knits, B.knitHold)
   }, B.tide)
 
@@ -1311,7 +1334,8 @@ function exchangeEnter(): void {
   if (!V) return
   const bw = V.refs.boardwrap
   if (bw) { bw.classList.add('exmode', 'exlocked'); bw.classList.add('exenter'); sceneTimeout(() => bw.classList.remove('exenter'), 600) } // exlocked: cards out of reach until the release
-  V.refs.exatk?.closest('.exchange')?.classList.add('live')
+  V.refs.tricounter?.classList.add('live') // the tri-counter + foe read are the stage of ②/③
+  V.refs.exfoe?.classList.add('live')
   const layer = V.refs.floatlayer
   if (!layer) return
   const el = $(`<div class="exbeat big" id="exflag">— the exchange —</div>`)
@@ -1324,8 +1348,9 @@ function exchangeEnter(): void {
 function exchangeExit(): void {
   if (!V) return
   V.refs.boardwrap?.classList.remove('exmode', 'extide', 'exenter', 'exlocked') // the lockout ALWAYS lifts here (release beat + the defensive endScreen path)
-  V.refs.exatk?.closest('.exchange')?.classList.remove('live')
-  drainCls(false, V.refs.exatk, V.refs.ehpv, V.refs.phpv, V.refs.exinc, V.refs.exguard)
+  V.refs.tricounter?.classList.remove('live')
+  V.refs.exfoe?.classList.remove('live')
+  drainCls(false, V.refs.exatk, V.refs.ehpv, V.refs.phpv, V.refs.exinc, V.refs.exguard, V.refs.tcch)
   const flag = document.getElementById('exflag')
   if (flag) { flag.classList.remove('go'); sceneTimeout(() => flag.remove(), 450) }
 }
@@ -1401,8 +1426,13 @@ function interpretChunk(events: CombatEvent[]): void {
       case 'attackBanked':
         // v3: an Attack set BANKS toward the exchange — show the building swing, not a hit
         floatBoard(`⚔ +${e.amount}`, 'var(--red)', 'enemy')
-        flashStat('exatk') // the scoreboard's your-swing number punches as it grows
+        flashStat('exatk') // the tri-counter's swing number punches as it grows…
+        cellLand('tcatk') // …and its cell rings — the value visibly LANDS
         V.stats.dealt += e.amount
+        break
+      case 'chargesGained':
+        cellLand('tctac') // the ⚙ counter rings as Move income banks (the pips light per frame)
+        flashStat('tcch')
         break
       case 'roundStarted':
         log(e.incoming != null
@@ -1442,6 +1472,7 @@ function interpretChunk(events: CombatEvent[]): void {
         // sated guard cue: the gain past an already-met telegraph is waste — say so, greyly
         const wasSated = V.state.incoming != null && V.state.block - e.amount >= V.state.incoming
         floatBoard(wasSated ? `+${e.amount}🛡 wasted` : `+${e.amount}🛡`, wasSated ? 'var(--ink-faint)' : 'var(--blue)', 'you', wasSated ? 'wasted' : undefined)
+        if (!wasSated) { cellLand('tcgrd'); flashStat('exguard') } // the guard cell rings as real Block lands (waste gets no reward ring)
         if (actor) { actor.block += e.amount; break }
         log(wasSated ? `<span style="opacity:.7">You brace — but the guard already meets their strike.</span>` : `You brace — <b>+${e.amount}</b> Defend.`, 'you')
         break
@@ -1785,6 +1816,16 @@ function flashStat(ref: string): void {
   el.classList.add('hit')
 }
 
+/** Pulse a tri-counter cell as its value LANDS (a verb-colored ring) — the accumulator is the
+ *  primary resource read, so every gain gets its moment on the counter itself. */
+function cellLand(ref: 'tcatk' | 'tcgrd' | 'tctac'): void {
+  const el = V?.refs[ref]
+  if (!el) return
+  el.classList.remove('land')
+  void el.offsetWidth
+  el.classList.add('land')
+}
+
 /** Re-trigger the proc pulse on the strip chip that just fired (incl. the dungeon-drift chip). */
 function pulseTrig(trigger: Trigger): void {
   const idx = V?.state.foe.triggers.indexOf(trigger) ?? -1
@@ -1828,8 +1869,6 @@ function updateBar(): void {
     V.refs.ehp.style.width = pct(s.enemyHP, s.enemyMax)
     V.refs.phpv.textContent = `${s.playerHP}/${s.playerMax}`
     V.refs.ehpv.textContent = `${s.enemyHP}/${s.enemyMax}`
-    V.refs.block.textContent = s.block > 0 ? `🛡 ${s.block}` : ''
-    V.refs.block.classList.toggle('on', s.block > 0)
     // ROUNDS v3: the bar IS the round — full at the deal, empty at the rollover. Pure time:
     // the telegraph lives in the exchange scoreboard, so low/crit colors only mean "ending".
     const roundLen = ROUND_MS / 1000 + s.roundExtendedS
@@ -1842,20 +1881,19 @@ function updateBar(): void {
     V.refs.roundfill.style.width = `${s.running ? frac * 100 : 100}%`
     V.refs.roundfill.classList.toggle('low', remain <= 5 && remain > 2.5)
     V.refs.roundfill.classList.toggle('crit', remain <= 2.5)
-    // THE EXCHANGE SCOREBOARD — your banked swing VS their telegraph, with your guard beneath it
-    V.refs.exatk.textContent = `⚔ ${Math.round(s.roundAttack)}`
+    // THE TRI-COUNTER — your three round accumulators (the resource you build) vs their telegraph
+    V.refs.exatk.textContent = String(Math.round(s.roundAttack))
     const lethal = s.running && s.roundAttack > 0 && s.roundAttack >= s.enemyHP
-    V.refs.exyou.classList.toggle('lethal', lethal) // the kill-race read: this swing ends it
+    V.refs.tcatk.classList.toggle('lethal', lethal) // the kill-race read: this swing ends it
     V.refs.exinc.textContent = s.incoming != null ? `⚔ ${s.incoming}` : 'no strike'
     V.refs.exfoe.classList.toggle('idle', s.incoming == null)
     const sated = s.incoming != null && s.block >= s.incoming // guard meets the telegraph: more Defend = waste
-    V.refs.exguard.textContent = `🛡 ${s.block}${sated ? ' ✓' : ''}`
-    V.refs.exguard.classList.toggle('sated', sated)
-    V.refs.block.classList.toggle('sated', sated)
-    // the charge pips (floor of the fractional bank; the dump zeroes them on its beat)
+    V.refs.exguard.textContent = String(s.block)
+    V.refs.tcgrd.classList.toggle('sated', sated)
+    // the charge count + pips (floor of the fractional bank; the dump drains them on its beat)
     const lit = Math.floor(s.charges)
+    V.refs.tcch.textContent = String(lit) // charge POINTS floor into the counter + pips
     V.refs.tacpips?.querySelectorAll<HTMLElement>('.pip').forEach((p, i) => p.classList.toggle('fl', i < lit))
-    V.refs.tacv.textContent = `${lit}/${CHARGE_CAP}` // charge POINTS floor into pips
   }
   V.refs.enemylab.textContent = s.foe.name
   V.refs.m0.textContent = String(s.mana[0])

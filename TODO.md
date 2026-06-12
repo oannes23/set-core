@@ -188,6 +188,15 @@ Build scope (before B3 gear; doesn't collide with B2's run shell — combat-only
   hadn't). Asked + built: even slower, MORE telegraphed exchange w/ BAM/POW impact cards;
   board locked + deselected during the rollover. Watch for the sim: reshape↓/spring↑ in the
   warren post-wheel.
+- **Full warren sweep (2026-06-12, per-foe: reshape/spring/sets-per-round/gimme/wards/churns):**
+  tutorial 55/6/11.0/76/1/21 · goblin 25/50/3.0/83/2/0 · cave bat 0/29/7.0/100/3/0 · shaman
+  20/29/7.0/86/4/0 · archer 33/50/4.0/75/1/0 · sapper 33/0/2.5/40/2/0 · warren rat 33/0/4.0/100/1/0 ·
+  warlord 60/33/5.3/90/12/0 · ember shaman 67/8/3.3/77/2/14 · butcher 67/30/2.5/70/2/11 ("hard,
+  almost died, good fight") · oracle 31/27/3.8/80/7/0. Patterns: reshape WAY below target vs minions
+  (0–33%) but healthy vs elites (60–67%); churns only fire in long fights; spring noisy (0–50);
+  sets/rnd spikes vs easy foes (11.0 tutorial). ⚠ Flag: the dev targets were calibrated for the
+  continuous-clock game — the budget-conformance sim should re-derive per-tier targets rather than
+  hand-chasing these.
 - `[ ]` **Coach:** low-match-count player takes ≥4 wounds in one exchange → cooldowned
   "Stand Ground to stabilize" reminder (rides the explain-mid-play variant below).
 - `[ ]` **Sim:** assert FLOOR under worst-case wounds(5)+locks; re-read reshape share + spring
