@@ -100,10 +100,27 @@ export interface InlineTrap {
 }
 
 // ---- creatures, variants, templates ----
+/** A foe's contest statline — the other side of every resolve.ts contest. Authored directly
+ *  against the parity line `10 + 2(L−1)` (CRAWL §3 / TUNING.md): warren = fresh L3 → ~14, with
+ *  role spreads (swift −2P/+5S · steady · heavy +2P/−5S · giant +4P/−9S) and per-tier E bumps
+ *  (elite +4 / boss +8) baked into the numbers — no automatic tier bump at assembly. */
+export interface CreatureStats {
+  power: number
+  endurance: number
+  speed: number
+}
+/** Variant/template stat deltas (added to the base statline). Replaced the legacy hp/damage/
+ *  speed_band mods in the data rebase. */
 export interface StatMod {
+  power?: number
+  endurance?: number
+  speed?: number
   hp?: number
-  damage?: number
-  speed_band?: number // shift along the speed bands (+1 = faster)
+}
+/** Override the tempo law's S−P packaging (else strikeEvery/swings derive from the statline). */
+export interface TempoOverride {
+  strikeEvery: number
+  swings: number
 }
 export interface FoeRules {
   immune_card_damage?: boolean // set/Attack damage does nothing
@@ -119,17 +136,17 @@ export interface Voice {
 export interface Creature {
   name: string
   tier: Tier
-  hp: number
-  speed: Speed
-  damage: number
+  stats: CreatureStats // authored P/E/S — the contest's other side (the data rebase, 2026-06-12)
+  hp: number // max HP for this encounter — the kill-budget lever (~60 minion / 110 elite / 200 boss)
+  tempo?: TempoOverride // override the S−P packaging (else derived from the statline)
   desc?: string
   voice?: Voice // combat-log character (optional; neutral default otherwise)
   traps?: string[] // authored signature trap ids (bosses / special foes)
   variants?: string[] // variant ids to roll one from (minions / elites)
   rules?: FoeRules
-  windup?: number // telegraphed-exchange windup seconds (default DEFAULT_WINDUP_S = 4)
-  xp: number
   loot_tier: number
+  // RETIRED in the rebase: speed (band), damage (→ telegraph contest), windup (→ deal reveal),
+  // xp (→ computed from the statline, foe.ts computeXP).
 }
 export interface Variant {
   name: string
@@ -194,7 +211,6 @@ export interface ClassDef {
 export interface GameData {
   traps: Record<string, Trap>
   drifts: Record<string, Trap>
-  speed: Record<SpeedBand, number>
   creatures: Record<string, Creature>
   variants: Record<string, Variant>
   templates: Record<string, Template>

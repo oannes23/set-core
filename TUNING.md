@@ -39,23 +39,21 @@ pending the derivation-sheet sim — directionally settled, numerically sim-fodd
 
 ## Resolution v3 — the stat contests (LIVE, first-cut)
 
-> ⚠ **Re-denomination incoming** (the progression package, above): the +3/+2/+1 level arc
-> widens the stat band ~6×, so `RATE_K`, `MOVE_RATE_K`, the tempo-law bands, and the tier
-> anchors below all re-derive together in the sim pass. The values below are the LIVE code
-> values until that lands.
+> ✅ **Re-denominated + data rebase SHIPPED 2026-06-12** (foes author P/E/S directly; the legacy
+> bridge is gone). The contest constants below are the new LIVE values; the foe-stat bridge,
+> `DMG_BUDGET_K`, and the `LEGACY_*` scales are RETIRED.
 
 Per card: `rate(yourStat, theirOpposed) × QUALITY[mag]`, QUALITY = ①×0.7 ②×1.0 ③×1.4.
 
 | Constant | Value | File | Meaning |
 |---|---|---|---|
-| `BASE_STATS` | P/E/S 10/10/10 | `src/engine/state.ts` | Parity statline, both sides (A3) |
-| `RATE_BASE` / `RATE_K` | 8 / 0.8 | `src/engine/resolve.ts` | Attack/Defend lanes: `clamp(8 + 0.8·(A−B), 2, 20)`; parity mag-6 set ≈ 25 (A4) |
-| `MOVE_RATE_*` | base 1 · k 0.1 · clamp 0.2–3 | `src/engine/resolve.ts` | Move lane, in charge POINTS (fractional; gauge floors into pips) |
-| `DMG_BUDGET_K` | 2.5 | `src/engine/foe.ts` | Foe round damage budget = `Power × 2.5` (parity → 25) |
-| Tempo law | diff = S−P: ≥+4 → 3 swings · −1..+3 → 2 · −4..−2 → 1 · −7..−5 → every 2nd ×2 · ≤−8 → every 3rd ×3 | `src/engine/foe.ts` | Packaging derives from the statline; per-swing budget conserves the round rate |
-| Foe stat bridge | tier P anchor 8/11/13 ± heft(±3 from legacy per-hit) · E = 10 + 2 elite / + 4 boss · S from band (6/8/10/12/14) | `src/engine/foe.ts` | ⚠ FIRST-CUT bridge from legacy data — the data rebase authors P/E/S directly and retires it |
-| `LEGACY_HP_SCALE` / `LEGACY_DMG_SCALE` | ×10/3 | `src/engine/foe.ts` / `src/engine/triggers.ts` | Legacy creature HP + trap damage → HP-100 world (retired by the data rebase) |
-| Player numbers sweep | abilities/potions/passives ×3 | `abilities.ts` / `consumables.ts` / `passives.ts` | ⚠ Mechanical first cut for HP-100 — re-derive in the sim |
+| `BASE_STATS` | P/E/S 10/10/10 | `src/engine/state.ts` | Player L1 = the parity line `10+2(L−1)` at L1 (A3) |
+| `RATE_BASE` / `RATE_K` | 8 / **0.2** | `src/engine/resolve.ts` | Attack/Defend lanes: `clamp(8 + 0.2·(A−B), 2, 20)`; parity mag-6 set ≈ 25 (A4). Re-denominated 0.8→0.2 for the level arc |
+| `MOVE_RATE_*` | base 1 · k **0.025** · clamp 0.2–3 | `src/engine/resolve.ts` | Move lane, in charge POINTS (fractional; gauge floors into pips). Re-denominated 0.1→0.025 |
+| Telegraph law | `telegraphRoundBudget = rate(P_foe, E_player) × TELEGRAPH_QSUM 3.1 × TIER_BUDGET_MULT` (minion 1 / elite 1.5 / boss 2) | `src/engine/resolve.ts` | Foe round budget = the Attack contest × tier (parity → 25×tier, LEVEL-INVARIANT). Finalized vs the live player E in `createCombat`; packaged per-swing by the tempo law. **Replaced `DMG_BUDGET_K`** |
+| Tempo law | diff = S−P: ≥+4 → 3 swings · −1..+3 → 2 · −4..−2 → 1 · −7..−5 → every 2nd ×2 · ≤−8 → every 3rd ×3 | `src/engine/foe.ts` (`tempoFromStats`) | UNCHANGED (sim-confirmed); reads the foe's OWN S−P. Per-foe `tempo` override available |
+| Foe authoring | P/E/S authored on the parity line `10+2(L−1)` + role spreads (swift −2P/+5S · steady · heavy +2P/−5S · giant +4P/−9S) + tier E bumps (elite +4 / boss +8) | `src/data/game-data.ts` | The data rebase: stats are DATA now, not derived. HP authored ~60/110/200; XP computed (`foe.ts computeXP`) |
+| Player numbers sweep | abilities/potions/passives ×3 | `abilities.ts` / `consumables.ts` / `passives.ts` | ⚠ Mechanical first cut for HP-100 — re-derive in the sim (still open) |
 
 ## Board generation (unchanged)
 
@@ -73,6 +71,11 @@ Per card: `rate(yourStat, theirOpposed) × QUALITY[mag]`, QUALITY = ①×0.7 ②
 The full design: `CRAWL-DESIGN.md` §3 (progression/loot) + §5.7 (combat amendments). The
 budget-conformance sim (**`sim/progression-sim.mjs`** — deterministic, run `node sim/progression-sim.mjs`)
 confirmed/derived the numbers below; ⚠ rows marked **sim** changed from the first-cut guesses.
+
+**Status:** the FOE-MODEL rows (✅ below — re-denomination, parity line, role spreads, telegraph
+law, foe HP) **SHIPPED in the data rebase (2026-06-12)** and are now LIVE in the Resolution v3
+table above. The rest (levels/HP/stat-points, XP curve, loot, dodge/guard-carry/Maneuver
+live-burn) are still PLANNED — they land in the levels/loot build + the combat-amendments batch.
 
 **Sim findings (2026-06-12):**
 1. **The telegraph law re-anchors on the contest** *(sim)*: foe round budget =
@@ -100,11 +103,11 @@ confirmed/derived the numbers below; ⚠ rows marked **sim** changed from the fi
 | Level cap | **21** (numeric to 20, then ★) | the cap badge |
 | HP / level | **+5** | 100 → 200 at cap; gear/passives ~+100 → ~300 practical ceiling |
 | Stat points / level | **+3/+2/+1, player-allocated** | +6/level, +120 arc; focused main ≈ +60 |
-| Re-denomination *(sim)* | `RATE_K` **0.2** (was 0.8) · `MOVE_RATE_K` **0.025** (was 0.1) · tempo bands **UNCHANGED** · clamps keep [2,20] / [0.2,3] | +1 main-stat level = +7.5% lane at parity · focused-vs-balanced (±20) = +48% · full kit (+12/stat) = +30% · clamp binds at ±60 diff |
-| Parity line *(sim)* | foe parity stat = **10 + 2·(intended level − 1)** → L3=14 · L12=32 · L20=48 | endgame foes 40–80 ✓; the data rebase authors against this line |
-| Role spreads *(sim)* | swift −2P/+5S · steady 0 · heavy +2P/−5S · giant +4P/−9S, **level-invariant** · elite/boss E bump **+4/+8** | spreads land each tempo band; never widen with level (that's why the bands survive) |
-| Telegraph law *(sim)* | foe budget = `rate(P_f, E_p) × 3.1 × tierOut` (parity → 25×tier at every level) | replaces raw `P × DMG_BUDGET_K` (which breaks A4 over the arc) |
-| Foe HP *(sim)* | minion **60** · elite **110** · boss **200** — level-invariant, derived from A6 | the live rebased warren minions already sit on this line |
+| ✅ Re-denomination (LIVE) | `RATE_K` **0.2** (was 0.8) · `MOVE_RATE_K` **0.025** (was 0.1) · tempo bands **UNCHANGED** · clamps keep [2,20] / [0.2,3] | +1 main-stat level = +7.5% lane at parity · focused-vs-balanced (±20) = +48% · full kit (+12/stat) = +30% · clamp binds at ±60 diff |
+| ✅ Parity line (LIVE) | foe parity stat = **10 + 2·(intended level − 1)** → L3=14 · L12=32 · L20=48 | endgame foes 40–80 ✓; the data rebase authors against this line |
+| ✅ Role spreads (LIVE) | swift −2P/+5S · steady 0 · heavy +2P/−5S · giant +4P/−9S, **level-invariant** · elite/boss E bump **+4/+8** | spreads land each tempo band; never widen with level (that's why the bands survive) |
+| ✅ Telegraph law (LIVE) | foe budget = `rate(P_f, E_p) × 3.1 × tierOut` (parity → 25×tier at every level) | replaces raw `P × DMG_BUDGET_K` (which breaks A4 over the arc) |
+| ✅ Foe HP (LIVE) | minion **60** · elite **110** · boss **200** — level-invariant, derived from A6 | the live rebased warren minions already sit on this line |
 | Trap severity *(sim)* | author ∝ intended-level HP: ≈ **6% · tierOut of expected maxHP** per hit | flat numbers let bulk eat the threat layer (boss row drifted 37→90% before this) |
 | XP law | `(hp/10 + P + E + S) × (1 + 0.15·traps) × tierMult` | computed, never authored; retires the `xp` field |
 | XP tier mult | **×1 / ×2 / ×4** | deliberately above the stat ladder (×1/×1.5/×2) — risk beats grinding |

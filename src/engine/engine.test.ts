@@ -37,13 +37,13 @@ test('resolveSet (v3): each lane is an opposed-stat rate × quality', () => {
   const r3 = resolveSet([card(0, SHAPE_ATTACK, 2), card(1, SHAPE_ATTACK, 2), card(2, SHAPE_ATTACK, 2)], STATS, FOE_PAR, mulberry32(1))
   expect(r3.damage).toBe(33) // DETERMINISTIC: three heavy swings at parity rate 8 → 11×3
   const r4 = resolveSet([card(0, SHAPE_ATTACK, 2), card(1, SHAPE_ATTACK, 2), card(2, SHAPE_ATTACK, 2)], { ...STATS, power: 14 }, FOE_PAR, mulberry32(1))
-  expect(r4.damage).toBe(48) // the CONTEST: +4 Power edge → rate 11.2 → round(15.68)=16 per heavy swing
+  expect(r4.damage).toBe(36) // the CONTEST (re-denominated K 0.2): +4 Power edge → rate 8.8 → round(12.32)=12 per heavy swing
 })
 
 // ---- ROUNDS v3: the telegraph reveals at the deal; the exchange lands exactly ----
 test('rounds: the TEMPO LAW — a giant strikes every 3rd round, telegraphed at its deal, exactly', () => {
   const rng = mulberry32(21)
-  const f = foe('dread_behemoth', rng) // P 14 vs S 6 → diff −8 → every 3rd round, triple budget
+  const f = foe('dread_behemoth', rng) // authored P14/E10/S5 → S−P −9 → every 3rd round, triple budget
   expect(f.strikeEvery).toBe(3)
   expect(f.swings).toBe(1)
   const s = createCombat({ foe: f, gen: GEN }, rng)
@@ -65,7 +65,7 @@ test('rounds: the TEMPO LAW — a giant strikes every 3rd round, telegraphed at 
 })
 
 test('rounds: the tempo law packages a shambler as 2 modest swings every round', () => {
-  const z = foe('limbless_zombie') // P 7 (tier 8 − heft 1) vs S 6 → diff −1 → 2 swings/round
+  const z = foe('limbless_zombie') // authored P5/E8/S5 → S−P 0 → 2 swings/round
   expect(z.strikeEvery).toBe(1)
   expect(z.swings).toBe(2)
   const s = createCombat({ foe: z, gen: GEN }, mulberry32(2))
@@ -82,7 +82,7 @@ test('rounds: banked Attack lands at the exchange, player swing FIRST (the kill-
   s.board[2] = card(2, SHAPE_ATTACK, 2)
   let r = reduce(s, { type: 'completeSet', slots: [0, 1, 2] }, { data: GAMEDATA, rng })
   expect(r.state.enemyHP).toBe(5) // nothing lands mid-round…
-  expect(r.state.roundAttack).toBe(33) // …it BANKS toward the exchange (parity rate 8, heavy ×3)
+  expect(r.state.roundAttack).toBe(30) // …it BANKS toward the exchange (vs goblin E14: rate 7.2, heavy ×3 → 10×3)
   expect(r.events.some((e) => e.type === 'attackBanked')).toBe(true)
   r = reduce(r.state, { type: 'tick', dtMs: ROUND_MS + 100 }, { data: GAMEDATA, rng })
   expect(r.events.some((e) => e.type === 'won')).toBe(true)
@@ -173,21 +173,19 @@ test('selectSlots: geometry ∩ value, and lock/transmute board verbs', () => {
 })
 
 // ---- foe assembly ----
-test('assembleFoe resolves stats, triggers, rules', () => {
+test('assembleFoe resolves the AUTHORED statline, tempo, triggers, rules (the data rebase)', () => {
   const z = foe('limbless_zombie')
-  expect(z.hp).toBe(100) // legacy 30, rebased to the HP-100 world
-  expect(z.cadence).toBe(24) // lumbering (authored data — feeds the first-cut derivations)
-  expect(z.stats).toEqual({ power: 7, endurance: 10, speed: 6 }) // tier 8 − heft 1 · parity · lumbering
+  expect(z.hp).toBe(50) // authored HP (kill-budget lever — no more legacy ×10/3 scale)
+  expect(z.stats).toEqual({ power: 5, endurance: 8, speed: 5 }) // authored directly
   expect(z.strikeEvery).toBe(1)
-  expect(z.swings).toBe(2) // diff −1 → two modest swings
+  expect(z.swings).toBe(2) // S−P 0 → two modest swings
   expect(z.triggers.map((t) => t.name)).toContain('Limbless')
   const g = foe('unstable_ethereal_goblin')
   expect(g.rules.immune_card_damage).toBe(true)
   expect(g.rules.ability_damage).toBe('mana_spent')
   const b = foe('dread_behemoth')
-  expect(b.cadence).toBe(120) // numeric speed
-  expect(b.stats).toEqual({ power: 14, endurance: 12, speed: 6 }) // elite 11 + heft 3 · elite bump
-  expect(b.strikeEvery).toBe(3) // the tempo law: diff −8 → a giant — every 3rd round, triple budget
+  expect(b.stats).toEqual({ power: 14, endurance: 10, speed: 5 }) // authored — the giant
+  expect(b.strikeEvery).toBe(3) // the tempo law: S−P −9 → every 3rd round, triple budget
   expect(b.triggers.find((t) => t.name === 'Outmaneuvered')?.kind).toBe('trick')
 })
 

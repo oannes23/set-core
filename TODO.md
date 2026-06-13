@@ -176,11 +176,16 @@ Build scope (before B3 gear; doesn't collide with B2's run shell — combat-only
   +30–55% extra through; guard-carry levels it) · **FLOOR stress** (`floor-stress.test.ts`) —
   caught + FIXED a real bug: `inflictWounds` is now floor-aware (blind picks broke the makeable
   floor in ~13% of locks-then-wounds exchanges) · trap-severity authoring guideline (∝
-  intended-level HP, ≈6%·tier). STILL OPEN: the **data rebase** (author P/E/S per creature on
-  the parity line; retire the foe.ts bridge + legacy scales + the authored `xp` field;
-  variant/template `stat_mod` → stat deltas; per-foe tempo OVERRIDE) · stall-kit FINAL ruling
+  intended-level HP, ≈6%·tier). DONE: the **data rebase (2026-06-12)** — creatures author
+  P/E/S directly on the parity line; the foe.ts legacy bridge + `DMG_BUDGET_K` + `LEGACY_*`
+  scales retired; telegraph re-anchored on the contest (finalized vs the live player E in
+  createCombat); variant/template `stat_mod` → P/E/S/hp deltas; authored `xp` retired (→
+  `computeXP`); per-foe `tempo` override added; schema's `speed`-band table removed. 104 tests
+  green. ⚠ INTERIM: warren_butcher dialed giant→heavy (the giant every-3 ×3 is an unmitigable
+  one-shot until guard-carry); a fresh-from-tutorial player is L1 (10/10/10) vs the parity-14
+  warren — under-leveled until the levels build lands (next). STILL OPEN: stall-kit FINAL ruling
   (round extension is the flagged interim) · the live warren re-tune + instrument re-targets
-  (re-measure after the amendments land — the model's trap tax is a stand-in).
+  (re-measure after levels + the amendments land).
 - `[ ]` **UI:** the Tactics wheel (7 states; lit = locked, ghost = queued), round bar (the bar
   IS the round), rollover choreography (swing→swing→dump→deal→telegraph), wound-row rendering,
   the **"sated guard" cue** (block badge dims once it meets the telegraph — over-matching must
@@ -237,9 +242,11 @@ grace ↑) · smash-art declarations (Persona/Mörk Borg register) over a paused
 Build order (everything sim-gated where it touches contest constants):
 - `[x]` **The sim pass — RUN 2026-06-12** (`sim/progression-sim.mjs`; see the workshop item
   above): re-denomination, A6, XP curve, dodge K all derived; the floor-stress test landed a
-  real engine fix (floor-aware wounds). The package is UNGATED for building (the data rebase
-  remains its own item).
-- `[ ]` **Combat amendments batch** (engine+UI, after the sim): per-swing deal-time dodge +
+  real engine fix (floor-aware wounds).
+- `[x]` **The data rebase — DONE 2026-06-12** (see the workshop item): creatures author P/E/S
+  directly; the legacy bridge + `DMG_BUDGET_K` + `LEGACY_*` scales + the authored `xp` field are
+  retired; telegraph re-anchored on the contest; `computeXP` ready for the levels build.
+- `[ ]` **Combat amendments batch** (engine+UI, now unblocked): per-swing deal-time dodge +
   💨 telegraph tags + the DODGED! smash card & free-round guard cue · guard carry through
   windups + early telegraph reveal + sated-cue extension · Maneuver live-burn (gather /
   bail-out asymmetry; burn rate = the scan-stability dial) · parting blow & start-grace

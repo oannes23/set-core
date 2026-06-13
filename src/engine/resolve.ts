@@ -22,10 +22,13 @@ export const SHAPE_DEFEND = 1
 export const SHAPE_MOVE = 2
 
 // ---- the contested-rate laws (CRAWL §5.6; derivation sheet in TUNING.md) ----
-// At stat parity (10 vs 10) an Attack/Defend card is worth RATE_BASE × q → a magnitude-6 set ≈ 25,
-// which is the 6/6/6 baseline axiom's even-exchange quantum (player HP 100).
+// At stat parity an Attack/Defend card is worth RATE_BASE × q → a magnitude-6 set ≈ 25, the
+// 6/6/6 baseline axiom's even-exchange quantum (player HP 100). RE-DENOMINATED 2026-06-12
+// (the data rebase): the +3/+2/+1 level arc widens the stat band (parity line 10+2(L−1), endgame
+// 40–80), so RATE_K dropped 0.8 → 0.2 (sim-derived — parity is K-independent, so this only
+// re-scales OFF-parity contests to the wider band; +1 main-stat level = +7.5% lane throughput).
 export const RATE_BASE = 8
-export const RATE_K = 0.8 // value per point of stat edge
+export const RATE_K = 0.2 // value per point of stat edge (was 0.8; re-denominated for the level arc)
 export const RATE_MIN = 2 // never useless…
 export const RATE_MAX = 20 // …never absurd (gear stacking stays bounded)
 /** Damage/Block lane rate: your stat vs the opposed stat, difference-based, clamped. */
@@ -35,11 +38,32 @@ export function contestRate(yours: number, theirs: number): number {
 // The Move lane runs in CHARGE POINTS (the bank shows whole pips; fractions accumulate).
 // Parity = 1 point per Move card × quality ≈ 3/set — continuity with the flat v3 income.
 export const MOVE_RATE_BASE = 1
-export const MOVE_RATE_K = 0.1
+export const MOVE_RATE_K = 0.025 // was 0.1; re-denominated with RATE_K
 export const MOVE_RATE_MIN = 0.2
 export const MOVE_RATE_MAX = 3
 export function moveRate(yourSpeed: number, theirSpeed: number): number {
   return Math.min(MOVE_RATE_MAX, Math.max(MOVE_RATE_MIN, MOVE_RATE_BASE + MOVE_RATE_K * (yourSpeed - theirSpeed)))
+}
+
+// ---- THE TELEGRAPH LAW (re-anchored on the contest, sim-derived 2026-06-12) ----
+// The foe's round damage budget = the Attack-lane contest (its Power vs YOUR Endurance) × a
+// baseline set's quality sum × the tier multiplier. At parity → 25 × tier, LEVEL-INVARIANT —
+// the raw-Power form (Power × DMG_BUDGET_K) broke axiom A4 over the level arc (foe Power grows
+// but your parity Defend set still blocks ~25/round). Computed against the live player E in
+// createCombat; the per-swing budget is this packaged by the tempo law's strikeEvery/swings.
+export const TELEGRAPH_QSUM = 3.1 // a magnitude-6 set's quality sum (0.7+1.0+1.4), the budget anchor (A4)
+export const TIER_BUDGET_MULT = { minion: 1, elite: 1.5, boss: 2 } as const // A5 output multipliers
+export function telegraphRoundBudget(foePower: number, playerEndurance: number, tier: 'minion' | 'elite' | 'boss'): number {
+  return contestRate(foePower, playerEndurance) * TELEGRAPH_QSUM * TIER_BUDGET_MULT[tier]
+}
+/** The per-SWING roll budget: the round budget packaged by the tempo law. 0-Power foes never strike. */
+export function telegraphPerSwing(
+  foe: { stats: StatBlock; tier: 'minion' | 'elite' | 'boss' | null; strikeEvery: number; swings: number },
+  playerEndurance: number,
+): number {
+  if (foe.stats.power <= 0) return 0
+  const round = telegraphRoundBudget(foe.stats.power, playerEndurance, foe.tier ?? 'minion')
+  return Math.max(1, Math.round((round * foe.strikeEvery) / foe.swings))
 }
 
 /** Triangular-weighted roll: value v in [1,max] drawn with P(v) ∝ v (favours max, weak hits possible). */

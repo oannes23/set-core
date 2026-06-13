@@ -51,9 +51,9 @@ export interface FoeRuntime {
   name: string
   tier: Tier | null
   hp: number // max HP for this encounter (the kill-budget lever — authored, not a contest stat)
-  damage: number // per-swing roll budget (derived: Power budget × strikeEvery / swings)
-  stats: StatBlock // the foe's side of every contest (derived first-cut from legacy data — foe.ts)
-  cadence: number // legacy authored seconds-between-attacks (data); feeds the first-cut derivations
+  damage: number // per-SWING roll budget; FINALIZED in createCombat = telegraph contest (foe Power
+  // vs THIS player's Endurance) × tier, packaged by strikeEvery/swings. assembleFoe seeds it at parity.
+  stats: StatBlock // the foe's side of every contest (AUTHORED P/E/S — the data rebase, 2026-06-12)
   strikeEvery: number // rounds between exchanges (1 = strikes every round, 2 = every other…)
   swings: number // hits per exchange (telegraph shows the sum)
   triggers: Trigger[] // resolved traps/tricks (each carries `kind`)

@@ -31,10 +31,14 @@ test('every dungeon reference (foe / drift / template / mirror / extends) resolv
   }
 })
 
-test('encounter ids and named speed bands resolve', () => {
+test('encounter ids resolve + every creature authors a full P/E/S statline', () => {
   for (const t of GAMEDATA.encounter.traps) expect(has(GAMEDATA.traps, t), `encounter trap ${t}`).toBe(true)
   expect(has(GAMEDATA.drifts, GAMEDATA.encounter.drift)).toBe(true)
+  // the data rebase: stats are authored directly (no legacy speed/damage/xp fields)
   for (const [cid, c] of Object.entries(GAMEDATA.creatures)) {
-    if (typeof c.speed === 'string') expect(has(GAMEDATA.speed, c.speed), `${cid} speed ${c.speed}`).toBe(true)
+    for (const k of ['power', 'endurance', 'speed'] as const) {
+      expect(typeof c.stats[k], `${cid} stats.${k}`).toBe('number')
+    }
+    expect(c.hp, `${cid} hp`).toBeGreaterThan(0)
   }
 })

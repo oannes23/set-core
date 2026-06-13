@@ -1,18 +1,37 @@
 /* engine/foe — assemble a fielded foe from data: creature ⊕ rolled variant ⊕ dungeon template
-   (TRAPS.md §7.1) → a FoeRuntime of resolved numbers + Trigger objects. Ported from assembleFoe. */
+   (TRAPS.md §7.1) → a FoeRuntime of resolved numbers + Trigger objects.
+
+   THE DATA REBASE (2026-06-12): creatures now AUTHOR their P/E/S statline directly (against the
+   parity line `10 + 2(L−1)`, CRAWL §3) — the legacy hp/damage/speed-band → stats bridge is gone.
+   assembleFoe just resolves the authored stats + variant/template stat deltas, packages the
+   attack via the TEMPO LAW (the foe's own S−P, unchanged — sim-confirmed) or a per-foe override,
+   and attaches traps/drift. The per-SWING damage budget is the TELEGRAPH CONTEST (resolve.ts) and
+   is finalized in createCombat against the live player's Endurance; here it's seeded at parity. */
 
 import type { Rng } from '../core/rng'
-import type { GameData, Dungeon, Trigger, SpeedBand, Speed } from '../data/schema'
-import type { FoeRuntime } from './state'
+import type { GameData, Dungeon, Trigger, Tier } from '../data/schema'
+import type { FoeRuntime, StatBlock } from './state'
+import { telegraphPerSwing } from './resolve'
 
-const SPEED_ORDER: SpeedBand[] = ['lumbering', 'slow', 'steady', 'swift', 'frenzied']
+/** The TEMPO LAW (CRAWL §5.6 — unchanged by the rebase): the foe's own S−P picks the packaging.
+ *  ≥+4 → 3 chip swings · −1..+3 → 2 swings · −4..−2 → 1 clean hit · −7..−5 → every 2nd round ×2
+ *  · ≤−8 → every 3rd round ×3. (The per-round damage budget is conserved by the per-swing roll.) */
+export function tempoFromStats(stats: StatBlock): { strikeEvery: number; swings: number } {
+  const diff = stats.speed - stats.power
+  const strikeEvery = diff <= -8 ? 3 : diff <= -5 ? 2 : 1
+  const swings = strikeEvery > 1 ? 1 : diff >= 4 ? 3 : diff >= -1 ? 2 : 1
+  return { strikeEvery, swings }
+}
 
-export function speedSeconds(data: GameData, speed: Speed, shift: number): number {
-  if (typeof speed === 'number') return speed // raw cadence seconds
-  let i = SPEED_ORDER.indexOf(speed)
-  if (i < 0) i = 2
-  i = Math.max(0, Math.min(SPEED_ORDER.length - 1, i + shift))
-  return data.speed[SPEED_ORDER[i]]
+/** XP for a kill — COMPUTED from the statline (CRAWL §3 / TUNING.md; retires the authored `xp`
+ *  field): `(hp/10 + P + E + S) × (1 + 0.15·trapCount) × tierMult`, tiers ×1/×2/×4 (above the
+ *  stat ladder so risk beats grinding). Tricks don't count as traps. Consumed by the loot/levels
+ *  build (B2/B4); defined here with the statline it derives from. */
+export const XP_TIER_MULT: Record<Tier, number> = { minion: 1, elite: 2, boss: 4 }
+export function computeXP(foe: FoeRuntime): number {
+  const { power, endurance, speed } = foe.stats
+  const traps = foe.triggers.filter((t) => t.kind !== 'trick').length
+  return Math.round((foe.hp / 10 + power + endurance + speed) * (1 + 0.15 * traps) * XP_TIER_MULT[foe.tier ?? 'minion'])
 }
 
 /** Weighted-random pick from a dungeon enemy table. */
@@ -30,9 +49,9 @@ export function pickWeightedFoe(table: { foe: string; weight: number }[], rng: R
 export function assembleFoe(creatureId: string, dungeon: Dungeon | null, data: GameData, rng: Rng): FoeRuntime | null {
   const base = data.creatures[creatureId]
   if (!base) return null
+  // authored statline + accumulated variant/template deltas (the old hp/damage/band mods → P/E/S/hp)
+  const stats: StatBlock = { ...base.stats }
   let hp = base.hp
-  let dmg = base.damage
-  let bandShift = 0
   const triggers: Trigger[] = []
   let variantName: string | null = null
   let templateName: string | null = null
@@ -48,9 +67,10 @@ export function assembleFoe(creatureId: string, dungeon: Dungeon | null, data: G
     if (v) {
       variantName = v.name
       const sm = v.stat_mod ?? {}
+      stats.power += sm.power ?? 0
+      stats.endurance += sm.endurance ?? 0
+      stats.speed += sm.speed ?? 0
       hp += sm.hp ?? 0
-      dmg += sm.damage ?? 0
-      bandShift += sm.speed_band ?? 0
       triggers.push({ name: v.name, icon: v.icon, desc: v.desc, ...v.trap })
     }
   }
@@ -68,47 +88,25 @@ export function assembleFoe(creatureId: string, dungeon: Dungeon | null, data: G
     if (tpl) {
       templateName = tpl.name
       const sm = tpl.stat_mod ?? {}
+      stats.power += sm.power ?? 0
+      stats.endurance += sm.endurance ?? 0
+      stats.speed += sm.speed ?? 0
       hp += sm.hp ?? 0
-      dmg += sm.damage ?? 0
-      bandShift += sm.speed_band ?? 0
       triggers.push({ name: tpl.name, icon: tpl.icon, desc: tpl.desc, ...tpl.trap })
     }
   }
 
   const name = (templateName ? templateName + ' ' : '') + (variantName ? variantName + ' ' : '') + base.name
   const drift = dungeon?.drift ? (data.drifts[dungeon.drift] ?? null) : null
-  const cadence = speedSeconds(data, base.speed, bandShift)
+  const { strikeEvery, swings } = base.tempo ?? tempoFromStats(stats)
 
-  // ---- RESOLUTION v3 FIRST-CUT STAT DERIVATION (⚠ sim-fodder — the data rebase will author
-  // P/E/S directly; until then the legacy hp/damage/speed-band numbers convert here, one place).
-  // Speed stat: the old band, read as the agency contest (lumbering 6 … frenzied 14).
-  const speedStat = dmg <= 0 ? 10 : cadence >= 20 ? 6 : cadence >= 16 ? 8 : cadence >= 13 ? 10 : cadence >= 10 ? 12 : 14
-  // Power: TIER-ANCHORED (the old DPS numbers were balanced for a different block/clock model and
-  // do not transfer — minions sit below the parity-25 budget, elites above, bosses on top), with a
-  // small offset for the foe's authored per-hit heft so heavy hitters keep their identity.
-  const tierP = base.tier === 'boss' ? 13 : base.tier === 'elite' ? 11 : 8
-  const heft = Math.max(-3, Math.min(3, Math.round((dmg / 30 - 0.4) * 5)))
-  const power = dmg <= 0 ? 0 : Math.min(20, Math.max(1, tierP + heft))
-  // Endurance: parity baseline + a tier bump (elites/bosses blunt your per-card damage).
-  const endurance = 10 + (base.tier === 'boss' ? 4 : base.tier === 'elite' ? 2 : 0)
-
-  // ---- THE TEMPO LAW (CRAWL §5.6): Speed−Power picks the PACKAGING; Power fixes the budget.
-  // diff ≥ +4 → 3 chip swings/round · −1..+3 → 2 swings (equals → two hits) · −4..−2 → one clean
-  // hit · −7..−5 → every 2nd round at double budget · ≤ −8 → every 3rd round at triple.
-  const diff = speedStat - power
-  const strikeEvery = dmg <= 0 ? 1 : diff <= -8 ? 3 : diff <= -5 ? 2 : 1
-  const swings = dmg <= 0 ? 1 : strikeEvery > 1 ? 1 : diff >= 4 ? 3 : diff >= -1 ? 2 : 1
-  // Damage conservation: per-swing roll budget keeps round-rate = Power × DMG_BUDGET_K.
-  const perSwing = dmg <= 0 ? 0 : Math.max(1, Math.round((power * DMG_BUDGET_K * strikeEvery) / swings))
-
-  return {
+  const foe: FoeRuntime = {
     id: creatureId,
     name,
     tier: base.tier,
-    hp: Math.max(1, Math.round((hp * LEGACY_HP_SCALE) / 5) * 5), // HP-100 world (kill budgets re-derive in the sim)
-    damage: perSwing,
-    stats: { power, endurance, speed: speedStat },
-    cadence,
+    hp: Math.max(1, hp),
+    damage: 0, // seeded just below at PARITY; createCombat finalizes vs the live player Endurance
+    stats,
     strikeEvery,
     swings,
     triggers,
@@ -116,10 +114,8 @@ export function assembleFoe(creatureId: string, dungeon: Dungeon | null, data: G
     rules: base.rules ?? {},
     desc: base.desc ?? null,
   }
+  // parity seed: player E = foe Power → contestRate = RATE_BASE → the 25×tier baseline budget.
+  // A usable per-swing number for any consumer before a player is attached; createCombat overrides.
+  foe.damage = telegraphPerSwing(foe, stats.power)
+  return foe
 }
-
-/** Round damage budget per point of foe Power (parity Power 10 → ~25/round, the even-exchange
- *  quantum a magnitude-6 Defend set neutralizes). First-cut constant — TUNING.md. */
-export const DMG_BUDGET_K = 2.5
-/** Legacy data → HP-100 world scale (the data rebase retires this). */
-export const LEGACY_HP_SCALE = 10 / 3

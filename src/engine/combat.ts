@@ -11,7 +11,7 @@ import type { Rng } from '../core/rng'
 import type { GameData } from '../data/schema'
 import { type CombatState, type FoeRuntime, type Pending, type TacticKind, type ManeuverBias, type StatBlock, MANA_CAP, DEFAULT_PLAYER_MAX, BASE_STATS, ROUND_MS } from './state'
 import { type CombatEvent, EventSink } from './events'
-import { type Resolution, resolveSet, weightedRoll } from './resolve'
+import { type Resolution, resolveSet, weightedRoll, telegraphPerSwing } from './resolve'
 import { fireTriggers, runTrigger, inflictWounds, hurtPlayer, reformSlots, EMPTY_DESC } from './triggers'
 import { gainBlock, addCharges } from './ops'
 import { firePassives } from './passives'
@@ -61,14 +61,19 @@ function rollStrike(foe: FoeRuntime, rng: Rng): number {
 export function createCombat(opts: NewCombatOpts, rng: Rng): CombatState {
   const playerMax = opts.playerMax ?? DEFAULT_PLAYER_MAX
   const board: Board = genInitial(opts.gen, rng)
-  const nextStrikeRound = opts.foe.strikeEvery
+  const stats = { ...(opts.stats ?? BASE_STATS) }
+  // FINALIZE the telegraph: the foe's per-swing budget is the contest (its Power vs THIS player's
+  // Endurance) × tier, packaged by the tempo law — level-invariant at parity (resolve.ts). The
+  // assembled foe carried a parity seed; this binds it to the actual hero (stable for the fight).
+  const foe: FoeRuntime = { ...opts.foe, damage: telegraphPerSwing(opts.foe, stats.endurance) }
+  const nextStrikeRound = foe.strikeEvery
   return {
     playerHP: playerMax,
     playerMax,
-    enemyHP: opts.foe.hp,
-    enemyMax: opts.foe.hp,
+    enemyHP: foe.hp,
+    enemyMax: foe.hp,
     block: 0,
-    stats: { ...(opts.stats ?? BASE_STATS) },
+    stats,
     mana: [0, 0, 0],
     tactic: 'stand', // the defensive default — you OPT INTO Maneuver's greed at the first draw phase
     maneuverBias: null,
@@ -85,14 +90,14 @@ export function createCombat(opts: NewCombatOpts, rng: Rng): CombatState {
     attackFrozen: false,
     nextSetDamageMult: 1,
     tickSuppressedUntil: 0,
-    foe: opts.foe,
+    foe,
     now: 0,
     round: 1,
     roundEndsAt: ROUND_MS,
     roundExtendedS: 0,
     roundAttack: 0,
     nextStrikeRound,
-    incoming: opts.foe.damage > 0 && nextStrikeRound === 1 ? rollStrike(opts.foe, rng) : null,
+    incoming: foe.damage > 0 && nextStrikeRound === 1 ? rollStrike(foe, rng) : null,
     tickAccum: {},
     running: true,
     result: null,
