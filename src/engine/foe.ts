@@ -28,11 +28,15 @@ export function tempoFromStats(stats: StatBlock): { strikeEvery: number; swings:
  *  stat ladder so risk beats grinding). Tricks don't count as traps. Consumed by the loot/levels
  *  build (B2/B4); defined here with the statline it derives from. */
 export const XP_TIER_MULT: Record<Tier, number> = { minion: 1, elite: 2, boss: 4 }
+/** A foe's STRENGTH VALUE — the statline core that both XP and gold (loot.ts) derive from, so a
+ *  tougher foe always pays more with no extra authoring. Pre-tier, pre-trap: `hp/10 + P + E + S`. */
+export function foeValue(foe: FoeRuntime): number {
+  return foe.hp / 10 + foe.stats.power + foe.stats.endurance + foe.stats.speed
+}
 export function computeXP(foe: FoeRuntime): number {
   if (foe.xpOverride != null) return foe.xpOverride // teaching foes author it (the dummy's Power 0 breaks the formula)
-  const { power, endurance, speed } = foe.stats
   const traps = foe.triggers.filter((t) => t.kind !== 'trick').length
-  return Math.round((foe.hp / 10 + power + endurance + speed) * (1 + 0.15 * traps) * XP_TIER_MULT[foe.tier ?? 'minion'])
+  return Math.round(foeValue(foe) * (1 + 0.15 * traps) * XP_TIER_MULT[foe.tier ?? 'minion'])
 }
 
 /** Weighted-random pick from a dungeon enemy table. */

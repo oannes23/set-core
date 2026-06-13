@@ -214,7 +214,15 @@ what the rate clamp exists to bound); bounded riders don't. This also protects t
 fantasy — a drop makes you stronger, never makes levels feel optional. HP mirrors the share
 (~+100 of the ~300 ceiling from gear/passives).
 
-### Loot (settled — category-first nested tables)
+### Loot (settled + BUILT 2026-06-13 — category-first nested tables)
+> **STATUS: gold + consumables shipped** — `src/engine/loot.ts` (the category roller + gold formula,
+> tested) + `src/ui/bank.ts` (the shared account vault + death tithe) + the delve's run-purse/banking
+> flow. Gold is a **weightless run counter** (decided 2026-06-13: it never takes satchel space — the
+> town-economy plan already separates the Gold pool from item Storage). Gold derives from the same
+> `foeValue` XP uses, via its own `GOLD_K` (independently tunable). **GEAR (B3) and spellbook (B4)
+> loot categories are scaffolded but disabled** until those systems exist; the gear pity sawtooth
+> lands with them. ⚠ Full warren clear runs ~210g (depth-inflated) vs the ~100–150 first cut —
+> recalibrate `GOLD_K` once the shop sink exists.
 - **Drop count by tier:** minion **1** · elite **2–3** + **guaranteed gold (×2 standard)** ·
   boss **5** + guaranteed gold (×4). The guarantee is the WAGE; the drops are the lottery.
 - Each drop rolls a **CATEGORY** (per-tier weights — minion **60/30/10**

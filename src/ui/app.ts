@@ -22,8 +22,10 @@ import { PASSIVES } from '../engine/passives'
 import { assembleFoe, pickWeightedFoe, computeXP } from '../engine/foe'
 import { colsForN, COMBAT_GEN, type Deps, type CombatAction } from '../engine/combat'
 import { createRun, runReduce, type RunState } from '../engine/run'
-import { createDelve, nextEncounter, fleeReroll, dreadBand, rollDelveLoot, RUN_BAG_CAP, type DelveState, type EncounterTier } from '../engine/delve'
+import { createDelve, nextEncounter, fleeReroll, dreadBand, RUN_BAG_CAP, type DelveState, type EncounterTier } from '../engine/delve'
+import { rollRoomLoot } from '../engine/loot'
 import { CONSUMABLES } from '../engine/consumables'
+import { loadBank, bankGold, bankTithe } from './bank'
 import type { CombatState, FoeRuntime } from '../engine/state'
 import { CHARGE_CAP, MANA_CAP, START_GRACE_MS, ROUND_MS, WOUND_WARD_COST, WOUND_CAP_PER_EXCHANGE, woundQuantum } from '../engine/state'
 import type { CombatEvent } from '../engine/events'
@@ -209,13 +211,13 @@ let selectedCharId: string | null = null // persists the chosen hero across scen
 /** The LIVE DELVE (null = a lone practice fight). Survives scene transitions room → fork → room:
  *  the encounter schema state (engine/delve) + the run's consumable SATCHEL (what you carried in,
  *  minus what you drank, plus what you looted — HP-only attrition's sibling) + the current tier. */
-let DELVE: { d: DelveState; bag: string[]; tier: EncounterTier } | null = null
+let DELVE: { d: DelveState; bag: string[]; tier: EncounterTier; gold: number } | null = null
 
 function characterSelectScene(root: HTMLElement): void {
   DELVE = null // any road back to town ends the run
   const wrap = $(`<div class="wrap"></div>`)
   wrap.appendChild($(`<h1>set.core</h1>`))
-  wrap.appendChild($(`<div class="sub">town · choose your hero</div>`))
+  wrap.appendChild($(`<div class="sub">town · choose your hero &nbsp;·&nbsp; <span class="vault" data-tip-title="The vault" data-tip="Your shared account gold — banked on any safe exit from a delve, dented by the death tithe. Spends at the shop (coming soon).">🪙 ${loadBank().gold} vault</span></div>`))
   const cols = $(`<div class="hub2"></div>`)
   const leftP = $(`<div class="panel"></div>`)
   const rightP = $(`<div class="panel"></div>`)
@@ -552,6 +554,7 @@ function beginDelve(char: SavedChar, dungeonId: string): void {
     d: createDelve(dungeonId, systemRng),
     bag: char.consumables.filter((id) => !!id && !!CONSUMABLES[id]), // the loadout becomes the run satchel
     tier: 'minion',
+    gold: 0, // run-gold: carried, banks on any safe exit, lost on death (a weightless counter, not a slot)
   }
   goScene((r) => delveRoom(r, char))
 }
@@ -2396,29 +2399,36 @@ function delveFork(result: 'win' | 'lose' | 'flee'): void {
   const room = DELVE.d.room
   const dgName = GAMEDATA.dungeons[DELVE.d.dungeonId]?.name ?? 'the dungeon'
 
-  // DEATH — the run ends; the satchel is lost (the worst rung of the exit ladder)
+  // DEATH — the run ends: the satchel + the run's carried gold are lost, and a tithe bites the bank
   if (result === 'lose') {
+    const lost = DELVE.gold
+    const tithe = bankTithe() // forfeit 12% of BANKED gold (the exit ladder, §6)
     DELVE = null
     const home = $<HTMLButtonElement>(`<button class="cta" style="display:block;margin:0 auto">🏠 Back to town</button>`)
     home.addEventListener('click', () => goScene(characterSelectScene))
+    const tolls = [`Your satchel${lost > 0 ? ` and ${lost}🪙 carried` : ''} is lost where you fell.`, tithe > 0 ? `The recovery tithe takes ${tithe}🪙 from your vault.` : ''].filter(Boolean).join(' ')
     host.replaceChildren(
       $(`<div class="banner lose">✖ Slain — room ${room} claims you</div>`),
-      $(`<div class="forksub">Your satchel is lost where you fell.</div>`),
+      $(`<div class="forksub">${tolls}</div>`),
       combatChart(), home,
     )
     return
   }
 
-  // BOSS DOWN — the dungeon is cleared (the run's best exit; the "big loot" roll is still the placeholder)
+  // BOSS DOWN — the dungeon is cleared (the run's best exit). Loot rolls, then the run-gold banks.
   if (result === 'win' && DELVE.tier === 'boss') {
-    const lootEl = delveLootRoll()
+    const lootEl = delveLootReveal()
+    const carried = DELVE.gold
     const bag = DELVE.bag
+    const total = bankGold(carried) // the whole run's gold banks into the vault
     DELVE = null
     const home = $<HTMLButtonElement>(`<button class="cta bob" style="display:block;margin:0 auto">🏆 Carry the spoils home</button>`)
     home.addEventListener('click', () => goScene(characterSelectScene))
     host.replaceChildren(
       $(`<div class="banner win">🏆 ${dgName} — CLEARED in ${room} rooms</div>`),
-      lootEl, $(satchelHTML(bag)), combatChart(), home,
+      lootEl, $(satchelHTML(bag)),
+      $(`<div class="forksub">Banked <b>${carried}🪙</b> — vault now <b>${total}🪙</b>.</div>`),
+      combatChart(), home,
     )
     return
   }
@@ -2427,19 +2437,20 @@ function delveFork(result: 'win' | 'lose' | 'flee'): void {
   const fork = $(`<div class="forkwrap"></div>`)
   if (result === 'win') {
     fork.appendChild($(`<div class="banner win">★ Room ${room} cleared</div>`))
-    fork.appendChild(delveLootRoll())
+    fork.appendChild(delveLootReveal())
   } else {
     DELVE.d = fleeReroll(DELVE.d) // the sawtooth resets; the next chamber rerolls (bossFound holds)
     fork.appendChild($(`<div class="banner lose">🏃 You slip away</div>`))
     fork.appendChild($(`<div class="forksub">No spoils from this room. The passages shift behind you — the next chamber is rerolled.</div>`))
   }
   fork.appendChild($(satchelHTML(DELVE.bag)))
+  fork.appendChild($(`<div class="runpurse" data-tip-title="Carried gold" data-tip="Gold gathered this run. It banks to your vault the moment you reach town — but a death loses it all.">🪙 <b>${DELVE.gold}</b> carried</div>`))
   const band = dreadBand(DELVE.d)
   const pips = '●'.repeat(band.step + 1) + '○'.repeat(4 - band.step)
   fork.appendChild($(`<div class="dread" data-tip-title="Dread" data-tip="The deeper you press, the surer the throne room. Each room entered walks the curve — cleared or fled."><span class="pips">${pips}</span>${band.label}</div>`))
   const btns = $(`<div class="forkbtns"></div>`)
-  const home = $<HTMLButtonElement>(`<button class="cta ghost">🏠 Return to town</button>`)
-  home.addEventListener('click', () => goScene(characterSelectScene))
+  const home = $<HTMLButtonElement>(`<button class="cta ghost">🏠 Cash out (bank ${DELVE.gold}🪙)</button>`)
+  home.addEventListener('click', () => { if (DELVE) bankGold(DELVE.gold); goScene(characterSelectScene) })
   const deeper = $<HTMLButtonElement>(`<button class="cta bob">▶ Delve deeper</button>`)
   deeper.addEventListener('click', () => goScene((r) => delveRoom(r, char)))
   btns.append(home, deeper)
@@ -2447,15 +2458,24 @@ function delveFork(result: 'win' | 'lose' | 'flee'): void {
   host.replaceChildren(fork)
 }
 
-/** Roll the placeholder room loot into the satchel and return its reveal card (or the full-bag note). */
-function delveLootRoll(): HTMLElement {
-  const id = rollDelveLoot(systemRng)
-  const c = CONSUMABLES[id]
-  if (!DELVE || !c) return $(`<div class="forksub">The room holds nothing of value.</div>`)
-  if (DELVE.bag.length >= RUN_BAG_CAP) return $(`<div class="forksub">Satchel full — the ${c.name} is left behind.</div>`)
-  DELVE.bag.push(id)
-  const tint = c.color != null ? `var(--c${c.color})` : 'var(--line2)'
-  return $(`<div class="lootcard"><span class="loot-lab">loot</span><span class="cons-slot${c.kind === 'scroll' ? ' scroll' : ''}" style="--cc:${tint}"><span class="cons-ic">${c.icon}</span></span><div class="loot-id"><div class="ln">${c.name}</div><div class="ld">${c.desc}</div></div></div>`)
+/** Roll a cleared room's loot (CRAWL §3): gold → the run purse, consumables → the satchel (cap 10).
+ *  Returns the reveal: a gold line + an item card per drop (or a "satchel full" note on overflow). */
+function delveLootReveal(): HTMLElement {
+  const wrap = $(`<div class="lootreveal"></div>`)
+  if (!DELVE) return wrap
+  const loot = rollRoomLoot(V!.state.foe, DELVE.d.room, systemRng)
+  DELVE.gold += loot.gold
+  if (loot.gold > 0) wrap.appendChild($(`<div class="lootgold">🪙 <b>+${loot.gold}</b> gold</div>`))
+  for (const id of loot.items) {
+    const c = CONSUMABLES[id]
+    if (!c) continue
+    if (DELVE.bag.length >= RUN_BAG_CAP) { wrap.appendChild($(`<div class="forksub">Satchel full — the ${c.name} is left behind.</div>`)); continue }
+    DELVE.bag.push(id)
+    const tint = c.color != null ? `var(--c${c.color})` : 'var(--line2)'
+    wrap.appendChild($(`<div class="lootcard"><span class="loot-lab">loot</span><span class="cons-slot${c.kind === 'scroll' ? ' scroll' : ''}" style="--cc:${tint}"><span class="cons-ic">${c.icon}</span></span><div class="loot-id"><div class="ln">${c.name}</div><div class="ld">${c.desc}</div></div></div>`))
+  }
+  if (!wrap.children.length) wrap.appendChild($(`<div class="forksub">The room holds nothing of value.</div>`))
+  return wrap
 }
 
 /** The run satchel as a chip row (the carried consumables — next room's combat loadout). */

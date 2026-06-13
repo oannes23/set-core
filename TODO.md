@@ -259,10 +259,15 @@ Build order (everything sim-gated where it touches contest constants):
   (allocate +3/+2/+1, +5 HP, ★ at 21) runs in town; effective combat stats = BASE + alloc;
   sheet/roster/end-screen show level + XP. Teaching foes carry an `xp` override so the onboarding
   curve lands (dummy→L2, gauntlet→L3). This closes the interim under-level gap (warren = fresh L3).
-- `[ ]` **Loot tables v1** (replaces the delve's placeholder roll): category-first tables +
-  per-tier weights + guaranteed gold + quality advantage + depth scaling + gear pity; gold
-  drops live now, gear/spellbook entries stage in at B3/B4. Instrument gold/run + XP/run in
-  the dev panel (tune the faucet only after the shop lands).
+- `[x]` **Loot tables v1 — SHIPPED 2026-06-13** (`engine/loot.ts` + `ui/bank.ts`; 120 tests):
+  category-first per-tier tables (gold/consumable LIVE; gear/spellbook scaffolded-off until B3/B4)
+  + per-tier drop counts + guaranteed elite/boss gold WAGE + depth scaling (+7%/room) + consumable
+  quality advantage. **Gold is a weightless run counter** (decided: the town plan separates the
+  Gold pool from item Storage), derived from the shared `foeValue` (same as XP) via its own
+  `GOLD_K`. The **shared account vault** (`bank.ts`, its own key — survives death) banks run-gold
+  on any safe exit; **death loses carried gold + a 12% tithe**. ⚠ Full clear ~210g (depth-inflated,
+  ~40% over the first cut) — recalibrate `GOLD_K` when the shop sink exists. Replaced the delve's
+  placeholder one-consumable roll.
 
 ## Open — combat polish (small, optional)
 - `[ ]` **Explain-mid-play tutorial variant** — fire explain-popovers at trigger points during a

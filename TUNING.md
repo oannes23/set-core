@@ -74,12 +74,14 @@ The full design: `CRAWL-DESIGN.md` §3 (progression/loot) + §5.7 (combat amendm
 budget-conformance sim (**`sim/progression-sim.mjs`** — deterministic, run `node sim/progression-sim.mjs`)
 confirmed/derived the numbers below; ⚠ rows marked **sim** changed from the first-cut guesses.
 
-**Status:** the FOE-MODEL rows (✅) shipped in the data rebase; the COMBAT-AMENDMENTS batch
-(dodge, guard-carry, Maneuver live-burn, start-grace rider) shipped next; and **LEVELS & XP
-SHIPPED (2026-06-13)** — ✅ level cap / HP-per-level / stat-points / XP-law / XP-curve are LIVE
-(`save.ts` + the level-up modal; XP banks per kill, allocate +3/+2/+1 in town). Still PLANNED:
-**loot tables** (the last progression-package piece) + the gear/economy builds. (The PARTING-BLOW
-Speed rider waits on the flee parting blow, a deferred B2 item.)
+**Status:** the FOE-MODEL rows shipped in the data rebase; the COMBAT-AMENDMENTS batch (dodge,
+guard-carry, Maneuver live-burn, start-grace rider) shipped next; **LEVELS & XP SHIPPED
+(2026-06-13)** (`save.ts` + the level-up modal); and **LOOT TABLES SHIPPED (2026-06-13)** — ✅
+gold (the shared vault `bank.ts` + run-purse), category-first rolls, guaranteed elite/boss wages,
+depth scaling, the death tithe are LIVE (`loot.ts`). The **progression package is now fully built**
+except the items it depends on: **GEAR (B3)** and **spellbooks (B4)** — their loot categories are
+scaffolded-off until those systems exist. (The PARTING-BLOW Speed rider waits on the flee parting
+blow, a deferred B2 item; `GOLD_K` recalibrates once the shop sink lands.)
 
 **Sim findings (2026-06-12):**
 1. **The telegraph law re-anchors on the contest** *(sim)*: foe round budget =
@@ -117,13 +119,13 @@ Speed rider waits on the flee parting blow, a deferred B2 item.)
 | ✅ XP tier mult (LIVE) | **×1 / ×2 / ×4** | deliberately above the stat ladder (×1/×1.5/×2) — risk beats grinding |
 | ✅ XP curve (LIVE; geometric REJECTED) | **polynomial: need(L→L+1) = 55 × L^1.7** (`xpForLevel`) (display-rounded to 5s), anchored dummy→L2 · gauntlet→L3 · warren = fresh L3 | first warren minion (55 XP) → L2 exactly · 2→3 ≈ an elite + a minion · first boss ≈ a full level · **~29 tier-appropriate clears to ★** · XP always banks, even on death |
 | Gear stat share | **~25%** of endgame stats (~+30–40 pts/kit, ≈+5–7/slot) | gear's identity = per-card riders + slot mechanics (§7), not stats |
-| Drop count | minion **1** · elite **2–3** · boss **5** | plus guaranteed gold ×2 / ×4 (elite/boss) |
-| Category weights | minion **60/30/10** · elite **45/35/20** · boss **30/40/30** (gold/cons/gear) | elites+bosses roll quality with ADVANTAGE (2×, keep better) |
-| Consumable sub-table | **60% potion / 35% scroll / 5% spellbook** | entries stage in as systems land (gear B3, books B4) |
-| Gold scale | minion drop ~3–8g · full warren clear ≈ 100–150g | moderate player banks hundreds; chase items in thousands |
-| Depth scaling | **~+5–10%/room** loot-quality/gold weight | greed aligns with dread; kills shallow cash-out farming |
-| Gear pity | gear weight ticks up per gear-less drop, resets on hit | the elite-sawtooth pattern as bad-luck protection |
-| Death tithe | **~12%** of banked gold | the exit ladder's last number |
+| ✅ Drop count (LIVE) | minion **1** · elite **2–3** · boss **5** | `loot.ts` TABLES; plus a guaranteed gold WAGE ×2 / ×4 (elite/boss) |
+| ✅ Category weights (LIVE) | minion **60/30/10** · elite **45/35/20** · boss **30/40/30** (gold/cons/gear) | elites+bosses roll consumable quality with ADVANTAGE; **gear/spellbook DISABLED (B3/B4)** → their weight redistributes to the live categories (`ENABLED`) |
+| ✅ Consumable sub-table (LIVE) | ~60% tiered potion (tier by depth, advantage keeps the better roll) · ~20% special potion · ~20% scroll | `loot.ts rollConsumable`; spellbooks (the 5% slice) wait on B4 |
+| ✅ Gold scale (LIVE) | `gold = foeValue × GOLD_K 0.12 × depth × ±30%` (minion drop ~4–8g) · **full warren clear ≈ 210g** (depth-inflated) | `loot.ts`; foeValue shared with XP (`foe.ts`). Moderate player banks hundreds; ⚠ runs ~40% over the 100–150 first-cut — recalibrate `GOLD_K` once the shop sink exists |
+| ✅ Depth scaling (LIVE) | **+7%/room** (`DEPTH_RATE`) gold + consumable tier | greed aligns with dread; kills shallow cash-out farming |
+| Gear pity | gear weight ticks up per gear-less drop, resets on hit | ⏳ lands WITH gear (B3) — inert while gear is disabled |
+| ✅ Death tithe (LIVE) | **12%** of banked gold (`bank.ts DEATH_TITHE`) | a run-ending death also loses the run's carried gold |
 | ✅ Dodge (LIVE) | base **10%** · `DODGE_K` **0.015**/pt of S edge · clamp **[3%, 40%]** · per **swing** · rolled AT THE DEAL, folded into the ⚔ | strikes only; at K 0.015 dodge alone ≈ half a P/E point (ΔS 10.3 vs ΔE 20.3 winrate pts on the boss bench) — the charge agency the model can't price carries the rest; playtest re-read flagged |
 | ✅ Guard carry (LIVE) | Block persists through windups, **capped at the revealed telegraph** | strikeEvery>1 foes reveal ⚔ at windup start; guard drops only after a strike resolves |
 | ✅ Maneuver live-burn (LIVE) | **~1 charge/sec**, gather **~1.5–2s** to enter, bail-out to SG instant (keeps remainder) | replaces the rollover dump; burn rate = the scan-stability dial |
