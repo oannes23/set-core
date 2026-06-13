@@ -16,7 +16,7 @@ pending the derivation-sheet sim — directionally settled, numerically sim-fodd
 | A3 | The decimal rebase | HP 100 · stats 10 (both combatants carry P/E/S) |
 | A4 | Even = average | at stat parity + baseline play the exchange is even: a mag-6 Defend set ≈ neutralizes the average telegraph (~25); a mag-6 Attack set ≈ 25 |
 | A5 | Tiers are output multipliers | minion ×1.0 · elite ×1.5 · boss ×2.0 of baseline output (skill and gear are interchangeable against the ladder) |
-| A6 | Kill budgets per tier | **OPEN** — rounds-to-kill targets, set with the headless budget-conformance sim |
+| A6 | Kill budgets per tier | **SETTLED (sim, 2026-06-12):** rounds-to-kill at baseline 6/6/6 — minion **2.5** · elite **5** · boss **10** (50s/100s/200s; competent ≈ ×2 halves them). Foe HP derives from the budget: **60 / 110 / 200, level-invariant** (difference math) |
 
 ## Rounds v3 — the round grammar (LIVE)
 
@@ -68,20 +68,47 @@ Per card: `rate(yourStat, theirOpposed) × QUALITY[mag]`, QUALITY = ①×0.7 ②
 | `COMBAT_GEN.floor` | 1 | `src/engine/combat.ts` | Minimum makeable sets, always (⚠ assert vs worst-case wounds+locks in the sim) |
 | `BIAS_W` | 8 | `src/engine/select.ts` | Transmute favour weight (mid-round regen is NEUTRAL — bias expresses only via the dump) |
 
-## Progression & loot — PLANNED (settled 2026-06-12; NOT yet in code, GATED by the budget sim)
+## Progression & loot — PLANNED (settled 2026-06-12; **SIM-DERIVED same day**, NOT yet in code)
 
-The full design: `CRAWL-DESIGN.md` §3 (progression/loot) + §5.7 (combat amendments). Every
-number below is a first cut for the sim to confirm or move.
+The full design: `CRAWL-DESIGN.md` §3 (progression/loot) + §5.7 (combat amendments). The
+budget-conformance sim (**`sim/progression-sim.mjs`** — deterministic, run `node sim/progression-sim.mjs`)
+confirmed/derived the numbers below; ⚠ rows marked **sim** changed from the first-cut guesses.
+
+**Sim findings (2026-06-12):**
+1. **The telegraph law re-anchors on the contest** *(sim)*: foe round budget =
+   `rate(P_foe, E_player) × 3.1 × tierOut` — at parity 25×tier at EVERY level. The raw-P form
+   (`P × 2.5`) breaks A4 past the narrow band (parity mitigation is level-invariant in a
+   difference system; raw-P budgets would grow ~5×). **`DMG_BUDGET_K` retires** with the rebase.
+2. **Tempo bands survive UNCHANGED** *(sim — kills the "×6 bands" guess)*: they read the foe's
+   OWN S−P, and role spreads author level-invariant (±9 around the parity line).
+3. **Geometric XP is rejected** *(sim)*: XP income grows ~linearly with the parity line, so a
+   geometric requirement walls off (~70 clears to cap) AND undershoots the 2→3 anchor. The
+   curve is **polynomial**.
+4. **The guard-carry fix is confirmed**: under the live reset rule, slow archetypes push
+   **+30–55% more damage** through than their budget peers (the felt "slow foes feel harder",
+   quantified); the carry rule levels the row without making giants free.
+5. **Conformance is level-invariant** ✓ (same-tier winrates hold across L3/L12/L20 at every
+   skill) — provided **trap/tick severity authors ∝ intended-level HP** (≈6%·tier of expected
+   maxHP); flat numbers let bulk eat the threat layer.
+6. **The floor-stress test caught a real engine bug** (fixed in `triggers.ts`, live): blind
+   wound picks broke the makeable-set floor in ~13% of locks-then-wounds exchanges.
+   `inflictWounds` is now floor-aware (prefer floor-keeping slots → consume a locked card →
+   only then break; `floor-stress.test.ts` asserts both orders across 600 seeds).
 
 | Constant | Value | Meaning |
 |---|---|---|
 | Level cap | **21** (numeric to 20, then ★) | the cap badge |
 | HP / level | **+5** | 100 → 200 at cap; gear/passives ~+100 → ~300 practical ceiling |
 | Stat points / level | **+3/+2/+1, player-allocated** | +6/level, +120 arc; focused main ≈ +60 |
-| Re-denomination | `RATE_K` ÷ ~6 · tempo bands × ~6 · endgame foes ≈ 40–80 | difference-based contests; re-derive per-point constants in ONE sim pass (with the data rebase) |
+| Re-denomination *(sim)* | `RATE_K` **0.2** (was 0.8) · `MOVE_RATE_K` **0.025** (was 0.1) · tempo bands **UNCHANGED** · clamps keep [2,20] / [0.2,3] | +1 main-stat level = +7.5% lane at parity · focused-vs-balanced (±20) = +48% · full kit (+12/stat) = +30% · clamp binds at ±60 diff |
+| Parity line *(sim)* | foe parity stat = **10 + 2·(intended level − 1)** → L3=14 · L12=32 · L20=48 | endgame foes 40–80 ✓; the data rebase authors against this line |
+| Role spreads *(sim)* | swift −2P/+5S · steady 0 · heavy +2P/−5S · giant +4P/−9S, **level-invariant** · elite/boss E bump **+4/+8** | spreads land each tempo band; never widen with level (that's why the bands survive) |
+| Telegraph law *(sim)* | foe budget = `rate(P_f, E_p) × 3.1 × tierOut` (parity → 25×tier at every level) | replaces raw `P × DMG_BUDGET_K` (which breaks A4 over the arc) |
+| Foe HP *(sim)* | minion **60** · elite **110** · boss **200** — level-invariant, derived from A6 | the live rebased warren minions already sit on this line |
+| Trap severity *(sim)* | author ∝ intended-level HP: ≈ **6% · tierOut of expected maxHP** per hit | flat numbers let bulk eat the threat layer (boss row drifted 37→90% before this) |
 | XP law | `(hp/10 + P + E + S) × (1 + 0.15·traps) × tierMult` | computed, never authored; retires the `xp` field |
 | XP tier mult | **×1 / ×2 / ×4** | deliberately above the stat ladder (×1/×1.5/×2) — risk beats grinding |
-| XP curve | geometric **~×1.45**, anchored dummy→L2 · gauntlet→L3 · warren = fresh L3 | XP always banks, even on death |
+| XP curve *(sim — geometric REJECTED)* | **polynomial: need(L→L+1) = 55 × L^1.7** (display-rounded to 5s), anchored dummy→L2 · gauntlet→L3 · warren = fresh L3 | first warren minion (55 XP) → L2 exactly · 2→3 ≈ an elite + a minion · first boss ≈ a full level · **~29 tier-appropriate clears to ★** · XP always banks, even on death |
 | Gear stat share | **~25%** of endgame stats (~+30–40 pts/kit, ≈+5–7/slot) | gear's identity = per-card riders + slot mechanics (§7), not stats |
 | Drop count | minion **1** · elite **2–3** · boss **5** | plus guaranteed gold ×2 / ×4 (elite/boss) |
 | Category weights | minion **60/30/10** · elite **45/35/20** · boss **30/40/30** (gold/cons/gear) | elites+bosses roll quality with ADVANTAGE (2×, keep better) |
@@ -90,7 +117,7 @@ number below is a first cut for the sim to confirm or move.
 | Depth scaling | **~+5–10%/room** loot-quality/gold weight | greed aligns with dread; kills shallow cash-out farming |
 | Gear pity | gear weight ticks up per gear-less drop, resets on hit | the elite-sawtooth pattern as bad-luck protection |
 | Death tithe | **~12%** of banked gold | the exit ladder's last number |
-| Dodge | base **~10%** at parity · per **swing** · rolled AT THE DEAL, folded into the ⚔ | strikes only; Speed weight = charges + dodge jointly ≈ a P/E point; per-point K set with the re-denomination |
+| Dodge *(sim)* | base **10%** · `DODGE_K` **0.015**/pt of S edge · clamp **[3%, 40%]** · per **swing** · rolled AT THE DEAL, folded into the ⚔ | strikes only; at K 0.015 dodge alone ≈ half a P/E point (ΔS 10.3 vs ΔE 20.3 winrate pts on the boss bench) — the charge agency the model can't price carries the rest; playtest re-read flagged |
 | Guard carry | Block persists through windups, **capped at the revealed telegraph** | strikeEvery>1 foes reveal ⚔ at windup start; guard drops only after a strike resolves |
 | Maneuver live-burn | **~1 charge/sec**, gather **~1.5–2s** to enter, bail-out to SG instant (keeps remainder) | replaces the rollover dump; burn rate = the scan-stability dial |
 | Speed riders | parting blow ↓ with Speed edge · start grace ↑ with Speed edge | the escape stat |

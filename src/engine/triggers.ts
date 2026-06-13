@@ -309,7 +309,22 @@ export function inflictWounds(s: CombatState, hpDamage: number, rng: Rng, sink: 
   const shattered: number[] = []
   for (let k = 0; k < n; k++) {
     if (tryWard(s, 'shatter', sink)) continue
-    const [i] = pickRandom(liveSlots(s), 1, rng)
+    // FLOOR-AWARE pick (the lock-layer invariant, TRAPS §6 / CLAUDE.md hard rule 2 — the
+    // floor-stress test caught blind picks breaking the makeable floor in ~13% of
+    // locks-then-wounds exchanges): prefer a live slot whose shatter keeps ≥ floor sets
+    // makeable from live, unlocked cards; else the wound consumes a LOCKED card (out of reach
+    // anyway — the shatter eats the lock with it); else any live slot (no floor-preserving
+    // option exists — the 1-knit-per-draw-phase law is the recovery path).
+    const live = liveSlots(s)
+    const lockedKeys = [...s.locked.keys()]
+    const keepers = live.filter((j) => countSetsExcluding(s.board, new Set([...lockedKeys, j])) >= s.gen.floor)
+    let i: number | undefined = pickRandom(keepers, 1, rng)[0]
+    if (i == null) {
+      const lockedLive = lockedKeys.filter((j) => s.board[j] != null && !s.pending.has(j))
+      i = pickRandom(lockedLive, 1, rng)[0]
+      if (i != null) s.locked.delete(i)
+    }
+    if (i == null) i = pickRandom(live, 1, rng)[0]
     if (i == null) break
     s.board[i] = null
     s.pending.set(i, { reformAt: 0, wound: true }) // never time-reforms (the reducer skips wound pendings)

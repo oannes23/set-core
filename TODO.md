@@ -166,18 +166,21 @@ Build scope (before B3 gear; doesn't collide with B2's run shell — combat-only
   migration, ×3 player-number sweep, legacy trap-damage scale); **Defend overflow → charges
   REMOVED** (excess block = pure loss; Sentinel = the paid exception). Axioms + first-cut
   constants: `TUNING.md`; spec: CRAWL §5.6. 92 tests passing.
-- `[ ]` **Numbers workshop (remaining — RESCOPED 2026-06-12, now gates the progression
-  package too):** the headless **budget-conformance sim** vs the axioms (A6 kill budgets per
-  tier = the open number) · the **re-denomination** (the +3/+2/+1 level arc widens the stat
-  band ~6× → re-derive `RATE_K`/`MOVE_RATE_K`/tempo bands/tier anchors in ONE pass; endgame
-  foes authored ≈ 40–80) · the **data rebase** (author P/E/S per creature ON THE WIDE BAND;
-  retire the foe.ts bridge + legacy ×10/3 scales + the authored `xp` field — XP is computed
-  now; variant/template `stat_mod` → stat deltas; per-foe tempo OVERRIDE field) · **XP-curve
-  derivation** (geometric ~×1.45 anchored dummy→2 / gauntlet→3 / warren=fresh-3; warren
-  re-tunes slightly harder, erring easy) · **dodge EV parity** (charges + dodge jointly ≈ a
-  P/E point) · **mitigation-efficiency vs strikeEvery** assertion (confirms the guard-carry
-  fix levels the speed tiers) · stall-kit FINAL ruling (round extension is the flagged
-  interim) · re-derive the player ×3 sweep properly.
+- `[~]` **Numbers workshop — SIM RUN 2026-06-12 (`sim/progression-sim.mjs`; derivations in
+  TUNING.md "PLANNED" + the sim-findings block).** DONE: **A6 kill budgets** (2.5/5/10 rounds →
+  foe HP 60/110/200, level-invariant) · the **re-denomination** (`RATE_K` 0.2, `MOVE_RATE_K`
+  0.025, tempo bands UNCHANGED — role spreads author level-invariant; parity line `10+2(L−1)`;
+  **telegraph law re-anchors on the contest**, `DMG_BUDGET_K` retires) · **XP curve** (geometric
+  REJECTED → polynomial `55 × L^1.7`, ~29 clears to ★) · **dodge EV** (`DODGE_K` 0.015, dodge ≈
+  half a P/E point + agency) · **mitigation vs strikeEvery** (live rule lets slow foes push
+  +30–55% extra through; guard-carry levels it) · **FLOOR stress** (`floor-stress.test.ts`) —
+  caught + FIXED a real bug: `inflictWounds` is now floor-aware (blind picks broke the makeable
+  floor in ~13% of locks-then-wounds exchanges) · trap-severity authoring guideline (∝
+  intended-level HP, ≈6%·tier). STILL OPEN: the **data rebase** (author P/E/S per creature on
+  the parity line; retire the foe.ts bridge + legacy scales + the authored `xp` field;
+  variant/template `stat_mod` → stat deltas; per-foe tempo OVERRIDE) · stall-kit FINAL ruling
+  (round extension is the flagged interim) · the live warren re-tune + instrument re-targets
+  (re-measure after the amendments land — the model's trap tax is a stand-in).
 - `[ ]` **UI:** the Tactics wheel (7 states; lit = locked, ghost = queued), round bar (the bar
   IS the round), rollover choreography (swing→swing→dump→deal→telegraph), wound-row rendering,
   the **"sated guard" cue** (block badge dims once it meets the telegraph — over-matching must
@@ -232,8 +235,10 @@ live-burn** (~1/s, gather to enter, instant bail-out) · Speed riders (parting b
 grace ↑) · smash-art declarations (Persona/Mörk Borg register) over a paused, dimmed board.
 
 Build order (everything sim-gated where it touches contest constants):
-- `[ ]` **The sim pass** — the rescoped numbers workshop above is the GATE for the
-  re-denomination, the XP curve, dodge K, and the warren re-tune. Run it FIRST.
+- `[x]` **The sim pass — RUN 2026-06-12** (`sim/progression-sim.mjs`; see the workshop item
+  above): re-denomination, A6, XP curve, dodge K all derived; the floor-stress test landed a
+  real engine fix (floor-aware wounds). The package is UNGATED for building (the data rebase
+  remains its own item).
 - `[ ]` **Combat amendments batch** (engine+UI, after the sim): per-swing deal-time dodge +
   💨 telegraph tags + the DODGED! smash card & free-round guard cue · guard carry through
   windups + early telegraph reveal + sated-cue extension · Maneuver live-burn (gather /

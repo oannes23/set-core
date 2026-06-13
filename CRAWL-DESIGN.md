@@ -162,23 +162,30 @@ budget-conformance sim; constants tabled in `TUNING.md` "Progression & loot — 
   (+3 to one of P/E/S, your pick; +2 and +1 to the others) → +6/level, **+120 over the arc**;
   a focused main stat ends ~+60 over base, a balanced spread ~+40 each. Pre-gear build
   identity lives here (classes start stat-uniform).
-- **The re-denomination corollary:** contests are DIFFERENCE-based, so the wide point arc
-  re-derives every per-point constant in one pass — `RATE_K` ÷ ~6, the tempo-law bands × ~6,
-  dodge-K, the tier budget anchors — and endgame foes are authored on the wider band (≈ 40–80).
-  Folds into the **data rebase**; the sim is the gate. The wound/heal laws are already
-  scale-free (`maxHP/10`). The prize difference-math hands us free: outleveled content goes
-  automatically trivial — returning to the warren at 15 and flattening goblins is a real reward.
+- **The re-denomination corollary (SIM-DERIVED 2026-06-12 — `sim/progression-sim.mjs`,
+  constants in `TUNING.md`):** contests are DIFFERENCE-based, so the wide point arc re-derives
+  the per-point constants — `RATE_K` 0.8 → **0.2**, `MOVE_RATE_K` 0.1 → **0.025**; the
+  **tempo bands survive UNCHANGED** (they read the foe's own S−P, and role spreads author
+  level-invariant). Foes author against the **parity line `10 + 2(L−1)`** (endgame 40–80) and
+  the **telegraph re-anchors on the contest** (`budget = rate(P_f, E_p) × 3.1 × tier` — raw
+  `P × 2.5` breaks A4 over the arc and retires). The wound/heal laws are already scale-free
+  (`maxHP/10`). The prize difference-math hands us free: outleveled content goes automatically
+  trivial — returning to the warren at 15 and flattening goblins is a real reward.
 - **XP is COMPUTED from the foe statline, never authored** (the wounds/tempo-law aesthetic —
   new foes self-price): `XP = (hp/10 + P + E + S) × (1 + 0.15·trapCount) × tierMult`, with
   **tierMult ×1 / ×2 / ×4** (minion/elite/boss) — deliberately ABOVE the stat ladder's
   ×1/×1.5/×2, so harder targets always beat grinding per minute (the economic anti-stall).
   The authored `xp` field retires with the data rebase.
-- **Curve anchors (settled):** geometric (~×1.45/level), pinned at the bottom: beating the
-  **tutorial dummy → level 2**; clearing the **training gauntlet → level 3**; the real dungeons
-  assume a **fresh level-3 entrant** (⚠ re-tune the warren slightly harder for stat growth —
-  but err EASY, new players land there). A skilled player skipping the tutorials hits 2 off
-  their **first warren minion** and 3 a few minions (or one elite) later. **XP always banks,
-  even on death** — the curve itself is the catch-up valve.
+- **Curve anchors (settled; SHAPE SIM-DERIVED 2026-06-12):** **polynomial —
+  `need(L→L+1) = 55 × L^1.7`** (geometric REJECTED by the sim: XP income grows ~linearly with
+  the parity line, so a geometric requirement walls off at ~70 clears AND undershoots the 2→3
+  anchor). Pinned at the bottom: beating the **tutorial dummy → level 2**; clearing the
+  **training gauntlet → level 3**; the real dungeons assume a **fresh level-3 entrant** (⚠
+  re-tune the warren slightly harder for stat growth — but err EASY, new players land there).
+  A skilled player skipping the tutorials hits 2 off their **first warren minion** (55 XP =
+  need(1→2) exactly) and 3 an elite-plus-a-minion later; the first boss kill ≈ a full level;
+  **~29 tier-appropriate clears to ★**. **XP always banks, even on death** — the curve itself
+  is the catch-up valve.
 - Each level grants **+HP + stat points** as above and (periodically) **+1 ability slot**.
 - **Classes** start with **~4 abilities + 1 signature set-passive** (the class
   identity trigger, e.g. Rogue's Move→Attack bias). Ability slots cap how many
