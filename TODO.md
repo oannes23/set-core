@@ -254,8 +254,11 @@ Build order (everything sim-gated where it touches contest constants):
   **parting-blow** Speed rider — waits on the flee parting blow (the B2 exit-ladder item).
   ⚠ Interim: a fresh L1 player (10/10/10) is still under-leveled vs the parity-14 warren until
   the levels build; re-measure the dev instruments + warren tune after levels land.
-- `[ ]` **Levels & XP** (rides the B2 economy build): XP from the computed law + the level-up
-  flow (allocate +3/+2/+1, +5 HP, ★ at 21) + save-schema bump (level/xp/allocations).
+- `[x]` **Levels & XP — SHIPPED 2026-06-13** (`save.ts` v3 schema + the level-up modal; 110 tests):
+  XP from `computeXP` banks per kill (always, even on death) → the character; the level-up flow
+  (allocate +3/+2/+1, +5 HP, ★ at 21) runs in town; effective combat stats = BASE + alloc;
+  sheet/roster/end-screen show level + XP. Teaching foes carry an `xp` override so the onboarding
+  curve lands (dummy→L2, gauntlet→L3). This closes the interim under-level gap (warren = fresh L3).
 - `[ ]` **Loot tables v1** (replaces the delve's placeholder roll): category-first tables +
   per-tier weights + guaranteed gold + quality advantage + depth scaling + gear pity; gold
   drops live now, gear/spellbook entries stage in at B3/B4. Instrument gold/run + XP/run in

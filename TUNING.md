@@ -74,12 +74,12 @@ The full design: `CRAWL-DESIGN.md` §3 (progression/loot) + §5.7 (combat amendm
 budget-conformance sim (**`sim/progression-sim.mjs`** — deterministic, run `node sim/progression-sim.mjs`)
 confirmed/derived the numbers below; ⚠ rows marked **sim** changed from the first-cut guesses.
 
-**Status:** the FOE-MODEL rows (✅ below — re-denomination, parity line, role spreads, telegraph
-law, foe HP) **SHIPPED in the data rebase (2026-06-12)** and are now LIVE in the Resolution v3
-table above. The **COMBAT-AMENDMENTS batch SHIPPED (2026-06-12)** too — ✅ dodge, guard-carry +
-early reveal, Maneuver live-burn, and the start-grace Speed rider are LIVE (Rounds v3 table above).
-Still PLANNED: levels/HP/stat-points, the XP curve, loot — they land in the levels/loot build.
-(The PARTING-BLOW Speed rider waits on the flee parting blow, a deferred B2 item.)
+**Status:** the FOE-MODEL rows (✅) shipped in the data rebase; the COMBAT-AMENDMENTS batch
+(dodge, guard-carry, Maneuver live-burn, start-grace rider) shipped next; and **LEVELS & XP
+SHIPPED (2026-06-13)** — ✅ level cap / HP-per-level / stat-points / XP-law / XP-curve are LIVE
+(`save.ts` + the level-up modal; XP banks per kill, allocate +3/+2/+1 in town). Still PLANNED:
+**loot tables** (the last progression-package piece) + the gear/economy builds. (The PARTING-BLOW
+Speed rider waits on the flee parting blow, a deferred B2 item.)
 
 **Sim findings (2026-06-12):**
 1. **The telegraph law re-anchors on the contest** *(sim)*: foe round budget =
@@ -104,18 +104,18 @@ Still PLANNED: levels/HP/stat-points, the XP curve, loot — they land in the le
 
 | Constant | Value | Meaning |
 |---|---|---|
-| Level cap | **21** (numeric to 20, then ★) | the cap badge |
-| HP / level | **+5** | 100 → 200 at cap; gear/passives ~+100 → ~300 practical ceiling |
-| Stat points / level | **+3/+2/+1, player-allocated** | +6/level, +120 arc; focused main ≈ +60 |
+| ✅ Level cap (LIVE) | **21** (numeric to 20, then ★) | `LEVEL_CAP` in `save.ts`; the cap badge |
+| ✅ HP / level (LIVE) | **+5** (`HP_PER_LEVEL`) | 100 → 200 at cap (`maxHpForLevel`); gear/passives ~+100 → ~300 ceiling |
+| ✅ Stat points / level (LIVE) | **+3/+2/+1, player-allocated** (level-up modal) | +6/level, +120 arc; effective stats = BASE + alloc (`effectiveStats`) |
 | ✅ Re-denomination (LIVE) | `RATE_K` **0.2** (was 0.8) · `MOVE_RATE_K` **0.025** (was 0.1) · tempo bands **UNCHANGED** · clamps keep [2,20] / [0.2,3] | +1 main-stat level = +7.5% lane at parity · focused-vs-balanced (±20) = +48% · full kit (+12/stat) = +30% · clamp binds at ±60 diff |
 | ✅ Parity line (LIVE) | foe parity stat = **10 + 2·(intended level − 1)** → L3=14 · L12=32 · L20=48 | endgame foes 40–80 ✓; the data rebase authors against this line |
 | ✅ Role spreads (LIVE) | swift −2P/+5S · steady 0 · heavy +2P/−5S · giant +4P/−9S, **level-invariant** · elite/boss E bump **+4/+8** | spreads land each tempo band; never widen with level (that's why the bands survive) |
 | ✅ Telegraph law (LIVE) | foe budget = `rate(P_f, E_p) × 3.1 × tierOut` (parity → 25×tier at every level) | replaces raw `P × DMG_BUDGET_K` (which breaks A4 over the arc) |
 | ✅ Foe HP (LIVE) | minion **60** · elite **110** · boss **200** — level-invariant, derived from A6 | the live rebased warren minions already sit on this line |
 | Trap severity *(sim)* | author ∝ intended-level HP: ≈ **6% · tierOut of expected maxHP** per hit | flat numbers let bulk eat the threat layer (boss row drifted 37→90% before this) |
-| XP law | `(hp/10 + P + E + S) × (1 + 0.15·traps) × tierMult` | computed, never authored; retires the `xp` field |
-| XP tier mult | **×1 / ×2 / ×4** | deliberately above the stat ladder (×1/×1.5/×2) — risk beats grinding |
-| XP curve *(sim — geometric REJECTED)* | **polynomial: need(L→L+1) = 55 × L^1.7** (display-rounded to 5s), anchored dummy→L2 · gauntlet→L3 · warren = fresh L3 | first warren minion (55 XP) → L2 exactly · 2→3 ≈ an elite + a minion · first boss ≈ a full level · **~29 tier-appropriate clears to ★** · XP always banks, even on death |
+| ✅ XP law (LIVE) | `(hp/10 + P + E + S) × (1 + 0.15·traps) × tierMult` | `foe.ts computeXP`; computed — except a teaching-foe `xp` override (dummy/gauntlet, for the onboarding curve) |
+| ✅ XP tier mult (LIVE) | **×1 / ×2 / ×4** | deliberately above the stat ladder (×1/×1.5/×2) — risk beats grinding |
+| ✅ XP curve (LIVE; geometric REJECTED) | **polynomial: need(L→L+1) = 55 × L^1.7** (`xpForLevel`) (display-rounded to 5s), anchored dummy→L2 · gauntlet→L3 · warren = fresh L3 | first warren minion (55 XP) → L2 exactly · 2→3 ≈ an elite + a minion · first boss ≈ a full level · **~29 tier-appropriate clears to ★** · XP always banks, even on death |
 | Gear stat share | **~25%** of endgame stats (~+30–40 pts/kit, ≈+5–7/slot) | gear's identity = per-card riders + slot mechanics (§7), not stats |
 | Drop count | minion **1** · elite **2–3** · boss **5** | plus guaranteed gold ×2 / ×4 (elite/boss) |
 | Category weights | minion **60/30/10** · elite **45/35/20** · boss **30/40/30** (gold/cons/gear) | elites+bosses roll quality with ADVANTAGE (2×, keep better) |

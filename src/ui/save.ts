@@ -10,31 +10,74 @@
    are dropped (not crashed on); numeric fields are clamped. The account-level bank store (gold/storage,
    TODO §town-economy) will be a SEPARATE key with this same envelope pattern. */
 
-import { DEFAULT_PLAYER_MAX } from '../engine/state'
+import { DEFAULT_PLAYER_MAX, BASE_STATS, type StatBlock } from '../engine/state'
+
+/** A character's allocated stat points (cumulative across level-ups; +3/+2/+1 per level). */
+export interface StatAlloc { power: number; endurance: number; speed: number }
 
 export interface SavedChar {
   id: string
   name: string
   classId: string
   hp: number
-  maxHp: number
+  maxHp: number // = maxHpForLevel(level); the single source of truth is `level`
+  level: number // 1..LEVEL_CAP (21 = ★)
+  xp: number // banked progress toward the NEXT level (always banks, even on death)
+  alloc: StatAlloc // points distributed at level-ups; effective stats = BASE_STATS + alloc
   consumables: string[] // the 3-slot consumable loadout (interim — becomes run-state in B2, see TODO)
-  // grows later: level/xp, gold, abilities[], gear{}
+  // grows later: gold, abilities[], gear{}
 }
 
 const KEY = 'setcore.roster.v1' // stable — versioning lives in the payload envelope, not the key
-const SCHEMA_V = 2 // 1 = legacy bare SavedChar[] · 2 = { v, chars } envelope
+const SCHEMA_V = 3 // 1 = legacy bare array · 2 = { v, chars } envelope · 3 = + level/xp/alloc
 export const DEFAULT_MAX_HP = DEFAULT_PLAYER_MAX
 export const CONSUMABLE_SLOTS = 3
 export const STARTER_CONSUMABLES = ['hp_std', 'speed_std', 'stoneskin_std'] // a class-agnostic opener
+
+// --- PROGRESSION (CRAWL §3 / TUNING.md, sim-derived 2026-06-12) ---
+export const LEVEL_CAP = 21 // numeric to 20; 21 renders as ★
+export const HP_PER_LEVEL = 5 // 100 → 200 at cap
+/** XP needed to climb FROM `level` to level+1: polynomial 55·L^1.7 (geometric walls off — §3),
+ *  display-rounded to 5s. L1→2 = 55 (one warren minion); L2→3 ≈ 180. */
+export function xpForLevel(level: number): number {
+  return Math.round((55 * Math.pow(level, 1.7)) / 5) * 5
+}
+export const maxHpForLevel = (level: number): number => DEFAULT_MAX_HP + HP_PER_LEVEL * (level - 1)
+/** Combat statline = the parity-line base + the points the player has allocated. */
+export function effectiveStats(c: SavedChar): StatBlock {
+  return { power: BASE_STATS.power + c.alloc.power, endurance: BASE_STATS.endurance + c.alloc.endurance, speed: BASE_STATS.speed + c.alloc.speed }
+}
+/** How many level-ups the banked XP currently affords (capped at LEVEL_CAP) — pure, non-mutating. */
+export function pendingLevels(c: SavedChar): number {
+  let lvl = c.level
+  let xp = c.xp
+  let gained = 0
+  while (lvl < LEVEL_CAP && xp >= xpForLevel(lvl)) { xp -= xpForLevel(lvl); lvl++; gained++ }
+  return gained
+}
+/** Apply ONE level-up with the player's chosen allocation (deltas summing to 6 — a +3/+2/+1
+ *  permutation over P/E/S). Spends one level's XP, bumps level + maxHp (+HP_PER_LEVEL to current
+ *  HP too, a small level heal). Returns a NEW char (pure). Caller gates on pendingLevels > 0. */
+export function applyLevelUp(c: SavedChar, delta: StatAlloc): SavedChar {
+  const level = Math.min(LEVEL_CAP, c.level + 1)
+  const maxHp = maxHpForLevel(level)
+  return {
+    ...c,
+    level,
+    xp: Math.max(0, c.xp - xpForLevel(c.level)),
+    alloc: { power: c.alloc.power + delta.power, endurance: c.alloc.endurance + delta.endurance, speed: c.alloc.speed + delta.speed },
+    maxHp,
+    hp: Math.min(maxHp, c.hp + HP_PER_LEVEL),
+  }
+}
 
 interface Envelope { v: number; chars: unknown[] }
 
 /** v(n) → v(n+1) payload migrations. One entry per schema bump; `migrate` folds them in order.
  *  (v1→v2 is the envelope-wrapping itself, handled in parseRoster.) */
 const MIGRATIONS: Record<number, (e: Envelope) => Envelope> = {
-  // example for the next bump:
-  // 2: (e) => ({ v: 3, chars: e.chars.map((c) => ({ ...(c as object), gold: 0 })) }),
+  // v2→v3: seed the progression fields (level 1, no XP, no allocated points)
+  2: (e) => ({ v: 3, chars: e.chars.map((c) => ({ ...(c as object), level: 1, xp: 0, alloc: { power: 0, endurance: 0, speed: 0 } })) }),
 }
 
 function migrate(env: Envelope): Envelope {
@@ -53,16 +96,19 @@ export function sanitizeChar(x: unknown): SavedChar | null {
   if (typeof x !== 'object' || x === null) return null
   const c = x as Partial<SavedChar>
   if (typeof c.id !== 'string' || !c.id || typeof c.name !== 'string' || typeof c.classId !== 'string') return null
-  let maxHp = clampInt(c.maxHp, 1, 999, DEFAULT_MAX_HP)
+  const level = clampInt(c.level, 1, LEVEL_CAP, 1)
+  const xp = Math.max(0, typeof c.xp === 'number' && Number.isFinite(c.xp) ? Math.round(c.xp) : 0)
+  const a = (c.alloc ?? {}) as Partial<StatAlloc>
+  const alloc: StatAlloc = { power: clampInt(a.power, 0, 999, 0), endurance: clampInt(a.endurance, 0, 999, 0), speed: clampInt(a.speed, 0, 999, 0) }
+  // maxHp derives from level (the single source of truth) — except a pre-rebase HP-30 save, whose
+  // hp is scaled into the HP-100 world before the level baseline applies.
+  const maxHp = maxHpForLevel(level)
   let hp = clampInt(c.hp, 0, maxHp, maxHp)
-  if (maxHp === 30) { // pre-rebase save (the HP-30 world) → migrate to HP 100, hp scaled in proportion
-    hp = Math.round((hp / 30) * DEFAULT_MAX_HP)
-    maxHp = DEFAULT_MAX_HP
-  }
+  if (c.maxHp === 30) hp = Math.min(maxHp, Math.round((hp / 30) * DEFAULT_MAX_HP))
   const consumables = Array.isArray(c.consumables)
     ? c.consumables.filter((s): s is string => typeof s === 'string').slice(0, CONSUMABLE_SLOTS)
     : STARTER_CONSUMABLES.slice()
-  return { id: c.id, name: c.name, classId: c.classId, hp, maxHp, consumables }
+  return { id: c.id, name: c.name, classId: c.classId, hp, maxHp, level, xp, alloc, consumables }
 }
 
 /** Parse a raw stored payload into a clean roster: envelope-or-legacy detect → migrate → sanitize.
@@ -113,8 +159,8 @@ export function upsert(roster: SavedChar[], c: SavedChar): SavedChar[] {
 export function remove(roster: SavedChar[], id: string): SavedChar[] {
   return roster.filter((c) => c.id !== id)
 }
-export function makeChar(name: string, classId: string, id: string, maxHp = DEFAULT_MAX_HP): SavedChar {
-  return { id, name, classId, hp: maxHp, maxHp, consumables: STARTER_CONSUMABLES.slice() }
+export function makeChar(name: string, classId: string, id: string): SavedChar {
+  return { id, name, classId, hp: DEFAULT_MAX_HP, maxHp: DEFAULT_MAX_HP, level: 1, xp: 0, alloc: { power: 0, endurance: 0, speed: 0 }, consumables: STARTER_CONSUMABLES.slice() }
 }
 
 // ---- convenience wrappers (load → transform → save) ----

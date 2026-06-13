@@ -19,16 +19,16 @@ import { ABILITIES, canAfford, ABILITY_PREVIEW } from '../engine/abilities'
 import { SHAPE_MOVE, matchDescriptor } from '../engine/resolve'
 import { condMet } from '../engine/triggers'
 import { PASSIVES } from '../engine/passives'
-import { assembleFoe, pickWeightedFoe } from '../engine/foe'
+import { assembleFoe, pickWeightedFoe, computeXP } from '../engine/foe'
 import { colsForN, COMBAT_GEN, type Deps, type CombatAction } from '../engine/combat'
 import { createRun, runReduce, type RunState } from '../engine/run'
 import { createDelve, nextEncounter, fleeReroll, dreadBand, rollDelveLoot, RUN_BAG_CAP, type DelveState, type EncounterTier } from '../engine/delve'
 import { CONSUMABLES } from '../engine/consumables'
-import type { CombatState, FoeRuntime, ManeuverBias } from '../engine/state'
-import { CHARGE_CAP, MANA_CAP, BASE_STATS, START_GRACE_MS, ROUND_MS, WOUND_WARD_COST, WOUND_CAP_PER_EXCHANGE, woundQuantum } from '../engine/state'
+import type { CombatState, FoeRuntime } from '../engine/state'
+import { CHARGE_CAP, MANA_CAP, START_GRACE_MS, ROUND_MS, WOUND_WARD_COST, WOUND_CAP_PER_EXCHANGE, woundQuantum } from '../engine/state'
 import type { CombatEvent } from '../engine/events'
 import { bumpTurn, pick, strikeWord, healWord, drainWord, magicLead, tierOf, joinClauses, voiceOf, ABILITY_FLAVOR } from './flavor'
-import { type SavedChar, loadRoster, upsertChar, deleteChar, makeChar, freshId, CONSUMABLE_SLOTS } from './save'
+import { type SavedChar, type StatAlloc, loadRoster, upsertChar, deleteChar, makeChar, freshId, CONSUMABLE_SLOTS, effectiveStats, xpForLevel, pendingLevels, applyLevelUp, LEVEL_CAP } from './save'
 
 const GEN: GenConfig = COMBAT_GEN
 /** one shared reduced-motion query — card feel (tilt/flights/staggers) falls back to fades */
@@ -106,7 +106,7 @@ interface View {
   boardSig: string
   refs: Record<string, HTMLElement>
   /** running combat tallies for the end-of-combat contribution chart (UI-only, replay-safe) */
-  stats: { dealt: number; taken: number; blocked: number; healed: number; sets: number; traps: number }
+  stats: { dealt: number; taken: number; blocked: number; healed: number; sets: number; traps: number; xp: number }
   /** slot → who pulled it (consumed when the slot's new card renders — the tug-attribution tint) */
   morphSrc: Map<number, 'churn' | 'drift' | 'trap' | 'trick'>
   /** the always-on dev balance instruments (TRAPS §5.5 targets etc.) — display-only, replay-safe */
@@ -129,7 +129,7 @@ export function mountApp(root: HTMLElement): void {
    ============================================================ */
 let ROOT: HTMLElement | null = null
 // the briefing/coach/FX/vignette layers live on <body>; #tooltip is app-global (hidden, not swept)
-const BODY_SINGLETONS = ['coachscrim', 'coachpop', 'briefing', 'burstlayer', 'bamlayer', 'ptint']
+const BODY_SINGLETONS = ['coachscrim', 'coachpop', 'briefing', 'burstlayer', 'bamlayer', 'ptint', 'levelup']
 let sceneTimers: number[] = []
 /** A setTimeout whose callback dies with the scene — use for ALL scene-scoped delays/FX. */
 function sceneTimeout(fn: () => void, ms: number): number {
@@ -257,9 +257,14 @@ function characterSelectScene(root: HTMLElement): void {
     const cls = classById(c.classId)
     host.appendChild($(`<div class="sheet-hd"><span class="ci">${cls.icon}</span><div class="cmeta"><div class="cn">${c.name}</div><div class="cc">${cls.name}</div></div></div>`))
     host.appendChild($(`<label style="margin-top:14px">Vitals</label>`))
-    host.appendChild($(`<div class="sheet-stat">❤ HP <b>${c.hp}/${c.maxHp}</b></div>`))
-    const st = cls.stats ?? BASE_STATS
-    host.appendChild($(`<div class="sheet-stat" data-tip-title="Stats — sets steer, stats carry" data-tip="Each card in a matched set fires its shape's stat: Attack swings with Power, Defend guards with Endurance, Move steps with Speed. The card's number is the action's QUALITY (① glancing ×0.7 · ② solid ×1.0 · ③ heavy ×1.4). Gear and levels grow these.">⚔ Power <b>${st.power}</b> · 🛡 Endurance <b>${st.endurance}</b> · 👟 Speed <b>${st.speed}</b></div>`))
+    const lvlText = c.level >= LEVEL_CAP ? '★ MAX' : `Lv ${c.level}`
+    host.appendChild($(`<div class="sheet-stat">❤ HP <b>${c.hp}/${c.maxHp}</b> · <b>${lvlText}</b></div>`))
+    if (c.level < LEVEL_CAP) {
+      const need = xpForLevel(c.level)
+      host.appendChild($(`<div class="sheet-xp"><span class="sx-lab">XP</span><span class="sx-bar"><span style="width:${Math.min(100, (c.xp / need) * 100)}%"></span></span><span class="sx-num">${c.xp}/${need}</span></div>`))
+    }
+    const st = effectiveStats(c)
+    host.appendChild($(`<div class="sheet-stat" data-tip-title="Stats — sets steer, stats carry" data-tip="Each card in a matched set fires its shape's stat: Attack swings with Power, Defend guards with Endurance, Move steps with Speed. The card's number is the action's QUALITY (① glancing ×0.7 · ② solid ×1.0 · ③ heavy ×1.4). Levels grant +3/+2/+1 to distribute; gear grows them further.">⚔ Power <b>${st.power}</b> · 🛡 Endurance <b>${st.endurance}</b> · 👟 Speed <b>${st.speed}</b></div>`))
     host.appendChild($(`<label style="margin-top:14px">Abilities</label>`))
     const ab = $(`<div class="sheet-abils"></div>`)
     for (const id of cls.abilities) {
@@ -283,6 +288,12 @@ function characterSelectScene(root: HTMLElement): void {
     }
     host.appendChild(consRow)
     const actions = $(`<div class="sheet-actions"></div>`)
+    const ready = pendingLevels(c)
+    if (ready > 0) {
+      const lvlBtn = $<HTMLButtonElement>(`<button class="cta bob" style="flex:1">⬆ Level Up${ready > 1 ? ` ×${ready}` : ''}</button>`)
+      lvlBtn.addEventListener('click', () => openLevelUp(c, (up) => { selectedCharId = up.id; roster = loadRoster(); render() }))
+      actions.appendChild(lvlBtn)
+    }
     if (c.hp < c.maxHp) {
       const rest = $<HTMLButtonElement>(`<button class="cta ghost">🌙 Rest (heal to full)</button>`)
       rest.addEventListener('click', () => { c.hp = c.maxHp; upsertChar(c); roster = loadRoster(); render() })
@@ -302,7 +313,9 @@ function characterSelectScene(root: HTMLElement): void {
     const list = $(`<div class="roster"></div>`)
     for (const c of roster) {
       const cls = classById(c.classId)
-      const card = $(`<div class="charcard${!creating && c.id === selectedCharId ? ' sel' : ''}" data-id="${c.id}"><span class="ci">${cls.icon}</span><div class="cmeta"><div class="cn">${c.name}</div><div class="cc">${cls.name} · ${c.hp}/${c.maxHp} HP</div></div></div>`)
+      const lvl = c.level >= LEVEL_CAP ? '★' : `Lv ${c.level}`
+      const up = pendingLevels(c) > 0 ? ' <span class="rdyup">⬆</span>' : ''
+      const card = $(`<div class="charcard${!creating && c.id === selectedCharId ? ' sel' : ''}" data-id="${c.id}"><span class="ci">${cls.icon}</span><div class="cmeta"><div class="cn">${c.name}${up}</div><div class="cc">${cls.name} · ${lvl} · ${c.hp}/${c.maxHp} HP</div></div></div>`)
       card.addEventListener('click', () => { creating = false; selectedCharId = c.id; render() })
       list.appendChild(card)
     }
@@ -450,6 +463,68 @@ function classBlurbHTML(id: string): string {
   return `${c.icon} <b>${c.name}</b> — ${c.blurb}<br><b>Abilities:</b> ${abil} &nbsp; <b>Passive:</b> ${pas}`
 }
 
+/* ---- LEVEL-UP: allocate +3/+2/+1 across P/E/S (CRAWL §3). Opens from the sheet; loops over every
+   pending level. XP is already banked; this just spends it into stats. Deferrable (close = allocate
+   later) since pending levels persist. ---- */
+const LU_STATS: { key: keyof StatAlloc; icon: string; name: string }[] = [
+  { key: 'power', icon: '⚔', name: 'Power' },
+  { key: 'endurance', icon: '🛡', name: 'Endurance' },
+  { key: 'speed', icon: '👟', name: 'Speed' },
+]
+const LU_BONUS = [3, 2, 1] // assigned in click order: 1st pick → +3, 2nd → +2, 3rd → +1
+
+function openLevelUp(c: SavedChar, onComplete: (c: SavedChar) => void): void {
+  document.getElementById('levelup')?.remove()
+  const base = effectiveStats(c)
+  let picks: (keyof StatAlloc)[] = []
+  const overlay = $(`<div id="levelup"><div class="lucard">
+    <div class="lu-hd">⬆ Level Up — <b>Lv ${c.level} → ${c.level + 1}</b></div>
+    <div class="lu-sub">Assign <b>+3</b>, <b>+2</b>, <b>+1</b> to your stats — click in priority order.</div>
+    <div class="lu-rows"></div>
+    <div class="lu-btns"><button class="confbtn" id="lu-later">Later</button><button class="confbtn primary" id="lu-go" disabled>Confirm</button></div>
+  </div></div>`) as HTMLElement & { _cancel?: () => void }
+  document.body.appendChild(overlay)
+  const rowsEl = overlay.querySelector('.lu-rows') as HTMLElement
+  const goBtn = overlay.querySelector('#lu-go') as HTMLButtonElement
+  const cleanup = (): void => { overlay.remove(); document.removeEventListener('keydown', onKey) }
+  const onKey = (e: KeyboardEvent): void => { if (e.key === 'Escape') { cleanup() } }
+  overlay._cancel = cleanup
+
+  const paint = (): void => {
+    rowsEl.innerHTML = ''
+    for (const s of LU_STATS) {
+      const idx = picks.indexOf(s.key)
+      const bonus = idx >= 0 ? LU_BONUS[idx] : 0
+      const row = $(`<button class="lu-row${bonus ? ' picked' : ''}" data-key="${s.key}">
+        <span class="lu-ic">${s.icon}</span><span class="lu-nm">${s.name}</span>
+        <span class="lu-val">${base[s.key]}${bonus ? ` <span class="lu-plus">+${bonus}</span> → <b>${base[s.key] + bonus}</b>` : ''}</span>
+      </button>`)
+      row.addEventListener('click', () => {
+        const i = picks.indexOf(s.key)
+        if (i >= 0) picks.splice(i, 1) // un-assign (and everything after shifts down a tier)
+        else if (picks.length < 3) picks.push(s.key)
+        paint()
+      })
+      rowsEl.appendChild(row)
+    }
+    goBtn.disabled = picks.length !== 3
+  }
+  goBtn.addEventListener('click', () => {
+    if (picks.length !== 3) return
+    const delta: StatAlloc = { power: 0, endurance: 0, speed: 0 }
+    picks.forEach((key, i) => { delta[key] = LU_BONUS[i] })
+    const up = applyLevelUp(c, delta)
+    upsertChar(up) // persist each level as it's taken
+    cleanup()
+    if (pendingLevels(up) > 0) openLevelUp(up, onComplete) // chain the next pending level
+    else onComplete(up)
+  })
+  overlay.querySelector('#lu-later')!.addEventListener('click', cleanup)
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) cleanup() }) // scrim = defer
+  document.addEventListener('keydown', onKey)
+  paint()
+}
+
 // ---- begin combat ----
 /** The practice path: one chosen fight (or the authored gauntlet), no room chain. */
 function begin(root: HTMLElement, char: SavedChar, dungeonId: string, foeVal: string): void {
@@ -500,9 +575,9 @@ function startCombat(root: HTMLElement, char: SavedChar, dungeonId: string, foe:
   const rng: Rng = systemRng
   const dg: Dungeon = GAMEDATA.dungeons[dungeonId]
   const cls = classById(char.classId)
-  const run = createRun({ foe, gen: GEN, playerMax: char.maxHp, stats: cls.stats, passives: cls.passives, consumables, sequence, dungeonId }, rng)
+  const run = createRun({ foe, gen: GEN, playerMax: char.maxHp, stats: effectiveStats(char), passives: cls.passives, consumables, sequence, dungeonId }, rng)
   run.combat.playerHP = Math.max(0, Math.min(char.maxHp, char.hp)) // the hero enters at their persisted HP, not full
-  V = { root, deps: { data: GAMEDATA, rng }, run, state: run.combat, char, actions: [], classId: cls.id, loadout: cls.abilities.slice(), coach: !!dg.coach, coachCue: null, manaColor: dominantManaColor(cls.abilities), paused: true, hitstopUntil: 0, holdHud: false, preview: null, selected: [], raf: 0, lastT: 0, boardSig: '', refs: {}, stats: { dealt: 0, taken: 0, blocked: 0, healed: 0, sets: 0, traps: 0 }, morphSrc: new Map(), dev: { reshapeYou: 0, reshapeFoe: 0, matches: 0, springs: 0, k1: 0, wards: 0, churns: 0 } }
+  V = { root, deps: { data: GAMEDATA, rng }, run, state: run.combat, char, actions: [], classId: cls.id, loadout: cls.abilities.slice(), coach: !!dg.coach, coachCue: null, manaColor: dominantManaColor(cls.abilities), paused: true, hitstopUntil: 0, holdHud: false, preview: null, selected: [], raf: 0, lastT: 0, boardSig: '', refs: {}, stats: { dealt: 0, taken: 0, blocked: 0, healed: 0, sets: 0, traps: 0, xp: 0 }, morphSrc: new Map(), dev: { reshapeYou: 0, reshapeFoe: 0, matches: 0, springs: 0, k1: 0, wards: 0, churns: 0 } }
   buildPlay()
   renderBoard()
   updateBar()
@@ -1238,11 +1313,15 @@ function setCoachArrow(el: HTMLElement | undefined, on: boolean): void {
 // ---- dispatch + event interpretation ----
 function dispatch(action: CombatAction): void {
   if (!V) return
+  const defeated = V.state.foe // captured BEFORE the reduce — the foe that may die this step (a swap loses it)
   const { run, events } = runReduce(V.run, action, V.deps)
   const state = run.combat
   V.run = run
   V.state = state
   V.actions.push(action) // record the session log (the seam): a server could replay these
+  // XP banks the moment a foe falls — `won` (final/lone/delve-room) OR `foeChanged` (mid-gauntlet);
+  // XP ALWAYS banks (even the run-ending death already credited its earlier kills). Persist now.
+  if (events.some((e) => e.type === 'won' || e.type === 'foeChanged')) awardXP(defeated)
   // drop any selected slot a board verb just removed (transmute/shatter), so the glow can't dangle
   V.selected = V.selected.filter((i) => state.board[i] != null && !state.locked.has(i))
   const choreographed = interpret(events) // a rollover batch sequences its own beats + board render
@@ -2265,6 +2344,18 @@ function endScreen(result: 'win' | 'lose' | 'flee'): void {
   again.addEventListener('click', () => goScene(characterSelectScene))
 }
 
+/** Bank the kill's XP onto the live character (always banks; persisted immediately) + tally it for
+ *  the end-of-combat / fork summary. A floating "+N XP" gives the kill its dopamine in-fight. */
+function awardXP(foe: CombatState['foe']): void {
+  if (!V) return
+  const x = computeXP(foe)
+  if (x <= 0) return
+  V.stats.xp += x
+  if (V.char.level < LEVEL_CAP) V.char.xp += x // at the cap, XP stops accruing (nothing left to buy)
+  upsertChar(V.char)
+  floatBoard(`+${x} XP`, 'var(--gold)', 'enemy')
+}
+
 /** The end-of-combat contribution chart (shared by the lone-fight end card and the delve's enders). */
 function combatChart(): HTMLElement {
   const st = V!.stats
@@ -2277,9 +2368,18 @@ function combatChart(): HTMLElement {
     ['Traps sprung', st.traps, 'var(--gold)'],
   ]
   const max = Math.max(1, ...rows.map((r) => r[1]))
-  return $(`<div class="summary">${rows
+  const bars = rows
     .map(([l, v, c]) => `<div class="feat"><span class="fl">${l}</span><span class="fbar"><span style="width:${(v / max) * 100}%;background:${c}"></span></span><span class="fv">${v}</span></div>`)
-    .join('')}</div>`)
+    .join('')
+  // the XP footer: what this fight/run earned + the level/curve read (a level-up waits in town)
+  const ch = V!.char
+  const ready = pendingLevels(ch)
+  const lvl = ch.level >= LEVEL_CAP ? '★ MAX' : `Lv ${ch.level}`
+  const xpLine = ch.level >= LEVEL_CAP
+    ? `<span class="sx-lvl">${lvl}</span>`
+    : `<span class="sx-lvl">${lvl}</span> <span class="sx-bar"><span style="width:${Math.min(100, (ch.xp / xpForLevel(ch.level)) * 100)}%"></span></span> <span class="sx-num">${ch.xp}/${xpForLevel(ch.level)}</span>`
+  const readyLine = ready > 0 ? `<div class="sx-ready">⬆ ${ready} level-up${ready > 1 ? 's' : ''} ready — allocate in town</div>` : ''
+  return $(`<div class="summary">${bars}<div class="summary-xp"><span class="sx-lab">✦ +${V!.stats.xp} XP</span>${xpLine}</div>${readyLine}</div>`)
 }
 
 /* ---- THE BETWEEN-ROOMS FORK — the delve's heartbeat (CRAWL §2 / §6 first cut) ----

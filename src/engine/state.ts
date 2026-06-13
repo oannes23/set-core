@@ -60,6 +60,7 @@ export interface FoeRuntime {
   drift: Trigger | null
   rules: FoeRules
   desc: string | null
+  xpOverride?: number // teaching-foe XP override (computeXP returns it verbatim; real foes omit it)
 }
 
 export interface CombatState {

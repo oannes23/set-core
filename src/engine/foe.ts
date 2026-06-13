@@ -29,6 +29,7 @@ export function tempoFromStats(stats: StatBlock): { strikeEvery: number; swings:
  *  build (B2/B4); defined here with the statline it derives from. */
 export const XP_TIER_MULT: Record<Tier, number> = { minion: 1, elite: 2, boss: 4 }
 export function computeXP(foe: FoeRuntime): number {
+  if (foe.xpOverride != null) return foe.xpOverride // teaching foes author it (the dummy's Power 0 breaks the formula)
   const { power, endurance, speed } = foe.stats
   const traps = foe.triggers.filter((t) => t.kind !== 'trick').length
   return Math.round((foe.hp / 10 + power + endurance + speed) * (1 + 0.15 * traps) * XP_TIER_MULT[foe.tier ?? 'minion'])
@@ -113,6 +114,7 @@ export function assembleFoe(creatureId: string, dungeon: Dungeon | null, data: G
     drift,
     rules: base.rules ?? {},
     desc: base.desc ?? null,
+    xpOverride: base.xp,
   }
   // parity seed: player E = foe Power → contestRate = RATE_BASE → the 25×tier baseline budget.
   // A usable per-swing number for any consumer before a player is attached; createCombat overrides.

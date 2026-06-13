@@ -145,8 +145,9 @@ export interface Creature {
   variants?: string[] // variant ids to roll one from (minions / elites)
   rules?: FoeRules
   loot_tier: number
-  // RETIRED in the rebase: speed (band), damage (→ telegraph contest), windup (→ deal reveal),
-  // xp (→ computed from the statline, foe.ts computeXP).
+  xp?: number // TEACHING-FOE override only — real foes compute XP from the statline (foe.ts computeXP).
+  // The dummy (Power 0) and the gauntlet are authored for the onboarding curve (dummy→L2, gauntlet→L3).
+  // RETIRED in the rebase: speed (band), damage (→ telegraph contest), windup (→ deal reveal).
 }
 export interface Variant {
   name: string

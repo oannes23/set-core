@@ -155,7 +155,11 @@ The game is **two top-level scenes**, not one screen: the **Hub** (town/menu) an
 ## 3. Progression & economy *(SETTLED 2026-06-12 — numbers are first-cut, GATED by the
 budget-conformance sim; constants tabled in `TUNING.md` "Progression & loot — PLANNED")*
 
-### Leveling (settled)
+### Leveling (settled + BUILT 2026-06-13)
+> **STATUS: shipped** — `src/ui/save.ts` (level/xp/alloc + the pure curve/stat math, unit-tested)
+> + the level-up modal & character-sheet XP/stat readout in `app.ts`. XP banks per kill (always,
+> even on death); level-ups are allocated in town. Teaching foes carry an `xp` override for the
+> onboarding curve. STILL OPEN from §3: the **loot tables** (gold/gear/spellbook drops).
 - **Cap: level 21** — numeric to 20; the 21st renders as a **★** (the cap badge).
 - **Per level: +5 max HP** (base 100 → **200 at cap**; gear/passives can add ~+100 more for a
   practical ~300 ceiling on a dedicated build) **+ stat points +3/+2/+1, player-allocated**
