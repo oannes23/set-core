@@ -9,14 +9,14 @@ import { findSets } from '../core/sets'
 import { type GenConfig, genInitial } from '../core/generate'
 import type { Rng } from '../core/rng'
 import type { GameData } from '../data/schema'
-import { type CombatState, type FoeRuntime, type Pending, type TacticKind, type ManeuverBias, type StatBlock, MANA_CAP, DEFAULT_PLAYER_MAX, BASE_STATS, ROUND_MS } from './state'
+import { type CombatState, type FoeRuntime, type Pending, type TacticKind, type ManeuverBias, type StatBlock, MANA_CAP, DEFAULT_PLAYER_MAX, BASE_STATS, ROUND_MS, DODGE_BASE, DODGE_K, DODGE_MIN, DODGE_MAX, MANEUVER_BURN_MS } from './state'
 import { type CombatEvent, EventSink } from './events'
-import { type Resolution, resolveSet, weightedRoll, telegraphPerSwing } from './resolve'
+import { type Resolution, resolveSet, weightedRoll, telegraphPerSwing, dodgeChance } from './resolve'
 import { fireTriggers, runTrigger, inflictWounds, hurtPlayer, reformSlots, EMPTY_DESC } from './triggers'
 import { gainBlock, addCharges } from './ops'
 import { firePassives } from './passives'
 import { castAbility } from './abilities'
-import { setTactic, setBias, lockQueuedStance, rolloverDump } from './tactics'
+import { setTactic, setBias, liveBurn } from './tactics'
 import { useConsumable } from './consumables'
 
 export type CombatAction =
@@ -48,12 +48,19 @@ export interface NewCombatOpts {
   consumables?: string[] // carried potions/scrolls for this run
 }
 
-/** Roll a foe's exchange total: `swings` weighted rolls, summed into ONE telegraph number. */
-function rollStrike(foe: FoeRuntime, rng: Rng): number {
-  if (foe.damage <= 0) return 0
+/** Roll a foe's exchange total at the DEAL: each swing independently checks DODGE (your Speed vs
+ *  theirs — §5.7); evaded swings vanish from the telegraph (Speed owns whether/when). Returns the
+ *  summed surviving total + how many swings were dodged (for the 💨 tags / the DODGED! card). */
+function rollStrike(foe: FoeRuntime, playerSpeed: number, rng: Rng): { total: number; dodged: number } {
+  if (foe.damage <= 0) return { total: 0, dodged: 0 }
+  const pDodge = dodgeChance(playerSpeed, foe.stats.speed, DODGE_BASE, DODGE_K, DODGE_MIN, DODGE_MAX)
   let total = 0
-  for (let i = 0; i < foe.swings; i++) total += weightedRoll(foe.damage, rng)
-  return total
+  let dodged = 0
+  for (let i = 0; i < foe.swings; i++) {
+    if (rng() < pDodge) dodged++ // evaded — this swing never lands (one rng draw either way)
+    else total += weightedRoll(foe.damage, rng)
+  }
+  return { total, dodged }
 }
 
 /** Build a fresh combat state: a generated board + full vitals + round 1 primed (the telegraph
@@ -67,6 +74,9 @@ export function createCombat(opts: NewCombatOpts, rng: Rng): CombatState {
   // assembled foe carried a parity seed; this binds it to the actual hero (stable for the fight).
   const foe: FoeRuntime = { ...opts.foe, damage: telegraphPerSwing(opts.foe, stats.endurance) }
   const nextStrikeRound = foe.strikeEvery
+  // EARLY REVEAL (§5.7): the telegraph shows from round 1 — strikeEvery−1 rounds before it lands —
+  // so slow foes are a savings test (block carries through the windup). Dodge is rolled here.
+  const first = foe.damage > 0 ? rollStrike(foe, stats.speed, rng) : { total: 0, dodged: 0 }
   return {
     playerHP: playerMax,
     playerMax,
@@ -75,11 +85,11 @@ export function createCombat(opts: NewCombatOpts, rng: Rng): CombatState {
     block: 0,
     stats,
     mana: [0, 0, 0],
-    tactic: 'stand', // the defensive default — you OPT INTO Maneuver's greed at the first draw phase
+    tactic: 'stand', // the defensive default — you OPT INTO Maneuver's greed live (§5.7)
     maneuverBias: null,
     charges: 0,
-    queuedTactic: null,
-    queuedBias: null,
+    maneuverGatherUntil: 0,
+    burnAccum: 0,
     board,
     cols: colsForN(opts.gen.n),
     pending: new Map(),
@@ -97,7 +107,8 @@ export function createCombat(opts: NewCombatOpts, rng: Rng): CombatState {
     roundExtendedS: 0,
     roundAttack: 0,
     nextStrikeRound,
-    incoming: foe.damage > 0 && nextStrikeRound === 1 ? rollStrike(foe, rng) : null,
+    incoming: foe.damage > 0 ? first.total : null, // revealed from round 1 (held until the strike round)
+    incomingDodged: first.dodged,
     tickAccum: {},
     running: true,
     result: null,
@@ -238,15 +249,28 @@ function tick(s: CombatState, dtMs: number, deps: Deps, sink: EventSink): void {
       if (reformed.length) sink.emit({ type: 'cardsReformed', slots: reformed })
     }
   }
+  // MANEUVER LIVE-BURN (§5.7): after the gather, spend ~1 charge/sec churning the deadest
+  // not-already-matching card toward the bias — the tide rolling in live (replaces the rollover dump).
+  // Stand Ground never burns (it wards live instead). No target left → idle (hold the charges).
+  if (s.running && s.tactic === 'maneuver' && s.maneuverBias && s.charges > 0 && s.now >= s.maneuverGatherUntil) {
+    s.burnAccum += dtMs
+    let guard = 0
+    while (s.burnAccum >= MANEUVER_BURN_MS && guard++ < 8) {
+      if (!liveBurn(s, deps.rng, sink)) { s.burnAccum = 0; break }
+      s.burnAccum -= MANEUVER_BURN_MS
+    }
+  }
   // THE ROLLOVER: the round elapsed — resolve the exchange (CRAWL §5.6)
   if (s.running && s.now >= s.roundEndsAt) rollover(s, deps, sink)
 }
 
 /** The rollover exchange — the v3 grammar's heartbeat, resolved atomically (the UI choreographs
- *  the emitted events as the staged diegetic exchange beat (EXCHANGE_BEATS, app.ts)). Fixed order: ① player swing (LETHAL CANCELS —
- *  the kill-race; symmetric: banked lethal beats incoming death) → ② enemy swing minus Block,
- *  damage suffered computes wounds → ③ the guard drops (excess block = pure loss) → ④ Maneuver dump
- *  → ⑤ the deal: one wound knits, the queued stance locks → ⑥ the new round + its telegraph. */
+ *  the emitted events as the staged diegetic exchange beat (EXCHANGE_BEATS, app.ts)). Fixed order:
+ *  ① player swing (LETHAL CANCELS — the kill-race; symmetric) → ② enemy swing IF this is the strike
+ *  round (else the telegraph is still winding up — block CARRIES, §5.7); bite past Block computes
+ *  wounds, the guard drops only AFTER a strike resolves → ⑤ the deal: one wound knits → ⑥ the new
+ *  round + the next telegraph revealed at its WINDUP START (strikeEvery−1 rounds early). Stances are
+ *  LIVE now (§5.7): no queue to lock, Maneuver burns in tick (no rollover dump). */
 function rollover(s: CombatState, deps: Deps, sink: EventSink): void {
   const finished = s.round
   sink.emit({ type: 'roundEnded', round: finished })
@@ -261,41 +285,47 @@ function rollover(s: CombatState, deps: Deps, sink: EventSink): void {
       return
     }
   }
-  // ② enemy swing — exactly the telegraphed total; the bite past Block computes wounds
-  if (s.incoming != null) {
-    const raw = s.incoming
+  // ② enemy swing — ONLY on the actual strike round. During the windup (telegraph revealed early but
+  // not yet due) there is NO strike and the guard CARRIES (§5.7 — the savings test).
+  const strikeLands = s.incoming != null && finished >= s.nextStrikeRound
+  if (strikeLands) {
+    const raw = s.incoming as number
+    const dodgedAll = raw === 0 && s.incomingDodged > 0 // every swing evaded at the deal
     s.incoming = null
+    s.incomingDodged = 0
     s.nextStrikeRound = finished + s.foe.strikeEvery
     if (raw > 0) {
       const bite = Math.max(0, raw - s.block)
       hurtPlayer(s, raw, s.foe.name, sink)
       if (!s.running) return // the symmetric kill-race already gave the player their swing in ①
       if (bite > 0) inflictWounds(s, bite, deps.rng, sink)
+    } else if (dodgedAll) {
+      sink.emit({ type: 'strikeDodged' }) // the full whiff — the DODGED! smash card
     } else {
       sink.emit({ type: 'playerBlocked' })
     }
+    // the guard drops AFTER the strike resolves — leftover Block is PURE LOSS (settled 2026-06-11);
+    // during a windup round we SKIP this (the carry), so banked Defend survives toward the strike.
+    s.block = 0
   }
-  // ③ the guard drops — leftover Block past the telegraph is PURE LOSS (settled 2026-06-11:
-  // over-matching Defend is a visible skill cost, and the Speed contest owns the charge faucet)
-  s.block = 0
-  // ④ the Maneuver dump — all charges burn into the tide (Stand Ground banks carry instead)
-  rolloverDump(s, deps.rng, sink)
-  // ⑤ the deal — one wound knits shut; the queued stance locks as the cards settle
+  // ⑤ the deal — one wound knits shut as the cards settle (stances are live; nothing to lock)
   let knit: number | null = null
   for (const [slot, p] of s.pending) if (p.wound) { knit = knit == null || slot < knit ? slot : knit }
   if (knit != null) {
     reformSlots(s, [knit], undefined, deps.rng)
     sink.emit({ type: 'cardsReformed', slots: [knit] })
   }
-  lockQueuedStance(s, sink)
-  // ⑥ the new round — fresh accumulators, the next telegraph revealed with the deal
+  // ⑥ the new round — fresh accumulators; reveal the NEXT telegraph at its windup start (early for
+  // slow foes), rolling dodge at the deal. Nothing revealed yet → roll once we enter the window.
   s.round = finished + 1
   s.roundEndsAt = s.now + ROUND_MS
   s.roundExtendedS = 0
   s.roundAttack = 0
-  if (s.foe.damage > 0 && s.round >= s.nextStrikeRound) {
-    s.incoming = rollStrike(s.foe, deps.rng)
-    sink.emit({ type: 'windup', amount: s.incoming, strikesAt: s.roundEndsAt })
+  if (s.foe.damage > 0 && s.incoming == null && s.round >= s.nextStrikeRound - (s.foe.strikeEvery - 1)) {
+    const strike = rollStrike(s.foe, s.stats.speed, deps.rng)
+    s.incoming = strike.total
+    s.incomingDodged = strike.dodged
+    sink.emit({ type: 'windup', amount: strike.total, strikesAt: s.roundEndsAt, dodged: strike.dodged, swings: s.foe.swings })
   }
   sink.emit({ type: 'roundStarted', round: s.round, incoming: s.incoming })
 }
@@ -340,7 +370,6 @@ export function cloneState(s: CombatState): CombatState {
     locked: new Map(s.locked),
     pendingRegenBias: s.pendingRegenBias ? { ...s.pendingRegenBias } : null,
     maneuverBias: s.maneuverBias ? { ...s.maneuverBias } : null,
-    queuedBias: s.queuedBias ? { bias: s.queuedBias.bias ? { ...s.queuedBias.bias } : null } : null,
     passives: s.passives.slice(),
     consumables: s.consumables.slice(),
     tickAccum: { ...s.tickAccum },

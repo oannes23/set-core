@@ -75,9 +75,9 @@ export interface CombatState {
   tactic: TacticKind
   maneuverBias: ManeuverBias | null // Maneuver's parameter; null = charges bank and wait
   charges: number // banked; ≤ CHARGE_CAP. Stand Ground spends live (wards) + carries over;
-  // Maneuver hoards, dumps ALL at the rollover, zeroes.
-  queuedTactic: TacticKind | null // the wheel's NEXT-round pick (locks at the draw phase); null = no change
-  queuedBias: { bias: ManeuverBias | null } | null // queued bias change (wrapper ≠ "clear bias")
+  // Maneuver burns LIVE (~1/s after a gather) — §5.7 amendment; no more rollover dump.
+  maneuverGatherUntil: number // while now < this, a just-entered Maneuver is still gathering (no burn yet)
+  burnAccum: number // ms accumulated toward the next live Maneuver burn (the 1/s churn cadence)
   // board
   board: Board
   cols: number // grid width (for geometry selectors); rows = ceil(board.length / cols)
@@ -100,9 +100,11 @@ export interface CombatState {
   roundExtendedS: number // seconds of stall-spell extension already applied this round (capped)
   roundAttack: number // Attack's round accumulator: lands as the player's exchange swing
   nextStrikeRound: number // the round index of the foe's next exchange swing
-  /** the TELEGRAPH: this round's pre-rolled exchange total, revealed at the deal
-   *  (swings summed). null = the foe does not strike this round. */
+  /** the TELEGRAPH: the pending exchange total, revealed at the deal — strikeEvery−1 rounds EARLY
+   *  for slow foes (the windup, §5.7), then HELD until the strike round. null = no strike pending.
+   *  0 = a strike was fully DODGED (every swing evaded at the deal). */
   incoming: number | null
+  incomingDodged: number // swings of the pending telegraph evaded at the deal (💨 tags; 0 = none)
   tickAccum: Record<string, number> // trigger key -> seconds accumulated toward its `every`
   // run / gauntlet
   running: boolean
@@ -128,3 +130,17 @@ export const woundQuantum = (s: CombatState): number => s.playerMax / 10
 // Resolution v3 — the decimal rebase: stats 10 give the contests room to breathe
 export const BASE_STATS: StatBlock = { power: 10, endurance: 10, speed: 10 }
 export const START_GRACE_MS = 3000 // UI freezes the round this long after Engage (read the board, no ticks advance)
+
+// --- COMBAT AMENDMENTS (CRAWL §5.7, sim-derived 2026-06-12) ---
+// DODGE: per-SWING evasion rolled at the deal, folded into the telegraph (Speed owns whether/when,
+// Defend owns how much — strikes only, never traps/drift/ticks). Sim-derived: base 10%, +1.5%/pt
+// of Speed edge, clamp [3%, 40%].
+export const DODGE_BASE = 0.1
+export const DODGE_K = 0.015
+export const DODGE_MIN = 0.03
+export const DODGE_MAX = 0.4
+// MANEUVER LIVE-BURN: stances now act LIVE (no round-lock). Entering Maneuver pays a GATHER, then
+// burns ~1 charge/sec (each burn churns one deadest-not-matching card toward the bias). Bailing to
+// Stand Ground is instant (keeps the remainder). The gather damps wheel-drumming.
+export const MANEUVER_GATHER_MS = 1800
+export const MANEUVER_BURN_MS = 1000

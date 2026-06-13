@@ -511,7 +511,7 @@ function startCombat(root: HTMLElement, char: SavedChar, dungeonId: string, foe:
     if (!V) return
     V.paused = false
     V.lastT = 0
-    hitstop(START_GRACE_MS) // freeze the clock for a beat after Engage — read the fresh board, no ticks advance
+    hitstop(graceMs()) // freeze the clock for a beat after Engage — read the fresh board (Speed-stretched, §5.7)
     loop(performance.now())
     // let the player SEE the board for a beat before the guided intro freezes it ("read the board").
     // capture V so a pending timer from a prior combat can't fire into a different one.
@@ -1120,19 +1120,18 @@ function onWheelClick(e: Event): void {
   if (!V || !V.state.running || V.paused) return // input frozen during a pause
   const s = V.state
   if ((e.target as HTMLElement).closest('.hub')) {
-    if (s.tactic === 'stand' && !s.queuedTactic) return // already holding the line, nothing queued away
-    dispatch({ type: 'setTactic', tactic: 'stand' })
+    if (s.tactic === 'stand') return // already holding the line (§5.7: stances are live — no queue)
+    dispatch({ type: 'setTactic', tactic: 'stand' }) // INSTANT bail-out — keeps the bank, resumes warding
     return
   }
   const sp = (e.target as HTMLElement).closest('.spoke') as HTMLElement | null
   if (!sp?.dataset.axis) return
   const axis = sp.dataset.axis as 'color' | 'shape'
   const value = +sp.dataset.value!
-  // queue Maneuver if the stance at the next deal wouldn't already be Maneuver
-  const needTactic = s.tactic !== 'maneuver' || s.queuedTactic === 'stand'
-  // queue the bias if the bias at the next deal wouldn't already be this spoke
-  const effBias = s.queuedBias ? s.queuedBias.bias : s.maneuverBias
-  const needBias = !(effBias && effBias.axis === axis && effBias.value === value)
+  // §5.7: stances apply LIVE. Entering Maneuver starts the gather (engine); changing only the bias
+  // mid-tide does not re-gather. No-op if this exact stance+bias is already active.
+  const needTactic = s.tactic !== 'maneuver'
+  const needBias = !(s.maneuverBias && s.maneuverBias.axis === axis && s.maneuverBias.value === value)
   if (needTactic) dispatch({ type: 'setTactic', tactic: 'maneuver' })
   if (needBias) dispatch({ type: 'setBias', bias: { axis, value } })
 }
@@ -1165,31 +1164,24 @@ function updateCastables(): void {
   }
 }
 
-/** Paint the wheel's seven states: LIT = the locked current stance (hub gold, spoke phosphor);
- *  GHOST (dashed, pulsing) = the queued next-round pick from queuedTactic/queuedBias — visibly
- *  different, because the queue only locks at the deal. Runs per frame off updateCastables. */
+/** Paint the wheel (§5.7 — stances are LIVE now, so no ghost/queue state): LIT = the active stance
+ *  (hub gold = Stand Ground, spoke phosphor = Maneuver+bias). While Maneuver is still GATHERING
+ *  (before the first burn) the lit spoke pulses `gathering`; once it's burning it reads steady.
+ *  Runs per frame off updateCastables. */
 function updateWheel(): void {
   if (!V) return
   const s = V.state
   const wheel = V.refs.tactics
   if (!wheel) return
-  // what locks at the next deal (null = no change queued)
-  const qStand = s.queuedTactic === 'stand'
-  let qBias: ManeuverBias | null = null
-  if (!qStand && (s.queuedTactic === 'maneuver' || (s.queuedBias && s.tactic === 'maneuver'))) {
-    const b = s.queuedBias ? s.queuedBias.bias : s.maneuverBias
-    if (b) qBias = b
-  }
+  const gathering = s.tactic === 'maneuver' && s.now < s.maneuverGatherUntil
   wheel.querySelectorAll<HTMLElement>('.spoke, .hub').forEach((el) => {
     const isHub = el.classList.contains('hub')
     const lit = s.running && (isHub
       ? s.tactic === 'stand'
       : s.tactic === 'maneuver' && !!s.maneuverBias && el.dataset.axis === s.maneuverBias.axis && +el.dataset.value! === s.maneuverBias.value)
-    const queued = s.running && !lit && (isHub
-      ? qStand
-      : !!qBias && el.dataset.axis === qBias.axis && +el.dataset.value! === qBias.value)
     el.classList.toggle('lit', lit)
-    el.classList.toggle('queued', queued)
+    el.classList.toggle('queued', false) // retired with the round-lock
+    el.classList.toggle('gathering', lit && !isHub && gathering)
   })
 }
 
@@ -1328,7 +1320,7 @@ function choreographRollover(events: CombatEvent[]): void {
       case 'roundEnded': break // the beat itself (the mode-shift below)
       case 'won': case 'lost': finale.push(e); break
       case 'enemyDamaged': seg.swing.push(e); break
-      case 'playerDamaged': case 'playerBlocked': case 'cardsShattered': case 'warded': seg.counter.push(e); break
+      case 'playerDamaged': case 'playerBlocked': case 'cardsShattered': case 'warded': case 'strikeDodged': seg.counter.push(e); break
       case 'windup': case 'roundStarted': seg.deal.push(e); break
       default: seg.tide.push(e) // dump/deal/stance-lock + anything unforeseen rides the tide beat
     }
@@ -1385,8 +1377,13 @@ function choreographRollover(events: CombatEvent[]): void {
   // ③ THEIR STRIKE — the telegraph ⚔ drains into your guard 🛡; what bites past it drains your HP
   sceneTimeout(() => {
     if (!V || !V.holdHud) return
-    if (raw == null) { // no strike this round — a brief grey beat
-      if (seg.counter.length) interpretChunk(seg.counter) // stray wards etc. still narrate
+    if (raw == null) { // no HP/guard transfer this round
+      if (seg.counter.some((e) => e.type === 'strikeDodged')) { // §5.7 the FULL WHIFF — the smash card
+        spriteReact('you', 'splunge') // a quick sidestep
+        bamWord('DODGED!', 'dodge', V.refs.spyou, 1.25)
+        floatBoard('💨 dodged — free round', 'var(--phos)', 'you')
+        interpretChunk(seg.counter) // narrates the dodge line
+      } else if (seg.counter.length) interpretChunk(seg.counter) // stray wards etc. still narrate
       else { floatBoard('no strike', 'var(--ink-faint)', 'enemy'); log(`<span style="opacity:.7">The ${foeName} doesn't strike.</span>`, 'foe') }
       return
     }
@@ -1431,21 +1428,9 @@ function choreographRollover(events: CombatEvent[]): void {
     const changed = boardSignature(V.state) !== V.boardSig
     if (changed) renderBoard(verbs)
     // the tide's own impact card: the Maneuver dump goes "SWOOSH!"; a plain reshuffle gets a soft "SHFF"
-    if (seg.tide.some((e) => e.type === 'tacticsDumped' && e.churned > 0)) bamWord('SWOOSH!', 'tide', V.refs.boardwrap, 1.05)
-    else if (changed) bamWord('SHFF', 'soft', V.refs.boardwrap, 0.85)
-    // the dump DRAINS the ⚙ counter (and its pips burn down with it) — the same visible-transfer
-    // grammar as the swing/guard beats: the bank is seen leaving, paid into the churn
-    const dump = seg.tide.find((e): e is Extract<CombatEvent, { type: 'tacticsDumped' }> => e.type === 'tacticsDumped')
-    if (dump && Math.floor(dump.spent) > 0) {
-      const preCh = domNum(V.refs.tcch, Math.floor(dump.spent))
-      drainCls(true, V.refs.tcch)
-      exTween(B.tideDrain, (k) => {
-        if (!V) return
-        const cur = Math.round(preCh * (1 - k))
-        V.refs.tcch.textContent = String(cur)
-        V.refs.tacpips?.querySelectorAll<HTMLElement>('.pip').forEach((p, i) => p.classList.toggle('fl', i < cur))
-      }, () => drainCls(false, V?.refs.tcch))
-    }
+    // §5.7: Maneuver burns LIVE during the round now (no rollover dump), so the tide beat just
+    // settles whatever drift/knit landed — a soft cue when the board shifted.
+    if (changed) bamWord('SHFF', 'soft', V.refs.boardwrap, 0.85)
     holdKnits(knits, B.knitHold)
   }, B.tide)
 
@@ -1576,7 +1561,7 @@ let bamCycle = 0
 /** Stamp `word` centered over `anchor` (viewport coords — survives the board's dim filter).
  *  cls picks the palette (hit=gold/red · guard=blue · pain=red · tide=phosphor · soft=faint);
  *  scale grows the stamp with the moment's magnitude. Reduced motion: brief static text, no pop. */
-function bamWord(word: string, cls: 'hit' | 'guard' | 'pain' | 'tide' | 'soft', anchor: HTMLElement | null | undefined, scale = 1): void {
+function bamWord(word: string, cls: 'hit' | 'guard' | 'pain' | 'tide' | 'soft' | 'dodge', anchor: HTMLElement | null | undefined, scale = 1): void {
   if (!anchor || !anchor.isConnected) return
   let layer = document.getElementById('bamlayer')
   if (!layer) { layer = $(`<div id="bamlayer"></div>`); document.body.appendChild(layer) }
@@ -1634,12 +1619,11 @@ function interpretChunk(events: CombatEvent[]): void {
           : `<b>Round ${e.round}</b> — the ${foe} circles: <b>no strike</b> this round.`, 'foe')
         kickClock() // the round bar refills with the deal
         break
-      case 'tacticsDumped': {
-        const spent = Math.floor(e.spent)
-        if (e.churned > 0) log(`<b>Maneuver</b> — the tide turns: <b>${spent}</b> charge${spent > 1 ? 's' : ''} redraw <b>${e.churned}</b> card${e.churned > 1 ? 's' : ''}.`, 'you')
-        else if (spent > 0) log(`<b>Maneuver</b> — <b>${spent}</b> charge${spent > 1 ? 's' : ''} burn with nothing left to turn.`, 'you')
+      case 'tacticsBurned':
+        // §5.7 live-burn: each ~1/s burn rolls one card (the morph + the ⚙ counter carry it). Keep the
+        // log quiet — only mark the moment the bank runs dry, so the tide reads as continuous, not spammy.
+        if (e.remaining === 0) log('<b>Maneuver</b> — the bank runs dry; the tide settles.', 'you')
         break
-      }
       case 'enemyDamaged': {
         if (e.immune) { log('Swords pass through — only magic bites this foe.', 'foe'); floatBoard('blocked', 'var(--ink-faint)', 'enemy'); break } // fixed rule line — never varied
         floatBoard(`-${e.amount}`, e.magic ? 'var(--gold)' : 'var(--red)', 'enemy')
@@ -1717,6 +1701,9 @@ function interpretChunk(events: CombatEvent[]): void {
       case 'playerBlocked':
         log(`The ${foe} ${pick(voice.hit)} you — your guard holds, <b>no damage</b>.`, 'foe')
         break
+      case 'strikeDodged':
+        log(`You read the blow and slip aside — the ${foe} strikes <b>nothing but air</b>.`, 'you')
+        break
       case 'abilityCast': {
         const base = ABILITY_FLAVOR[e.id] ?? `You cast <b>${ABILITIES[e.id]?.name ?? e.id}</b>`
         actor = { el: log(base, 'you')!, base, dmg: 0, magic: false, heal: 0, block: 0, mana: [0, 0, 0] }
@@ -1730,15 +1717,11 @@ function interpretChunk(events: CombatEvent[]): void {
         pulsePassive(e.id)
         break
       case 'tacticChanged': {
-        if (e.queued) { // v3: the wheel queues — the stance locks at the draw phase
-          log(e.tactic === 'stand'
-            ? 'You ready <b>Stand Ground</b> — it locks at the next deal.'
-            : 'You ready <b>Maneuver</b> — it locks at the next deal.', 'you')
-          break
-        }
+        // §5.7: stances are LIVE — Maneuver starts a brief gather then burns ~1/s; Stand Ground is an
+        // instant bail (keeps the bank, resumes warding). No more "locks at the next deal".
         log(e.tactic === 'stand'
           ? `You <b>Stand Ground</b> — charges now ward enemy meddling (a wound costs ${WOUND_WARD_COST}).`
-          : 'You shift to <b>Maneuver</b> — the whole bank dumps into the tide at the rollover.', 'you')
+          : 'You shift to <b>Maneuver</b> — the tide gathers, then rolls the board ~1 card/sec.', 'you')
         const bw = V.refs.boardwrap
         if (bw) {
           bw.classList.remove('stance-stand', 'stance-maneuver')
@@ -1750,11 +1733,7 @@ function interpretChunk(events: CombatEvent[]): void {
       }
       case 'biasChanged': {
         const name = e.bias ? BIAS_NAME[e.bias.axis]?.[e.bias.value] : null
-        if (e.queued) {
-          log(e.bias && name ? `You steer toward <b>${name}</b> — locks at the next deal.` : 'Bias clear readied — locks at the next deal.', 'you')
-        } else {
-          log(e.bias && name ? `The tide sets — Maneuver toward <b>${name}</b>.` : 'Maneuver bias cleared — charges hold.', 'you')
-        }
+        log(e.bias && name ? `The tide sets — Maneuver toward <b>${name}</b>.` : 'Maneuver bias cleared — charges hold.', 'you')
         if (e.bias) coachNotify('tactic') // guided intro: "pick a wheel spoke" step
         break
       }
@@ -1827,7 +1806,7 @@ function interpretChunk(events: CombatEvent[]): void {
         renderBoard()
         // brief the next foe (freeze until Engage)
         V.paused = true
-        showBriefing(() => { if (V) { V.paused = false; V.lastT = 0; hitstop(START_GRACE_MS) } }) // grace on each gauntlet foe too
+        showBriefing(() => { if (V) { V.paused = false; V.lastT = 0; hitstop(graceMs()) } }) // grace on each gauntlet foe too
         break
       case 'won':
         log(`The ${foe} collapses. <b>Victory!</b>`, 'win')
@@ -2009,6 +1988,14 @@ function hitstop(ms: number): void {
   if (V) V.hitstopUntil = Math.max(V.hitstopUntil, performance.now() + ms)
 }
 
+/** The start-of-combat board-read freeze, STRETCHED by the player's Speed edge (§5.7 Speed rider:
+ *  "you size them up"). ~+150ms per point of Speed advantage, clamped to a sane window. */
+function graceMs(): number {
+  if (!V) return START_GRACE_MS
+  const edge = V.state.stats.speed - V.state.foe.stats.speed
+  return Math.max(START_GRACE_MS, Math.min(START_GRACE_MS + 2500, START_GRACE_MS + edge * 150))
+}
+
 /** Punch a HUD number (HP) when it changes — directs the eye to where the cost/hit landed. */
 function flashStat(ref: string): void {
   const el = V?.refs[ref]
@@ -2087,11 +2074,19 @@ function updateBar(): void {
     V.refs.exatk.textContent = String(Math.round(s.roundAttack))
     const lethal = s.running && s.roundAttack > 0 && s.roundAttack >= s.enemyHP
     V.refs.tcatk.classList.toggle('lethal', lethal) // the kill-race read: this swing ends it
-    V.refs.exinc.textContent = s.incoming != null ? `⚔ ${s.incoming}` : 'no strike'
-    V.refs.exfoe.classList.toggle('idle', s.incoming == null)
-    const sated = s.incoming != null && s.block >= s.incoming // guard meets the telegraph: more Defend = waste
+    // §5.7 dodge folds into the telegraph: incoming 0 with dodged swings = a full WHIFF (free round);
+    // a partial dodge tags the surviving total with 💨×N.
+    const dodgedAll = s.running && s.incoming === 0 && s.incomingDodged > 0
+    V.refs.exinc.textContent = dodgedAll
+      ? '💨 DODGED'
+      : s.incoming != null
+        ? `⚔ ${s.incoming}${s.incomingDodged > 0 ? `  💨×${s.incomingDodged}` : ''}`
+        : 'no strike'
+    V.refs.exfoe.classList.toggle('idle', s.incoming == null || dodgedAll)
+    const sated = !dodgedAll && s.incoming != null && s.incoming > 0 && s.block >= s.incoming // guard meets the telegraph: more Defend = waste
     V.refs.exguard.textContent = String(s.block)
     V.refs.tcgrd.classList.toggle('sated', sated)
+    V.refs.tcgrd.classList.toggle('freeround', dodgedAll) // the "no need to Defend" cue
     // the BITE PREVIEW (UX §4c#4, the Into the Breach lesson): never raw inputs when the resolved
     // consequence fits in one glyph — what bites past the guard, and the wounds it would scar
     const bite = s.running && s.incoming != null && s.incoming > s.block ? s.incoming - s.block : 0

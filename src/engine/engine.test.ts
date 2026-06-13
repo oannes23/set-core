@@ -47,21 +47,24 @@ test('rounds: the TEMPO LAW — a giant strikes every 3rd round, telegraphed at 
   expect(f.strikeEvery).toBe(3)
   expect(f.swings).toBe(1)
   const s = createCombat({ foe: f, gen: GEN }, rng)
-  expect(s.incoming).toBeNull() // free rounds while the mountain rises
+  // §5.7 EARLY REVEAL: the telegraph shows from round 1 (the windup) and is HELD, but the strike
+  // does NOT land until round 3. Pin a guaranteed-landing telegraph (a 1-swing giant can otherwise
+  // fully whiff on the deal-time dodge — that path is covered by the dodge test).
+  const tele = s.foe.damage
+  s.incoming = tele
+  s.incomingDodged = 0
+  expect(s.incoming).not.toBeNull() // revealed from round 1
   const r1 = reduce(s, { type: 'tick', dtMs: ROUND_MS + 100 }, { data: GAMEDATA, rng })
   expect(r1.state.round).toBe(2)
-  expect(r1.events.some((e) => e.type === 'roundEnded')).toBe(true)
-  expect(r1.state.incoming).toBeNull()
-  // the deal of round 3 (its strike round) REVEALS the telegraph
+  expect(r1.state.incoming).toBe(tele) // HELD through the windup — no strike yet
+  expect(r1.events.some((e) => e.type === 'playerDamaged')).toBe(false)
   const r2 = reduce(r1.state, { type: 'tick', dtMs: ROUND_MS + 100 }, { data: GAMEDATA, rng })
   expect(r2.state.round).toBe(3)
-  const tele = r2.events.find((e) => e.type === 'windup') as { amount: number } | undefined
-  expect(tele).toBeTruthy()
-  expect(r2.state.incoming).toBe(tele!.amount)
+  expect(r2.state.incoming).toBe(tele) // still held — round 2 was the second windup round
   // round 3 elapses — the strike lands EXACTLY the telegraphed amount (block 0; likely lethal — the point)
   const r3 = reduce(r2.state, { type: 'tick', dtMs: ROUND_MS + 100 }, { data: GAMEDATA, rng })
   const hit = r3.events.find((e) => e.type === 'playerDamaged') as { amount: number } | undefined
-  expect(hit?.amount).toBe(tele!.amount)
+  expect(hit?.amount).toBe(tele)
 })
 
 test('rounds: the tempo law packages a shambler as 2 modest swings every round', () => {
@@ -112,26 +115,62 @@ test('wounds: floor(bite/(maxHP/10)) per exchange; heals repair ceil(heal/quantu
   expect(woundedSlots(r.state)).toHaveLength(0)
 })
 
-test('stance picks QUEUE and lock at the draw phase; Maneuver dumps at the NEXT rollover', () => {
+test('§5.7 stances are LIVE: Maneuver gathers then burns ~1 charge/sec; bail to Stand keeps the bank', () => {
   const rng = mulberry32(8)
-  const f = foe('training_dummy', rng)
+  const f = foe('training_dummy', rng) // 0 damage — isolate the tide from any exchange
   const s = createCombat({ foe: f, gen: GEN }, rng)
   s.charges = 6
-  let r = reduce(s, { type: 'setTactic', tactic: 'maneuver' }, { data: GAMEDATA, rng })
-  r = reduce(r.state, { type: 'setBias', bias: { axis: 'color', value: 0 } }, { data: GAMEDATA, rng })
-  expect(r.state.tactic).toBe('stand') // still locked this round
-  expect(r.state.queuedTactic).toBe('maneuver')
-  // the deal locks the stance — Stand Ground held through THIS rollover, so the bank CARRIED
-  r = reduce(r.state, { type: 'tick', dtMs: ROUND_MS + 100 }, { data: GAMEDATA, rng })
-  expect(r.state.tactic).toBe('maneuver')
-  expect(r.state.maneuverBias).toEqual({ axis: 'color', value: 0 })
+  const deps = { data: GAMEDATA, rng }
+  // enter Maneuver LIVE (no queue) + dial a bias
+  let r = reduce(s, { type: 'setTactic', tactic: 'maneuver' }, deps)
+  expect(r.state.tactic).toBe('maneuver') // applied immediately
+  r = reduce(r.state, { type: 'setBias', bias: { axis: 'color', value: 0 } }, deps)
+  // the GATHER: a tick inside the gather window burns nothing
+  r = reduce(r.state, { type: 'tick', dtMs: 1500 }, deps) // < MANEUVER_GATHER_MS (1800)
   expect(r.state.charges).toBe(6)
-  // the NEXT rollover dumps the whole bank into the tide
-  r = reduce(r.state, { type: 'tick', dtMs: ROUND_MS + 100 }, { data: GAMEDATA, rng })
-  expect(r.state.charges).toBe(0)
-  const dump = r.events.find((e) => e.type === 'tacticsDumped') as { spent: number; churned: number } | undefined
-  expect(dump?.spent).toBe(6)
-  expect(dump && dump.churned > 0).toBe(true)
+  // past the gather: ~1 charge/sec — three seconds → three burns
+  r = reduce(r.state, { type: 'tick', dtMs: 500 }, deps) // crosses the gather
+  r = reduce(r.state, { type: 'tick', dtMs: 3000 }, deps)
+  expect(r.state.charges).toBe(3)
+  expect(r.events.filter((e) => e.type === 'tacticsBurned').length).toBeGreaterThanOrEqual(3)
+  // BAIL to Stand Ground is instant and KEEPS the remainder
+  r = reduce(r.state, { type: 'setTactic', tactic: 'stand' }, deps)
+  expect(r.state.tactic).toBe('stand')
+  const held = r.state.charges
+  r = reduce(r.state, { type: 'tick', dtMs: 5000 }, deps) // Stand Ground never burns
+  expect(r.state.charges).toBe(held)
+})
+
+test('§5.7 dodge: a fast foe full-whiff fires strikeDodged + a free round (no damage)', () => {
+  const rng = mulberry32(8)
+  const f = foe('cave_bat', rng) // swift, 3 swings — but we force a guaranteed dodge below
+  const s = createCombat({ foe: f, gen: GEN }, rng)
+  s.stats = { ...s.stats, speed: 999 } // overwhelming Speed edge → DODGE_MAX every swing
+  s.incoming = 0 // simulate a fully-dodged telegraph already revealed this (strike) round
+  s.incomingDodged = f.swings
+  s.nextStrikeRound = s.round
+  const r = reduce(s, { type: 'tick', dtMs: ROUND_MS + 100 }, { data: GAMEDATA, rng })
+  expect(r.events.some((e) => e.type === 'strikeDodged')).toBe(true)
+  expect(r.events.some((e) => e.type === 'playerDamaged')).toBe(false)
+})
+
+test('§5.7 guard carry: a slow foe reveals early, block survives the windup, drops after the strike', () => {
+  // the shaman is heavy (S−P −7 → every 2nd round) and its variants don't shift P/S, so strikeEvery
+  // is a stable 2 (unlike the butcher, whose Cruel variant can add Power and tip it into giant).
+  const wf = assembleFoe('goblin_shaman', GAMEDATA.dungeons.goblin_warren, GAMEDATA, mulberry32(8))!
+  const s = createCombat({ foe: wf, gen: GEN }, mulberry32(8))
+  expect(wf.strikeEvery).toBe(2)
+  expect(s.incoming).not.toBeNull() // EARLY REVEAL: telegraph shows from round 1 (the windup)
+  s.block = 12
+  const deps = { data: GAMEDATA, rng: mulberry32(8) }
+  // round 1 is a WINDUP round (strike lands round 2) — the guard must CARRY
+  const r1 = reduce(s, { type: 'tick', dtMs: ROUND_MS + 100 }, deps)
+  expect(r1.state.round).toBe(2)
+  expect(r1.state.block).toBe(12) // carried, not reset
+  expect(r1.events.some((e) => e.type === 'playerDamaged' || e.type === 'playerBlocked')).toBe(false) // no strike yet
+  // round 2 is the strike — guard absorbs, then drops
+  const r2 = reduce(r1.state, { type: 'tick', dtMs: ROUND_MS + 100 }, deps)
+  expect(r2.state.block).toBe(0) // drops only AFTER the strike resolves
 })
 
 // ---- trigger conditions ----

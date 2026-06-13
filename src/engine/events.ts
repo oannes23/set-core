@@ -10,7 +10,7 @@ export type CombatEvent =
   | { type: 'attackBanked'; amount: number; total: number } // v3: an Attack set banked toward the exchange swing
   | { type: 'roundEnded'; round: number } // the rollover exchange begins (events between this and roundStarted ARE the exchange)
   | { type: 'roundStarted'; round: number; incoming: number | null } // the deal settled; incoming = this round's telegraph (null = no strike)
-  | { type: 'tacticsDumped'; spent: number; churned: number } // the Maneuver rollover dump (spent ≥ churned; excess burned unused)
+  | { type: 'tacticsBurned'; churned: number; remaining: number } // §5.7: a LIVE Maneuver burn (1 charge → 1 card churns toward bias)
   | { type: 'enemyDamaged'; amount: number; immune?: boolean; magic?: boolean } // immune = card damage hit an immune foe; magic = ethereal mana-spent drain
   | { type: 'enemyHealed'; amount: number }
   | { type: 'playerDamaged'; amount: number; absorbed: number; source: string }
@@ -22,12 +22,13 @@ export type CombatEvent =
   | { type: 'manaDrained'; color: number; amount: number }
   | { type: 'chargesGained'; amount: number; source?: 'overflow' } // Tactics charges queued (source='overflow' = excess block)
   | { type: 'chargesDrained'; amount: number } // an enemy effect drained queued/banked charges
-  | { type: 'tacticChanged'; tactic: TacticKind; queued?: boolean } // queued = the wheel's next-round pick; unqueued = locked at the deal
-  | { type: 'biasChanged'; bias: ManeuverBias | null; queued?: boolean } // bias rides the same round-lock queue
+  | { type: 'tacticChanged'; tactic: TacticKind } // §5.7: stances are LIVE now (no queue/round-lock)
+  | { type: 'biasChanged'; bias: ManeuverBias | null } // the Maneuver dial, applied live
   | { type: 'warded'; what: 'transmute' | 'lock' | 'shatter'; cost: number } // Stand Ground ate a hostile board verb (1 charge; a wound costs 3)
   | { type: 'clockChanged'; deltaSeconds: number } // round stretched (+, stall spells — interim) or yanked shorter (−)
   | { type: 'enemyStrikes' } // an instant attack landed mid-round (trap effect — outside the exchange)
-  | { type: 'windup'; amount: number; strikesAt: number } // the foe TELEGRAPHS this round's exchange total (revealed at the deal)
+  | { type: 'windup'; amount: number; strikesAt: number; dodged?: number; swings?: number } // the foe TELEGRAPHS the pending exchange (revealed early for slow foes); dodged = swings evaded at the deal (💨)
+  | { type: 'strikeDodged' } // §5.7: every swing of a strike was evaded — the full whiff (the DODGED! card)
   | { type: 'cardsTransmuted'; slots: number[]; gapMs: number; hostile?: boolean; source?: 'churn' | 'drift' | 'trap' | 'trick' } // hostile = boomed; source = WHO pulled (undefined = a player cast) — the tug-attribution channel
   | { type: 'cardsReformed'; slots: number[] }
   | { type: 'cardsLocked'; slots: number[]; untilMs: number }

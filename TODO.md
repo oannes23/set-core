@@ -246,11 +246,14 @@ Build order (everything sim-gated where it touches contest constants):
 - `[x]` **The data rebase — DONE 2026-06-12** (see the workshop item): creatures author P/E/S
   directly; the legacy bridge + `DMG_BUDGET_K` + `LEGACY_*` scales + the authored `xp` field are
   retired; telegraph re-anchored on the contest; `computeXP` ready for the levels build.
-- `[ ]` **Combat amendments batch** (engine+UI, now unblocked): per-swing deal-time dodge +
-  💨 telegraph tags + the DODGED! smash card & free-round guard cue · guard carry through
-  windups + early telegraph reveal + sated-cue extension · Maneuver live-burn (gather /
-  bail-out asymmetry; burn rate = the scan-stability dial) · parting blow & start-grace
-  Speed riders (parting blow lands with the exit-ladder build, §B2).
+- `[x]` **Combat amendments batch — SHIPPED 2026-06-12** (engine+UI, 106 tests; CRAWL §5.7,
+  constants in TUNING.md): per-swing deal-time **dodge** (💨 telegraph tags + the DODGED! smash
+  card + free-round guard cue) · **guard-carry** through windups + **early telegraph reveal** ·
+  **Maneuver live-burn** (stances go LIVE — no queue; gather-in / instant Stand-Ground bail; ~1
+  charge/s, replaces the rollover dump) · the **start-grace Speed rider**. ⏳ DEFERRED: the
+  **parting-blow** Speed rider — waits on the flee parting blow (the B2 exit-ladder item).
+  ⚠ Interim: a fresh L1 player (10/10/10) is still under-leveled vs the parity-14 warren until
+  the levels build; re-measure the dev instruments + warren tune after levels land.
 - `[ ]` **Levels & XP** (rides the B2 economy build): XP from the computed law + the level-up
   flow (allocate +3/+2/+1, +5 HP, ★ at 21) + save-schema bump (level/xp/allocations).
 - `[ ]` **Loot tables v1** (replaces the delve's placeholder roll): category-first tables +

@@ -902,7 +902,13 @@ lands (the rollover dump changes who moves the board, and when).
 
 ---
 
-## 5.7 Speed, the guard & the live tide — combat amendments (SETTLED 2026-06-12; sim/playtest-gated)
+## 5.7 Speed, the guard & the live tide — combat amendments (SETTLED + BUILT 2026-06-12)
+
+> **STATUS: shipped 2026-06-12** (engine + UI; 106 tests). LIVE: deal-time dodge (DODGED! card +
+> 💨 tags + free-round cue), guard-carry + early telegraph reveal (the savings test), Maneuver
+> live-burn (stances go live; gather-in / instant-bail), the start-grace Speed rider. DEFERRED:
+> the **parting-blow** Speed rider — it waits on the flee parting blow (a B2 exit-ladder item).
+> Constants in `TUNING.md` (Rounds v3 table). The spec below is the as-built design.
 
 The progression workshop surfaced two structural reads: **Speed under-buys** (`MOVE_RATE_K` is
 ~1/10th of `RATE_K` per point) and **slow foes overperform their budget** — the guard zeroes

@@ -90,24 +90,23 @@ test('Overflow (Sentinel) spills block past the cap into the enemy', () => {
   expect(r.state.enemyHP).toBeLessThan(1000)
 })
 
-// ---- Tactics v3: the charge bank + the round-locked stances (CRAWL §5.6) ----
-test('Maneuver dump: nothing churns mid-round; the rollover batch-redraws toward the bias', () => {
+// ---- Tactics v3 + the §5.7 LIVE-BURN amendment: the charge bank + the two LIVE stances ----
+test('Maneuver LIVE-BURN: after the gather, charges burn ~1/sec, each churning a card toward the bias', () => {
   const s = combat('training_dummy')
-  s.tactic = 'maneuver' // Stand Ground is the default — dump tests opt into Maneuver
   s.charges = 3
   s.maneuverBias = { axis: 'shape', value: SHAPE_ATTACK }
   s.board = s.board.map((_, i) => card(i % 3, SHAPE_MOVE, i % 3)) // nothing conforms → plenty to churn
-  const r1 = reduce(s, { type: 'tick', dtMs: 2000 }, deps())
-  expect(r1.events.some((e) => e.type === 'cardsTransmuted')).toBe(false) // the tide waits for the deal
-  expect(r1.state.charges).toBe(3)
-  const r2 = reduce(r1.state, { type: 'tick', dtMs: ROUND_MS }, deps())
-  const ct = r2.events.find((e) => e.type === 'cardsTransmuted') as { slots: number[] } | undefined
-  expect(ct?.slots).toHaveLength(3) // the whole bank, as one tide
-  expect(r2.state.charges).toBe(0) // burned back to zero
-  expect(r2.events.some((e) => e.type === 'tacticsDumped')).toBe(true)
+  let r = reduce(s, { type: 'setTactic', tactic: 'maneuver' }, deps()) // enter live → starts the gather
+  r = reduce(r.state, { type: 'tick', dtMs: 1500 }, deps()) // inside the gather (1800ms) — no burn yet
+  expect(r.events.some((e) => e.type === 'cardsTransmuted')).toBe(false)
+  expect(r.state.charges).toBe(3)
+  r = reduce(r.state, { type: 'tick', dtMs: 3500 }, deps()) // past the gather → ~3 burns
+  expect(r.events.some((e) => e.type === 'cardsTransmuted')).toBe(true)
+  expect(r.state.charges).toBe(0) // burned back to zero, one card at a time
+  expect(r.events.filter((e) => e.type === 'tacticsBurned').length).toBe(3)
 })
 
-test('Maneuver holds charges with no bias set (no waste, even across the rollover)', () => {
+test('Maneuver holds charges with no bias set (no burn, no waste)', () => {
   const s = combat('training_dummy')
   s.tactic = 'maneuver'
   s.charges = 2
@@ -116,17 +115,16 @@ test('Maneuver holds charges with no bias set (no waste, even across the rollove
   expect(r.events.some((e) => e.type === 'cardsTransmuted')).toBe(false)
 })
 
-test('setTactic QUEUES: the stance locks at the draw phase — no charge reset, no spin-up', () => {
+test('setTactic is LIVE (§5.7): applies immediately, no charge reset; the gather delays the first burn', () => {
   const s = combat('training_dummy') // default tactic = stand
   s.charges = 4
   const r = reduce(s, { type: 'setTactic', tactic: 'maneuver' }, deps())
-  expect(r.events.some((e) => e.type === 'tacticChanged' && e.queued)).toBe(true)
-  expect(r.state.tactic).toBe('stand') // this round's stance is already locked
-  expect(r.state.queuedTactic).toBe('maneuver')
-  expect(r.state.charges).toBe(4) // no commitment tax — the round-lock IS the commitment
+  expect(r.events.some((e) => e.type === 'tacticChanged')).toBe(true)
+  expect(r.state.tactic).toBe('maneuver') // applied this instant — no queue
+  expect(r.state.charges).toBe(4) // entering costs nothing (the gather is the commitment)
   const sink = new EventSink()
   addCharges(r.state, 3, sink)
-  expect(r.state.charges).toBe(7) // income flows freely (the spin-up gate is gone)
+  expect(r.state.charges).toBe(7) // income flows freely
 })
 
 test('Combined Arms (Warlord): a shape-rainbow set banks +1 bonus charge', () => {

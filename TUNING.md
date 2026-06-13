@@ -23,19 +23,21 @@ pending the derivation-sheet sim — directionally settled, numerically sim-fodd
 | Constant / law | Value | File | Meaning |
 |---|---|---|---|
 | `ROUND_MS` | 20 000 | `src/engine/state.ts` | Round length (A1) |
-| Rollover order | swing → counter → dump → deal → telegraph | `src/engine/combat.ts` (`rollover`) | Player swing FIRST; **lethal cancels** (the kill-race, symmetric). UI plays it as the `EXCHANGE_BEATS` table (`src/ui/app.ts`): entry thunk 0 · swing drain 800 · counter drain 1950 · tide+knit 3150 · release/stamp 4150, hitstop 4500 (reduced-motion: 2250) |
+| Rollover order | swing → counter (strike round only) → deal → telegraph | `src/engine/combat.ts` (`rollover`) | Player swing FIRST; **lethal cancels** (the kill-race, symmetric). §5.7: the Maneuver dump is gone (live-burn), the strike fires only on the strike round (block carries through windups). UI plays it as the `EXCHANGE_BEATS` table (`src/ui/app.ts`): entry thunk 0 · swing drain 800 · counter drain 1950 · tide+knit 3150 · release/stamp 4150, hitstop 4500 (reduced-motion: 2250) |
 | Wound inflict | `floor(bite / (maxHP/10))` per EXCHANGE, cap 5 | `src/engine/triggers.ts` (`inflictWounds`) | Computed, never authored; Defend is the primary prevention |
 | Wound repair | `ceil(heal / (maxHP/10))` | `src/engine/ops.ts` (`healPlayer`) | Any heal knits wounds; keyed to the heal's SIZE (full-HP heals still repair) |
 | Wound recovery | 1 per draw phase; all at combat end | `src/engine/combat.ts` | Wound pendings never time-reform |
 | Ward cost (SG, live) | board verb 1 · wound `WOUND_WARD_COST` 3 | `src/engine/ops.ts` (`tryWard`) | Stand Ground intercepts live; bank carries across rollovers |
 | `CHARGE_CAP` | 15 | `src/engine/state.ts` | Exact both ways: a max 5-wound haymaker (5×3) or a whole-board dump |
-| Maneuver dump | ALL charges at rollover → ⌊bank⌋ deadest NOT-matching cards → bias; bank zeroes | `src/engine/tactics.ts` (`rolloverDump`) | No-bias holds (no waste); overflow past available cards burns |
-| Stance lock | `setTactic`/`setBias` QUEUE; lock at the deal | `src/engine/tactics.ts` | The round-lock IS the commitment (spin-up retired) |
-| Block reset | accumulators + Maneuver bank → 0 at the exchange; mana + SG bank + HP carry | `src/engine/combat.ts` | Excess block = **pure loss** (no trickle — settled 2026-06-11); Sentinel's Overflow passive is the paid exception |
+| Maneuver LIVE-BURN | `MANEUVER_GATHER_MS` 1800 · `MANEUVER_BURN_MS` 1000 | `src/engine/state.ts` · `tactics.ts` (`liveBurn`) · `combat.ts` (tick) | §5.7: enter Maneuver → gather, then burn ~1 charge/s, each churning the single deadest NOT-matching card → bias. No-bias / no-target holds the bank. Replaced the rollover dump |
+| Stance switching | LIVE (no queue) — `setTactic`/`setBias` apply instantly | `src/engine/tactics.ts` | §5.7: entering Maneuver pays the gather (damps wheel-drumming); bailing to Stand Ground is INSTANT and keeps the bank. The round-lock/queue retired |
+| Block reset | accumulators → 0 only AFTER a strike RESOLVES (carries through windup rounds); mana + SG bank + HP carry | `src/engine/combat.ts` | §5.7 guard-carry: a slow foe is a savings test. Excess block past the strike = **pure loss** (settled 2026-06-11); Sentinel's Overflow is the paid exception |
+| Early reveal | telegraph shows `strikeEvery−1` rounds early (from round 1), HELD until the strike round | `src/engine/combat.ts` (`rollover`) | §5.7: pairs with guard-carry — you see the slow strike coming and bank against it |
+| Dodge | `DODGE_BASE` 0.10 · `DODGE_K` 0.015 · clamp `[0.03, 0.40]`, per SWING, rolled at the deal | `src/engine/state.ts` · `resolve.ts` (`dodgeChance`) · `combat.ts` (`rollStrike`) | §5.7: each swing independently evades (your Speed vs theirs); dodged swings vanish from the telegraph (incoming 0 + dodged>0 = full whiff → the DODGED! card / free round). Strikes only |
 | `ROUND_EXTEND_CAP_S` | 10 | `src/engine/state.ts` | ⚠ INTERIM stall re-anchor: clock-push verbs stretch the round, capped (uncapped potions bypass) |
 | `MANA_CAP` | 15 / color | `src/engine/state.ts` | Gains past it are pure loss |
 | `DEFAULT_PLAYER_MAX` | 100 | `src/engine/state.ts` | A3; the save layer migrates HP-30 saves in proportion |
-| `START_GRACE_MS` | 3000 | `src/engine/state.ts` | UI freezes the round after Engage |
+| `START_GRACE_MS` | 3000 | `src/engine/state.ts` | UI board-read freeze after Engage — STRETCHED by Speed edge (~+150ms/pt, cap +2.5s; §5.7 Speed rider) |
 
 ## Resolution v3 — the stat contests (LIVE, first-cut)
 
@@ -74,8 +76,10 @@ confirmed/derived the numbers below; ⚠ rows marked **sim** changed from the fi
 
 **Status:** the FOE-MODEL rows (✅ below — re-denomination, parity line, role spreads, telegraph
 law, foe HP) **SHIPPED in the data rebase (2026-06-12)** and are now LIVE in the Resolution v3
-table above. The rest (levels/HP/stat-points, XP curve, loot, dodge/guard-carry/Maneuver
-live-burn) are still PLANNED — they land in the levels/loot build + the combat-amendments batch.
+table above. The **COMBAT-AMENDMENTS batch SHIPPED (2026-06-12)** too — ✅ dodge, guard-carry +
+early reveal, Maneuver live-burn, and the start-grace Speed rider are LIVE (Rounds v3 table above).
+Still PLANNED: levels/HP/stat-points, the XP curve, loot — they land in the levels/loot build.
+(The PARTING-BLOW Speed rider waits on the flee parting blow, a deferred B2 item.)
 
 **Sim findings (2026-06-12):**
 1. **The telegraph law re-anchors on the contest** *(sim)*: foe round budget =
@@ -120,10 +124,10 @@ live-burn) are still PLANNED — they land in the levels/loot build + the combat
 | Depth scaling | **~+5–10%/room** loot-quality/gold weight | greed aligns with dread; kills shallow cash-out farming |
 | Gear pity | gear weight ticks up per gear-less drop, resets on hit | the elite-sawtooth pattern as bad-luck protection |
 | Death tithe | **~12%** of banked gold | the exit ladder's last number |
-| Dodge *(sim)* | base **10%** · `DODGE_K` **0.015**/pt of S edge · clamp **[3%, 40%]** · per **swing** · rolled AT THE DEAL, folded into the ⚔ | strikes only; at K 0.015 dodge alone ≈ half a P/E point (ΔS 10.3 vs ΔE 20.3 winrate pts on the boss bench) — the charge agency the model can't price carries the rest; playtest re-read flagged |
-| Guard carry | Block persists through windups, **capped at the revealed telegraph** | strikeEvery>1 foes reveal ⚔ at windup start; guard drops only after a strike resolves |
-| Maneuver live-burn | **~1 charge/sec**, gather **~1.5–2s** to enter, bail-out to SG instant (keeps remainder) | replaces the rollover dump; burn rate = the scan-stability dial |
-| Speed riders | parting blow ↓ with Speed edge · start grace ↑ with Speed edge | the escape stat |
+| ✅ Dodge (LIVE) | base **10%** · `DODGE_K` **0.015**/pt of S edge · clamp **[3%, 40%]** · per **swing** · rolled AT THE DEAL, folded into the ⚔ | strikes only; at K 0.015 dodge alone ≈ half a P/E point (ΔS 10.3 vs ΔE 20.3 winrate pts on the boss bench) — the charge agency the model can't price carries the rest; playtest re-read flagged |
+| ✅ Guard carry (LIVE) | Block persists through windups, **capped at the revealed telegraph** | strikeEvery>1 foes reveal ⚔ at windup start; guard drops only after a strike resolves |
+| ✅ Maneuver live-burn (LIVE) | **~1 charge/sec**, gather **~1.5–2s** to enter, bail-out to SG instant (keeps remainder) | replaces the rollover dump; burn rate = the scan-stability dial |
+| Speed riders | ✅ start grace ↑ with Speed edge (LIVE) · ⏳ parting blow ↓ with Speed edge (waits on the flee parting blow) | the escape stat |
 | Crits | **deferred** to gear/abilities (deterministic hooks only) | set output stays exact |
 
 ## Delve encounter schema (LIVE, first cut — CRAWL §2)

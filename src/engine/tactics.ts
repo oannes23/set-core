@@ -1,18 +1,18 @@
-/* engine/tactics — TACTICS v3 (CRAWL §5.6): the charge bank and the two stances, round-locked.
-   Charges accumulate in EVERY stance (+1 per Move card; Defend overflow trickles). The stances
-   differ in their relationship to the bank AND in resolution timing:
+/* engine/tactics — TACTICS v3 + the §5.7 LIVE-BURN amendment: the charge bank and the two stances,
+   now applied LIVE (the round-lock/queue retired). Charges accumulate in EVERY stance (+1 per Move
+   card). The stances differ in how they spend the bank:
    • Stand Ground (banker) — spends LIVE: each hostile board verb fizzles for 1 charge, an incoming
-     wound for 3 (ops.tryWard); its remainder CARRIES across the rollover.
-   • Maneuver (dumper) — never wards; at the rollover it burns ALL charges: N charges redraw the N
-     deadest cards NOT already matching the bias, then the bank zeroes (overflow past available
-     non-matching cards burns unused — the board is already yours).
-   The stance LOCKS at the draw phase: setTactic/setBias QUEUE for next round (the wheel's ghost
-   spoke). Load-bearing, not flavor — free swapping would allow warding all round then flipping to
-   dump at second 19. Supersedes the v2 swap-spin-up rule entirely. v2 history in CRAWL §5.5. */
+     wound for 3 (ops.tryWard); its remainder CARRIES.
+   • Maneuver (dumper → BURNER) — never wards; after a short GATHER it burns ~1 charge/sec LIVE
+     (tick → liveBurn): each burn redraws the single deadest card NOT already matching the bias.
+   Swapping is asymmetric (§5.7): entering Maneuver pays the gather (damps wheel-drumming); bailing
+   to Stand Ground is INSTANT and keeps the remainder (the panic button always works). v2/v3-lock
+   history in CRAWL §5.5/§5.6. */
 
 import type { Rng } from '../core/rng'
 import type { FavorBias } from '../core/generate'
 import type { CombatState, TacticKind, ManeuverBias } from './state'
+import { MANEUVER_GATHER_MS } from './state'
 import type { EventSink } from './events'
 import { transmute } from './triggers'
 import { BIAS_W, cardColor, cardShape, cardMag, liveSlots, comboCounts } from './select'
@@ -26,57 +26,40 @@ export function biasToFavor(b: ManeuverBias): FavorBias {
 
 const axisValue = (b: ManeuverBias) => (b.axis === 'color' ? cardColor : b.axis === 'shape' ? cardShape : cardMag)
 
-/** QUEUE a stance pick for the next draw phase (v3: the stance locks at the deal). Picking your
- *  current tactic clears the queue. The change applies at the rollover (combat.ts). */
+/** Set the stance LIVE (§5.7 — no queue). Entering Maneuver starts the GATHER (burns begin after it);
+ *  bailing to Stand Ground is instant and keeps the banked charges. A no-op if already in `tactic`. */
 export function setTactic(s: CombatState, tactic: TacticKind, sink: EventSink): boolean {
-  if (!s.running) return false
-  s.queuedTactic = tactic === s.tactic ? null : tactic
-  sink.emit({ type: 'tacticChanged', tactic: s.queuedTactic ?? s.tactic, queued: true })
+  if (!s.running || tactic === s.tactic) return false
+  s.tactic = tactic
+  s.burnAccum = 0
+  s.maneuverGatherUntil = tactic === 'maneuver' ? s.now + MANEUVER_GATHER_MS : 0 // gather only on ENTERING the tide
+  sink.emit({ type: 'tacticChanged', tactic })
   return true
 }
 
-/** QUEUE a bias change for the next draw phase. The bias is part of the locked stance (flicking it
- *  just before the dump would dodge the commitment), so it rides the same queue. */
+/** Set the Maneuver dial LIVE. Changing the bias mid-tide does NOT re-gather (you're already churning). */
 export function setBias(s: CombatState, bias: ManeuverBias | null, sink: EventSink): boolean {
   if (!s.running) return false
-  s.queuedBias = { bias: bias ? { ...bias } : null }
-  sink.emit({ type: 'biasChanged', bias: s.queuedBias.bias, queued: true })
+  s.maneuverBias = bias ? { ...bias } : null
+  sink.emit({ type: 'biasChanged', bias: s.maneuverBias })
   return true
 }
 
-/** Apply the queued stance at the draw phase (called by the reducer's rollover). */
-export function lockQueuedStance(s: CombatState, sink: EventSink): void {
-  if (s.queuedTactic && s.queuedTactic !== s.tactic) {
-    s.tactic = s.queuedTactic
-    sink.emit({ type: 'tacticChanged', tactic: s.tactic })
-  }
-  s.queuedTactic = null
-  if (s.queuedBias) {
-    s.maneuverBias = s.queuedBias.bias ? { ...s.queuedBias.bias } : null
-    sink.emit({ type: 'biasChanged', bias: s.maneuverBias })
-  }
-  s.queuedBias = null
-}
-
-/** The Maneuver DUMP — fires at the rollover, before the deal. Burns ALL banked charges: the N
- *  deadest live cards not already matching the bias redraw toward it (batch — this is the tide
- *  coming in with the new deal, not the old serial churn). The bank zeroes even if fewer
- *  non-matching cards exist than charges (the board is already yours). */
-export function rolloverDump(s: CombatState, rng: Rng, sink: EventSink): void {
-  if (s.tactic !== 'maneuver' || s.charges <= 0) return
+/** One LIVE Maneuver burn (§5.7, called from tick on the ~1/s cadence): spend 1 charge to redraw the
+ *  single deadest live card NOT already matching the bias toward it. Returns false (spending nothing)
+ *  when there's no bias or no non-matching card left — the board is already yours, so hold the ammo. */
+export function liveBurn(s: CombatState, rng: Rng, sink: EventSink): boolean {
+  if (s.tactic !== 'maneuver' || s.charges <= 0) return false
   const bias = s.maneuverBias
-  if (!bias) return // no bias dialed (unreachable from the wheel) — hold the bank, no waste
-  const spent = s.charges
-  s.charges = 0
+  if (!bias) return false
   const get = axisValue(bias)
   const pool = liveSlots(s, (c) => get(c) !== bias.value)
-  if (!pool.length) {
-    sink.emit({ type: 'tacticsDumped', spent, churned: 0 })
-    return
-  }
+  if (!pool.length) return false
   const counts = comboCounts(s)
   const cost = (i: number) => counts[i] * 100 + cardMag(s.board[i]!)
-  const take = pool.sort((a, b) => cost(a) - cost(b)).slice(0, Math.min(spent, pool.length))
-  transmute(s, take, { bias: biasToFavor(bias), source: 'churn' }, sink) // calm morph — reforms with the deal
-  sink.emit({ type: 'tacticsDumped', spent, churned: take.length })
+  const pick = pool.reduce((best, i) => (cost(i) < cost(best) ? i : best), pool[0]) // the single deadest
+  s.charges -= 1
+  transmute(s, [pick], { bias: biasToFavor(bias), source: 'churn' }, sink) // calm morph — reforms shortly after
+  sink.emit({ type: 'tacticsBurned', churned: 1, remaining: s.charges })
+  return true
 }

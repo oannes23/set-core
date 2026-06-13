@@ -56,6 +56,13 @@ export const TIER_BUDGET_MULT = { minion: 1, elite: 1.5, boss: 2 } as const // A
 export function telegraphRoundBudget(foePower: number, playerEndurance: number, tier: 'minion' | 'elite' | 'boss'): number {
   return contestRate(foePower, playerEndurance) * TELEGRAPH_QSUM * TIER_BUDGET_MULT[tier]
 }
+/** DODGE (CRAWL §5.7): the per-SWING evasion chance — your Speed vs the foe's, difference-based and
+ *  clamped, the same shape as the contests. Rolled at the deal; dodged swings vanish from the
+ *  telegraph. Constants in state.ts (imported by the caller to keep resolve.ts dep-free of state). */
+export function dodgeChance(playerSpeed: number, foeSpeed: number, base: number, k: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, base + k * (playerSpeed - foeSpeed)))
+}
+
 /** The per-SWING roll budget: the round budget packaged by the tempo law. 0-Power foes never strike. */
 export function telegraphPerSwing(
   foe: { stats: StatBlock; tier: 'minion' | 'elite' | 'boss' | null; strikeEvery: number; swings: number },
