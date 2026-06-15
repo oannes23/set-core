@@ -24,13 +24,17 @@ import { colsForN, COMBAT_GEN, type Deps, type CombatAction } from '../engine/co
 import { createRun, runReduce, type RunState } from '../engine/run'
 import { createDelve, nextEncounter, fleeReroll, dreadBand, RUN_BAG_CAP, type DelveState, type EncounterTier } from '../engine/delve'
 import { rollRoomLoot } from '../engine/loot'
+import { gearStatBonus, gearRiders, rollGear } from '../engine/gear'
+import { EQUIP_SLOTS, type EquipSlot, type Rarity, type Affix, type AffixComponent } from '../engine/items'
+import { GEAR, gearBase, fitsSlot } from '../data/gear'
 import { CONSUMABLES } from '../engine/consumables'
 import { loadBank, bankGold, bankTithe } from './bank'
-import type { CombatState, FoeRuntime } from '../engine/state'
+import type { CombatState, FoeRuntime, StatBlock } from '../engine/state'
 import { CHARGE_CAP, MANA_CAP, START_GRACE_MS, ROUND_MS, WOUND_WARD_COST, WOUND_CAP_PER_EXCHANGE, woundQuantum, dreadLevel, DREAD_ONSET, DREAD_MAX } from '../engine/state'
 import type { CombatEvent } from '../engine/events'
 import { bumpTurn, pick, strikeWord, healWord, drainWord, magicLead, tierOf, joinClauses, voiceOf, ABILITY_FLAVOR } from './flavor'
 import { type SavedChar, type StatAlloc, loadRoster, upsertChar, deleteChar, makeChar, freshId, CONSUMABLE_SLOTS, effectiveStats, xpForLevel, pendingLevels, applyLevelUp, LEVEL_CAP, activeSlotsAt, passiveSlotsAt, activeUnlockLevel } from './save'
+import { isDev, toggleDev, onDevChange, displayName } from './dev'
 
 const GEN: GenConfig = COMBAT_GEN
 /** one shared reduced-motion query — card feel (tilt/flights/staggers) falls back to fades */
@@ -119,7 +123,50 @@ let V: View | null = null
 export function mountApp(root: HTMLElement): void {
   initTooltips()
   ROOT = root
+  mountDevToggle()
+  document.body.classList.toggle('dev', isDev())
+  onDevChange((on) => {
+    document.body.classList.toggle('dev', on)
+    // Static scenes re-mount so their dev panels / names re-resolve; combat repaints live every frame
+    // (its dev row is CSS-gated), so re-mounting it — which would reset the live fight — is skipped.
+    if (!V && lastSceneMount) goScene(lastSceneMount)
+  })
   goScene(characterSelectScene)
+}
+
+/** The always-present, subtle dev-mode switch (a tiny corner chip on <body>, survives scene swaps). */
+function mountDevToggle(): void {
+  if (document.getElementById('devtoggle')) return
+  const t = $(`<button id="devtoggle" data-tip-title="Dev mode" data-tip="Reveal system-descriptive names + balance instruments (combat row, town readout, loot-roll trace). Subtle on purpose.">dev</button>`)
+  t.addEventListener('click', () => toggleDev())
+  document.body.appendChild(t)
+}
+
+/** The level-appropriate stat anchor (CRAWL §3 parity line `10 + 2(L−1)`) — a dev balance reference. */
+const parityFor = (level: number): number => 10 + 2 * (level - 1)
+/** A town-side dev readout (system + balance numbers), styled like the combat dev row and CSS-gated
+ *  to dev mode (`body.dev`). Pass already-formatted cells. */
+function townDevPanel(cells: string[]): HTMLElement {
+  return $(`<div class="devpanel"><span class="dvl">dev</span>${cells.map((c) => `<span>${c}</span>`).join('')}</div>`)
+}
+
+// ---- gear / equip screen (CRAWL §7 chunk ①) ----
+const SLOT_ICON: Record<EquipSlot, string> = { weapon: '⚔', armor: '🛡', relic: '🔮', trinket1: '💍', trinket2: '💍' }
+const SLOT_LABEL: Record<EquipSlot, string> = { weapon: 'Weapon', armor: 'Armor', relic: 'Relic', trinket1: 'Trinket', trinket2: 'Trinket' }
+/** A compact affix label: the thematic name (or system name in dev) + its stat delta. */
+function affixShort(a: Affix): string {
+  const stat = a.components.find((c): c is Extract<AffixComponent, { c: 'stat' }> => c.c === 'stat')
+  return `${displayName(a.label)}${stat ? ` +${stat.amount}` : ''}`
+}
+/** Dev test affordance: mint a slot-appropriate random gear into the first empty slot (loot-tier =
+ *  hero level as a proxy). The real source-themed loot roller lands with chunk ②. */
+function grantTestGear(c: SavedChar): void {
+  const slot = EQUIP_SLOTS.find((s) => !c.equipped[s]) ?? 'weapon'
+  const bases = Object.values(GEAR).filter((b) => fitsSlot(b, slot))
+  const base = bases[Math.floor(systemRng() * bases.length)] ?? Object.values(GEAR)[0]
+  const rarities: Rarity[] = ['white', 'green', 'blue', 'purple', 'orange']
+  const rarity = rarities[Math.floor(systemRng() * rarities.length)]
+  c.equipped[slot] = rollGear(base.id, rarity, c.level, systemRng)
 }
 
 /* ============================================================
@@ -130,6 +177,7 @@ export function mountApp(root: HTMLElement): void {
    can paint, tick, or burst over the next one.
    ============================================================ */
 let ROOT: HTMLElement | null = null
+let lastSceneMount: ((root: HTMLElement) => void) | null = null // re-mount target on a dev-mode flip
 // the briefing/coach/FX/vignette layers live on <body>; #tooltip is app-global (hidden, not swept)
 const BODY_SINGLETONS = ['coachscrim', 'coachpop', 'briefing', 'burstlayer', 'bamlayer', 'ptint', 'levelup']
 let sceneTimers: number[] = []
@@ -141,6 +189,7 @@ function sceneTimeout(fn: () => void, ms: number): number {
 }
 function goScene(mount: (root: HTMLElement) => void): void {
   if (!ROOT) return
+  lastSceneMount = mount
   if (V) { cancelAnimationFrame(V.raf); V = null } // stop the combat loop before its DOM goes away
   for (const id of sceneTimers) clearTimeout(id)
   sceneTimers = []
@@ -281,7 +330,26 @@ function characterSelectScene(root: HTMLElement): void {
     host.appendChild($(`<label style="margin-top:14px">Passive</label>`))
     host.appendChild($(`<div class="sheet-stat">${cls.passives.map((p) => PASSIVES[p]?.name).filter(Boolean).join(' · ') || '—'}</div>`))
     host.appendChild($(`<label style="margin-top:14px">Gear</label>`))
-    host.appendChild($(`<div class="sheet-soon">— coming soon —</div>`))
+    const gearGrid = $(`<div class="geargrid"></div>`)
+    for (const slot of EQUIP_SLOTS) {
+      const g = c.equipped[slot]
+      const base = g ? gearBase(g.refId) : undefined
+      const slotEl = $(`<div class="gearslot${g ? ' filled' : ''}"></div>`)
+      if (g && base) {
+        const affixTxt = g.affixes.length ? g.affixes.map(affixShort).join(' · ') : '—'
+        slotEl.innerHTML = `<span class="gs-ic r-${g.rarity}">${base.icon}</span><div class="gs-meta"><div class="gs-n r-${g.rarity}">${base.name}</div><div class="gs-a">${affixTxt}</div></div><button class="gs-x" title="Unequip">✕</button>`
+        slotEl.querySelector('.gs-x')!.addEventListener('click', () => { delete c.equipped[slot]; upsertChar(c); roster = loadRoster(); render() })
+      } else {
+        slotEl.innerHTML = `<span class="gs-ic empty">${SLOT_ICON[slot]}</span><div class="gs-meta"><div class="gs-n dim">${SLOT_LABEL[slot]}</div><div class="gs-a dim">empty</div></div>`
+      }
+      gearGrid.appendChild(slotEl)
+    }
+    host.appendChild(gearGrid)
+    if (isDev()) {
+      const grant = $(`<button class="devgrant" data-tip="Mint a random gear instance into the first empty slot — chunk ① test affordance (real loot rolls land in chunk ②).">⚙ grant test gear</button>`)
+      grant.addEventListener('click', () => { grantTestGear(c); upsertChar(c); roster = loadRoster(); render() })
+      host.appendChild(grant)
+    }
     host.appendChild($(`<label style="margin-top:14px">Consumables</label>`))
     const consRow = $(`<div class="cons-row"></div>`)
     const loadout = (c.consumables ?? []).filter(Boolean)
@@ -292,6 +360,16 @@ function characterSelectScene(root: HTMLElement): void {
       consRow.appendChild($(`<span class="cons-slot${cc.kind === 'scroll' ? ' scroll' : ''}" style="--cc:${tint}" data-tip-title="${cc.name}" data-tip="${cc.desc}"><span class="cons-ic">${cc.icon}</span></span>`))
     }
     host.appendChild(consRow)
+    const gb = gearStatBonus(c.equipped)
+    const rd = gearRiders(c.equipped)
+    host.appendChild(townDevPanel([
+      `combat P/E/S ${st.power + gb.power}/${st.endurance + gb.endurance}/${st.speed + gb.speed}`,
+      `gear +P/E/S ${gb.power}/${gb.endurance}/${gb.speed}`,
+      `riders atk+${rd.atkDamagePerCard}/blk+${rd.blockPerDefendCard}/mana+${rd.manaPerMatch}`,
+      `parity(L${c.level}) ${parityFor(c.level)}`,
+      `xp ${c.xp}/${c.level >= LEVEL_CAP ? '★' : xpForLevel(c.level)}`,
+      `vault ${loadBank().gold}g`,
+    ]))
     const actions = $(`<div class="sheet-actions"></div>`)
     const ready = pendingLevels(c)
     if (ready > 0) {
@@ -592,7 +670,12 @@ function startCombat(root: HTMLElement, char: SavedChar, dungeonId: string, foe:
   const pass = cls.passives.slice(0, passiveSlotsAt(char.level))
   // §5.8 dread: depth floor from the delve's dread band (1 if a lone fight); OFF for coach/teaching fights
   const dreadFloor = DELVE ? [1, 2.5, 4, 5, 5][dreadBand(DELVE.d).step] : 1
-  const run = createRun({ foe, gen: GEN, playerMax: char.maxHp, stats: effectiveStats(char), passives: pass, consumables, sequence, dungeonId, dreadFloor, coach: !!dg.coach }, rng)
+  // §7 gear: native stats + StatMod affixes fold into the statline; base riders thread to resolveSet.
+  // (Affix TRIGGERS/abilities aggregate in gear.ts but their bus wiring + content ride chunk ②.)
+  const base = effectiveStats(char)
+  const gb = gearStatBonus(char.equipped)
+  const stats: StatBlock = { power: base.power + gb.power, endurance: base.endurance + gb.endurance, speed: base.speed + gb.speed }
+  const run = createRun({ foe, gen: GEN, playerMax: char.maxHp, stats, riders: gearRiders(char.equipped), passives: pass, consumables, sequence, dungeonId, dreadFloor, coach: !!dg.coach }, rng)
   run.combat.playerHP = Math.max(0, Math.min(char.maxHp, char.hp)) // the hero enters at their persisted HP, not full
   V = { root, deps: { data: GAMEDATA, rng }, run, state: run.combat, char, actions: [], classId: cls.id, loadout: acts, coach: !!dg.coach, coachCue: null, manaColor: dominantManaColor(acts), paused: true, hitstopUntil: 0, holdHud: false, preview: null, selected: [], raf: 0, lastT: 0, boardSig: '', refs: {}, stats: { dealt: 0, taken: 0, blocked: 0, healed: 0, sets: 0, traps: 0, xp: 0 }, morphSrc: new Map(), dev: { reshapeYou: 0, reshapeFoe: 0, matches: 0, springs: 0, k1: 0, wards: 0, churns: 0 } }
   buildPlay()
@@ -657,7 +740,7 @@ function buildPlay(): void {
   logP.appendChild($(`<label>Combat log</label>`))
   logP.appendChild($(`<div class="log" id="log"></div>`))
   lrail.appendChild(logP)
-  // the DEV instruments — always-on while the project is in dev; a dim side-stat, not a feature
+  // the DEV instruments — revealed by the dev-mode toggle (body.dev); a dim side-stat, not a feature
   lrail.appendChild($(`<div class="devstats" id="devstats"></div>`))
   play.appendChild(lrail)
   const center = $(`<div class="panel centercol"></div>`)
@@ -2341,6 +2424,7 @@ function renderDevStats(): void {
   // sets/round vs the A2 axiom: ~3 = baseline, 4–6 = competent (warn outside 2..7)
   const spr = s.now > 10_000 && s.round > 0 ? d.matches / s.round : null
   const cell = (k: string, v: string, off: boolean) => `<span class="${off ? 'off' : ''}">${k} <b>${v}</b></span>`
+  const fs = s.foe?.stats // the live contest numbers — system insight, dev-only
   const html = [
     cell('reshape', share == null ? '—' : `${share}% <i>→65–70</i>`, share != null && (share < 60 || share > 78)),
     cell('spring', spring == null ? '—' : `${spring}% <i>→~30</i>`, spring != null && (spring < 15 || spring > 45)),
@@ -2349,6 +2433,11 @@ function renderDevStats(): void {
     cell('gimme', gimme == null ? '—' : `${gimme}%`, false),
     cell('wards', String(d.wards), false),
     cell('churns', String(d.churns), false),
+    // system numbers (the contest under the hood) — only ever visible in dev mode
+    cell('foe P/E/S', fs ? `${fs.power}/${fs.endurance}/${fs.speed}` : '—', false),
+    cell('telegraph', s.foe ? String(Math.round(s.foe.damage)) : '—', false),
+    cell('dread', dreadLevel(s).toFixed(1), false),
+    cell('round', String(s.round), false),
   ].join('')
   const el = V.refs.devstats
   if (el && el.dataset.last !== html) { el.innerHTML = `<span class="dvl">dev</span>${html}`; el.dataset.last = html }
@@ -2517,6 +2606,7 @@ function delveLootReveal(): HTMLElement {
     wrap.appendChild($(`<div class="lootcard"><span class="loot-lab">loot</span><span class="cons-slot${c.kind === 'scroll' ? ' scroll' : ''}" style="--cc:${tint}"><span class="cons-ic">${c.icon}</span></span><div class="loot-id"><div class="ln">${c.name}</div><div class="ld">${c.desc}</div></div></div>`))
   }
   if (!wrap.children.length) wrap.appendChild($(`<div class="forksub">The room holds nothing of value.</div>`))
+  if (isDev() && loot.trace.length) wrap.appendChild($(`<div class="devpanel devtrace"><span class="dvl">loot roll</span>${loot.trace.map((l) => `<span>${l}</span>`).join('')}</div>`))
   return wrap
 }
 

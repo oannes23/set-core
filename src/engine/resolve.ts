@@ -13,6 +13,7 @@
 import type { Card } from '../core/affine'
 import type { Rng } from '../core/rng'
 import type { StatBlock } from './state'
+import { NO_RIDERS, type Riders } from './items'
 
 /** Magnitude → action quality: glancing / solid / heavy. */
 export const QUALITY = [0.7, 1, 1.4] as const
@@ -119,8 +120,11 @@ export interface Resolution {
 }
 
 /** Resolve a set (v3 contests): each card banks its lane's contested rate × its quality.
- *  Mana routes by colour signature: all-same → 3 in that pool, all-diff → 1 each. */
-export function resolveSet(cards: [Card, Card, Card], stats: StatBlock, foeStats: StatBlock, _rng: Rng): Resolution {
+ *  Mana routes by colour signature: all-same → 3 in that pool, all-diff → 1 each.
+ *  GEAR RIDERS (§7) add FLAT, AFTER the contest (bounded — they never scale with the rate): the
+ *  weapon's damage per Attack card, the armor's Block per Defend card, caster mana per mono-colour set.
+ *  Default NO_RIDERS → identical to the pre-gear result (backward-compatible). */
+export function resolveSet(cards: [Card, Card, Card], stats: StatBlock, foeStats: StatBlock, _rng: Rng, riders: Riders = NO_RIDERS): Resolution {
   const atkRate = contestRate(stats.power, foeStats.endurance)
   const defRate = contestRate(stats.endurance, foeStats.power)
   const mvRate = moveRate(stats.speed, foeStats.speed)
@@ -129,20 +133,27 @@ export function resolveSet(cards: [Card, Card, Card], stats: StatBlock, foeStats
   let dmgHeavy = 0
   let block = 0
   let charges = 0
+  let nAtk = 0
+  let nDef = 0
   for (const c of cards) {
     const shape = c[1]
     const q = QUALITY[c[3]] // card magnitude = the action's quality tier
     if (shape === SHAPE_ATTACK) {
+      nAtk++
       const hit = Math.round(atkRate * q)
       if (c[3] === 0) dmgLight += hit
       else if (c[3] === 1) dmgMed += hit
       else dmgHeavy += hit
     } else if (shape === SHAPE_DEFEND) {
+      nDef++
       block += Math.round(defRate * q)
     } else {
       charges += mvRate * q // fractional on purpose — the Speed contest needs the granularity
     }
   }
+  // gear riders: flat per-card additions, post-contest. Damage lumps into the "solid" bucket for FX.
+  if (riders.atkDamagePerCard > 0 && nAtk > 0) dmgMed += riders.atkDamagePerCard * nAtk
+  if (riders.blockPerDefendCard > 0 && nDef > 0) block += riders.blockPerDefendCard * nDef
   const damage = dmgLight + dmgMed + dmgHeavy
   const cv: [number, number, number] = [cards[0][0], cards[1][0], cards[2][0]]
   const allSameColor = cv[0] === cv[1] && cv[1] === cv[2]
@@ -153,5 +164,7 @@ export function resolveSet(cards: [Card, Card, Card], stats: StatBlock, foeStats
     mana[1] = 1
     mana[2] = 1
   }
+  // caster mana rider: a mono-colour set is the caster's payoff (the school = mono-colour, §7)
+  if (riders.manaPerMatch > 0 && allSameColor) mana[cv[0]] += riders.manaPerMatch
   return { damage, dmgLight, dmgMed, dmgHeavy, block, charges, mana, allSameColor, desc: matchDescriptor(cards) }
 }

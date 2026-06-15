@@ -12,6 +12,7 @@ import type { GameData } from '../data/schema'
 import { type CombatState, type FoeRuntime, type Pending, type TacticKind, type ManeuverBias, type StatBlock, MANA_CAP, DEFAULT_PLAYER_MAX, BASE_STATS, ROUND_MS, DODGE_BASE, DODGE_K, DODGE_MIN, DODGE_MAX, MANEUVER_BURN_MS, dreadFoeMult, dreadPlayerMult, dreadBleed, driftRateMult } from './state'
 import { type CombatEvent, EventSink } from './events'
 import { type Resolution, resolveSet, weightedRoll, telegraphPerSwing, dodgeChance } from './resolve'
+import { NO_RIDERS, type Riders } from './items'
 import { fireTriggers, runTrigger, inflictWounds, hurtPlayer, reformSlots, EMPTY_DESC } from './triggers'
 import { gainBlock, addCharges } from './ops'
 import { firePassives } from './passives'
@@ -43,7 +44,8 @@ export interface NewCombatOpts {
   foe: FoeRuntime
   gen: GenConfig
   playerMax?: number
-  stats?: StatBlock // Resolution v2: Power/Endurance/Speed (default BASE_STATS = old-system parity)
+  stats?: StatBlock // Resolution v2: Power/Endurance/Speed (default BASE_STATS = old-system parity); incl. gear bonus
+  riders?: Riders // §7 gear riders (flat per-card; default none = no gear equipped)
   passives?: string[] // the chosen class's always-on passive ids
   consumables?: string[] // carried potions/scrolls for this run
   dreadFloor?: number // §5.8 dread depth floor (from the delve band; default 1 = not in a delve)
@@ -86,6 +88,7 @@ export function createCombat(opts: NewCombatOpts, rng: Rng): CombatState {
     enemyMax: foe.hp,
     block: 0,
     stats,
+    riders: opts.riders ?? NO_RIDERS,
     mana: [0, 0, 0],
     tactic: 'stand', // the defensive default — you OPT INTO Maneuver's greed live (§5.7)
     maneuverBias: null,
@@ -176,7 +179,7 @@ function completeSet(s: CombatState, slots: [number, number, number], deps: Deps
   if (!isSet(ca, cb, cc)) return // invalid pick — no-op (the UI handles misread feedback)
   if (s.attackFrozen) { s.attackFrozen = false; sink.emit({ type: 'buffFaded', id: 'invisibility', label: 'Invisibility fades — the enemy sees you again' }) }
   const cards: [Card, Card, Card] = [ca, cb, cc]
-  const res = resolveSet(cards, s.stats, s.foe.stats, deps.rng)
+  const res = resolveSet(cards, s.stats, s.foe.stats, deps.rng, s.riders)
   applyResolution(s, res, deps.rng, sink)
   sink.emit({ type: 'setResolved', damage: res.damage, block: res.block, mana: res.mana, slots })
   // character-innate passives react to this match's signature (Momentum may steer the refill below)...

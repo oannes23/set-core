@@ -390,6 +390,24 @@ button.cta.bob { animation: ctabob 1.6s ease-in-out infinite; }
 .sheet-hd .cc { font-size: 12px; color: var(--ink-dim); margin-top: 2px; }
 .sheet-stat { font-size: 13px; color: var(--ink); margin-top: 4px; font-variant-numeric: tabular-nums; }
 .sheet-soon { font-size: 12px; color: var(--ink-faint); margin-top: 4px; }
+
+/* GEAR — the equip grid (CRAWL §7 chunk ①) */
+.geargrid { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+.gearslot { display: flex; align-items: center; gap: 9px; border: 1px solid var(--line2); border-radius: 8px; padding: 6px 9px; font-size: 12px; }
+.gearslot:not(.filled) { border-style: dashed; opacity: .6; }
+.gearslot .gs-ic { font-size: 17px; line-height: 1; width: 20px; text-align: center; }
+.gearslot .gs-ic.empty { opacity: .4; }
+.gearslot .gs-meta { flex: 1; min-width: 0; }
+.gearslot .gs-n { font-weight: 700; }
+.gearslot .gs-n.dim, .gearslot .gs-a.dim { color: var(--ink-faint); font-weight: 500; }
+.gearslot .gs-a { font-size: 10.5px; color: var(--ink-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.gearslot .gs-x { background: transparent; border: 0; color: var(--ink-faint); cursor: pointer; font-size: 12px; padding: 2px 4px; border-radius: 4px; }
+.gearslot .gs-x:hover { color: var(--warn); background: var(--line2); }
+.devgrant { margin-top: 8px; font: 600 11px/1 'Spline Sans Mono', monospace; color: var(--phos); background: transparent; border: 1px dashed var(--phos); border-radius: 6px; padding: 6px 10px; cursor: pointer; opacity: .8; }
+.devgrant:hover { opacity: 1; }
+/* rarity ink (grey→orange) — shared by gear name + icon */
+.r-grey { color: #8a8f98; } .r-white { color: #e8e8ea; } .r-green { color: #5fbf5f; }
+.r-blue { color: #5a9bff; } .r-purple { color: #b06bff; } .r-orange { color: #ff9b3d; }
 /* XP progress (sheet + end-screen footer + level-up): a thin gold bar */
 .sheet-xp, .summary-xp { display: flex; align-items: center; gap: 8px; margin-top: 5px; font-size: 11.5px; font-variant-numeric: tabular-nums; }
 .summary-xp { justify-content: center; max-width: 360px; margin: 10px auto 0; padding-top: 9px; border-top: 1px solid var(--line); }
@@ -757,12 +775,26 @@ button.cta:disabled { opacity: .4; cursor: not-allowed; }
 .boardwrap.wardshield { animation: wardshield .55s ease; }
 @keyframes wardshield { 0% { box-shadow: inset 0 0 0 2px var(--gold), inset 0 0 26px -8px var(--gold); } 100% { box-shadow: none; } }
 
-/* DEV instruments — a dim always-on side-stat row (we're in dev), not a feature */
-.devstats { display: flex; gap: 13px; flex-wrap: wrap; font-size: 10px; color: var(--ink-faint); padding: 2px 2px 0; }
-.devstats .dvl { letter-spacing: .14em; text-transform: uppercase; opacity: .6; }
-.devstats b { font-weight: 700; color: var(--ink-dim); }
-.devstats i { font-style: normal; opacity: .55; }
+/* DEV instruments — dim side-stat rows, gated to dev mode (the corner toggle sets body.dev) */
+.devstats, .devpanel { display: none; gap: 13px; flex-wrap: wrap; font-size: 10px; color: var(--ink-faint); padding: 2px 2px 0; }
+body.dev .devstats, body.dev .devpanel { display: flex; }
+.devpanel { margin-top: 12px; border-top: 1px dashed var(--line2); padding-top: 8px; gap: 10px 13px; }
+.devtrace { font-family: 'Spline Sans Mono', monospace; }
+.devstats .dvl, .devpanel .dvl { letter-spacing: .14em; text-transform: uppercase; opacity: .6; }
+.devstats b, .devpanel b { font-weight: 700; color: var(--ink-dim); }
+.devstats i, .devpanel i { font-style: normal; opacity: .55; }
 .devstats .off, .devstats .off b { color: var(--warn); }
+
+/* the always-present, subtle dev-mode toggle (corner chip) */
+#devtoggle {
+  position: fixed; bottom: 8px; right: 10px; z-index: 50;
+  font: 600 9px/1 'Spline Sans Mono', monospace; letter-spacing: .18em; text-transform: uppercase;
+  color: var(--ink-faint); background: transparent; border: 1px solid var(--line2);
+  border-radius: 5px; padding: 4px 8px; cursor: pointer; opacity: .35;
+  transition: opacity .15s ease, color .15s ease, border-color .15s ease;
+}
+#devtoggle:hover { opacity: .85; }
+body.dev #devtoggle { opacity: .9; color: var(--phos); border-color: var(--phos); }
 
 /* duelist sprites (PLACEHOLDER art — pixel sprites later): each fronts its own band now (foe top,
    you bottom — the duel axis); they step with the tug, recoil on hits. The spritebox is the hover

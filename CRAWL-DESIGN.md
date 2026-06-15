@@ -573,6 +573,59 @@ blueprint-unlocks; the reward IS the unlock + the badge) that feeds the creation
 with a **rare-bounty side-channel** to the same unlocks. Clean event aggregation — the data is mostly
 already there. Lands with the B4/B5 meta-layer.
 
+### The Heat dial — the opt-in challenge ceiling *(SETTLED 2026-06-15; the SECOND dial)*
+The meta is a **power dial** (levels + gear + amenities — rises monotonically, lifts the floor for
+strugglers) with **no matching challenge dial**, so a skilled/geared player out-levels content into
+boredom (the "combat too easy for skilled play" balance log). **Heat is that missing second dial:**
+opt-in per-dungeon difficulty tiers that raise the ceiling. It's the genre standard (Hades Heat, StS
+Ascension, Dead Cells Boss Stem Cells) and a *perfect* fit for the horizontal guardrail — Heat is the
+**inverse of power** (opt-in pain, never a buff), so it can't power-creep.
+- **Model — a Heat tier = ONE `ContextFlags` override profile** (§6 raid) on the dungeon's base. **Chunky
+  now (~5 cumulative tiers, the Dead Cells register), evolving to Hades à la carte later** — the same
+  flags object serves both (a tier is a preset delta-bundle; à la carte = let the player assemble their
+  own). Per-dungeon: you crank Heat on a dungeon you've already cleared.
+- **First-cut tiers (cumulative; each is just `ContextFlags` numbers, sim-gated):** **H0** baseline ·
+  **H1 Harried** — dread onset earlier + steeper; outlevel-grace cut · **H2 Beset** — + denser elite
+  sawtooth, foe HP/rider bump, injury occurrence up · **H3 Cursed** — + tighter loot floor, an extra boss
+  trap, −1 satchel · **H4 Doomed** — + dread damage-onset earlier, another rider bump, consumable
+  loadout −1.
+- **Gate:** clearing a dungeon at Heat N unlocks Heat N+1 *for that dungeon* and **mints an achievement**
+  (rides the existing web → can gate content). **Orthogonal to the D1–D5 content ladder** (D-level =
+  level-appropriate vertical progression; Heat = horizontal challenge re-applied to any cleared dungeon).
+- **Reward = badge + the run carrot, NOT account power** (guardrail-safe): the **achievement-unlock +
+  bragging** is the meta reward; *within* the harder run Heat lifts **loot odds/quality** (same logic as
+  depth-scaling — harder content drops better, per-run, resets on a new hero) — notably a better
+  **marquee roll** at high Heat. No account-wide multiplier.
+- **Build (small):** the `ContextFlags` substrate + a per-dungeon "max Heat cleared" counter (in the
+  achievement counter store) + a Heat selector on the existing dungeon-select screen. The deeper
+  *base-curve* steamroll-resistance question (`X/(X+K)` vs the difference-clamp `rate()`) is the
+  COMPLEMENTARY floor lever — **deferred to the coupled sim pass** (§6 raid; touches validated math).
+
+### Injuries — the wound tier between "survived" and "run over" *(SETTLED 2026-06-15; the Arena raid)*
+Adds stakes to flirting with — and suffering — death, *without* permadeath. A near-lethal blow or a death
+rolls a lingering **wound**; **Rest still restores HP for free, but curing a wound is the Temple's PAID
+service** — a new gold sink with emotional weight that keeps Rest free forever (the §B1 promise).
+- **The two-tier roll (Arena `post-combat`):** on a *grievous* event — an exchange that drops you below a
+  low-HP threshold or deals big overkill, the flee parting blow, or death — roll **occurrence**
+  `P = overkill/(overkill+K)` (small hits never wound; near-lethal usually does), then **severity**
+  (minor / major / critical), weighted up by overkill magnitude. **Death always inflicts ≥ a Major wound**
+  — the felt cost of dying, on top of the tithe + lost satchel (the stakes the greenlight asked for).
+- **What a wound does (first-cut, sim-gated):** primarily a **maxHP cap reduction** (folds into the run's
+  HP-carry attrition) scaling with severity + a small **stat nick** at the top tiers: *minor* −8% maxHP ·
+  *major* −15% + −1 to a rolled stat · *critical* −25% + −2. Flavored names (Gash / Concussion / Fracture
+  / Trauma).
+- **Clearing:** **minor self-clears** on the next safe town return (free — flavor + mild attrition);
+  **major/critical persist on the hero until cured at the Temple** (gold, scaling with severity = the
+  sink). A wounded hero Rests to full *current* HP but still fights at the reduced cap until they pay →
+  a real "pay to heal now vs. delve wounded / save gold" decision.
+- **Persistence:** wounds bank on the hero (`SavedChar.wounds` → save schema **v4**), so a death-wound is
+  carried into town and felt the next run; intra-run wounds carry room-to-room (deepening the attrition
+  clock). **Heat hook:** the `ContextFlags injury` flag lets Heat raise occurrence/severity (lower K).
+- **Build:** the grievous-event trigger + two-tier roll (combat), the `wounds` field + the Temple-cure UI
+  & pricing (town), maxHP/stat application in `createCombat`. Couples to the deferred **flee parting
+  blow** (B2 exit ladder — fleeing hurt can wound). Numbers (K, thresholds, severity weights, Temple
+  gold) ride the coupled sim / economy pass.
+
 ---
 
 ## 4. Data-driven architecture — YAML entities
@@ -1477,6 +1530,47 @@ The two are separated on purpose — don't ask drift to do the killing.
   a deliberate design lever (e.g. transmute-then-punish vs. punish-then-transmute).
 - **Inventory limits**, gear comparison UX.
 
+### The Arena-repo raid — non-gear lifts (analyzed 2026-06-15; gear lifts already in §7)
+A second mining pass over the Arena spec (a party-RPG/idle cousin) for transferable ideas. Sorted by
+disposition. (Most party/idle/tournament machinery was correctly LEFT — single-hero, real-time board,
+session-based roguelite. Full verdict list in `TODO.md`.)
+
+**ADOPTED — architecture seam (low-risk, enables the roadmap):**
+- **Per-encounter `ContextFlags` profile.** Each encounter/room *type* carries a data object of
+  inherited-with-overrides flags — `{ dread:on/off/onset/rate, xpMult, lootTable, injury:on/off,
+  marqueeEligible, outlevelGrace, eliteDensity, … }`. set.crawl *already* does the degenerate case
+  (dread OFF for coach fights); generalizing it to a flags object is the cheap, data-driven seam that
+  makes the deferred run-variety roadmap (event rooms, campfires, bounty rooms, hall-procedural dungeons)
+  trivially authorable — *and* it is the literal substrate for the **Heat/Ascension dial** (a Heat tier
+  = one `ContextFlags` override profile). Build it when the run loop next grows.
+- **Trigger-bus correctness primitives** (engine hardening for when trap/passive/ability chains deepen):
+  a per-originating-event **recursion guard** (each trigger fires ≤ once per event), **deferred
+  death-confirmation** (lethality checked at the rollover batch, not mid-resolution — formalizes the
+  kill-race), and **type-ordered effect resolution** (debuff → damage → board-verb within one bundle,
+  so a Set can "shred then hit"). Tracked in `TODO.md` (engine).
+
+**RESOLVED 2026-06-15 (greenlit — now SETTLED in §3):**
+- ⭐ **The injury layer** → **SETTLED, full spec in §3** ("Injuries — the wound tier"). The recoverable
+  wound between "survived" and "run-ends"; Rest heals HP free, the **Temple PAID-cures wounds** (the new
+  gold sink); death always inflicts ≥ a Major wound (the death stakes).
+- **The Heat dial** (the two-dial challenge ceiling) → **SETTLED, full spec in §3** ("The Heat dial").
+  Chunky-now (~5 tiers) evolving to à la carte; each tier = a `ContextFlags` override; gated/rewarded via
+  the achievement web; horizontal-guardrail-safe.
+- **The `X/(X+K)` base-curve question** (the complementary *floor* lever — asymptotic ratio vs the
+  resolution-v3 difference-clamp `rate()`, so a geared/skilled player can't *pin the clamp*) → **DEFERRED
+  to the coupled sim pass (confirmed 2026-06-15).** Higher-risk (touches sim-validated core math) — decide
+  it there with numbers; do NOT hand-edit §5.6.
+
+**FLAGGED — optional levers (lean defer; note for later):** specialist-amplifier passive (a class/
+Background that boosts consumables → makes the consumable economy a build axis; fits the Background
+system) · Current/**Potential** growth-cap variance at hero creation (roster collectibility — but
+set.crawl is deliberately stat-uniform so *builds* express identity; ±small/visible only, or skip) ·
+**shield-instances** (FIFO typed HP pools as an ability/consumable effect with an `OnShieldBreak` event,
+distinct from round-Block) · **percentage-of-Endurance Defend** (super-linear tank payoff, folds into
+the Tactics wheel) · **underdog telemetry** (the dev-facing build-performance dashboard off the existing
+Scoreboard — flags dominant/dead abilities for re-tuning; NOT an auto-buff, which would break the
+horizontal-meta guardrail).
+
 ---
 
 ## 7. Gear (clean-slate — SETTLED 2026-06-15)
@@ -1552,18 +1646,128 @@ mono-color (one axis, reinforced)** — which deepens identity.
   the Speed riders** — dodge / initiative — *not* the retired clock). Flex economy, deal-bias (a passive
   refill `FavorBias` — the locked-board-safe reframe of the old "deal-odds" gear), triggers.
 
-### Rarity → rider + affix count; loot-tier → affix power
-`grey (rider ×0, 0 affix) → white (×1, 1) → green (×2, 1) → blue (×3, 2) → purple (×4, 3) → orange (×5,
-3 + a named unique)`. Rarity scales the **base rider + affix count**; **loot-tier** (foe lvl + dungeon
-lvl) scales **affix power**. The transformative **build-around** affixes concentrate at blue+ (esp. the
-orange named uniques) — the "smooth base, build-around top" curve.
+### Rarity → rider + affix BUDGET; loot-tier → affix power (REVISED 2026-06-15 — the Arena raid)
+> The original "rarity ×N rider + N affixes" curve had a genre-poison flaw: it made higher rarity
+> *strictly* better, which roguelite players read as grindy filler (the loot-filter tell). The fix,
+> lifted from the Arena equipment spec, is the **inverse affix budget + random affix count** — the
+> smooth base rider still climbs, but the *affix layer* is deliberately anti-monotonic, so "equip the
+> highest rarity" is never automatic and same-rarity drops aren't fungible.
 
-### Affixes — triggers AND stat-patches
-The affix pool is slot-gated (`affixes.yaml` `slots:`/`weight:`). Two families:
-- **Trigger-granting** (the build-around mechanics): riders, conditional procs, alt-verbs.
-- **Raw-stat boosters, including OFF-STAT** — "Armor of Strength" (+Power on armor), a "Defender" weapon
-  (+Endurance), etc. — to **patch a stat your base gear doesn't natively give**. (Off-stat is fine: raw
-  stat, bounded by the rate clamp, and it lives in the unpriced affix layer.)
+**Two independent axes (keep them separate — this is correct and Arena-confirmed):**
+- **Rarity** (grey→orange, the drop's "tier") scales the **base rider** *and* sets the **affix budget**
+  (max count + per-affix power). The rider climbs smoothly (`+0/+1/+2/+3/+4/+5` per matched card); that's
+  the *floor* power foes are tuned against (§ power model).
+- **Loot-tier** (foe lvl + dungeon lvl) scales **affix MAGNITUDE** — a blue dropped in a deep dungeon
+  carries stronger affixes than the same blue from the warren. (Arena's continuous `affix_power = base ×
+  tier_mult × (loot_tier/anchor)`; we keep our discrete-rarity / scalar-loot-tier split.)
+
+**The inverse affix budget (fewer affixes hit harder) + RANDOM count:**
+
+| Rarity | Base rider | Max affixes | Per-affix power | Affix pool unlocked |
+|---|---|---|---|---|
+| grey | ×0 | 0 | — | — |
+| white | ×1 | **1 (always)** | **×1.4** | basic (stat-patch) |
+| green | ×2 | **1–2** *(random)* | ×1.0 | + procs / scoped riders |
+| blue | ×3 | **1–3** *(random)* | ×0.7 | + alt-verbs / conditional triggers |
+| purple | ×4 | **1–4** *(random)* | ×0.6 | + granted ability (simple) |
+| orange | ×5 | **1–5** *(random)* | ×0.5 | + a named UNIQUE mechanic |
+
+Two mechanisms defeat "rarity = number-up": **(a) inverse budget** — a white's single ×1.4 affix can
+out-perform a blue's three diluted ×0.7s *for the right build*; **(b) random count** — a 3-affix blue and
+a 1-affix blue are different items, so loot stays a *read*, not a sort-by-rarity. An item that rolls below
+its max has **empty affix slots** (the smith's Enchant fills them — the steady gold sink, below).
+
+### Affixes — the UNIFIED COMPONENT MODEL (an affix IS a mini-passive bound to the item)
+> The keystone raid. An affix is **not new machinery** — it is a labelled bundle of the *same* component
+> types the engine already runs for enemy traps, class passives, and abilities (the trigger bus, `TRAPS.md`).
+> "The only difference from a passive: an affix is tied to an item (lost when unequipped), not to a class."
+> This is why the affix layer — the part that makes gear *not* filler — is the cheapest part to build:
+> we point the existing `Trigger` / passive / `GrantedAbility` / stat-mod types at the player, bound to an
+> item instance. Affix *content* is authored exactly like a trap or a passive.
+
+An affix is `{ id, label, components: AffixComponent[] }` where each component is one of:
+- **StatMod** — flat ± to P/E/S (incl. **OFF-STAT**: "Armor of Strength" = +Power on armor, a "Defender"
+  weapon = +Endurance) — patches a stat the base slot doesn't natively give. Bounded by the rate clamp.
+- **Trigger** — an `event→condition→effect` rule on the live trigger bus: per-card riders, conditional
+  procs (on-wound, on-rollover, on-set-of-colour), the build-around alt-verbs. Identical shape to a `Trap`.
+- **GrantedAbility** — an active/passive granted by the item (purple+); the orange unique's signature.
+
+**Tiered pools (which KINDS of affix a rarity can roll — qualitative steps, not just bigger numbers):**
+`white/green` = stat-patches + simple scoped riders · `blue` = + conditional procs and alt-verbs ·
+`purple` = + a simple granted ability · `orange` = + a unique/complex mechanic. The transformative
+build-around affixes concentrate at blue+ (the "smooth base, build-around top" curve).
+
+### Cursed affixes — negative components for risk/reward upside (Arena raid)
+A drop can roll a **negative** component alongside strong positives ("powerful base + a drawback"): a
+weapon with a great proc but `−Speed`, armor that takes extra trap damage. **Always identified** (no
+hidden traps — shown on the drop), **freely unequippable** (the curse is the trade-off, never a sticky
+trap), and **rerollable** at the smith. Free to build — it's just a negative-valence Trigger/StatMod, the
+same machinery as the enemy `grasping`/`covetous` variants pointed at player gear. Doubles as another
+cross-rarity equalizer (a cursed blue vs. a clean green is a real decision) and the risk/reward texture
+the genre loves.
+
+### Orange = CURATED unique templates, not a procedural ×5 (Arena raid)
+The apex tier is **hand-authored named templates** — fixed name + lore + 1–2 *locked* signature affixes,
+plus 1–2 *random* slots for per-drop variety ("recognizable but not identical between players"). This is
+the synthesis the genre wants: a **smooth procedural base** (grey→purple, the ARPG climb the foe-tuning
+needs) that resolves into a **curated-artifact apex** (orange = the build-defining chase items players
+remember). Drop sources are constrained (boss tables, the dungeon-clear marquee roll) → targeted farming
+goals. Authored as content data, same as a class signature passive.
+
+### The affix design surface — descriptive hooks + relative value (mapped 2026-06-15)
+> The full hook catalog in **system-descriptive names** (so we see the value topology before flavor hides
+> it). Dev mode shows these names; normal play shows the thematic overlay (next subsection). Grounded in
+> the real vocabulary: the trigger bus (`On = match|tick`, color/shape/number conditions), the player ops
+> (`gainBlock`/`grantMana`/`healPlayer`/`addCharges`/`extendRound`/`reformSlots`/`tryWard`/`dealAbilityDamage`),
+> and the `resolve.ts` contest.
+
+**Valuation lens:** an affix's value = `per-trigger value × trigger frequency × magnitude`, priced vs the
+§11 anchors (1 unit = 1 dmg). **Three distortions drive everything:** mana (~4/pt), round-delay (~3.75/s),
+and favorable-transmute (~3–5/card) are ~4× a damage point → *expensive hooks, keep magnitudes small &
+conditional*; **block (~0.2) and Tactics charge (~0 marginal)** are *cheap hooks, never premium*. A
+per-card RIDER (~9 dmg/round) ≈ 5× a raw stat point (~1.8) — why riders are the power channel. Frequency:
+sets/round ≈ 3 baseline / 4–6 skilled (every-match procs fire often; on-rainbow procs a fraction;
+on-wound/kill/lowHP ≤ 1×/round).
+
+| Family | System-names (examples) | Value | Rarity home |
+|---|---|---|---|
+| **A. Passive stat-patch** | `FlatPower/Endurance/Speed`, `FlatMaxHP`, `FlatManaCap`, `StartingMana`, `Round1Bonus` | LOW (bounded by rate clamp) — the off-stat fixers | white/green |
+| **B. Scoped riders** | `AttackDamagePerCard[color]`, `BlockPerDefendCard`, `ManaPerMatch[color]`, `ScopedRider[cond]` | **HIGH** — the core power channel (mana/dmg high, block cheap) | white base → green/blue scoped |
+| **C. On-match procs** | `OnMatchBonusDamage`, `OnMatchManaGain`⚠, `OnMatchDelayEnemy`⚠, `OnMatchChurn[bias]`, `OnMatchPrimed`, `OnMatchHeal`, `OnMatchBlock`, `OnMatchCharge` | HIGH→VERY HIGH (⚠ = keep tiny+conditional) | blue |
+| **D. Reactive procs** | `OnWoundWard`, `OnWoundThorns`, `OnLowHPSurge`, `OnKillHeal`, `OnKillManaRefund`, `OnDodgeCounter`, `RepairCombatWound` | MED (≤1×/round) | blue → purple |
+| **E. Gear-EXCLUSIVE** (gear's identity — exist nowhere else) | `CritChance`, `CritMultiplier`, `Penetration`(EnduranceShred), `DodgeChance`, `FlatDamageReduction`(Soak), `Lifesteal`, `FavorBias`, `DreadResist`⚠ | MED→HIGH | blue → orange |
+| **F. Granted** | `GrantActiveAbility`, `GrantPassive`, `UniqueMechanic` | HIGH→TOP | purple → orange |
+
+**Surface takeaways:** ① value is NOT uniform — the ⚠ hooks (mana/delay/transmute) must carry small
+magnitudes + tight conditions or they break the budget; block/charges are sweeteners, never premium. ②
+rarity placement falls out of the value tiers (matches the tiered pools above). ③ **crit/dodge/penetration/
+soak are gear-exclusive** (crits were *deferred to gear*, §5.7) → they're what makes a gear drop feel
+unlike a level-up; lean on them. ④ **machinery gap:** the bus fires only `match`/`tick` today; the reactive
+family (D) needs player-side events — **`onWound`/`onKill`/`onLowHP`/`onDodge`/`onWard`/`onRoundStart`**
+(cheap — most already emit as `CombatEvent`s). ⑤ **handle with care:** `DreadResist` (fights the
+anti-stall — gate hard or cut) and `ChargeCap`/capacity hooks (overlap the level cadence + the 15 board
+invariant — leave to levels).
+
+### First-draft thematic overlay (TEMPORARY — for the dev-mode name toggle; flavor pass pending)
+The evocative names normal play shows; dev mode shows the system-names above. **First cut, not final** —
+the real flavor pass + weapon/armor/relic family fit comes later. Lives in the dev-mode name registry
+(`src/ui/dev.ts AFFIX_THEME`), so the toggle has something to switch the moment gear renders.
+
+| System-name | Thematic (draft) | · | System-name | Thematic (draft) |
+|---|---|---|---|---|
+| `FlatPower` | Mighty | · | `OnMatchManaGain` | Attuned |
+| `FlatEndurance` | Stalwart | · | `OnMatchDelayEnemy` | Time-Eater |
+| `FlatSpeed` | Fleet | · | `OnMatchChurn` | Trickster's |
+| `FlatMaxHP` | Vital | · | `OnMatchPrimed` | Quickening |
+| `FlatManaCap` | Deepwell | · | `OnKillHeal` | Carnage |
+| `AttackDamagePerCard` | Honed | · | `OnDodgeCounter` | Riposte |
+| `BlockPerDefendCard` | Warding | · | `OnLowHPSurge` | Cornered |
+| `ManaPerMatch` | Channeling | · | `CritChance` | Keen |
+| `OnMatchBonusDamage` | Savage | · | `CritMultiplier` | **Vorpal** |
+| `OnWoundThorns` | Barbed | · | `Penetration` | Sundering |
+| `OnWoundWard` | Guardian's | · | `DodgeChance` | Evasive |
+| `Lifesteal` | Sanguine | · | `FlatDamageReduction` | Ironhide |
+| `FavorBias` | Fated | · | `DreadResist` | Stoic |
 
 ### Class affinity — one CLASS-side field, two jobs
 Each **class** declares an `affinity`: preferred **gear types** (e.g. Axe + Heavy + martial) and preferred
@@ -1573,15 +1777,21 @@ Each **class** declares an `affinity`: preferred **gear types** (e.g. Axe + Heav
 - **The class-hall loot bias** (the reason gear precedes finishing classes) — a hall biases its loot toward
   its class's affinity (Pyromancer hall → red/caster gear + fire affixes). New class → author its affinity
   → its hall biases itself. (Affinity is class-side, so gear stays class-agnostic — one tag system.)
+- **Source-themed affix tables (Arena raid):** the affix roller is a **base weight table + per-source
+  overrides** — fire foes bias fire affixes, the Pyromancer hall biases arcane/fire. Affinity is just one
+  such override source. Thematic loot rewards targeted farming.
 
 ### The smith — an upgradeable crafting bench (lottery + a deterministic backstop)
 Drops are the exciting primary faucet; the smith is the **targeted backstop + gold sink**. Capabilities
 unlock and cheapen as you **upgrade the smithy** (a base-building amenity — achievement unlocks the
 blueprint, gold tiers it), at escalating prices:
-- **Upgrade rarity** (grey→…→orange) — raises the base rider + opens affix slots. The "keep my floor
-  current / level a beloved base" path + the main raw-power gold sink.
-- **Enchant** — set one chosen affix into an open slot (targeted, expensive).
-- **Reroll affixes** — gamble all affixes (cheaper, RNG).
+- **Upgrade rarity** (grey→…→orange) — raises the base rider + raises the affix budget (opens new slots,
+  past the tier's pool). The "keep my floor current / level a beloved base" path + the main raw-power gold sink.
+- **Enchant** — set one chosen affix into an open slot (targeted, expensive). **Because affix count is
+  RANDOM, most drops arrive with empty slots → Enchant has standing demand from day one** (not just on
+  unlucky streaks) — this is the *steady* gold sink the economy was missing (fixes the "gold faucet leads
+  the sink" gap; argues for a minimal Upgrade+Enchant bench landing WITH gear, not deferred to ③).
+- **Reroll affixes** — gamble all affixes, including rerolling a curse away (cheaper, RNG).
 - **Transfer / extract** — move a rolled affix onto a better base (premium, top-smithy operation).
 
 ### The ability economy — COUPLED to gear (the caster-balance fix)
@@ -1605,6 +1815,39 @@ Caster gear pumps mana → mana buys abilities, so the ability economy must be b
   **Ability cost = value ÷ VPM** (a 40-dmg spell → 10 mana · a 40-HP heal → ~10 · a 1-round delay → ~6 ·
   churn 3 cards → ~3). Caster gear generates **~4 mana / color-match** (throughput-neutral vs the martial
   weapon's color-damage bonus). This is closed-form from the model; **firm it empirically in the sim pass.**
+
+### Data model — chunk ① build sketch (how it lands on the code)
+The unified-component raid makes ① mostly *extend existing types*, not invent new ones. On `engine/items.ts`
+(today a thin `{ uid, kind, refId }`), gear instances grow optional fields — non-breaking, keyed off `kind`:
+
+```ts
+type Rarity = 'grey' | 'white' | 'green' | 'blue' | 'purple' | 'orange'
+
+// An affix is a labelled bundle of EXISTING component types — no new machinery.
+// Trigger reuses the Trap/Trigger shape (engine/triggers.ts); GrantedAbility the ability shape.
+type AffixComponent =
+  | { c: 'stat'; stat: 'power' | 'endurance' | 'speed'; amount: number }  // incl. negative (cursed) + off-stat
+  | { c: 'trigger'; trigger: Trigger }                                    // per-card riders, procs, alt-verbs
+  | { c: 'ability'; abilityId: string }                                   // purple+ granted ability
+interface Affix { id: string; label: string; components: AffixComponent[] }
+
+interface GearInstance extends Item {       // kind: 'gear'
+  baseTypeId: string                         // → GEAR catalog (slot, school, match-type / weight, native stat)
+  rarity: Rarity                             // → base rider ×0–5 + affix budget (max count, per-affix power)
+  lootTier: number                           // foe lvl + dungeon lvl → affix MAGNITUDE scalar
+  affixes: Affix[]                           // length ≤ budget(rarity); shortfall = empty slots (Enchant fills)
+}
+
+type EquipSlot = 'weapon' | 'armor' | 'relic' | 'trinket1' | 'trinket2'
+// SavedChar grows:  equipped: Partial<Record<EquipSlot, string /* item uid */>>
+```
+
+The roll: `rarity → {riderMult, maxAffixes, perAffixPower}` (the budget table) → roll a random count `1..max`
+→ draw that many from the slot-gated, source-themed pool at the rarity's unlocked tiers → scale each by
+`lootTier`. `createCombat` reads `effectiveStats(char)` + sums equipped StatMods, applies riders per matched
+card *after* the `rate()` contest, and registers affix Triggers/abilities on the bus alongside class passives.
+The equip screen replaces the sheet's `— coming soon —` (`app.ts:284`). ① ships riders+stats+affixes but
+**NOT the foe-raise** (that's ②) → flag combat temporarily easier. `ClassDef.affinity` is added here too.
 
 ### Deferred
 - **Set bonuses** — themed 2/4/6-pc families (a parallel cross-build vector to spellbooks). The clean
@@ -1635,7 +1878,9 @@ each other). First-cut, sim-backed:
   (Braced — charges→mitigation — is OUT, it breaks the §5.7 distinctness law). Implement WITH this pass
   (it raises player output → folded into the foe-difficulty raise). Stand Ground warding stays
   situationally valuable vs the dread/drift pressure (the calm-fight sim under-credits it).
-- **Still open:** affix power per loot-tier, the off-stat affix magnitudes, set-bonus tuning (deferred).
+- **Still open (NUMBERS only — the affix STRUCTURE is now settled, see the Arena raid above):** affix
+  power per loot-tier scalar, the per-affix-power budget multipliers (×1.4→×0.5 first cut), off-stat affix
+  magnitudes, the curse frequency/severity, set-bonus tuning (deferred).
 
 ## 8. Deferred (next session)
 

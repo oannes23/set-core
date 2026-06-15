@@ -11,6 +11,7 @@
    TODO §town-economy) will be a SEPARATE key with this same envelope pattern. */
 
 import { DEFAULT_PLAYER_MAX, BASE_STATS, type StatBlock } from '../engine/state'
+import { sanitizeItem, isGear, EQUIP_SLOTS, type EquipSlot, type GearInstance } from '../engine/items'
 
 /** A character's allocated stat points (cumulative across level-ups; +3/+2/+1 per level). */
 export interface StatAlloc { power: number; endurance: number; speed: number }
@@ -25,11 +26,15 @@ export interface SavedChar {
   xp: number // banked progress toward the NEXT level (always banks, even on death)
   alloc: StatAlloc // points distributed at level-ups; effective stats = BASE_STATS + alloc
   consumables: string[] // the 3-slot consumable loadout (interim — becomes run-state in B2, see TODO)
-  // grows later: gold, abilities[], gear{}
+  equipped: Equipped // §7 gear: the 5 equip slots (chunk ① embeds the instance; B3② may switch to Storage uid-refs)
+  // grows later: gold, abilities[], wounds[] (the injury layer)
 }
 
+/** The 5 equip slots → the equipped gear instance (embedded for chunk ①; empty slots omitted). */
+export type Equipped = Partial<Record<EquipSlot, GearInstance>>
+
 const KEY = 'setcore.roster.v1' // stable — versioning lives in the payload envelope, not the key
-const SCHEMA_V = 3 // 1 = legacy bare array · 2 = { v, chars } envelope · 3 = + level/xp/alloc
+const SCHEMA_V = 4 // 1 = legacy bare array · 2 = { v, chars } envelope · 3 = + level/xp/alloc · 4 = + equipped gear
 export const DEFAULT_MAX_HP = DEFAULT_PLAYER_MAX
 export const CONSUMABLE_SLOTS = 3
 export const STARTER_CONSUMABLES = ['hp_std', 'speed_std', 'stoneskin_std'] // a class-agnostic opener
@@ -103,6 +108,8 @@ interface Envelope { v: number; chars: unknown[] }
 const MIGRATIONS: Record<number, (e: Envelope) => Envelope> = {
   // v2→v3: seed the progression fields (level 1, no XP, no allocated points)
   2: (e) => ({ v: 3, chars: e.chars.map((c) => ({ ...(c as object), level: 1, xp: 0, alloc: { power: 0, endurance: 0, speed: 0 } })) }),
+  // v3→v4: seed empty equip slots (existing heroes start with no gear)
+  3: (e) => ({ v: 4, chars: e.chars.map((c) => ({ ...(c as object), equipped: {} })) }),
 }
 
 function migrate(env: Envelope): Envelope {
@@ -133,7 +140,19 @@ export function sanitizeChar(x: unknown): SavedChar | null {
   const consumables = Array.isArray(c.consumables)
     ? c.consumables.filter((s): s is string => typeof s === 'string').slice(0, CONSUMABLE_SLOTS)
     : STARTER_CONSUMABLES.slice()
-  return { id: c.id, name: c.name, classId: c.classId, hp, maxHp, level, xp, alloc, consumables }
+  return { id: c.id, name: c.name, classId: c.classId, hp, maxHp, level, xp, alloc, consumables, equipped: sanitizeEquipped(c.equipped) }
+}
+
+/** Validate the 5 equip slots: each value must sanitize to a GEAR item, else the slot is dropped. */
+export function sanitizeEquipped(x: unknown): Equipped {
+  const out: Equipped = {}
+  if (typeof x !== 'object' || x === null) return out
+  const rec = x as Record<string, unknown>
+  for (const slot of EQUIP_SLOTS) {
+    const it = sanitizeItem(rec[slot])
+    if (it && isGear(it)) out[slot] = it
+  }
+  return out
 }
 
 /** Parse a raw stored payload into a clean roster: envelope-or-legacy detect → migrate → sanitize.
@@ -185,7 +204,7 @@ export function remove(roster: SavedChar[], id: string): SavedChar[] {
   return roster.filter((c) => c.id !== id)
 }
 export function makeChar(name: string, classId: string, id: string): SavedChar {
-  return { id, name, classId, hp: DEFAULT_MAX_HP, maxHp: DEFAULT_MAX_HP, level: 1, xp: 0, alloc: { power: 0, endurance: 0, speed: 0 }, consumables: STARTER_CONSUMABLES.slice() }
+  return { id, name, classId, hp: DEFAULT_MAX_HP, maxHp: DEFAULT_MAX_HP, level: 1, xp: 0, alloc: { power: 0, endurance: 0, speed: 0 }, consumables: STARTER_CONSUMABLES.slice(), equipped: {} }
 }
 
 // ---- convenience wrappers (load → transform → save) ----

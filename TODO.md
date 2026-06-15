@@ -17,18 +17,31 @@ Traffic-light: green = pursue · yellow = consequence · red = wounded.
 ---
 
 ## ▶ NEXT SESSION — START HERE (handoff 2026-06-15)
-**Build GEAR — chunk ① the foundation** (the last real missing piece before the current loop settles; user is
-keen to "see it come together"). Design is fully settled + sim-derived, so it's a pure build:
-- **Spec:** `CRAWL-DESIGN.md` §7 (clean-slate gear) · numbers: `sim/progression-sim.mjs` §11 + `TUNING.md`
-  "Gear + the coupled balance pass". Chunking lives in "Phase B3" below (① foundation · ② loot+balance · ③ smith).
-- **Chunk ①:** gear base-type catalog + extend `Item` (rarity/affixes/native stat) on the built account `Item`
-  model (`engine/items.ts`) + 5 equip slots on `SavedChar` (`ui/save.ts`) + apply equipped riders/stats in
-  combat (`startCombat`/`createCombat`) + the equip screen (the sheet's Gear "coming soon" slot). Testable with
-  a granted item; **foes NOT yet raised in ① → combat temporarily easier, flag it** (the foe-raise rides ②).
-- **State of play (all live on the deploy):** combat core done (dread anti-stall + selection-protection + the
-  ward-save cue) · the Emberdeep (D2/L7) · +6/≤3 leveling · ability kit grows with level · economy data layer
-  (`bank.ts`/`items.ts`) built but the inventory UI is deferred (pairs with the shop). Gear ② folds in the
-  **foe-difficulty raise** (the "combat too easy" fix), the **ability reprice**, and **Primed** — together.
+**GEAR chunk ① the foundation = BUILT 2026-06-15.** Next = **chunk ② loot + the coupled balance pass.**
+- **Chunk ① — DONE (160 tests green, tsc + build clean):** the gear data model (`engine/items.ts`:
+  `Rarity`/`RARITY` inverse-budget table/`Affix`/`AffixComponent`/`GearInstance`/`Riders` + gear-aware
+  `sanitizeItem`) · the base-type catalog (`data/gear.ts` — weapons/armor/relic/trinkets w/ riders + native
+  stats + match-type) · the aggregators + minimal dev-grant roller (`engine/gear.ts`: `gearStatBonus`/
+  `gearRiders`/`gearTriggers`/`gearAbilities`/`rollGear`) · riders threaded FLAT post-contest into
+  `resolveSet` (default `NO_RIDERS` = backward-compatible) via `CombatState.riders` + `run.ts`/`startCombat`
+  (folds native+affix stats into the statline too) · `SavedChar.equipped` 5 slots (save **v4** migration +
+  `sanitizeEquipped`) · the **equip screen** (the sheet's 5 slots + unequip + a **dev-mode `grant test gear`**
+  affordance) · tests (`gear.test.ts` + save migration). Verified in-browser: gear feeds combat stats +
+  riders (dev panel `riders atk+3/blk+3/mana+3`), and the dev name-toggle flips affixes system↔thematic
+  (`FlatPower`↔`Mighty`) on live gear.
+- **⚠ Flagged as designed:** foes are NOT yet raised → combat is temporarily EASIER with gear on. The
+  **foe-difficulty raise rides chunk ②** (with the ability reprice + Primed — one coupled pass). Affix
+  TRIGGER/ABILITY components aggregate but their bus-wiring + content pool also ride ② (today's dev-grant
+  rolls stat-patch affixes only). Equip pulls from embedded instances; B3② may switch to Storage uid-refs.
+- **Chunk ② (next):** the ⭐ coupled sim pass (gear-share %, rider magnitudes, affix power, ability VPM,
+  the foe-raise — ONE decision) → flip `loot.ts` gear category ENABLED + the gear sub-roller + pity sawtooth
+  · author the affix CONTENT pool (the §7 hook families) + wire trigger/ability affixes onto the bus · the
+  foe HP/telegraph × gear factor · the ability reprice (contested + throughput-neutral) · **Primed**.
+- **Spec:** `CRAWL-DESIGN.md` §7 (gear + the affix design surface + thematic overlay) · numbers:
+  `sim/progression-sim.mjs` §11 + `TUNING.md` "Gear + the coupled balance pass".
+- **State of play (live):** combat core (dread + selection-protection + ward cue) · Emberdeep (D2/L7) ·
+  +6/≤3 leveling · kit grows with level · **dev mode** (`ui/dev.ts` toggle + instruments + loot trace) ·
+  **gear chunk ①** · the Heat dial + injury layer SETTLED (CRAWL §3, build pending).
 
 ## ⭐ BUILD ORDER — the active progress tracker (set 2026-06-14; UPDATE on every implementation)
 Agreed sequence: **complete the core loop (combat → inventory → leveling → content), then enrich, then the meta.**
@@ -77,6 +90,18 @@ Detailed specs live in CRAWL-DESIGN.md + the sections below; this is the master 
   raise** re-authored into foe HP/telegraph by expected-rarity · the **ability reprice** contested +
   throughput-neutral · **Primed**) · **③ the smith** (upgrade/enchant/reroll/transfer bench + UI). ②'s
   pieces land together so balance stays coherent (gear riders + the foe-raise + the reprice are one).
+- `[x]` **Affix design surface MAPPED + DEV MODE SHIPPED 2026-06-15.** The full affix hook catalog in
+  system-descriptive names + relative-value lens is in CRAWL §7 ("The affix design surface"): ~40 hooks
+  across 6 families (stat-patch / scoped riders / on-match procs / reactive procs / gear-exclusive crit-
+  dodge-pen-soak / granted), each value-tiered + rarity-homed; flagged the ⚠ expensive hooks
+  (mana/delay/transmute) + the machinery gap (player events onWound/onKill/onLowHP/onDodge for the
+  reactive family). A **first-draft thematic overlay** (Vorpal=CritMultiplier, etc.) seeds the name
+  registry. **Built `src/ui/dev.ts`** (the dev-mode flag + persistence + listeners + `AFFIX_THEME`
+  registry + `displayName` — system names in dev, thematic in normal) + an always-present subtle corner
+  toggle (`#devtoggle`, `body.dev`); dev mode reveals the combat dev row (now gated + enriched w/ foe
+  P/E/S, telegraph, dread, round), a town sheet readout (eff stats vs parity, xp, vault), and the
+  under-the-hood **loot-roll trace** (`loot.ts` RoomLoot.trace). 6 new tests (`dev.test.ts`); 151 green;
+  tsc + build clean. The name toggle has few live consumers until gear renders affixes (chunk ①).
 - `[ ]` Achievement meta-layer → guild halls + bounties → town amenities
 
 ---
@@ -509,15 +534,29 @@ death ends the run and drops the satchel; the boss win is the clear. Constants i
   caster color + SQUISHIEST: Regalia/Vestments/Robe/Cassock) · rarity grey→orange (rider ×0–5 + affix
   count) · affixes = triggers + off-stat patches · **class-side `affinity`** (drives soft lean + hall
   bias) · the **upgradeable smith** (upgrade-rarity / enchant / reroll / transfer, gated by smithy tiers).
+- **AFFIX LAYER SETTLED 2026-06-15 (the Arena-repo raid; §7 revised):** the keystone "affix = filler vs.
+  build-around" problem is solved by lifting four Arena equipment-spec ideas → (1) **unified component
+  model** — an affix is a bundle of EXISTING `{StatMod | Trigger | GrantedAbility}` types (zero new
+  machinery; reuses the trap/passive/ability bus), so the affix layer is the *cheapest* part to build;
+  (2) **inverse affix budget + RANDOM count** (white 1×1.4 → orange 1–5×0.5) — defeats "rarity = strictly
+  better" without touching the smooth rider; (3) **tiered pools** (stat-patch → procs → alt-verbs →
+  granted ability → unique) so rarity feels qualitatively different; (4) **cursed affixes** (negative
+  component, identified, free-unequip, rerollable) + **orange = CURATED named unique templates** (smooth
+  procedural base → curated apex, the genre-loved synthesis). Empty slots (from random count) give the
+  smith's Enchant standing demand = the steady gold sink → **pull a minimal Upgrade+Enchant bench forward
+  with gear, don't defer to ③.** Chunk-① data-model sketch (`GearInstance`/`Affix`/`EquipSlot`) is in §7.
+  STILL OPEN = numbers only (per-affix-power multipliers, loot-tier scalar, curse rate) → the coupled sim.
 - `[ ]` **⭐ THE COUPLED SIM PASS (gate before building):** gear-share %, per-rarity rider magnitudes,
   affix power, the ability **VPM + relative-value table (measured)**, AND the **foe-difficulty raise** —
   all ONE decision (gear power + ability throughput + foe difficulty only make sense relative to each other).
 - `[ ]` **NEW combat thread it surfaced — the ability-economy rebalance:** abilities become CONTESTED
   (`rate`-scaled, no fixed nukes) + priced as a throughput-neutral REDIRECT (mana = flexibility/burst,
   not DPS). Coupled to gear (caster mana-gear); part of the same pass.
-- `[ ]` **Build:** the `Item`/gear data model (slot/base-type/rarity/affixes + native stat) on the
-  account `Item` model (B2), equip slots on `SavedChar`, the equip screen, gear loot (flip on `loot.ts`
-  ENABLED + the gear sub-roller + pity sawtooth), the smith UI.
+- `[~]` **Build — CHUNK ① DONE 2026-06-15** (the `Item`/gear data model `engine/items.ts`, the
+  `data/gear.ts` catalog, `engine/gear.ts` aggregators + dev `rollGear`, riders → `resolveSet`,
+  `SavedChar.equipped` save-v4, the equip screen + dev-grant; 160 tests green). STILL OPEN: chunk ②
+  (gear loot — flip `loot.ts` ENABLED + sub-roller + pity sawtooth · affix content pool + bus-wiring ·
+  the foe-raise · ability reprice · Primed) and chunk ③ (the smith UI).
 
 ### Phase B4 — deeper progression
 - `[ ]` XP / levels → +HP / +ability-slots; boss-gated ability picks; spellbooks (cross-class learn).
@@ -562,6 +601,9 @@ death ends the run and drops the satchel; the boss win is the clear. Constants i
   wanted — today's typed `game-data.ts` is the equivalent (and type-safe).
 
 ### Balance log — combat too easy for skilled play (playtest 2026-06-15; FIX DERIVED 2026-06-15, sim §11)
+> ⭐ CEILING ANSWER SETTLED 2026-06-15: the **Heat dial** (opt-in challenge tiers, CRAWL §3) is the
+> player-facing fix for skilled steamrolling; the **`X/(X+K)` base-curve** question is the complementary
+> FLOOR lever, deferred to the coupled sim. The foe-difficulty raise (below) remains the baseline fix.
 **RESOLVED (derivation):** the coupled sim pass (§11) confirmed the cause — gear adds ~⅓ power (riders),
 un-accounted → a geared baseline boss reads 70–88% (too easy) — and derived the fix: **foe HP + telegraph
 × a gear factor `(25+3·expectedRider(L))/25` (×1.0 grey → ~×1.6 orange)**, keyed to expected rarity by
@@ -581,6 +623,45 @@ round and the threat layer/dread land — and/or `RATE_K` so levels bite), NOT t
 foe-difficulty knob and the gear-power decision are ONE decision.** (Player is above-average — created
 it — so expect a higher base win rate than the target player; but parity content should still sweat.)
 GOOD: gold / XP / loot rates all feel right (the economy is validated).
+
+### Arena-repo raid — non-gear lifts (analyzed 2026-06-15; full design context in `CRAWL-DESIGN.md` §6)
+A mining pass over the Arena spec (party-RPG/idle cousin) for transferable ideas beyond gear (gear lifts
+already landed in §7). Dispositions:
+- `[ ]` **ADOPTED — per-encounter `ContextFlags` profile** (architecture seam): each room/encounter type
+  carries an inherited-with-overrides flags object (`dread/xpMult/lootTable/injury/marqueeEligible/
+  outlevelGrace/eliteDensity…`). Generalizes the existing "dread OFF for coach". Enables the run-variety
+  roadmap AND is the substrate for the Heat dial. Build when the run loop next grows.
+- `[ ]` **ADOPTED — trigger-bus correctness primitives** (engine hardening; do when chains deepen):
+  per-event **recursion guard** (trigger fires ≤1×/event) · **deferred death-confirmation** (lethality at
+  the rollover batch — formalizes the kill-race) · **type-ordered effect resolution** (debuff→damage→
+  board-verb within one bundle, so a Set can "shred then hit").
+- `[ ]` **SETTLED 2026-06-15 — ⭐ the Heat dial** (the two-dial challenge ceiling; spec CRAWL §3): opt-in
+  per-dungeon difficulty tiers, each = a `ContextFlags` override. **Chunky now (~5 cumulative tiers: H0
+  baseline → H1 Harried → H2 Beset → H3 Cursed → H4 Doomed), evolving to Hades à la carte later.** Gated
+  by clearing (mints achievements, rides the web); orthogonal to the D1–D5 content ladder; reward =
+  badge + better in-run loot odds (NOT account power — guardrail-safe). Build: substrate + per-dungeon
+  max-Heat counter + a dungeon-select Heat selector. The explicit answer to "combat too easy for skilled."
+- `[ ]` **SETTLED 2026-06-15 — ⭐ the injury layer** (run-loop stakes + economy; spec CRAWL §3): grievous
+  event (near-lethal / big-overkill / flee parting blow / death) → two-tier roll (occurrence
+  `overkill/(overkill+K)` → severity minor/major/critical) → a **wound** = maxHP-cap reduction (+stat nick
+  at major/critical), flavored (Gash/Concussion/Fracture/Trauma). **Rest heals HP free; the TEMPLE
+  PAID-cures wounds** (the new sink); minor self-clears on town return, major/critical persist until
+  cured. **Death always inflicts ≥ Major** (death stakes). Wounds bank on `SavedChar.wounds` (save v4);
+  Heat can raise occurrence/severity. Numbers (K, thresholds, severity, gold) ride the coupled sim/economy.
+- `[ ]` **DEFERRED to coupled sim (confirmed 2026-06-15) — the `X/(X+K)` base-curve question**: asymptotic
+  ratio vs the resolution-v3 **difference-clamp** `rate()`, so a geared/skilled player can't pin the clamp
+  and steamroll. The complementary *floor* lever to Heat's *ceiling*. Higher-risk (sim-validated core) →
+  decide with numbers in the sim pass; don't hand-edit §5.6.
+- `[ ]` **FLAGGED (optional, lean defer):** specialist-amplifier passive (consumables → a build axis;
+  fits Backgrounds) · Current/**Potential** growth-cap variance at creation (roster collectibility; but we
+  keep classes stat-uniform — ±small/visible only, or skip) · **shield-instances** (FIFO typed HP pools as
+  an ability/consumable effect + `OnShieldBreak`, distinct from round-Block) · **percentage-of-Endurance
+  Defend** (super-linear tank payoff, folds into the wheel) · **underdog telemetry** (dev-facing
+  build-performance dashboard off the Scoreboard — flags dominant/dead abilities; NOT an auto-buff —
+  that would break the horizontal-meta guardrail).
+- **LEFT (genre/scope mismatch):** party combat/allies/summons · ally utility-AI · zone/positioning/
+  initiative · tournament brackets · tick/upkeep idle economy · recruitment/free-agent churn ·
+  expensive-respec-to-force-turnover · the 9-attribute/16-derived-stat breadth (P/E/S is a feature).
 
 ### Balance log — the Bulwark loop (found by the dev instruments, 2026-06-10; FIXED)
 First playtest with the dev panel caught the first degenerate line: **Bulwark's magnitude flood**

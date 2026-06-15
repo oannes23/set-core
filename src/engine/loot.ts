@@ -97,21 +97,38 @@ export function rollConsumable(depth: number, advantage: boolean, rng: Rng): str
 export interface RoomLoot {
   gold: number // total gold this room (guaranteed wage + any gold drops)
   items: string[] // consumable ids (gear/spellbook ids join at B3/B4)
+  trace: string[] // under-the-hood roll log (dev mode insight) — what each drop rolled & why
 }
 
 /** Roll a cleared room's loot for `foe` at delve `depth` (1-based). Category-first per the foe's
- *  tier table; gold accumulates to a number, consumables to ids the caller folds into the satchel. */
+ *  tier table; gold accumulates to a number, consumables to ids the caller folds into the satchel.
+ *  Also emits a `trace` of the under-the-hood rolls (dev mode reveals it; normal play ignores it). */
 export function rollRoomLoot(foe: FoeRuntime, depth: number, rng: Rng): RoomLoot {
-  const table = TABLES[foe.tier ?? 'minion']
+  const tier = foe.tier ?? 'minion'
+  const table = TABLES[tier]
   let gold = 0
   const items: string[] = []
-  if (table.guaranteedGold > 0) gold += rollGold(foe, depth, rng) * table.guaranteedGold // the wage
+  const trace: string[] = []
+  const wlive = ENABLED.filter((k) => table.weights[k] > 0).map((k) => `${k}:${table.weights[k]}`).join(' ')
+  trace.push(`${tier} @depth ${depth} (×${depthMult(depth).toFixed(2)}) · weights ${wlive}`)
+  if (table.guaranteedGold > 0) {
+    const wage = rollGold(foe, depth, rng) * table.guaranteedGold // the wage
+    gold += wage
+    trace.push(`wage ×${table.guaranteedGold} → +${wage}g`)
+  }
   const drops = table.drops[0] + (table.drops[1] > table.drops[0] && rng() < 0.5 ? 1 : 0)
   for (let i = 0; i < drops; i++) {
     const cat = rollCategory(table.weights, rng)
-    if (cat === 'gold') gold += rollGold(foe, depth, rng)
-    else if (cat === 'consumable') items.push(rollConsumable(depth, table.qualityAdvantage, rng))
+    if (cat === 'gold') {
+      const g = rollGold(foe, depth, rng)
+      gold += g
+      trace.push(`drop ${i + 1}: gold → +${g}g`)
+    } else if (cat === 'consumable') {
+      const id = rollConsumable(depth, table.qualityAdvantage, rng)
+      items.push(id)
+      trace.push(`drop ${i + 1}: consumable${table.qualityAdvantage ? ' (adv)' : ''} → ${id}`)
+    }
     // 'gear' / 'spellbook' can't be reached while disabled (ENABLED filter); their roller lands later
   }
-  return { gold, items }
+  return { gold, items, trace }
 }

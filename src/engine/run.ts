@@ -7,6 +7,7 @@
 import type { Rng } from '../core/rng'
 import type { GenConfig } from '../core/generate'
 import type { CombatState, FoeRuntime, StatBlock } from './state'
+import type { Riders } from './items'
 import type { CombatEvent } from './events'
 import { assembleFoe } from './foe'
 import { type CombatAction, type Deps, createCombat, reduce } from './combat'
@@ -27,6 +28,7 @@ export interface NewRunOpts {
   gen: GenConfig
   playerMax?: number
   stats?: StatBlock
+  riders?: Riders // §7 gear riders (carried into every combat of the run)
   passives?: string[]
   consumables?: string[]
   sequence?: string[] | null
@@ -38,7 +40,7 @@ export interface NewRunOpts {
 /** Start a run: the first combat, plus the run-level progression context. */
 export function createRun(opts: NewRunOpts, rng: Rng): RunState {
   const combat = createCombat(
-    { foe: opts.foe, gen: opts.gen, playerMax: opts.playerMax, stats: opts.stats, passives: opts.passives, consumables: opts.consumables, dreadFloor: opts.dreadFloor, coach: opts.coach },
+    { foe: opts.foe, gen: opts.gen, playerMax: opts.playerMax, stats: opts.stats, riders: opts.riders, passives: opts.passives, consumables: opts.consumables, dreadFloor: opts.dreadFloor, coach: opts.coach },
     rng,
   )
   return { dungeonId: opts.dungeonId ?? null, sequence: opts.sequence ?? null, seqIdx: 0, combat, running: true, result: null }
@@ -55,7 +57,7 @@ export function runReduce(run: RunState, action: CombatAction, deps: Deps): { ru
     const foe = assembleFoe(run.sequence[idx], dungeon, deps.data, deps.rng)
     if (foe) {
       const combat = createCombat(
-        { foe, gen: state.gen, playerMax: state.playerMax, stats: state.stats, passives: state.passives, consumables: state.consumables, dreadFloor: state.dreadFloor, coach: !state.dreadOn },
+        { foe, gen: state.gen, playerMax: state.playerMax, stats: state.stats, riders: state.riders, passives: state.passives, consumables: state.consumables, dreadFloor: state.dreadFloor, coach: !state.dreadOn },
         deps.rng,
       )
       const swapped = events.map((e): CombatEvent => (e.type === 'won' ? { type: 'foeChanged', name: foe.name, rules: foe.rules } : e))

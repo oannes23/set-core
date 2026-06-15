@@ -1,12 +1,30 @@
 /* The pure roster transforms behind the character-persistence layer (no localStorage I/O here). */
 
 import { test, expect } from 'vitest'
-import { upsert, remove, makeChar } from './save'
+import { upsert, remove, makeChar, sanitizeEquipped } from './save'
 
-test('makeChar starts a hero at level 1, full HP, no allocated points', () => {
+test('makeChar starts a hero at level 1, full HP, no allocated points, no gear', () => {
   expect(makeChar('Rook', 'sentinel', 'id1')).toMatchObject({
-    id: 'id1', name: 'Rook', classId: 'sentinel', hp: 100, maxHp: 100, level: 1, xp: 0, alloc: { power: 0, endurance: 0, speed: 0 },
+    id: 'id1', name: 'Rook', classId: 'sentinel', hp: 100, maxHp: 100, level: 1, xp: 0, alloc: { power: 0, endurance: 0, speed: 0 }, equipped: {},
   })
+})
+
+test('v3→v4 migration seeds empty equip slots on legacy heroes', () => {
+  const v3 = JSON.stringify({ v: 3, chars: [{ id: 'h1', name: 'Old', classId: 'rogue', hp: 80, maxHp: 100, level: 4, xp: 10, alloc: { power: 3, endurance: 2, speed: 1 }, consumables: [] }] })
+  const [c] = parseRoster(v3)
+  expect(c.equipped).toEqual({}) // migrated, not undefined
+  expect(c.level).toBe(4) // earlier fields preserved
+})
+
+test('sanitizeEquipped keeps only valid GEAR per slot, drops the rest', () => {
+  const eq = sanitizeEquipped({
+    weapon: { uid: 'w1', kind: 'gear', refId: 'axe', rarity: 'blue', lootTier: 2, affixes: [] },
+    armor: { uid: 'c1', kind: 'consumable', refId: 'hp_std' }, // not gear → dropped
+    bogus: { uid: 'x', kind: 'gear', refId: 'sword', rarity: 'white', lootTier: 0, affixes: [] }, // not a real slot → ignored
+  })
+  expect(eq.weapon?.refId).toBe('axe')
+  expect(eq.armor).toBeUndefined()
+  expect(Object.keys(eq)).toEqual(['weapon'])
 })
 
 test('upsert adds then updates by id (no duplicates, order preserved)', () => {
@@ -36,9 +54,9 @@ test('parseRoster migrates a legacy bare-array (v1) payload and backfills consum
   expect(r[0]).toMatchObject({ id: 'id1', hp: 40, maxHp: 100, consumables: STARTER_CONSUMABLES })
 })
 
-test('parseRoster migrates a v2 envelope to v3 (seeds level/xp/alloc)', () => {
+test('parseRoster migrates a v2 envelope through to v4 (seeds level/xp/alloc + equipped)', () => {
   const env = JSON.stringify({ v: 2, chars: [{ id: 'a', name: 'A', classId: 'rogue', hp: 50, maxHp: 100, consumables: ['hp_std'] }] })
-  expect(parseRoster(env)[0]).toEqual({ id: 'a', name: 'A', classId: 'rogue', hp: 50, maxHp: 100, level: 1, xp: 0, alloc: { power: 0, endurance: 0, speed: 0 }, consumables: ['hp_std'] })
+  expect(parseRoster(env)[0]).toEqual({ id: 'a', name: 'A', classId: 'rogue', hp: 50, maxHp: 100, level: 1, xp: 0, alloc: { power: 0, endurance: 0, speed: 0 }, consumables: ['hp_std'], equipped: {} })
 })
 
 test('parseRoster drops unsalvageable entries and clamps corrupt numerics', () => {
