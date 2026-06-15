@@ -10,7 +10,7 @@
 import type { Board } from '../core/sets'
 import type { GenConfig, FavorBias } from '../core/generate'
 import type { Trigger, FoeRules, Tier } from '../data/schema'
-import type { Riders } from './items'
+import type { Riders, AffixProc } from './items'
 
 /** A board slot emptied by a transmute/shatter, reforming at `reformAt` (optionally biased).
  *  `wound: true` = a Wound (exchange damage scar): it never time-reforms — one knits per draw
@@ -73,6 +73,7 @@ export interface CombatState {
   block: number // Defend's round accumulator: mitigates THIS round's telegraph, resets at the exchange
   stats: StatBlock // Resolution v2: sets steer, these carry (Power/Endurance/Speed) — incl. gear stat bonus
   riders: Riders // §7 gear riders: flat per-card damage/block/mana added AFTER the contest (resolveSet)
+  procs: AffixProc[] // §7 gear affix ON-MATCH procs (fired like passives — the affix-proc engine)
   mana: [number, number, number] // capped at MANA_CAP per color; gains past it are pure loss
   // Tactics v3 (CRAWL §5.6): a charge bank spent by the selected stance
   tactic: TacticKind

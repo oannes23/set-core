@@ -221,6 +221,13 @@ Affixes are **NOT** in foe tuning (unpriced upside) → they push winrate ABOVE 
 | Off-stat patch amount | **+2 to +3** to a stat (≈ +3.4 / +5.8 pp on the ref boss) | a real patch but a rider out-values it (raw stat bounded by the rate clamp — §7 intent) |
 | Curse severity | **−2 / −3 to a stat** (offsets a ~fatter proc) | "strong+curse ≈ clean+weaker" — the cursed item competes, never dominates; identified + rerollable |
 
+**On-match proc magnitudes — FIRST-CUT (the affix-proc engine, BUILT 2026-06-15; ⚠ a §13 proc-value sim
+is the tuning gate).** `data/affixes.ts` procs: amount = `max(1, round(magUnit × k))`, magUnit =
+`perAffixPower × (1 + lootTier·0.02)`; k = 1.0 dmg (Savage/Searing) · 0.7 mana (Attuned) · 1.5 heal
+(Renewing) · Time-Eater = +1s. All **conditioned** (all-Attack / all-Fire / mono-colour / all-Defend /
+rainbow) to bound the per-round value — §12 flagged procs run hot (a per-match damage proc ≈ 4× a stat
+affix). Sim them before widening the pool or raising magnitudes.
+
 ## Trap severity law (unchanged)
 
 | Rule | Value | File | Meaning |

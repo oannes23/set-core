@@ -9,7 +9,7 @@
    them, the UI renders them by looking `refId` up in the relevant table. Lives in `engine` (the
    shared pure layer) so both the engine (loot, delve satchel) and the UI (bank Storage) can import it. */
 
-import type { Trigger } from '../data/schema' // type-only — stays runtime-dependency-free
+import type { Trigger, Condition } from '../data/schema' // type-only — stays runtime-dependency-free
 
 export type ItemKind = 'consumable' | 'gear'
 
@@ -41,10 +41,22 @@ export type StatKey = 'power' | 'endurance' | 'speed'
 
 /** An affix = a labelled bundle of EXISTING component types (the unified model — §7). No new
  *  machinery: `trigger` reuses the trap/bus shape, `ability` the ability registry, `stat` a flat ±. */
+/** A player-favourable ON-MATCH proc: a condition on the matched set → a player effect (the affix-proc
+ *  engine fires these like class passives, via condMet + ops). Effects map 1:1 to ops.ts functions. */
+export type ProcEffect =
+  | { kind: 'damage'; amount: number } // direct foe damage
+  | { kind: 'mana'; amount: number; color?: number } // color omitted → the matched mono colour
+  | { kind: 'block'; amount: number }
+  | { kind: 'heal'; amount: number }
+  | { kind: 'charges'; amount: number }
+  | { kind: 'delay'; seconds: number } // extend the round (buy time)
+export interface AffixProc { when?: Condition; effect: ProcEffect; label?: string }
+
 export type AffixComponent =
   | { c: 'stat'; stat: StatKey; amount: number } // incl. negative (cursed) + off-stat patches
   | { c: 'rider'; riders: Partial<Riders> } // scoped per-card riders (fold via gearRiders — already live)
-  | { c: 'trigger'; trigger: Trigger } // procs / alt-verbs — STAGED (needs the affix-proc engine)
+  | { c: 'proc'; proc: AffixProc } // on-match player proc (the affix-proc engine — LIVE)
+  | { c: 'trigger'; trigger: Trigger } // alt-verb / foe-shape trigger — STAGED
   | { c: 'ability'; abilityId: string } // purple+ granted ability — STAGED
 /** An affix instance: `label` is the SYSTEM-descriptive key (dev mode shows it; normal play maps it
  *  to the thematic name via the affix catalog). `components` realize the mechanic (the unified model). */

@@ -9,7 +9,8 @@
    the affix-proc engine + the new gear-exclusive mechanics (crit/dodge/penetration). The roller only
    mints LIVE affixes, so every dropped affix functions; the staged set is the design + the next slice. */
 
-import { RARITY, RARITIES, freshUid, type Affix, type AffixComponent, type EquipSlot, type Rarity, type StatKey } from '../engine/items'
+import { RARITY, RARITIES, freshUid, type Affix, type AffixComponent, type EquipSlot, type Rarity, type StatKey, type ProcEffect } from '../engine/items'
+import type { Condition } from './schema'
 import type { Rng } from '../core/rng'
 
 export type AffixFamily = 'stat' | 'rider' | 'proc' | 'crit' | 'reactive' | 'utility' | 'unique'
@@ -32,6 +33,12 @@ const stat = (s: StatKey): ((mag: number) => AffixComponent[]) => (mag) => [{ c:
 const atkRider = (mag: number): AffixComponent[] => [{ c: 'rider', riders: { atkDamagePerCard: Math.max(1, Math.round(mag)) } }]
 const blkRider = (mag: number): AffixComponent[] => [{ c: 'rider', riders: { blockPerDefendCard: Math.max(1, Math.round(mag)) } }]
 const manaRider = (mag: number): AffixComponent[] => [{ c: 'rider', riders: { manaPerMatch: Math.max(1, Math.round(mag)) } }]
+/** ON-MATCH proc builder: a condition on the matched set → a player effect (the affix-proc engine).
+ *  Magnitudes are SMALL + the procs are CONDITIONED (so the per-round value stays bounded — sim §12;
+ *  a proc-value sim is the tuning gate). */
+const procC = (when: Condition | undefined, mk: (mag: number) => { effect: ProcEffect; label: string }): ((mag: number) => AffixComponent[]) =>
+  (mag) => { const { effect, label } = mk(mag); return [{ c: 'proc', proc: { when, effect, label } }] }
+const round1 = (mag: number, k = 1): number => Math.max(1, Math.round(mag * k))
 
 export const AFFIXES: AffixDef[] = [
   // ── STAT patches (LIVE) — the off-stat fixers; any slot (patch what your base gear lacks) ──
@@ -42,13 +49,13 @@ export const AFFIXES: AffixDef[] = [
   { sys: 'AttackDamagePerCard', name: 'Honed', family: 'rider', slots: ['weapon', 'relic'], minRarity: 'green', weight: 6, live: true, note: '+damage per Attack card', build: atkRider },
   { sys: 'BlockPerDefendCard', name: 'Warding', family: 'rider', slots: ['armor', 'relic'], minRarity: 'green', weight: 6, live: true, note: '+Block per Defend card', build: blkRider },
   { sys: 'ManaPerMatch', name: 'Channeling', family: 'rider', slots: ['weapon', 'relic', 'trinket1'], minRarity: 'green', weight: 5, live: true, note: '+mana per mono-colour set', build: manaRider },
-  // ── PROCS (STAGED) — on-match build-around; need the affix-proc engine (player-favourable bus) ──
-  { sys: 'OnMatchBonusDamage', name: 'Savage', family: 'proc', slots: ['weapon', 'relic'], minRarity: 'blue', weight: 4, live: false, note: 'on a match: bonus damage' },
-  { sys: 'OnMatchBonusDamage_red', name: 'Searing', family: 'proc', slots: ['weapon'], minRarity: 'blue', weight: 3, live: false, note: 'on an all-Fire match: bonus burn damage' },
-  { sys: 'OnMatchManaGain', name: 'Attuned', family: 'proc', slots: ['relic', 'trinket1'], minRarity: 'blue', weight: 3, live: false, note: 'on a match: +mana (small — high value)' },
-  { sys: 'OnMatchDelayEnemy', name: 'Time-Eater', family: 'proc', slots: ['relic', 'trinket1'], minRarity: 'purple', weight: 2, live: false, note: 'on a rainbow match: delay the foe (small)' },
-  { sys: 'OnMatchChurn', name: "Trickster's", family: 'proc', slots: ['trinket1'], minRarity: 'blue', weight: 3, live: false, note: 'on a match: churn the deadest card toward your bias' },
-  { sys: 'OnMatchHeal', name: 'Renewing', family: 'proc', slots: ['armor', 'trinket1'], minRarity: 'blue', weight: 3, live: false, note: 'on a match: small heal' },
+  // ── PROCS (LIVE via the affix-proc engine) — on-match, CONDITIONED + small (sim §12: procs run hot) ──
+  { sys: 'OnMatchBonusDamage', name: 'Savage', family: 'proc', slots: ['weapon', 'relic'], minRarity: 'blue', weight: 4, live: true, note: 'all-Attack match → bonus damage', build: procC({ axis: 'shape', mode: 'all_same', value: 'attack' }, (m) => { const a = round1(m); return { effect: { kind: 'damage', amount: a }, label: `⚔+${a}` } }) },
+  { sys: 'OnMatchBonusDamage_red', name: 'Searing', family: 'proc', slots: ['weapon'], minRarity: 'blue', weight: 3, live: true, note: 'all-Fire match → bonus burn damage', build: procC({ axis: 'color', mode: 'all_same', value: 'red' }, (m) => { const a = round1(m); return { effect: { kind: 'damage', amount: a }, label: `🔥+${a}` } }) },
+  { sys: 'OnMatchManaGain', name: 'Attuned', family: 'proc', slots: ['relic', 'trinket1'], minRarity: 'blue', weight: 3, live: true, note: 'mono-colour match → +mana (to that colour)', build: procC({ axis: 'color', mode: 'all_same' }, (m) => { const a = round1(m, 0.7); return { effect: { kind: 'mana', amount: a }, label: `✦+${a}` } }) },
+  { sys: 'OnMatchHeal', name: 'Renewing', family: 'proc', slots: ['armor', 'trinket1'], minRarity: 'blue', weight: 3, live: true, note: 'all-Defend match → small heal', build: procC({ axis: 'shape', mode: 'all_same', value: 'defend' }, (m) => { const a = round1(m, 1.5); return { effect: { kind: 'heal', amount: a }, label: `+${a}hp` } }) },
+  { sys: 'OnMatchDelayEnemy', name: 'Time-Eater', family: 'proc', slots: ['relic', 'trinket1'], minRarity: 'purple', weight: 2, live: true, note: 'rainbow-colour match → delay the foe 1s', build: procC({ axis: 'color', mode: 'all_different' }, () => ({ effect: { kind: 'delay', seconds: 1 }, label: '⏳+1s' })) },
+  { sys: 'OnMatchChurn', name: "Trickster's", family: 'proc', slots: ['trinket1'], minRarity: 'blue', weight: 3, live: false, note: 'on a match: churn the deadest card toward your bias (STAGED — needs proc-churn plumbing)' },
   // ── gear-EXCLUSIVE (STAGED) — crit/dodge/penetration/soak/lifesteal: new engine mechanics ──
   { sys: 'CritChance', name: 'Keen', family: 'crit', slots: ['weapon', 'trinket1'], minRarity: 'blue', weight: 4, live: false, note: '+crit chance (gear-exclusive; crits deferred to gear §5.7)' },
   { sys: 'CritMultiplier', name: 'Vorpal', family: 'crit', slots: ['weapon'], minRarity: 'purple', weight: 2, live: false, note: '+crit damage multiplier' },

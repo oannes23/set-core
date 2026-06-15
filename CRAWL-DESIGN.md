@@ -1755,18 +1755,23 @@ a **weight**, and a `live` flag. `AFFIX_THEME` (sys→name) is derived from it (
 loot roller (`rollAffixes`) mints a random `1..maxAffixes` distinct, slot/tier-gated set scaled by
 `perAffixPower × loot-tier` (the inverse budget + sim §12 magnitudes).
 
-**FUNCTIONAL today** (`live: true` — fold through machinery that already exists):
+**FUNCTIONAL** (`live: true` — rolled + working in combat):
 - **stat patches** (any slot): `FlatPower`→**Mighty** · `FlatEndurance`→**Stalwart** · `FlatSpeed`→**Fleet**
+  (fold via gearStatBonus)
 - **scoped riders** (slot-gated): `AttackDamagePerCard`→**Honed** (weapon) · `BlockPerDefendCard`→**Warding**
-  (armor/relic) · `ManaPerMatch`→**Channeling** (caster)
+  (armor/relic) · `ManaPerMatch`→**Channeling** (caster) (fold via gearRiders)
+- **ON-MATCH PROCS** (the **affix-proc engine**, BUILT 2026-06-15 — `combat.fireAffixProcs`, the data-driven
+  sibling of `firePassives`: `condMet(when)` on the matched set → a player effect via ops): **Savage**
+  (all-Attack → bonus dmg) · **Searing** (all-Fire → burn) · **Attuned** (mono-colour → +mana to it) ·
+  **Renewing** (all-Defend → heal) · **Time-Eater** (rainbow → +1s round). All CONDITIONED + small (sim §12:
+  procs run hot — magnitudes are first-cut, a proc-value sim is the tuning gate).
 
-**STAGED** (`live: false` — authored with names + the mechanic note, NOT yet rolled; need the affix-proc
-engine + the new gear-exclusive mechanics — the next slice):
-- **procs:** Savage · Searing · Attuned · Time-Eater · Trickster's · Renewing
-- **gear-exclusive:** Keen (`CritChance`) · **Vorpal** (`CritMultiplier`) · Sundering (`Penetration`) ·
-  Evasive (`DodgeChance`) · Ironhide (`FlatDamageReduction`) · Sanguine (`Lifesteal`)
-- **reactive:** Barbed · Guardian's · Carnage · Cornered · **utility:** Fated · **unique (orange):**
-  Heartseeker · the Aegis
+**STAGED** (`live: false` — authored with names + the mechanic note, not yet rolled; each needs its engine):
+- **Trickster's** (`OnMatchChurn`) — needs proc-churn plumbing (deadest + bias).
+- **gear-exclusive** (new combat mechanics): Keen (`CritChance`) · **Vorpal** (`CritMultiplier`) · Sundering
+  (`Penetration`) · Evasive (`DodgeChance`) · Ironhide (`FlatDamageReduction`) · Sanguine (`Lifesteal`).
+- **reactive** (need player-side trigger EVENTS — onWound/onKill/onLowHP): Barbed · Guardian's · Carnage ·
+  Cornered · **utility:** Fated · **unique (orange):** Heartseeker · the Aegis.
 
 The catalog grows by adding rows; flipping a family `live` (once its mechanic engine lands) makes it roll.
 

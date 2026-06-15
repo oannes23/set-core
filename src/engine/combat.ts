@@ -11,11 +11,11 @@ import type { Rng } from '../core/rng'
 import type { GameData } from '../data/schema'
 import { type CombatState, type FoeRuntime, type Pending, type TacticKind, type ManeuverBias, type StatBlock, MANA_CAP, DEFAULT_PLAYER_MAX, BASE_STATS, ROUND_MS, DODGE_BASE, DODGE_K, DODGE_MIN, DODGE_MAX, MANEUVER_BURN_MS, dreadFoeMult, dreadPlayerMult, dreadBleed, driftRateMult } from './state'
 import { type CombatEvent, EventSink } from './events'
-import { type Resolution, resolveSet, weightedRoll, telegraphPerSwing, dodgeChance } from './resolve'
-import { NO_RIDERS, type Riders } from './items'
+import { type Resolution, type MatchDescriptor, resolveSet, weightedRoll, telegraphPerSwing, dodgeChance } from './resolve'
+import { NO_RIDERS, type Riders, type AffixProc } from './items'
 import { foeLevelEquiv, gearFactor } from './foe'
-import { fireTriggers, runTrigger, inflictWounds, hurtPlayer, reformSlots, EMPTY_DESC } from './triggers'
-import { gainBlock, addCharges } from './ops'
+import { fireTriggers, runTrigger, inflictWounds, hurtPlayer, reformSlots, condMet, EMPTY_DESC } from './triggers'
+import { gainBlock, addCharges, grantMana, healPlayer, dealAbilityDamage, extendRound } from './ops'
 import { firePassives } from './passives'
 import { castAbility } from './abilities'
 import { setTactic, setBias, liveBurn } from './tactics'
@@ -47,6 +47,7 @@ export interface NewCombatOpts {
   playerMax?: number
   stats?: StatBlock // Resolution v2: Power/Endurance/Speed (default BASE_STATS = old-system parity); incl. gear bonus
   riders?: Riders // §7 gear riders (flat per-card; default none = no gear equipped)
+  procs?: AffixProc[] // §7 gear affix on-match procs (fired like passives)
   passives?: string[] // the chosen class's always-on passive ids
   consumables?: string[] // carried potions/scrolls for this run
   dreadFloor?: number // §5.8 dread depth floor (from the delve band; default 1 = not in a delve)
@@ -93,6 +94,7 @@ export function createCombat(opts: NewCombatOpts, rng: Rng): CombatState {
     block: 0,
     stats,
     riders: opts.riders ?? NO_RIDERS,
+    procs: opts.procs ? opts.procs.slice() : [],
     mana: [0, 0, 0],
     tactic: 'stand', // the defensive default — you OPT INTO Maneuver's greed live (§5.7)
     maneuverBias: null,
@@ -164,6 +166,24 @@ function applyResolution(s: CombatState, res: Resolution, rng: Rng, sink: EventS
   if (charges > 0) addCharges(s, charges, sink)
 }
 
+/** The AFFIX-PROC ENGINE (CRAWL §7): gear affix on-match procs fire like class passives — the match
+ *  descriptor gates each (condMet), then a player-favourable effect lands via ops. The data-driven
+ *  sibling of firePassives; the proc magnitudes are first-cut (TUNING — a proc-value sim is the gate). */
+function fireAffixProcs(s: CombatState, desc: MatchDescriptor, rng: Rng, sink: EventSink): void {
+  for (const p of s.procs) {
+    if (!condMet(p.when, desc)) continue
+    const e = p.effect
+    if (e.kind === 'damage') dealAbilityDamage(s, e.amount, sink)
+    else if (e.kind === 'mana') grantMana(s, e.color ?? (desc.sameColor ?? 0), e.amount, sink)
+    else if (e.kind === 'block') gainBlock(s, e.amount, rng, sink)
+    else if (e.kind === 'heal') healPlayer(s, e.amount, rng, sink)
+    else if (e.kind === 'charges') addCharges(s, e.amount, sink)
+    else if (e.kind === 'delay') extendRound(s, e.seconds, sink)
+    sink.emit({ type: 'passiveProc', id: 'affix', label: p.label ?? '✦' })
+    if (!s.running) return
+  }
+}
+
 /** End this combat with a win. Run-level progression (the gauntlet's next foe; B2's room chain)
  *  lives in the RUN layer (run.ts), which composes combats — not in the combat reducer. */
 function onWin(s: CombatState, sink: EventSink): void {
@@ -188,6 +208,8 @@ function completeSet(s: CombatState, slots: [number, number, number], deps: Deps
   sink.emit({ type: 'setResolved', damage: res.damage, block: res.block, mana: res.mana, slots })
   // character-innate passives react to this match's signature (Momentum may steer the refill below)...
   firePassives(s, 'match', res.desc, deps.rng, sink)
+  // ...and the gear AFFIX procs fire on the same match (the affix-proc engine — player-favourable)
+  if (s.running) fireAffixProcs(s, res.desc, deps.rng, sink)
   // ...and the FOE prices this match (traps + tricks fire on the same bus)
   if (s.running && s.enemyHP > 0) fireTriggers(s, 'match', res.desc, deps.rng, sink)
   if (!s.running) return

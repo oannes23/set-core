@@ -34,6 +34,18 @@ test('the foe-difficulty raise: createCombat scales HP + telegraph by gearFactor
   expect(sHi.foe.damage).toBeGreaterThan(0) // telegraph also raised (finalized in createCombat)
 })
 
+test('the affix-proc engine: an on-match proc fires player-favourably (condMet → ops)', () => {
+  const rng = mulberry32(7)
+  // a trigger-free foe so the only thing touching enemyHP on a match is the proc itself
+  const f = { id: 'x', name: 'x', tier: 'minion', hp: 100, stats: { power: 10, endurance: 10, speed: 10 }, strikeEvery: 2, swings: 1, triggers: [], rules: {} } as unknown as ReturnType<typeof foe>
+  const s = createCombat({ foe: f, gen: GEN, procs: [{ effect: { kind: 'damage', amount: 7 } }] }, rng) // no `when` → every match
+  const before = s.enemyHP
+  const sets = findSets(s.board)
+  const r = reduce(s, { type: 'completeSet', slots: sets[0] }, { data: GAMEDATA, rng })
+  expect(before - r.state.enemyHP).toBe(7) // the proc's direct damage landed (the set banks to the exchange separately)
+  expect(r.events.some((e) => e.type === 'passiveProc' && e.id === 'affix')).toBe(true)
+})
+
 // ---- resolution math (v3 contests: per card = rate(yourStat, theirOpposed) × quality) ----
 const STATS = { power: 10, endurance: 10, speed: 10 }
 const FOE_PAR = { power: 10, endurance: 10, speed: 10 }

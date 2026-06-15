@@ -8,7 +8,7 @@
 
 import { GEAR } from '../data/gear'
 import { rollAffixes } from '../data/affixes'
-import { RARITY, NO_RIDERS, freshUid, type EquipSlot, type GearInstance, type Riders, type StatKey, type Rarity } from './items'
+import { RARITY, NO_RIDERS, freshUid, type EquipSlot, type GearInstance, type Riders, type StatKey, type Rarity, type AffixProc } from './items'
 import type { Trigger } from '../data/schema'
 import type { Rng } from '../core/rng'
 
@@ -52,7 +52,14 @@ export function gearRiders(eq: Equipped | undefined): Riders {
   return out
 }
 
-/** Affix-granted triggers (registered on the bus alongside class passives; content rides ②). */
+/** Affix ON-MATCH procs across the kit — fed to CombatState.procs, fired like passives (the engine). */
+export function gearProcs(eq: Equipped | undefined): AffixProc[] {
+  const out: AffixProc[] = []
+  for (const g of equippedList(eq)) for (const a of g.affixes) for (const c of a.components) if (c.c === 'proc') out.push(c.proc)
+  return out
+}
+
+/** Affix-granted triggers (alt-verb / foe-shape; STAGED — registered on the bus when authored). */
 export function gearTriggers(eq: Equipped | undefined): Trigger[] {
   const out: Trigger[] = []
   for (const g of equippedList(eq)) for (const a of g.affixes) for (const c of a.components) if (c.c === 'trigger') out.push(c.trigger)
