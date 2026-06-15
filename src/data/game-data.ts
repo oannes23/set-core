@@ -141,21 +141,21 @@ export const GAMEDATA: GameData = {
     training_dummy: {
       name: 'Training Dummy', tier: 'minion', stats: { power: 0, endurance: 10, speed: 10 }, hp: 90,
       desc: 'A straw-stuffed practice dummy on a creaky pivot. It cannot hurt you — take all the time you need to learn the ropes.',
-      traps: [], variants: [], loot_tier: 0, xp: 55, // onboarding: beating the guided intro → level 2
+      traps: [], variants: [], loot_tier: 0, xp: 110, // onboarding: beating the guided intro → level 2 (need(1→2)=110)
     },
     // teaching minion — a feeble shambler (steady S−P 0 → 2 modest swings) you learn the ropes on.
     limbless_zombie: {
       name: 'Limbless Zombie', tier: 'minion', stats: { power: 5, endurance: 8, speed: 5 }, hp: 50,
       desc: 'A zombie with no limbs, chin-crawling across the floor toward you. Harmless — until it gathers itself for a sudden lurch.',
       voice: { hit: ['gnaws at', 'claws at', 'paws at'], zero: 'flops against you, harmless' },
-      traps: ['limbless'], variants: [], loot_tier: 1, xp: 50, // gauntlet onboarding (50+90+45 = 185 → L3)
+      traps: ['limbless'], variants: [], loot_tier: 1, xp: 95, // gauntlet onboarding (95+170+90 = 355 = need(2→3) → L3)
     },
     // THE GIANT teaching elite: S−P −9 → every 3rd round, triple budget → a certain-death haymaker.
     dread_behemoth: {
       name: 'Dread Behemoth', tier: 'elite', stats: { power: 14, endurance: 10, speed: 5 }, hp: 90,
       desc: 'A mountain that walks. Its blow is <b>certain death</b>, so blocking is futile — but it is <i>ponderously</i> slow. Its tremors shake your useless <b>Defend</b> cards loose into <b>Moves</b>; spend a <b>Move</b> set and you dance aside, leaving it a step behind. Stay mobile, bank <b>Tactics</b>, and break it with a decisive strike.',
       voice: { hit: ['hammers', 'crushes down on', 'flattens'], zero: 'misses — its bulk too slow' },
-      traps: ['tremor', 'outmaneuvered'], variants: [], loot_tier: 3, xp: 90, // the gauntlet's hardest lesson
+      traps: ['tremor', 'outmaneuvered'], variants: [], loot_tier: 3, xp: 170, // the gauntlet's hardest lesson
     },
     // immune to card damage — killed by ability mana (HP doubles as the mana-to-dispel pool ≈ 18).
     unstable_ethereal_goblin: {
@@ -163,7 +163,7 @@ export const GAMEDATA: GameData = {
       desc: 'A goblin who gulped a Potion of Etherealness <i>and</i> a Potion of Polymorph at once — now a flickering wisp of raw magic. <b>Swords pass right through him</b> (Attack cards deal no damage). Only <b>magic</b> bites: every <b>ability</b> you cast drains him by the <b>mana you spent</b>. Spend 15 mana of spells to dispel him.',
       rules: { immune_card_damage: true, ability_damage: 'mana_spent' },
       voice: { hit: ['flickers through', 'phases into', 'wisps across'], heal: ['reknits from mist'], zero: 'shimmers past you' },
-      traps: ['ethereal_cackle'], variants: [], loot_tier: 3, xp: 45, // the gauntlet's final lesson
+      traps: ['ethereal_cackle'], variants: [], loot_tier: 3, xp: 90, // the gauntlet's final lesson
     },
     // === THE GOBLIN WARREN (fresh L3 → parity 14) ===
     goblin: { // the baseline fighter — steady (2 swings)

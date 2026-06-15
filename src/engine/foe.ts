@@ -33,10 +33,29 @@ export const XP_TIER_MULT: Record<Tier, number> = { minion: 1, elite: 2, boss: 4
 export function foeValue(foe: FoeRuntime): number {
   return foe.hp / 10 + foe.stats.power + foe.stats.endurance + foe.stats.speed
 }
-export function computeXP(foe: FoeRuntime): number {
+// --- level-equivalence + the outlevel XP penalty (CRAWL §3, sim §8; anti-backtrack-farm) ---
+export const OUTLEVEL_GRACE = 2 // levels of full XP before the penalty bites
+export const OUTLEVEL_K = 0.15 // XP lost per level outleveled past the grace
+export const OUTLEVEL_FLOOR = 0.1 // the penalty never zeroes XP entirely
+/** A foe's level-equivalent, SELF-rated from its statline (inverts the parity line 10+2(L−1)). No
+ *  authoring — a foe's strength IS its level. (Elites/bosses read ~1 higher via their E-bump.) */
+export function foeLevelEquiv(foe: FoeRuntime): number {
+  const avg = (foe.stats.power + foe.stats.endurance + foe.stats.speed) / 3
+  return Math.max(1, Math.round(1 + (avg - 10) / 2))
+}
+/** Outlevel XP multiplier: full within GRACE levels, then −K/level down to FLOOR. Above-level = ×1. */
+export function outlevelXpMult(playerLevel: number, foeLevel: number): number {
+  return Math.max(OUTLEVEL_FLOOR, Math.min(1, 1 - OUTLEVEL_K * Math.max(0, playerLevel - foeLevel - OUTLEVEL_GRACE)))
+}
+/** XP for a kill. With `playerLevel`, the outlevel penalty applies (so farming trivial content
+ *  doesn't pay); without it (sim/tests) the raw statline value is returned. Teaching foes
+ *  (xpOverride) author a fixed value and are never penalized. */
+export function computeXP(foe: FoeRuntime, playerLevel?: number): number {
   if (foe.xpOverride != null) return foe.xpOverride // teaching foes author it (the dummy's Power 0 breaks the formula)
   const traps = foe.triggers.filter((t) => t.kind !== 'trick').length
-  return Math.round(foeValue(foe) * (1 + 0.15 * traps) * XP_TIER_MULT[foe.tier ?? 'minion'])
+  const raw = Math.round(foeValue(foe) * (1 + 0.15 * traps) * XP_TIER_MULT[foe.tier ?? 'minion'])
+  if (playerLevel == null) return raw
+  return Math.round(raw * outlevelXpMult(playerLevel, foeLevelEquiv(foe)))
 }
 
 /** Weighted-random pick from a dungeon enemy table. */

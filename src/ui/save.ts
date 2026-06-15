@@ -37,10 +37,15 @@ export const STARTER_CONSUMABLES = ['hp_std', 'speed_std', 'stoneskin_std'] // a
 // --- PROGRESSION (CRAWL §3 / TUNING.md, sim-derived 2026-06-12) ---
 export const LEVEL_CAP = 21 // numeric to 20; 21 renders as ★
 export const HP_PER_LEVEL = 5 // 100 → 200 at cap
-/** XP needed to climb FROM `level` to level+1: polynomial 55·L^1.7 (geometric walls off — §3),
- *  display-rounded to 5s. L1→2 = 55 (one warren minion); L2→3 ≈ 180. */
+/** XP needed to climb FROM `level` to level+1: polynomial 110·L^1.7 (geometric walls off — §3),
+ *  display-rounded to 5s. L1→2 = 110, L2→3 = 355, L3→4 = 710. Base steepened 55→80→**110**
+ *  (2026-06-14): at 55 a first warren clear gave ~2 levels (too fast post-L3); the 110 base targets
+ *  **~56 level-matched dungeon clears to ★** (the 50–60 goal — sim §8) while still keeping that first
+ *  clear ≈ 1 level. The base RISES because foe XP income rises with dungeon level (§8); L^1.7 keeps
+ *  the requirement outpacing income. Onboarding (dummy→L2, gauntlet→L3) holds via the teaching foes'
+ *  `xp` overrides, re-tuned to the new steps (game-data.ts). */
 export function xpForLevel(level: number): number {
-  return Math.round((55 * Math.pow(level, 1.7)) / 5) * 5
+  return Math.round((110 * Math.pow(level, 1.7)) / 5) * 5
 }
 export const maxHpForLevel = (level: number): number => DEFAULT_MAX_HP + HP_PER_LEVEL * (level - 1)
 /** Combat statline = the parity-line base + the points the player has allocated. */
@@ -55,9 +60,11 @@ export function pendingLevels(c: SavedChar): number {
   while (lvl < LEVEL_CAP && xp >= xpForLevel(lvl)) { xp -= xpForLevel(lvl); lvl++; gained++ }
   return gained
 }
-/** Apply ONE level-up with the player's chosen allocation (deltas summing to 6 — a +3/+2/+1
- *  permutation over P/E/S). Spends one level's XP, bumps level + maxHp (+HP_PER_LEVEL to current
- *  HP too, a small level heal). Returns a NEW char (pure). Caller gates on pendingLevels > 0. */
+/** Apply ONE level-up with the player's chosen allocation (deltas summing to 6, **each ≤3** —
+ *  freely distributed: 3/3/0 · 2/2/2 · 3/2/1, per CRAWL §3, revised 2026-06-14; the rigid
+ *  +3/+2/+1 permutation is retired). The allocation rule is enforced UI-side (the level-up modal);
+ *  this transform just adds the delta. Spends one level's XP, bumps level + maxHp (+HP_PER_LEVEL to
+ *  current HP too, a small level heal). Returns a NEW char (pure). Caller gates on pendingLevels > 0. */
 export function applyLevelUp(c: SavedChar, delta: StatAlloc): SavedChar {
   const level = Math.min(LEVEL_CAP, c.level + 1)
   const maxHp = maxHpForLevel(level)

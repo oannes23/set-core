@@ -69,10 +69,11 @@ test('sanitizeChar truncates an oversized loadout to the slot cap', () => {
 // ---- progression (CRAWL §3): the XP curve, level-up application, effective stats ----
 import { xpForLevel, maxHpForLevel, effectiveStats, pendingLevels, applyLevelUp, LEVEL_CAP } from './save'
 
-test('the XP curve anchors: L1→2 = one warren minion (55), and climbs polynomially', () => {
-  expect(xpForLevel(1)).toBe(55) // a single warren minion (computeXP) → level 2
-  expect(xpForLevel(2)).toBe(180) // ≈ an elite + a minion
-  expect(xpForLevel(3)).toBeGreaterThan(xpForLevel(2)) // monotonic
+test('the XP curve anchors: 110·L^1.7 (steepened 2026-06-14 for ~56 clears to ★), climbs polynomially', () => {
+  expect(xpForLevel(1)).toBe(110) // need(1→2); onboarding hits L2 via the dummy's xp override
+  expect(xpForLevel(2)).toBe(355) // need(2→3); the gauntlet's overrides sum to this → L3
+  expect(xpForLevel(3)).toBe(710) // a first warren clear ≈ 1 level here, not 2
+  expect(xpForLevel(4)).toBeGreaterThan(xpForLevel(3)) // monotonic
   expect(maxHpForLevel(1)).toBe(100)
   expect(maxHpForLevel(21)).toBe(200) // +5/level → 200 at cap
 })
@@ -84,17 +85,17 @@ test('effectiveStats = parity base + allocated points', () => {
 
 test('pendingLevels counts only what the banked XP affords, capped at the cap', () => {
   const base = makeChar('A', 'rogue', 'id')
-  expect(pendingLevels({ ...base, xp: 54 })).toBe(0) // one short of L2
-  expect(pendingLevels({ ...base, xp: 55 })).toBe(1) // exactly L2
-  expect(pendingLevels({ ...base, xp: 55 + 180 })).toBe(2) // L2 then L3
+  expect(pendingLevels({ ...base, xp: 109 })).toBe(0) // one short of L2
+  expect(pendingLevels({ ...base, xp: 110 })).toBe(1) // exactly L2
+  expect(pendingLevels({ ...base, xp: 110 + 355 })).toBe(2) // L2 then L3
   expect(pendingLevels({ ...base, level: LEVEL_CAP, xp: 99999 })).toBe(0) // capped — no more
 })
 
 test('applyLevelUp spends one level of XP, bumps level + maxHp, banks the allocation', () => {
-  const c = { ...makeChar('A', 'rogue', 'id'), xp: 60 }
+  const c = { ...makeChar('A', 'rogue', 'id'), xp: 115 }
   const up = applyLevelUp(c, { power: 3, endurance: 2, speed: 1 })
   expect(up.level).toBe(2)
-  expect(up.xp).toBe(5) // 60 − 55
+  expect(up.xp).toBe(5) // 115 − 110
   expect(up.maxHp).toBe(105)
   expect(up.hp).toBe(105) // +5 level heal (was full at 100)
   expect(up.alloc).toEqual({ power: 3, endurance: 2, speed: 1 })
