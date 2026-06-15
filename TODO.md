@@ -354,6 +354,9 @@ Combat-only; builds *with* B2 (the dread depth floor reads the delve's dread ban
   - **dread accumulation fog** (needs a clear dread-DoT foe + the per-room model)
   - **saturation-cap fizzle** (needs an engine "wanted to warp but couldn't" signal)
   - **herding connector flash** (coach-only, niche — the three-rule squeeze as one move)
+- `[ ]` **AUDIO / SFX pass (no audio system yet).** A whole future layer. First cues queued in-code:
+  the **Stand Ground ward "kerchunk"** (the visual save shipped 2026-06-15 — card shake→settle + stance
+  flash; the sound is the missing half), exchange-beat impacts, the Primed sparkle's twinkle, etc.
 
 ---
 

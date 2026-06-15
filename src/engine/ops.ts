@@ -49,11 +49,11 @@ export function addCharges(s: CombatState, amt: number, sink: EventSink, source?
  *  Board verbs (drift / enemy transmute / lock) cost 1; an incoming WOUND costs 3 (CRAWL §5.6 —
  *  Defend allocation is the primary wound prevention; this is the backstop). Never absorbs raw
  *  damage (that's Block's lane). */
-export function tryWard(s: CombatState, what: 'transmute' | 'lock' | 'shatter', sink: EventSink): boolean {
+export function tryWard(s: CombatState, what: 'transmute' | 'lock' | 'shatter', sink: EventSink, slots?: number[]): boolean {
   const cost = what === 'shatter' ? WOUND_WARD_COST : 1
   if (s.tactic !== 'stand' || s.charges < cost) return false
   s.charges -= cost
-  sink.emit({ type: 'warded', what, cost })
+  sink.emit({ type: 'warded', what, cost, slots }) // slots = the cards the verb WOULD have hit (the shake→settle cue)
   return true
 }
 

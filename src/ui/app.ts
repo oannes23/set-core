@@ -1796,6 +1796,14 @@ function interpretChunk(events: CombatEvent[]): void {
         meter?.classList.remove('wardpulse'); void (meter as HTMLElement | null)?.offsetWidth; meter?.classList.add('wardpulse')
         const bw = V.refs.boardwrap
         if (bw) { bw.classList.remove('wardshield'); void bw.offsetWidth; bw.classList.add('wardshield') }
+        // the SAVED card(s) shake violently, then settle strongly and resolutely (it was NOT destroyed)
+        for (const slot of e.slots ?? []) {
+          const card = V.refs.board?.querySelector<HTMLElement>(`[data-i="${slot}"]`)
+          if (card) { card.classList.remove('warded-save'); void card.offsetWidth; card.classList.add('warded-save') }
+        }
+        // the STAND GROUND stance (the wheel) flashes in time with the block (a kerchunk cue once audio lands)
+        const wheel = V.refs.tactics
+        if (wheel) { wheel.classList.remove('wardflash'); void wheel.offsetWidth; wheel.classList.add('wardflash') }
         break
       }
       case 'buffFaded':

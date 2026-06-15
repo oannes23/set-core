@@ -24,7 +24,7 @@ export type CombatEvent =
   | { type: 'chargesDrained'; amount: number } // an enemy effect drained queued/banked charges
   | { type: 'tacticChanged'; tactic: TacticKind } // §5.7: stances are LIVE now (no queue/round-lock)
   | { type: 'biasChanged'; bias: ManeuverBias | null } // the Maneuver dial, applied live
-  | { type: 'warded'; what: 'transmute' | 'lock' | 'shatter'; cost: number } // Stand Ground ate a hostile board verb (1 charge; a wound costs 3)
+  | { type: 'warded'; what: 'transmute' | 'lock' | 'shatter'; cost: number; slots?: number[] } // Stand Ground ate a hostile board verb (1 charge; a wound costs 3); slots = the saved cards (for the shake→settle cue)
   | { type: 'clockChanged'; deltaSeconds: number } // round stretched (+, stall spells — interim) or yanked shorter (−)
   | { type: 'enemyStrikes' } // an instant attack landed mid-round (trap effect — outside the exchange)
   | { type: 'windup'; amount: number; strikesAt: number; dodged?: number; swings?: number } // the foe TELEGRAPHS the pending exchange (revealed early for slow foes); dodged = swings evaded at the deal (💨)

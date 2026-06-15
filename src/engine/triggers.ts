@@ -230,20 +230,23 @@ function runEffect(s: CombatState, e: Effect, desc: MatchDescriptor, rng: Rng, s
       return drained > 0 ? `−${drained}` : null
     }
     case 'transmute': {
-      if (wardable && tryWard(s, 'transmute', sink)) return '🛡warded' // Stand Ground eats the reshape
+      // SELECT first so a ward knows the saved cards (the shake→settle cue). The warded path now consumes
+      // the selection rng too — a minor determinism shift, fine (no persisted replays yet).
       let slots = e.select ? selectSlots(s, e.select, rng) : []
       // an ordered pick (highest_mag) takes the TOP of the sort; only unordered picks sample randomly
       if (e.count != null && slots.length > e.count) slots = e.select?.pick === 'highest_mag' ? slots.slice(0, e.count) : pickRandom(slots, e.count, rng)
       if (!slots.length) return null
+      if (wardable && tryWard(s, 'transmute', sink, slots)) return '🛡warded' // Stand Ground eats the reshape — the saved cards shake→settle
       // attribution for the tug: a punishing trap, a favorable trick, or the quiet ambient drift
       const source = !wardable ? ('trick' as const) : hostile ? ('trap' as const) : ('drift' as const)
       transmuteFor(s, slots, biasFromSpec(e.bias), e.gap ?? 0, hostile, source, sink)
       return `↯${slots.length}`
     }
     case 'lock': {
-      if (wardable && tryWard(s, 'lock', sink)) return '🛡warded'
       let slots = e.select ? selectSlots(s, e.select, rng) : []
       if (e.count != null && slots.length > e.count) slots = e.select?.pick === 'highest_mag' ? slots.slice(0, e.count) : pickRandom(slots, e.count, rng)
+      if (!slots.length) return null
+      if (wardable && tryWard(s, 'lock', sink, slots)) return '🛡warded'
       const n = lockSlots(s, slots, (e.seconds ?? 4) * 1000, sink)
       return n ? `🔒${n}` : null
     }
