@@ -13,7 +13,7 @@ import { WOUND_CAP_PER_EXCHANGE, woundQuantum } from './state'
 import { extendRound, shortenRound, tryWard, reformSlots } from './ops'
 import type { EventSink } from './events'
 import { type MatchDescriptor, weightedRoll } from './resolve'
-import { cardColor, cardShape, cardMag, isLive, liveSlots, pickRandom, gridDims, rowSlots, colSlots } from './select'
+import { cardColor, cardShape, cardMag, isLive, liveSlots, pickRandom, gridDims, rowSlots, colSlots, protectedSlots } from './select'
 
 /** ⚠ LEGACY SCALE: trap/trick damage + enemy-heal amounts in game-data are still authored against
  *  the HP-30 world; this converts them to the HP-100 rebase in ONE place. The data rebase
@@ -130,7 +130,13 @@ function biasFromSpec(b: Bias | undefined): FavorBias | undefined {
 /** Transmute slots: destroy now, reform after `gapMs` (0 = next reform tick). Regen optionally biased.
  *  `source` attributes the pull for the UI's tug readability (undefined = a player cast). */
 export function transmute(s: CombatState, slots: number[], opts: { bias?: FavorBias; gapMs?: number; hostile?: boolean; source?: 'churn' | 'drift' | 'trap' | 'trick' }, sink: EventSink): void {
-  const live = slots.filter((i) => isLive(s, i))
+  let live = slots.filter((i) => isLive(s, i))
+  // hard rule #6: AUTOMATIC turnover (sourced — churn/drift/trap/trick) never targets a selected card
+  // or its set-mate. A deliberate player cast (source undefined) is the player's own agency → exempt.
+  if (opts.source && live.length) {
+    const shield = protectedSlots(s)
+    if (shield.size) live = live.filter((i) => !shield.has(i))
+  }
   if (!live.length) return
   for (const i of live) {
     s.board[i] = null

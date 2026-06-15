@@ -84,6 +84,7 @@ export interface CombatState {
   cols: number // grid width (for geometry selectors); rows = ceil(board.length / cols)
   pending: Map<number, Pending> // empty slots reforming
   locked: Map<number, number> // slot -> unlockAt (ms)
+  selected: number[] // the player's LIVE selection (UI-synced each dispatch) — shields these + their set-mates from turnover (hard rule #6)
   pendingRegenBias: FavorBias | null // a passive (e.g. Momentum) may steer THIS match's refill
   // character
   passives: string[] // active passive ids (always-on triggers — fire on the bus)

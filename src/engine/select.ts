@@ -111,6 +111,21 @@ export function comboCounts(s: CombatState): number[] {
   return counts
 }
 
+/** Slots SHIELDED from automatic turnover (hard rule #6): every currently-SELECTED card + every card
+ *  that shares a complete board-set with a selected card (its set-mates). Empty when nothing is
+ *  selected (pre-selection turnover is unprotected — rare, acceptable). Only *restricts* targets, so
+ *  it can never break the makeable floor; a turnover left with no legal target simply skips. */
+export function protectedSlots(s: CombatState): Set<number> {
+  const sel = s.selected ?? []
+  const out = new Set<number>(sel)
+  if (!sel.length) return out
+  const selSet = new Set(sel)
+  for (const t of findSets(s.board)) {
+    if (t.some((i) => selSet.has(i))) for (const i of t) out.add(i) // every member of a set through a selected card
+  }
+  return out
+}
+
 /** All pool slots tied for the lowest cost(card, i) — the full tie set (the cast picks one). */
 export function pickAllLowest(s: CombatState, pool: number[], costFn: (card: Card, i: number) => number): number[] {
   let best: number[] = []

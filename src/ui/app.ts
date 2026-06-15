@@ -1316,6 +1316,7 @@ function setCoachArrow(el: HTMLElement | undefined, on: boolean): void {
 // ---- dispatch + event interpretation ----
 function dispatch(action: CombatAction): void {
   if (!V) return
+  V.state.selected = V.selected // hard rule #6: hand the live selection to the engine before it can transmute (tick/trap)
   const defeated = V.state.foe // captured BEFORE the reduce — the foe that may die this step (a swap loses it)
   const { run, events } = runReduce(V.run, action, V.deps)
   const state = run.combat
@@ -2351,7 +2352,7 @@ function endScreen(result: 'win' | 'lose' | 'flee'): void {
  *  the end-of-combat / fork summary. A floating "+N XP" gives the kill its dopamine in-fight. */
 function awardXP(foe: CombatState['foe']): void {
   if (!V) return
-  const x = computeXP(foe)
+  const x = computeXP(foe, V.char.level) // the outlevel penalty applies (sim §8 — farming trivial content doesn't pay)
   if (x <= 0) return
   V.stats.xp += x
   if (V.char.level < LEVEL_CAP) V.char.xp += x // at the cap, XP stops accruing (nothing left to buy)
