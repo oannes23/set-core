@@ -56,7 +56,13 @@ Detailed specs live in CRAWL-DESIGN.md + the sections below; this is the master 
   @ L8/16; auto-derived, no stored state/migration); the sheet greys locked abilities with "🔒 Lv N". STILL OPEN
   (need the **class-kit content expansion** — currently 3 abilities/1 passive each, design assumes ~10/~5 — to make
   the loadout a real CHOICE; then the stored loadout + equip screen): **cooldowns · spellbooks · stored loadout editor.**
-- `[ ]` Gear B3 (affixes — design gate first)
+- `[~]` **Gear B3 — DESIGN + NUMBERS DONE (§7 clean-slate + §11 coupled pass); BUILDING NEXT.** Chunks:
+  **① foundation** (gear base-type catalog + extend the `Item` model w/ rarity/affixes/native-stat + 5
+  equip slots on `SavedChar` + apply equipped riders/stats in combat + the equip screen) · **② loot +
+  balance** (flip `loot.ts` gear category + the gear sub-roller + pity sawtooth · the **foe-difficulty
+  raise** re-authored into foe HP/telegraph by expected-rarity · the **ability reprice** contested +
+  throughput-neutral · **Primed**) · **③ the smith** (upgrade/enchant/reroll/transfer bench + UI). ②'s
+  pieces land together so balance stays coherent (gear riders + the foe-raise + the reprice are one).
 - `[ ]` Achievement meta-layer → guild halls + bounties → town amenities
 
 ---
