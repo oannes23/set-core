@@ -1748,26 +1748,27 @@ family (D) needs player-side events — **`onWound`/`onKill`/`onLowHP`/`onDodge`
 anti-stall — gate hard or cut) and `ChargeCap`/capacity hooks (overlap the level cadence + the 15 board
 invariant — leave to levels).
 
-### First-draft thematic overlay (TEMPORARY — for the dev-mode name toggle; flavor pass pending)
-The evocative names normal play shows; dev mode shows the system-names above. **First cut, not final** —
-the real flavor pass + weapon/armor/relic family fit comes later. Lives in the dev-mode name registry
-(`src/ui/dev.ts AFFIX_THEME`), so the toggle has something to switch the moment gear renders.
+### The themed affix catalog (BUILT 2026-06-15 — `src/data/affixes.ts`)
+The thematic overlay is now a real catalog: each `AffixDef` carries a **system key** (`sys`, dev-mode
+display), a **thematic name** (normal play), a **family**, **slot-gating**, a **tier-gate** (`minRarity`),
+a **weight**, and a `live` flag. `AFFIX_THEME` (sys→name) is derived from it (dev.ts re-exports it); the
+loot roller (`rollAffixes`) mints a random `1..maxAffixes` distinct, slot/tier-gated set scaled by
+`perAffixPower × loot-tier` (the inverse budget + sim §12 magnitudes).
 
-| System-name | Thematic (draft) | · | System-name | Thematic (draft) |
-|---|---|---|---|---|
-| `FlatPower` | Mighty | · | `OnMatchManaGain` | Attuned |
-| `FlatEndurance` | Stalwart | · | `OnMatchDelayEnemy` | Time-Eater |
-| `FlatSpeed` | Fleet | · | `OnMatchChurn` | Trickster's |
-| `FlatMaxHP` | Vital | · | `OnMatchPrimed` | Quickening |
-| `FlatManaCap` | Deepwell | · | `OnKillHeal` | Carnage |
-| `AttackDamagePerCard` | Honed | · | `OnDodgeCounter` | Riposte |
-| `BlockPerDefendCard` | Warding | · | `OnLowHPSurge` | Cornered |
-| `ManaPerMatch` | Channeling | · | `CritChance` | Keen |
-| `OnMatchBonusDamage` | Savage | · | `CritMultiplier` | **Vorpal** |
-| `OnWoundThorns` | Barbed | · | `Penetration` | Sundering |
-| `OnWoundWard` | Guardian's | · | `DodgeChance` | Evasive |
-| `Lifesteal` | Sanguine | · | `FlatDamageReduction` | Ironhide |
-| `FavorBias` | Fated | · | `DreadResist` | Stoic |
+**FUNCTIONAL today** (`live: true` — fold through machinery that already exists):
+- **stat patches** (any slot): `FlatPower`→**Mighty** · `FlatEndurance`→**Stalwart** · `FlatSpeed`→**Fleet**
+- **scoped riders** (slot-gated): `AttackDamagePerCard`→**Honed** (weapon) · `BlockPerDefendCard`→**Warding**
+  (armor/relic) · `ManaPerMatch`→**Channeling** (caster)
+
+**STAGED** (`live: false` — authored with names + the mechanic note, NOT yet rolled; need the affix-proc
+engine + the new gear-exclusive mechanics — the next slice):
+- **procs:** Savage · Searing · Attuned · Time-Eater · Trickster's · Renewing
+- **gear-exclusive:** Keen (`CritChance`) · **Vorpal** (`CritMultiplier`) · Sundering (`Penetration`) ·
+  Evasive (`DodgeChance`) · Ironhide (`FlatDamageReduction`) · Sanguine (`Lifesteal`)
+- **reactive:** Barbed · Guardian's · Carnage · Cornered · **utility:** Fated · **unique (orange):**
+  Heartseeker · the Aegis
+
+The catalog grows by adding rows; flipping a family `live` (once its mechanic engine lands) makes it roll.
 
 ### Class affinity — one CLASS-side field, two jobs
 Each **class** declares an `affinity`: preferred **gear types** (e.g. Axe + Heavy + martial) and preferred

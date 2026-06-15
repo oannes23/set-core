@@ -50,53 +50,15 @@ export function toggleDev(): void {
   setDev(!on)
 }
 
-/* ---- the descriptive↔thematic name registry (CRAWL §7 first-draft overlay) ----
-   Keyed by the SYSTEM-descriptive name; value = the thematic (flavor) name. TEMPORARY first cut —
-   the real flavor pass + weapon/armor/relic family fit comes later. */
-export const AFFIX_THEME: Record<string, string> = {
-  // A — passive stat-patch
-  FlatPower: 'Mighty',
-  FlatEndurance: 'Stalwart',
-  FlatSpeed: 'Fleet',
-  FlatMaxHP: 'Vital',
-  FlatManaCap: 'Deepwell',
-  StartingMana: 'Charged',
-  Round1Bonus: 'Vanguard',
-  // B — scoped riders
-  AttackDamagePerCard: 'Honed',
-  BlockPerDefendCard: 'Warding',
-  ManaPerMatch: 'Channeling',
-  // C — on-match procs
-  OnMatchBonusDamage: 'Savage',
-  OnMatchManaGain: 'Attuned',
-  OnMatchDelayEnemy: 'Time-Eater',
-  OnMatchChurn: "Trickster's",
-  OnMatchPrimed: 'Quickening',
-  OnMatchHeal: 'Renewing',
-  OnMatchBlock: 'Sheltering',
-  OnMatchCharge: "Tactician's",
-  // D — reactive procs
-  OnWoundWard: "Guardian's",
-  OnWoundThorns: 'Barbed',
-  OnLowHPSurge: 'Cornered',
-  OnKillHeal: 'Carnage',
-  OnKillManaRefund: 'Soulfed',
-  OnDodgeCounter: 'Riposte',
-  RepairCombatWound: 'Mending',
-  // E — gear-exclusive
-  CritChance: 'Keen',
-  CritMultiplier: 'Vorpal',
-  Penetration: 'Sundering',
-  DodgeChance: 'Evasive',
-  FlatDamageReduction: 'Ironhide',
-  Lifesteal: 'Sanguine',
-  FavorBias: 'Fated',
-  DreadResist: 'Stoic',
-}
+/* ---- the descriptive↔thematic name registry ----
+   The themed affix CATALOG (`data/affixes`) is the single source of truth for naming; dev.ts just
+   re-exports its sys→thematic map. Normal play shows the thematic name; dev mode shows the system key. */
+export { AFFIX_THEME } from '../data/affixes'
+import { AFFIX_THEME as THEME } from '../data/affixes'
 
 /** Resolve a hook's display name: the SYSTEM key in dev mode, the THEMATIC overlay otherwise.
  *  Falls back to the key itself if no thematic name is registered (so nothing renders blank). */
 export function displayName(systemKey: string): string {
   if (on) return systemKey
-  return AFFIX_THEME[systemKey] ?? systemKey
+  return THEME[systemKey] ?? systemKey
 }

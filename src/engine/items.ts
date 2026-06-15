@@ -43,8 +43,11 @@ export type StatKey = 'power' | 'endurance' | 'speed'
  *  machinery: `trigger` reuses the trap/bus shape, `ability` the ability registry, `stat` a flat ±. */
 export type AffixComponent =
   | { c: 'stat'; stat: StatKey; amount: number } // incl. negative (cursed) + off-stat patches
-  | { c: 'trigger'; trigger: Trigger } // per-card riders, procs, alt-verbs (content lands with ②/the bus)
-  | { c: 'ability'; abilityId: string } // purple+ granted ability
+  | { c: 'rider'; riders: Partial<Riders> } // scoped per-card riders (fold via gearRiders — already live)
+  | { c: 'trigger'; trigger: Trigger } // procs / alt-verbs — STAGED (needs the affix-proc engine)
+  | { c: 'ability'; abilityId: string } // purple+ granted ability — STAGED
+/** An affix instance: `label` is the SYSTEM-descriptive key (dev mode shows it; normal play maps it
+ *  to the thematic name via the affix catalog). `components` realize the mechanic (the unified model). */
 export interface Affix { id: string; label: string; components: AffixComponent[] }
 
 export type EquipSlot = 'weapon' | 'armor' | 'relic' | 'trinket1' | 'trinket2'

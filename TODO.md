@@ -43,6 +43,13 @@ Traffic-light: green = pursue · yellow = consequence · red = wounded.
   in `createCombat` to HP + telegraph; ≤L6 ×1.0; XP/gold bare — the "combat too easy with gear" fix).
   163 tests; tsc + build clean. STILL OPEN: the affix CONTENT pool (the §7 hook families) + trigger/ability
   affixes on the bus · the ability reprice · **Primed** · the marquee roll · then chunk ③ (smith).
+  · ✅ **the THEMED AFFIX CATALOG** (`data/affixes.ts`, 2026-06-15): `AffixDef` (sys + thematic name +
+  family + slot/tier gate + weight + live) → `AFFIX_THEME` (dev name source) + `rollAffixes` (inverse
+  budget, slot/tier-gated). **LIVE & functional:** stat patches (Mighty/Stalwart/Fleet) + scoped riders
+  (Honed/Warding/Channeling via a new `rider` affix component). **STAGED** (authored, not yet rolled):
+  procs / crit (Vorpal…) / reactive / unique — need the **affix-proc engine** + crit/dodge/pen mechanics.
+  168 tests. STILL OPEN for chunk ②: the affix-proc engine (flip the staged families live) · ability
+  reprice · Primed · marquee. (Renamed from "affix content pool".)
 - **Spec:** `CRAWL-DESIGN.md` §7 (gear + the affix design surface + thematic overlay) · numbers:
   `sim/progression-sim.mjs` §11 + `TUNING.md` "Gear + the coupled balance pass".
 - **State of play (live):** combat core (dread + selection-protection + ward cue) · Emberdeep (D2/L7) ·

@@ -153,10 +153,14 @@ function townDevPanel(cells: string[]): HTMLElement {
 // ---- gear / equip screen (CRAWL §7 chunk ①) ----
 const SLOT_ICON: Record<EquipSlot, string> = { weapon: '⚔', armor: '🛡', relic: '🔮', trinket1: '💍', trinket2: '💍' }
 const SLOT_LABEL: Record<EquipSlot, string> = { weapon: 'Weapon', armor: 'Armor', relic: 'Relic', trinket1: 'Trinket', trinket2: 'Trinket' }
-/** A compact affix label: the thematic name (or system name in dev) + its stat delta. */
+/** A compact affix label: the thematic name (or system name in dev) + its magnitude (stat / rider). */
 function affixShort(a: Affix): string {
-  const stat = a.components.find((c): c is Extract<AffixComponent, { c: 'stat' }> => c.c === 'stat')
-  return `${displayName(a.label)}${stat ? ` +${stat.amount}` : ''}`
+  let amt = ''
+  for (const c of a.components) {
+    if (c.c === 'stat') { amt = ` +${c.amount}`; break }
+    if (c.c === 'rider') { amt = ` +${c.riders.atkDamagePerCard ?? c.riders.blockPerDefendCard ?? c.riders.manaPerMatch ?? 0}`; break }
+  }
+  return `${displayName(a.label)}${amt}`
 }
 /** Equip a Storage gear instance into a slot: pull it from Storage, stash any displaced item back
  *  (Storage just freed a slot by removing the pick, so the swap always has room). Persists both stores. */
