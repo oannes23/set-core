@@ -16,11 +16,25 @@ Traffic-light: green = pursue · yellow = consequence · red = wounded.
 
 ---
 
+## ▶ NEXT SESSION — START HERE (handoff 2026-06-15)
+**Build GEAR — chunk ① the foundation** (the last real missing piece before the current loop settles; user is
+keen to "see it come together"). Design is fully settled + sim-derived, so it's a pure build:
+- **Spec:** `CRAWL-DESIGN.md` §7 (clean-slate gear) · numbers: `sim/progression-sim.mjs` §11 + `TUNING.md`
+  "Gear + the coupled balance pass". Chunking lives in "Phase B3" below (① foundation · ② loot+balance · ③ smith).
+- **Chunk ①:** gear base-type catalog + extend `Item` (rarity/affixes/native stat) on the built account `Item`
+  model (`engine/items.ts`) + 5 equip slots on `SavedChar` (`ui/save.ts`) + apply equipped riders/stats in
+  combat (`startCombat`/`createCombat`) + the equip screen (the sheet's Gear "coming soon" slot). Testable with
+  a granted item; **foes NOT yet raised in ① → combat temporarily easier, flag it** (the foe-raise rides ②).
+- **State of play (all live on the deploy):** combat core done (dread anti-stall + selection-protection + the
+  ward-save cue) · the Emberdeep (D2/L7) · +6/≤3 leveling · ability kit grows with level · economy data layer
+  (`bank.ts`/`items.ts`) built but the inventory UI is deferred (pairs with the shop). Gear ② folds in the
+  **foe-difficulty raise** (the "combat too easy" fix), the **ability reprice**, and **Primed** — together.
+
 ## ⭐ BUILD ORDER — the active progress tracker (set 2026-06-14; UPDATE on every implementation)
 Agreed sequence: **complete the core loop (combat → inventory → leveling → content), then enrich, then the meta.**
 Detailed specs live in CRAWL-DESIGN.md + the sections below; this is the master checklist — tick items as they land.
 
-### Phase 1 — Combat core *(engine; self-contained, validated)* ← ACTIVE
+### Phase 1 — Combat core *(engine; self-contained, validated)* — ✅ DONE
 - `[x]` **1a. Selection-protected turnover** (hard rule #6) — **BUILT 2026-06-14** (`selected` on `CombatState`,
   UI-synced each dispatch; `protectedSlots` in select.ts; filtered in `transmute()` when `source` is set, so
   AUTOMATIC turnover — churn/drift/trap/trick — skips a selected card or its set-mate, while a deliberate player
