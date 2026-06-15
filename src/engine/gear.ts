@@ -65,10 +65,11 @@ const STAT_KEYS: StatKey[] = ['power', 'endurance', 'speed']
  *  it via `displayName`. The thematic overlay maps these keys (CRAWL §7 / dev.ts AFFIX_THEME). */
 const STAT_AFFIX_KEY: Record<StatKey, string> = { power: 'FlatPower', endurance: 'FlatEndurance', speed: 'FlatSpeed' }
 
-/** Roll one stat-patch affix scaled by the rarity's per-affix power × the loot-tier magnitude. */
+/** Roll one stat-patch affix scaled by the rarity's per-affix power × the loot-tier magnitude.
+ *  LOOTTIER_K 0.02 + a ×2 off-stat base land affixes ≈ +2–3 at mid loot-tier (sim §12 Part C/D). */
 function rollStatAffix(lootTier: number, perAffixPower: number, rng: Rng): Affix {
   const stat = STAT_KEYS[Math.floor(rng() * STAT_KEYS.length)]
-  const amount = Math.max(1, Math.round(perAffixPower * (1 + lootTier * 0.15)))
+  const amount = Math.max(1, Math.round(2 * perAffixPower * (1 + lootTier * 0.02)))
   const key = STAT_AFFIX_KEY[stat]
   return { id: `${key}_${freshUid()}`, label: key, components: [{ c: 'stat', stat, amount }] }
 }

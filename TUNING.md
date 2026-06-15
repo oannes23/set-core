@@ -198,16 +198,28 @@ horizontal pick, **cap 3**. Buys map to the five run currencies (info/tempo/loot
 | Round-1 length | **`clamp(20 + (playerS − foeS), 15, 25)`s**; every other round flat **20s** | Speed = initiative; per-round scaling REJECTED (universal multiplier triple-dipping dodge+charges, breaks the 20s constant + kill budgets, re-couples scan speed). Lurk stacks. **Supersedes the §5.7 start-grace rider** |
 | Board preview | **voluntary-activation**: untimed; the **first set you complete starts the round** | baseline every fight (not just Lurk); supersedes the fixed 3s start-grace; kills opening-scan pressure |
 
-## Gear + the coupled balance pass — PLANNED (DERIVED 2026-06-15, sim §11; full design CRAWL §7)
+## Gear + the coupled balance pass — DERIVED (sim §11 + §12, 2026-06-15; full design CRAWL §7)
 
-| Constant | Value (first-cut, sim-backed) | Meaning |
+| Constant | Value (sim-backed) | Meaning |
 |---|---|---|
 | Gear rider (weapon base) | **+0/+1/+2/+3/+4/+5 dmg per Attack card** (grey→orange) | the gear-power channel: 0→38% of attack power (orange ≈ ⅓); armor mirrors (+Block/Defend card) |
 | Gear share | **~⅓ of effective combat power** at rarity-current | up from the old ¼; safe because foes are tuned against it (the expected baseline) |
-| ⭐ Foe-difficulty raise | **foe HP + telegraph × `(25 + 3·expectedRider(L))/25`** (×1.0 grey → ~×1.6 orange) | THE "combat too easy" fix — accounts for gear so the geared baseline hits the kill budget; expectedRider ≈ 1 tier / 3.4 levels. Fold into authored foe HP/telegraph at B3 |
+| ⭐ Foe-difficulty raise | **foe HP + telegraph × `(25 + 3·expectedRider(L))/25`** (×1.0 grey → ~×1.6 orange) | THE "combat too easy" fix — accounts for gear so the geared baseline hits the kill budget; expectedRider ≈ 1 tier / 3.4 levels. Fold into authored foe HP/telegraph (chunk ②) |
 | Ability effect values | **damage ≈ heal ≈ 1.0 · block ~0.2 · charge ~0** (context-dependent) | empirical marginal win-rate; price abilities off throughput (damage:heal ≈1; block/charge cheaper) |
 | Ability VPM | **≈ 4 dmg/mana** | 15-mana burst ≈ 60 dmg ≈ 2.4 sets; ability cost = effect-value ÷ VPM. Abilities = CONTESTED + throughput-neutral redirect |
 | ⚠ Tactics under-value | marginal charges ≈ 0 win-value | the Speed-under-buys issue, now empirical — needs richer charge sinks / Maneuver payoff / Speed gear hooks |
+
+### Affix power — DERIVED 2026-06-15 (sim §12; the chunk-② still-open numbers, now firm)
+Affixes are **NOT** in foe tuning (unpriced upside) → they push winrate ABOVE the geared baseline; §12 BOUNDS that push so a full loadout REWARDS without trivializing.
+
+| Constant | Value (sim-backed) | Meaning |
+|---|---|---|
+| Per-affix power (inverse budget) | white **×1.4** · green ×1.0 · blue ×0.7 · purple ×0.6 · orange **×0.5** | fewer affixes hit harder; the avg TOTAL stays ~FLAT (1.4–1.5 units) → cross-rarity affix PARITY (white's 1 strong ≈ blue's 3 diluted). Rarity's edge = base rider + affix COUNT, not affix power |
+| Max affixes / rarity | white 1 · green 1–2 · blue 1–3 · purple 1–4 · orange 1–5 (**random count**) | the random count is the per-drop variance — same-rarity drops aren't fungible |
+| Affix magnitude (`AFFIX_DMG`) | **≈ 0.55 dmg-equiv / round per 1.0 per-affix-power-unit** (best-case proc) | a FULL kit ≈ +6–7 dmg/round → boss **36%→~56% (baseline) / ~82% (skilled)**; elites/minions stay fodder; bare holds the §11 ~36% gate (REWARD, not auto-win) |
+| Loot-tier scalar (`LOOTTIER_K`) | **0.02** — affix magnitude × `(1 + lootTier·k)`, lootTier ≈ foe L + dungeon L | a deep drop's affixes ≈ ×1.3 a shallow one's — chase depth, bounded |
+| Off-stat patch amount | **+2 to +3** to a stat (≈ +3.4 / +5.8 pp on the ref boss) | a real patch but a rider out-values it (raw stat bounded by the rate clamp — §7 intent) |
+| Curse severity | **−2 / −3 to a stat** (offsets a ~fatter proc) | "strong+curse ≈ clean+weaker" — the cursed item competes, never dominates; identified + rerollable |
 
 ## Trap severity law (unchanged)
 

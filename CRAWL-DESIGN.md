@@ -1878,9 +1878,15 @@ each other). First-cut, sim-backed:
   (Braced — charges→mitigation — is OUT, it breaks the §5.7 distinctness law). Implement WITH this pass
   (it raises player output → folded into the foe-difficulty raise). Stand Ground warding stays
   situationally valuable vs the dread/drift pressure (the calm-fight sim under-credits it).
-- **Still open (NUMBERS only — the affix STRUCTURE is now settled, see the Arena raid above):** affix
-  power per loot-tier scalar, the per-affix-power budget multipliers (×1.4→×0.5 first cut), off-stat affix
-  magnitudes, the curse frequency/severity, set-bonus tuning (deferred).
+- **Affix power (Part 4) — DERIVED 2026-06-15 (sim §12; chunk ②):** affixes are NOT in foe tuning
+  (unpriced) → §12 BOUNDS their push. **Per-affix power** white ×1.4 → orange ×0.5 (inverse) gives a
+  ~FLAT total (1.4–1.5 units) = cross-rarity affix PARITY (rarity's edge is the base rider + the affix
+  COUNT, not affix power). **Magnitude** `AFFIX_DMG ≈ 0.55 dmg-equiv/round per per-affix-unit` → a full
+  loadout takes the boss **36%→~56% (baseline) / ~82% (skilled)** — a real build gate-opener, never an
+  auto-win; elites/minions stay fodder; bare holds the ~36% gate. **Loot-tier scalar** `k=0.02`
+  (deep ≈ ×1.3 shallow). **Off-stat patch** +2–3 to a stat (bounded — a rider out-values it). **Curse**
+  −2/−3 to a stat ("strong+curse ≈ clean+weaker"). Numbers in `TUNING.md`. **Set-bonus tuning still
+  deferred** (the §7 Deferred second wave).
 
 ## 8. Deferred (next session)
 

@@ -162,7 +162,10 @@ const depthFloor = (cumPct) => cumPct >= 80 ? DREAD_DEPTH_CAP : cumPct >= 45 ? 4
  *  Player stats default balanced parity at L; override for the EV tests. */
 function fight(foe, L, skill, rng, opts = {}) {
   const guardRule = opts.guardRule ?? 'carry'
-  const pStats = opts.stats ?? { P: parityStat(L), E: parityStat(L), S: parityStat(L) }
+  const base = opts.stats ?? { P: parityStat(L), E: parityStat(L), S: parityStat(L) }
+  // §12 off-stat affixes add raw P/E/S on top (runs through the contest rate, bounded by the clamp)
+  const sb = opts.statBonus
+  const pStats = sb ? { P: base.P + (sb.P || 0), E: base.E + (sb.E || 0), S: base.S + (sb.S || 0) } : base
   const pMax = maxHP(L)
   let pHP = pMax, fHP = foe.hp, wounds = 0, guard = 0, charges = 0
   let telegraph = null, strikeRound = foe.strikeEvery // next round a strike lands
@@ -583,7 +586,77 @@ function section11() {
   console.log(`  ability cost = (effect value in dmg-equiv) ÷ VPM(4): 40-dmg spell → 10 mana · 40-HP heal → ~10 · 3-charge grant → ~3.`)
 }
 
+// ---------- §12 THE AFFIX POWER LAYER (chunk ② — affixes = UNPRICED upside, must stay BOUNDED) ----------
+// Affixes are NOT counted in foe tuning (§7) → they push winrate ABOVE the geared baseline. The job
+// here is to bound that push: a full affix loadout is a REWARD (build/luck), never mandatory or
+// trivializing. We derive: the affix magnitude (AFFIX_DMG), the loot-tier scalar (LOOTTIER_K), the
+// off-stat patch amount, and the curse severity — the numbers §7 left open.
+const PER_AFFIX_POWER = { white: 1.4, green: 1.0, blue: 0.7, purple: 0.6, orange: 0.5 } // §7 inverse budget
+const MAX_AFFIX = { white: 1, green: 2, blue: 3, purple: 4, orange: 5 }
+const avgCount = (r) => (1 + MAX_AFFIX[r]) / 2 // random 1..max → mean count
+const AFFIX_DMG = 0.55 // PROPOSED: dmg-equiv/round per 1.0 perAffixPower-unit, per affix (best-case offensive proc)
+const LOOTTIER_K = 0.02 // PROPOSED: affix magnitude × (1 + lootTier·k); lootTier ≈ foe L + dungeon L
+function section12() {
+  console.log('\n════ §12 THE AFFIX POWER LAYER — unpriced upside, BOUNDED (CRAWL §7 still-open numbers) ════')
+
+  // ── Part A: the inverse-budget curve (per-affix DOWN, total gently UP, count = variance) ──
+  console.log('\n── Part A: the inverse budget — per-affix power vs total (the cross-rarity texture) ──')
+  for (const r of ['white', 'green', 'blue', 'purple', 'orange']) {
+    const total = avgCount(r) * PER_AFFIX_POWER[r]
+    console.log(`    ${r.padEnd(7)} maxAffix ${MAX_AFFIX[r]} · per-affix ×${PER_AFFIX_POWER[r].toFixed(1)} · avg count ${avgCount(r).toFixed(1)} · avg TOTAL ${total.toFixed(2)} units`)
+  }
+  console.log('  → per-affix FALLS (white ×1.4 → orange ×0.5) while the TOTAL stays ~FLAT (1.4–1.5): the intended')
+  console.log('    cross-rarity affix PARITY (white\'s 1 strong affix ≈ blue\'s 3 diluted). Rarity\'s real edge is the')
+  console.log('    base RIDER + the affix COUNT (more slots = build flexibility), NOT raw affix power.')
+
+  // ── Part B: the full-kit winrate BUMP (the reward band) — vs the §11 RAISED-foe reference ──
+  console.log('\n── Part B: full affix loadout → winrate bump (must REWARD, not trivialize) ──')
+  console.log(`  model: a built kit picks proc affixes ≈ perAffixPower × AFFIX_DMG(${AFFIX_DMG}) × lootScale, ×5 slots, /round.`)
+  console.log('  winrate: geared baseline (no affix) → +full affixes (baseline skill 3) → +full affixes (skilled 5):')
+  for (const L of [11, 19]) {
+    const r = expectedRider(L), rar = RARITY[r], f = (RATE_BASE * QSUM + 3 * r) / (RATE_BASE * QSUM)
+    const lootScale = 1 + (2 * L) * LOOTTIER_K // lootTier ≈ foe L + dungeon L ≈ 2L (level-matched)
+    const kitDmg = 5 * avgCount(rar) * PER_AFFIX_POWER[rar] * AFFIX_DMG * lootScale
+    for (const tier of ['elite', 'boss']) {
+      const raised = { ...makeFoe(tier, L, tier === 'boss' ? 'heavy' : 'steady'), hp: Math.round(makeFoe(tier, L, tier === 'boss' ? 'heavy' : 'steady').hp * f) }
+      const G = { gearRider: r, gearBlock: r, foeDmgMult: f }
+      const noAff = mc(raised, L, 3, G, 4000, 70).winrate
+      const aff = mc(raised, L, 3, { ...G, bonusDmg: kitDmg }, 4000, 70).winrate
+      const affSkill = mc(raised, L, 5, { ...G, bonusDmg: kitDmg }, 4000, 70).winrate
+      console.log(`    L${L} ${tier.padEnd(6)} (${rar}, kit +${kitDmg.toFixed(0)} dmg/rnd): ${(noAff * 100).toFixed(0)}% → ${(aff * 100).toFixed(0)}% (base) → ${(affSkill * 100).toFixed(0)}% (skilled)`)
+    }
+  }
+  console.log('  TARGET: a full kit makes the boss winnable at baseline (~55–65%, build is a real gate-opener) while')
+  console.log('  skilled stays < ~88% (affixes reward, never auto-win); bare/under-affixed holds the §11 ~36% gate.')
+
+  // ── Part C: the off-stat PATCH amount (a raw-stat affix's value) ──
+  console.log('\n── Part C: off-stat affix (raw +P) — pick the patch amount (meaningful, bounded by the clamp) ──')
+  const cf = makeFoe('boss', 11, 'heavy'), f11 = (RATE_BASE * QSUM + 3 * expectedRider(11)) / (RATE_BASE * QSUM)
+  const raised11 = { ...cf, hp: Math.round(cf.hp * f11) }
+  const Gp = { gearRider: expectedRider(11), gearBlock: expectedRider(11), foeDmgMult: f11 }
+  const b0 = mc(raised11, 11, 3, Gp, 6000, 80).winrate
+  for (const amt of [2, 3, 4]) {
+    const w = mc(raised11, 11, 3, { ...Gp, statBonus: { P: amt } }, 6000, 80).winrate
+    console.log(`    +${amt} P → ${(w * 100).toFixed(0)}% (Δ ${((w - b0) * 100).toFixed(1)}pp vs ${(b0 * 100).toFixed(0)}% base)`)
+  }
+  console.log('  → an off-stat affix ≈ +2–3 to a stat is a real patch but bounded (a rider out-values it — §7 intent).')
+
+  // ── Part D: the loot-tier scalar (warren vs deep) ──
+  console.log('\n── Part D: loot-tier scalar — same rarity, shallow vs deep dungeon ──')
+  for (const lt of [6, 14, 24]) console.log(`    lootTier ${String(lt).padStart(2)} → affix ×${(1 + lt * LOOTTIER_K).toFixed(2)} magnitude`)
+  console.log(`  → k=${LOOTTIER_K}: a deep (lt24) drop's affixes ≈ ×1.3 a shallow (lt6) one's — chase depth, stays bounded.`)
+
+  // ── Part E: curse severity (the risk/reward equalizer) ──
+  console.log('\n── Part E: cursed affix — the offset that makes "strong+curse" ≈ "clean+weaker" ──')
+  const cleanBump = mc(raised11, 11, 3, { ...Gp, bonusDmg: 8 }, 6000, 80).winrate - b0
+  for (const curse of [{ P: -2 }, { P: -3 }]) {
+    const w = mc(raised11, 11, 3, { ...Gp, bonusDmg: 12, statBonus: curse }, 6000, 80).winrate
+    console.log(`    +12 dmg/rnd WITH curse ${JSON.stringify(curse)} → ${(w * 100).toFixed(0)}% (clean +8 dmg ≈ +${(cleanBump * 100).toFixed(1)}pp)`)
+  }
+  console.log('  → a curse worth ~−2/−3 stat offsets a fatter proc → the cursed item competes, never dominates (§7).')
+}
+
 // ---------- run ----------
 console.log('SET.crawl — the numbers workshop (progression package derivation + conformance)')
-section1(); section2(); section3(); section4(); section5(); section6(); section7(); section8(); section9(); section10(); section11()
+section1(); section2(); section3(); section4(); section5(); section6(); section7(); section8(); section9(); section10(); section11(); section12()
 console.log('\nDone. Constants marked PROPOSED are the sim-backed picks for TUNING.md.')

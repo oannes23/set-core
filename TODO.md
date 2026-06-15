@@ -546,9 +546,14 @@ death ends the run and drops the satchel; the boss win is the clear. Constants i
   smith's Enchant standing demand = the steady gold sink → **pull a minimal Upgrade+Enchant bench forward
   with gear, don't defer to ③.** Chunk-① data-model sketch (`GearInstance`/`Affix`/`EquipSlot`) is in §7.
   STILL OPEN = numbers only (per-affix-power multipliers, loot-tier scalar, curse rate) → the coupled sim.
-- `[ ]` **⭐ THE COUPLED SIM PASS (gate before building):** gear-share %, per-rarity rider magnitudes,
-  affix power, the ability **VPM + relative-value table (measured)**, AND the **foe-difficulty raise** —
-  all ONE decision (gear power + ability throughput + foe difficulty only make sense relative to each other).
+- `[x]` **⭐ THE COUPLED SIM PASS — RUN + DERIVED 2026-06-15** (`sim/progression-sim.mjs` §11 + the NEW
+  **§12 affix-power layer**; numbers in `TUNING.md` "Gear + the coupled balance pass"). All ONE decision,
+  validated: **gear riders** +0..+5/card → orange ≈ ⅓ share · **foe-difficulty raise** `(25+3·expectedRider(L))/25`
+  restores the curve (geared-vs-RAISED boss 36/38% ≈ bare 31/33%; skilled 74%) · **ability values** damage≈heal≈1.0 /
+  block~0.2 / charge~0, **VPM≈4** · **affix power** (§12): inverse per-affix (×1.4→×0.5) = flat-total cross-rarity
+  PARITY, **`AFFIX_DMG≈0.55`** → full kit takes the boss 36%→~56% (base) / ~82% (skilled) [bounded reward],
+  **loot-tier `k=0.02`**, off-stat patch +2–3, curse −2/−3. Set-bonus tuning still deferred. **UNBLOCKS the
+  chunk-② build** (the affix content pool + the foe-raise + the loot flip).
 - `[ ]` **NEW combat thread it surfaced — the ability-economy rebalance:** abilities become CONTESTED
   (`rate`-scaled, no fixed nukes) + priced as a throughput-neutral REDIRECT (mana = flexibility/burst,
   not DPS). Coupled to gear (caster mana-gear); part of the same pass.
