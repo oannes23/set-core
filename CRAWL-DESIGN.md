@@ -378,14 +378,15 @@ combinatorial Class × Background space is the long-tail replayability.
   lifetime gold` (×1.4 margin) — so leveling one more hero always funds the next slot; you can't get
   slot-locked. Shared account; rescale with `GOLD_K` if it recalibrates. (`TUNING.md` for the curve.)
 
-### Gear vs levels — the stat share (settled)
-**~75% of endgame STATS come from levels** (+120 points); a full endgame kit contributes
-**~+30–40 stat points** (≈ +5–7/slot). Gear's real identity is NOT stats — it's the **flat
-per-card riders, slot-personality mechanics, and set bonuses** (§7). Rationale: difference-based
-contests punish stat-stacked gear (one lucky drop = a permanent edge in *every* contest, exactly
-what the rate clamp exists to bound); bounded riders don't. This also protects the leveling
-fantasy — a drop makes you stronger, never makes levels feel optional. HP mirrors the share
-(~+100 of the ~300 ceiling from gear/passives).
+### Gear vs levels — the power share (settled; REVISED 2026-06-15 by the §7 clean-slate)
+**Levels carry the stat baseline (+120 points over the arc); gear carries ~⅓ of effective combat
+power** (revised UP from the old ¼). The key shift: **gear's power is flat per-card RIDERS, not raw
+stats** (§7) — a rider is bounded (doesn't scale with the `rate()` contest) yet *impactful* (it hits
+per-card × cards/set × sets/round), where a raw +stat barely moves. Difference-math punishes
+stat-stacked gear (one lucky drop = a permanent every-contest edge — what the clamp bounds); bounded
+riders don't, and **foes are tuned against your rarity-current rider level** so a bigger gear share is
+the expected baseline, not an edge. Leveling stays meaningful (a drop makes you stronger, never makes
+levels optional). HP mirrors the share. (Full model: §7.)
 
 ### Loot (settled + BUILT 2026-06-13 — category-first nested tables)
 > **STATUS: gold + consumables shipped** — `src/engine/loot.ts` (the category roller + gold formula,
@@ -1478,121 +1479,141 @@ The two are separated on purpose — don't ask drift to do the killing.
 
 ---
 
-## 7. Gear taxonomy
+## 7. Gear (clean-slate — SETTLED 2026-06-15)
 
-> Resolves the §7-deferred topic. Decisions locked: **flat per-card** payoff scaling;
-> **slot-personality framework** — Weapon · Armor · Relic(offhand) · Trinket ×2
-> (**Feet dropped**, Boots → Trinket); martial/caster school per slot; **set bonuses
-> deferred**. ⚠ The **Move-core rework** (§6, top priority) reshapes the Move affixes.
+> Reworked from the ground up via a design session. The durable bones of the old taxonomy survived
+> (two-effect model, slot personalities, rarity→affix, weapon color-affinity); what was deleted: the
+> raw-stat power channel (→ **flat per-card riders**), the clock/meter-anchored Move affixes (→ the
+> Tactics wheel + Speed riders), and the pre-rebase numbers. **All magnitudes are first-cut, GATED by
+> ONE coupled sim pass** — gear power + the ability economy + the foe-difficulty raise are inseparable
+> (the balance-log finding). Set bonuses deferred.
 
-### Two effect classes (the whole taxonomy)
-Every piece of gear touches the game in one or both of exactly two ways — nothing else:
+### The power model (the keystone)
+- **Gear's primary power = flat per-card RIDERS, rarity-scaled with big jumps** — NOT raw stats. (A raw
+  +stat runs through the `rate()` contest and barely moves; a rider hits *per card × cards/set ×
+  sets/round*, so it's far bigger AND bounded — it never scales with the contest.) Weapon → +damage per
+  Attack card · Armor → +Block per Defend card · caster gear → +mana per [match].
+- **Foes are balanced against your RARITY-CURRENT rider level** — the power you reach just by equipping
+  your best drops, *no build knowledge required*. Nobody gets walled; the smith's rarity-upgrade lets you
+  **buy your floor current** on unlucky streaks.
+- **Affixes are UNPRICED upside** — they scale with rarity but are **NOT counted in foe tuning**. So
+  build skill + card skill are the *over-performance reward*, never the price of admission. This is what
+  lets us raise foe difficulty (the balance-log fix) without ever walling a casual builder.
+- **Gear is ~⅓ of effective combat power** (up from the old ¼ — safe to push up *precisely because* foes
+  balance against it, so it's the expected baseline, not an unfair edge). The exact share is a numbers lever.
 
-1. **Math-mod (always-on).** A flat, passive bend to either
-   - the **deal odds** — a persistent contribution to the setup-bias channel. Still
-     governed by the saturation cap + distinctness floor, so deal-bias gear is
-     *structurally fair by construction*: even a "+heavy red" item can't make a
-     degenerate board (it shifts a distribution, never plants a card). — or
-   - the **payoff** — the per-card resolution. **Scaling is flat per-card add:** `+N`
-     to each qualifying card's contribution. Magnitude (1–3) still does the
-     multiplicative work; gear nudges the floor.
-2. **Trigger-granting (affixes).** Adds `event→condition→effect` rules to the same
-   trigger bus (§4 / `GAME-DESIGN.md` §3) the enemies and classes use. No new machinery.
+### Item anatomy (two effect classes — the durable bones)
+`slot + base-type + rarity + affixes[]`. Every item touches the game in exactly two ways:
+1. **Base math-mod** — the rarity-scaled per-card rider above (+ the slot's signature) + a small native stat.
+2. **Affixes** — `event→condition→effect` rules on the **same trigger bus** the enemies/classes use (zero
+   new machinery), PLUS raw-stat affixes (below).
 
-**An item = a base math-mod (from its base-type) + N rolled affix slots (mostly
-trigger-granting).** Exactly the `ember_dagger` + `of_embers` shape from §4, with the
-base layer now named.
+**Rider ↔ the v3 contest:** a rider adds **FLAT, *after* the `rate(yourStat, theirOpposed) × q` contest**
+— bounded (doesn't scale with the rate), which is exactly why riders are fair where raw stat-stacking isn't.
 
-### Slot personalities — each slot owns a *kind* of mechanic, not just a stat
-The structural decision: a slot isn't "+stat for a verb" — it owns a characteristic
-**mechanic-type**, and its base-types are flavors within that (mirrors how the trigger
-bus unifies everything). The **martial / caster school** split still runs through each
-slot (martial engages the shape/combat side; caster pumps the color→mana economy), but
-*how* a slot engages is now slot-specific.
+### The 5 slots
+**Weapon** (payoff) · **Armor** (defense) · **Relic/offhand** (augments / alt-verbs) · **Trinket ×2**
+(flex economy). Each owns a mechanic personality; the small native stat aligns to the slot (Weapon → a
+touch of Power, Armor → Endurance, a Trinket → Speed) so a full kit spreads P/E/S. (5 slots = the
+raw-stat budget; ~+25% gear stat-share before affixes, more with off-stat affixes.)
 
-| Slot | Mechanic personality | Martial base-types | Caster base-type |
-|---|---|---|---|
-| **Weapon** | **Direct payoff** (per-card) | Sword / Axe / Hammer → +Attack damage (+ color-affinity) | Wand / Staff → +mana per matched [color] card |
-| **Armor** | **Reactive defense** — triggers on `damage` / signatures | Plate, Aegis (↓) | Runed Robe → Defend match also grants mana |
-| **Relic (offhand)** | **Augments / alternate verbs** | Shield, Crossbow, Oil, Dagger (↓) | Focus / Wand / Tome → +mana / spell power / −ability cost / +1 slot |
-| **Trinket ×2** | **Flex economy / triggers** | rings · amulets · **Boots** (the Move-flavored trinket) → economy, deal-bias, Move/Flee affixes | same |
+### Weapon — base damage (both schools) + a match-type bonus
+- **Base, ALL weapons, school-agnostic: +damage per Attack card** (rarity-scaled, big). **Casters hit
+  exactly as hard** — same base rider, flavored as magical.
+- **Type = which of the 4 Attack-set color outcomes it rewards** (every Attack set is one of these four)
+  — martial adds **damage**, caster converts that slot into **mana**:
 
-**No tie binds a slot to a shape any more** — the rename dissolved it; the one kept
-convention is **Weapon↔Attack** (intuitive + the color-affinity hook). The old **Feet
-slot is dropped**: with Move a standalone verb a dedicated Move slot was
-over-investment, so **Boots became a Trinket base-type** and the Feet mechanics demoted
-to affixes (↓ *Move affixes*).
+| Attack match | Martial (+damage) | Caster (+mana) |
+|---|---|---|
+| all-**red** | **Axe** | **Wand** |
+| all-**blue** | **Mace** | **Orb** |
+| all-**green** | **Spear** | **Staff** |
+| **rainbow** (all-diff) | **Sword** | **Tome** |
 
-Caster gear is naturally **color-typed** (an Ember Wand pumps *red* mana), so caster
-pieces reinforce a color combo-line the same way martial pieces reinforce a shape-line.
-*"+1 red mana per red card in the match"* mirrors *"+2 damage per Attack card."*
+### Armor — COLOR is the magic axis, WEIGHT is the physical axis
+The asymmetry (weapons + caster armor are color-typed; martial armor is weight-typed) is **intentional
+and intuitive, not an inconsistency**: **color = the magic/offense pattern** (weapons of both schools;
+caster "defense" is really mana-generation, which is magic), **weight = the physical-defense pattern**
+(martial armor — "red plate" would read *worse* than heavy-vs-light). The split also gives the schools
+genuinely different build structures — **martial = color-weapon + weight-armor (two axes); caster =
+mono-color (one axis, reinforced)** — which deepens identity.
+- **Martial armor — weight trades Defend ↔ Speed, soak ↔ Tactics:** **Plate** (big +Block/Defend, −Speed,
+  soaks more raw damage) · **Chainmail** (medium, neutral) · **Leather** (small +Block, +Speed, feeds
+  Tactics charges instead of soaking).
+- **Caster armor — mana by color; the SQUISHIEST tier (the school's cost):** lower +Block/Defend than even
+  Leather, **no Speed bonus** — it just generates mana on Defend. **Regalia** (green) · **Vestments**
+  (blue) · **Robe** (red) · **Cassock** (rainbow → mixed/any-color mana on all-diff Defends). Casters are
+  glass — their burst + flexibility is **paid for in fragility**.
 
-### Armor — reactive defense (base-types)
-- **Plate** — `on:damage`: after a hit lands, gain Block (being hit makes you tankier).
-- **Aegis / Spiked** — when Block absorbs a hit, **reflect** a % as damage (thorns —
-  defense→offense).
-- *(further flavors parked: **Warded** = passive flat % damage reduction beneath Block;
-  **Sentinel** = all-same matches → bonus Block.)*
+### Relic (offhand) + Trinkets — augments & flex economy
+- **Relic:** Shield (room-start Block / first-hit negation) · Crossbow (Move→damage) · Oil (Attack DoT
+  rider) · Dagger (bonus hit on rainbow Attacks) · *(caster)* Focus / Tome (−ability cost / +mana / spell power).
+- **Trinkets ×2:** rings · amulets · **Boots** (Move/Speed riders, **re-anchored on the Tactics WHEEL +
+  the Speed riders** — dodge / initiative — *not* the retired clock). Flex economy, deal-bias (a passive
+  refill `FavorBias` — the locked-board-safe reframe of the old "deal-odds" gear), triggers.
 
-### Relic (offhand / augment) — base-types
-The martial-offhand + augment slot (also home to the caster Focus). Each *changes how a
-verb behaves* rather than pumping a stat:
-- **Shield** — passive defense: Block at room start / first-hit negation / +Block cap.
-- **Crossbow / Sling** — **Move matches also deal damage** (reposition-and-shoot:
-  tempo→offense).
-- **Weapon Oil / Poison** — a **rider on Attacks**: poison DoT (`on:tick`) or
-  bonus / off-color damage.
-- **Offhand Dagger** — **bonus extra hit** on all-different-shape matches (dual-wield).
-- *(caster)* **Focus / Wand / Tome** — +mana / spell power / −ability cost / +1 ability slot.
+### Rarity → rider + affix count; loot-tier → affix power
+`grey (rider ×0, 0 affix) → white (×1, 1) → green (×2, 1) → blue (×3, 2) → purple (×4, 3) → orange (×5,
+3 + a named unique)`. Rarity scales the **base rider + affix count**; **loot-tier** (foe lvl + dungeon
+lvl) scales **affix power**. The transformative **build-around** affixes concentrate at blue+ (esp. the
+orange named uniques) — the "smooth base, build-around top" curve.
 
-### Move affixes (on Boots-trinkets, etc.) — re-anchored on Tactics (§5.5)
-The two liked Feet mechanics survive as affixes. They originally hinged on the enemy
-clock reaching its **cap — which the playtest showed is nearly unreachable** — but the
-Move-core rework (Tactics meter, §5.5) gives them a reachable anchor: the overcap
-seconds now feed Tactics, and Move banks into the meter. Re-anchored:
-- **Windstep** — a *fraction* of every Move's tempo grants Block (not just the
-  old unreachable overcap).
-- **Stalker's** — a combo trigger ("first Attack after a Move match") or "+dmg scaled
-  by banked **Tactics**."
+### Affixes — triggers AND stat-patches
+The affix pool is slot-gated (`affixes.yaml` `slots:`/`weight:`). Two families:
+- **Trigger-granting** (the build-around mechanics): riders, conditional procs, alt-verbs.
+- **Raw-stat boosters, including OFF-STAT** — "Armor of Strength" (+Power on armor), a "Defender" weapon
+  (+Endurance), etc. — to **patch a stat your base gear doesn't natively give**. (Off-stat is fine: raw
+  stat, bounded by the rate clamp, and it lives in the unpriced affix layer.)
 
-### Weapon color-affinity (martial weapons)
-Each martial weapon base-type carries a **color affinity** granting a **flat per-card
-damage bonus**: `+N damage per [affinity-color] Attack card in any match`. Because only
-Attack cards deal damage, this rewards **colored Attacks** specifically — a per-card
-conjunction that fits the locked flat-per-card model (fires often & small, not
-rare & big), and can stack on a smaller flat-all-Attacks base.
+### Class affinity — one CLASS-side field, two jobs
+Each **class** declares an `affinity`: preferred **gear types** (e.g. Axe + Heavy + martial) and preferred
+**affix families**. This single field drives both:
+- **The soft school lean** — off-affinity gear still works, just suboptimal (a caster *can* swing an Axe —
+  the hybrid texture, not a wall).
+- **The class-hall loot bias** (the reason gear precedes finishing classes) — a hall biases its loot toward
+  its class's affinity (Pyromancer hall → red/caster gear + fire affixes). New class → author its affinity
+  → its hall biases itself. (Affinity is class-side, so gear stays class-agnostic — one tag system.)
 
-- **Weapons only.** Armor/relic/trinkets get no color bonus — keeps it to *one*
-  color-gauge to read under the timer; they carry other mechanics/affixes.
-- **Affinity is free, not valence-locked.** Any weapon base-type may key to any color
-  (even a defensive-feeling weapon can reward red Attacks). Players gravitate to the
-  weapon whose color matches their mana plan, but off-valence picks are the hybrid
-  texture, not a mistake.
-- **Naming is now clean.** The card shapes are verbs (**Attack / Defend / Move**, §4),
-  so the object nouns **Sword / Shield / Boots are free as gear names** — a *Sword*
-  weapon, a *Shield* relic (offhand), *Boots* as a Trinket are all unambiguous against
-  the Attack / Defend / Move cards they modify.
-- **Fairness:** pure category-③ payoff math — reads the match, adds damage, touches no
-  generator input. The player feeds it by biasing color→[affinity] and shape→Attack
-  through play and deal-bias gear (the existing fair channels).
+### The smith — an upgradeable crafting bench (lottery + a deterministic backstop)
+Drops are the exciting primary faucet; the smith is the **targeted backstop + gold sink**. Capabilities
+unlock and cheapen as you **upgrade the smithy** (a base-building amenity — achievement unlocks the
+blueprint, gold tiers it), at escalating prices:
+- **Upgrade rarity** (grey→…→orange) — raises the base rider + opens affix slots. The "keep my floor
+  current / level a beloved base" path + the main raw-power gold sink.
+- **Enchant** — set one chosen affix into an open slot (targeted, expensive).
+- **Reroll affixes** — gamble all affixes (cheaper, RNG).
+- **Transfer / extract** — move a rolled affix onto a better base (premium, top-smithy operation).
 
-*Example — **Axe (affinity red)**: red Attack cards deal +2 each. Pairs with red mana
-(aggressive abilities) into a coherent red-aggro package, all from one weapon pick.*
+### The ability economy — COUPLED to gear (the caster-balance fix)
+Caster gear pumps mana → mana buys abilities, so the ability economy must be balanced *with* gear:
+- **Abilities are CONTESTED** — damage/effects scale `rate(yourStat, theirOpposed) × …` like card sets
+  (no fixed nukes, so caster spells are bounded by the same contest a martial's attack faces).
+- **Priced as a throughput-neutral REDIRECT** — a unit of mana buys ≈ the value you'd have gotten making
+  the match directly. So **more mana ≠ more DPS**; it buys **flexibility + burst** (bank to the 15 cap,
+  unload). Casters = bursty / flexible / fragile, throughput-equal to martials — *not* stronger.
+- **The pricing currency** (first cut from the validated model — 1 unit = 1 damage to the foe):
 
-### Rarity → affix count, loot-tier → affix power
-`common (0 affix) → magic (1) → rare (2) → epic (3) → legendary (named: fixed unique affix)`.
-Affix **slot-legality + weight** come from `affixes.yaml` (`slots:` / `weight:`); affix
-**tier** (the numbers) scales with loot quality (enemy lvl + dungeon lvl) per §2–§3.
+  | Effect | Value (dmg-equiv) | Grounding |
+  |---|---|---|
+  | damage to foe | **1.0** | the unit (+ a slight win-condition premium) |
+  | Block / Heal | **~1.0** | a Defend set (25 block) ≈ an Attack set (25 dmg); heal +small flex premium |
+  | Tactics charge | **~3.5** | wards a wound (3 chg → ~10 HP) / board verbs |
+  | delay (1s of round) | **~3.75** | the extra set-making it enables (~75 dmg/round ÷ 20s) |
+  | favorable transmute | **~3–5/card** | the set-quality/findability bump |
+  | **mana (VPM)** | **≈ 4** | anchored to the 15-cap burst ≈ 2.4 attack sets ≈ 60 damage |
 
-### Data-model refinement
-An item carries `slot`, **`base_type`** (→ intrinsic math-mod school + stat), `rarity`
-(→ affix count), and `affixes[]`. So `items.yaml` gains a `base_type` dimension; affixes
-stay one slot-gated pool in `affixes.yaml`.
+  **Ability cost = value ÷ VPM** (a 40-dmg spell → 10 mana · a 40-HP heal → ~10 · a 1-round delay → ~6 ·
+  churn 3 cards → ~3). Caster gear generates **~4 mana / color-match** (throughput-neutral vs the martial
+  weapon's color-damage bonus). This is closed-form from the model; **firm it empirically in the sim pass.**
 
 ### Deferred
-- **Set bonuses** — the parallel cross-build vector to spellbooks (themed families with
-  2/4/6-pc escalating trigger/math bonuses). Deliberately out of the v1 gear spec;
-  revisit once base gear + affixes prove out in play.
+- **Set bonuses** — themed 2/4/6-pc families (a parallel cross-build vector to spellbooks). The clean
+  second wave once base gear + affixes + crafting prove out.
+
+### Open numbers — ONE coupled sim pass (gated)
+The gear-share %, per-rarity rider magnitudes, affix power, the ability **VPM + the relative-value table
+(measured empirically)**, and **the foe-difficulty raise** are *all one decision*, derived together — gear
+power, ability throughput, and foe difficulty only make sense relative to each other (the balance log).
 
 ## 8. Deferred (next session)
 

@@ -471,9 +471,22 @@ death ends the run and drops the satchel; the boss win is the clear. Constants i
   flee → fork (reroll + elite reset + boss-room-stays-found; **parting blow still open**), death →
   satchel lost (**tithe + XP-banks open** — no gold/XP yet).
 
-### Phase B3 — equipment / gear (`CRAWL-DESIGN.md` §7 taxonomy)
-- `[ ]` Gear slots + affixes (flat per-card scaling), armor/relic base-types, Move affixes re-anchored
-  on Tactics; rarity → affix count, loot-tier → affix power. Equip in the Hub; gear drops in the loot roll.
+### Phase B3 — equipment / gear (DESIGN SETTLED 2026-06-15 — `CRAWL-DESIGN.md` §7 clean-slate)
+- **Design done (§7):** rider-based power (foes balanced vs rarity-current riders; affixes = unpriced
+  upside; gear ~⅓ of power) · 5 slots · weapon base-damage + 4 match-type bonuses (martial dmg / caster
+  mana: Axe/Wand·Mace/Orb·Spear/Staff·Sword/Tome) · armor (martial weight: Plate/Chainmail/Leather;
+  caster color + SQUISHIEST: Regalia/Vestments/Robe/Cassock) · rarity grey→orange (rider ×0–5 + affix
+  count) · affixes = triggers + off-stat patches · **class-side `affinity`** (drives soft lean + hall
+  bias) · the **upgradeable smith** (upgrade-rarity / enchant / reroll / transfer, gated by smithy tiers).
+- `[ ]` **⭐ THE COUPLED SIM PASS (gate before building):** gear-share %, per-rarity rider magnitudes,
+  affix power, the ability **VPM + relative-value table (measured)**, AND the **foe-difficulty raise** —
+  all ONE decision (gear power + ability throughput + foe difficulty only make sense relative to each other).
+- `[ ]` **NEW combat thread it surfaced — the ability-economy rebalance:** abilities become CONTESTED
+  (`rate`-scaled, no fixed nukes) + priced as a throughput-neutral REDIRECT (mana = flexibility/burst,
+  not DPS). Coupled to gear (caster mana-gear); part of the same pass.
+- `[ ]` **Build:** the `Item`/gear data model (slot/base-type/rarity/affixes + native stat) on the
+  account `Item` model (B2), equip slots on `SavedChar`, the equip screen, gear loot (flip on `loot.ts`
+  ENABLED + the gear sub-roller + pity sawtooth), the smith UI.
 
 ### Phase B4 — deeper progression
 - `[ ]` XP / levels → +HP / +ability-slots; boss-gated ability picks; spellbooks (cross-class learn).
