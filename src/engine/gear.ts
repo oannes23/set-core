@@ -8,7 +8,7 @@
 
 import { GEAR } from '../data/gear'
 import { rollAffixes } from '../data/affixes'
-import { RARITY, NO_RIDERS, freshUid, type EquipSlot, type GearInstance, type Riders, type StatKey, type Rarity, type AffixProc } from './items'
+import { RARITY, NO_RIDERS, NO_MODS, freshUid, type EquipSlot, type GearInstance, type Riders, type GearMods, type StatKey, type Rarity, type AffixProc } from './items'
 import type { Trigger } from '../data/schema'
 import type { Rng } from '../core/rng'
 
@@ -49,6 +49,13 @@ export function gearRiders(eq: Equipped | undefined): Riders {
       out.manaPerMatch += c.riders.manaPerMatch ?? 0
     }
   }
+  return out
+}
+
+/** Gear-exclusive scalar mods (dodge/penetration/soak/lifesteal), summed across the kit's affixes. */
+export function gearMods(eq: Equipped | undefined): GearMods {
+  const out: GearMods = { ...NO_MODS }
+  for (const g of equippedList(eq)) for (const a of g.affixes) for (const c of a.components) if (c.c === 'mod') out[c.mod] += c.amount
   return out
 }
 

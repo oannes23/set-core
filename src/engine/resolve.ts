@@ -124,8 +124,9 @@ export interface Resolution {
  *  GEAR RIDERS (§7) add FLAT, AFTER the contest (bounded — they never scale with the rate): the
  *  weapon's damage per Attack card, the armor's Block per Defend card, caster mana per mono-colour set.
  *  Default NO_RIDERS → identical to the pre-gear result (backward-compatible). */
-export function resolveSet(cards: [Card, Card, Card], stats: StatBlock, foeStats: StatBlock, _rng: Rng, riders: Riders = NO_RIDERS): Resolution {
-  const atkRate = contestRate(stats.power, foeStats.endurance)
+export function resolveSet(cards: [Card, Card, Card], stats: StatBlock, foeStats: StatBlock, _rng: Rng, riders: Riders = NO_RIDERS, penetration = 0): Resolution {
+  // §7 Penetration (Sundering): ignore some foe Endurance in the ATTACK contest only (anti-armour)
+  const atkRate = contestRate(stats.power, Math.max(1, foeStats.endurance - penetration))
   const defRate = contestRate(stats.endurance, foeStats.power)
   const mvRate = moveRate(stats.speed, foeStats.speed)
   let dmgLight = 0

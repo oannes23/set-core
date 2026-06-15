@@ -3,7 +3,7 @@
 import { test, expect } from 'vitest'
 import { mulberry32 } from '../core/rng'
 import { RARITY, RARITIES, sanitizeItem, isGear, type GearInstance } from './items'
-import { gearStatBonus, gearRiders, equippedList, rollGear } from './gear'
+import { gearStatBonus, gearRiders, gearMods, equippedList, rollGear } from './gear'
 import { resolveSet } from './resolve'
 import type { Card } from '../core/affine'
 
@@ -58,6 +58,21 @@ test('resolveSet applies riders FLAT and post-contest (NO_RIDERS = unchanged)', 
   expect(withR.damage - base.damage).toBe(6) // +2 per Attack card × 3, flat
   expect(withR.block).toBe(base.block) // no Defend cards → block rider doesn't apply
   expect(withR.mana[0] - base.mana[0]).toBe(3) // mono-colour set → caster mana rider lands
+})
+
+test('gearMods sums affix mod components; penetration raises the attack contest', () => {
+  const wpn = inst({ refId: 'axe', rarity: 'blue', affixes: [{ id: 'p', label: 'Penetration', components: [{ c: 'mod', mod: 'penetration', amount: 4 }] }] })
+  const arm = inst({ refId: 'plate', rarity: 'green', affixes: [{ id: 's', label: 'FlatDamageReduction', components: [{ c: 'mod', mod: 'soak', amount: 3 }] }] })
+  const m = gearMods({ weapon: wpn, armor: arm })
+  expect(m.penetration).toBe(4)
+  expect(m.soak).toBe(3)
+  // penetration shrinks the foe's effective Endurance → a higher attack rate (more damage)
+  const stats = { power: 10, endurance: 10, speed: 10 }
+  const foe = { power: 10, endurance: 18, speed: 10 } // a tanky foe
+  const atks: [Card, Card, Card] = [[0, 0, 0, 1], [0, 0, 0, 1], [0, 0, 0, 1]]
+  const bare = resolveSet(atks, stats, foe, mulberry32(1))
+  const pen = resolveSet(atks, stats, foe, mulberry32(1), undefined, 4)
+  expect(pen.damage).toBeGreaterThan(bare.damage) // anti-armour: ignoring 4 Endurance hits harder
 })
 
 test('sanitizeItem round-trips a gear instance and clamps a bad rarity to grey', () => {

@@ -24,7 +24,7 @@ import { colsForN, COMBAT_GEN, type Deps, type CombatAction } from '../engine/co
 import { createRun, runReduce, type RunState } from '../engine/run'
 import { createDelve, nextEncounter, fleeReroll, dreadBand, RUN_BAG_CAP, type DelveState, type EncounterTier } from '../engine/delve'
 import { rollRoomLoot } from '../engine/loot'
-import { gearStatBonus, gearRiders, gearProcs, rollGear } from '../engine/gear'
+import { gearStatBonus, gearRiders, gearProcs, gearMods, rollGear } from '../engine/gear'
 import { EQUIP_SLOTS, type EquipSlot, type Rarity, type Affix, type AffixComponent, type GearInstance } from '../engine/items'
 import { GEAR, gearBase, fitsSlot } from '../data/gear'
 import { CONSUMABLES } from '../engine/consumables'
@@ -159,6 +159,7 @@ function affixShort(a: Affix): string {
   for (const c of a.components) {
     if (c.c === 'stat') { amt = ` +${c.amount}`; break }
     if (c.c === 'rider') { amt = ` +${c.riders.atkDamagePerCard ?? c.riders.blockPerDefendCard ?? c.riders.manaPerMatch ?? 0}`; break }
+    if (c.c === 'mod') { amt = c.mod === 'dodge' || c.mod === 'lifesteal' ? ` ${Math.round(c.amount * 100)}%` : ` +${c.amount}`; break }
   }
   return `${displayName(a.label)}${amt}`
 }
@@ -733,7 +734,7 @@ function startCombat(root: HTMLElement, char: SavedChar, dungeonId: string, foe:
   const base = effectiveStats(char)
   const gb = gearStatBonus(char.equipped)
   const stats: StatBlock = { power: base.power + gb.power, endurance: base.endurance + gb.endurance, speed: base.speed + gb.speed }
-  const run = createRun({ foe, gen: GEN, playerMax: char.maxHp, stats, riders: gearRiders(char.equipped), procs: gearProcs(char.equipped), passives: pass, consumables, sequence, dungeonId, dreadFloor, coach: !!dg.coach }, rng)
+  const run = createRun({ foe, gen: GEN, playerMax: char.maxHp, stats, riders: gearRiders(char.equipped), mods: gearMods(char.equipped), procs: gearProcs(char.equipped), passives: pass, consumables, sequence, dungeonId, dreadFloor, coach: !!dg.coach }, rng)
   run.combat.playerHP = Math.max(0, Math.min(char.maxHp, char.hp)) // the hero enters at their persisted HP, not full
   V = { root, deps: { data: GAMEDATA, rng }, run, state: run.combat, char, actions: [], classId: cls.id, loadout: acts, coach: !!dg.coach, coachCue: null, manaColor: dominantManaColor(acts), paused: true, hitstopUntil: 0, holdHud: false, preview: null, selected: [], raf: 0, lastT: 0, boardSig: '', refs: {}, stats: { dealt: 0, taken: 0, blocked: 0, healed: 0, sets: 0, traps: 0, xp: 0 }, morphSrc: new Map(), dev: { reshapeYou: 0, reshapeFoe: 0, matches: 0, springs: 0, k1: 0, wards: 0, churns: 0 } }
   buildPlay()

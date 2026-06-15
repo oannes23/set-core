@@ -56,13 +56,15 @@ export const AFFIXES: AffixDef[] = [
   { sys: 'OnMatchHeal', name: 'Renewing', family: 'proc', slots: ['armor', 'trinket1'], minRarity: 'blue', weight: 3, live: true, note: 'all-Defend match → small heal', build: procC({ axis: 'shape', mode: 'all_same', value: 'defend' }, (m) => { const a = round1(m, 1.5); return { effect: { kind: 'heal', amount: a }, label: `+${a}hp` } }) },
   { sys: 'OnMatchDelayEnemy', name: 'Time-Eater', family: 'proc', slots: ['relic', 'trinket1'], minRarity: 'purple', weight: 2, live: true, note: 'rainbow-colour match → delay the foe 1s', build: procC({ axis: 'color', mode: 'all_different' }, () => ({ effect: { kind: 'delay', seconds: 1 }, label: '⏳+1s' })) },
   { sys: 'OnMatchChurn', name: "Trickster's", family: 'proc', slots: ['trinket1'], minRarity: 'blue', weight: 3, live: false, note: 'on a match: churn the deadest card toward your bias (STAGED — needs proc-churn plumbing)' },
-  // ── gear-EXCLUSIVE (STAGED) — crit/dodge/penetration/soak/lifesteal: new engine mechanics ──
-  { sys: 'CritChance', name: 'Keen', family: 'crit', slots: ['weapon', 'trinket1'], minRarity: 'blue', weight: 4, live: false, note: '+crit chance (gear-exclusive; crits deferred to gear §5.7)' },
-  { sys: 'CritMultiplier', name: 'Vorpal', family: 'crit', slots: ['weapon'], minRarity: 'purple', weight: 2, live: false, note: '+crit damage multiplier' },
-  { sys: 'Penetration', name: 'Sundering', family: 'crit', slots: ['weapon', 'relic'], minRarity: 'blue', weight: 3, live: false, note: 'ignore some foe Endurance (anti-armour)' },
-  { sys: 'DodgeChance', name: 'Evasive', family: 'utility', slots: ['armor', 'trinket1'], minRarity: 'blue', weight: 3, live: false, note: '+dodge chance (Speed-adjacent)' },
-  { sys: 'FlatDamageReduction', name: 'Ironhide', family: 'utility', slots: ['armor', 'relic'], minRarity: 'green', weight: 4, live: false, note: 'flat damage reduction (Soak; permanent, not round-Block)' },
-  { sys: 'Lifesteal', name: 'Sanguine', family: 'proc', slots: ['weapon', 'trinket1'], minRarity: 'purple', weight: 2, live: false, note: 'heal a fraction of damage dealt' },
+  // ── gear-EXCLUSIVE (LIVE via GearMods — deterministic; gear's identity) ──
+  { sys: 'Penetration', name: 'Sundering', family: 'crit', slots: ['weapon', 'relic'], minRarity: 'blue', weight: 3, live: true, note: 'ignore some foe Endurance in the Attack contest (anti-armour)', build: (m) => [{ c: 'mod', mod: 'penetration', amount: round1(m, 1.5) }] },
+  { sys: 'FlatDamageReduction', name: 'Ironhide', family: 'utility', slots: ['armor', 'relic'], minRarity: 'green', weight: 4, live: true, note: 'flat damage reduction (Soak; permanent, pre-Block)', build: (m) => [{ c: 'mod', mod: 'soak', amount: round1(m, 1.5) }] },
+  { sys: 'DodgeChance', name: 'Evasive', family: 'utility', slots: ['armor', 'trinket1'], minRarity: 'blue', weight: 3, live: true, note: '+dodge chance (Speed-adjacent; +flat on the per-swing roll)', build: (m) => [{ c: 'mod', mod: 'dodge', amount: Math.min(0.2, 0.03 * m) }] },
+  { sys: 'Lifesteal', name: 'Sanguine', family: 'proc', slots: ['weapon', 'trinket1'], minRarity: 'purple', weight: 2, live: true, note: 'heal a fraction of damage dealt (offensive sustain)', build: (m) => [{ c: 'mod', mod: 'lifesteal', amount: Math.min(0.2, 0.04 * m) }] },
+  // crit STAYS staged — an RNG crit-% conflicts with §5.7 "set output stays exact"; it needs a
+  // DETERMINISTIC-condition design (e.g. "rainbow Attacks crit") before it goes live.
+  { sys: 'CritChance', name: 'Keen', family: 'crit', slots: ['weapon', 'trinket1'], minRarity: 'blue', weight: 4, live: false, note: 'STAGED: crit chance — needs a deterministic-condition design (§5.7)' },
+  { sys: 'CritMultiplier', name: 'Vorpal', family: 'crit', slots: ['weapon'], minRarity: 'purple', weight: 2, live: false, note: 'STAGED: crit damage multiplier (pairs with a deterministic crit condition)' },
   // ── REACTIVE (STAGED) — on-wound / on-kill / on-low-HP: need player-side trigger events ──
   { sys: 'OnWoundThorns', name: 'Barbed', family: 'reactive', slots: ['armor', 'relic'], minRarity: 'blue', weight: 3, live: false, note: 'on taking a wound: reflect damage' },
   { sys: 'OnWoundWard', name: "Guardian's", family: 'reactive', slots: ['armor', 'relic'], minRarity: 'purple', weight: 2, live: false, note: 'on taking a wound: a free Stand-Ground ward' },

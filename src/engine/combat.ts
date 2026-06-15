@@ -12,7 +12,7 @@ import type { GameData } from '../data/schema'
 import { type CombatState, type FoeRuntime, type Pending, type TacticKind, type ManeuverBias, type StatBlock, MANA_CAP, DEFAULT_PLAYER_MAX, BASE_STATS, ROUND_MS, DODGE_BASE, DODGE_K, DODGE_MIN, DODGE_MAX, MANEUVER_BURN_MS, dreadFoeMult, dreadPlayerMult, dreadBleed, driftRateMult } from './state'
 import { type CombatEvent, EventSink } from './events'
 import { type Resolution, type MatchDescriptor, resolveSet, weightedRoll, telegraphPerSwing, dodgeChance } from './resolve'
-import { NO_RIDERS, type Riders, type AffixProc } from './items'
+import { NO_RIDERS, NO_MODS, type Riders, type GearMods, type AffixProc } from './items'
 import { foeLevelEquiv, gearFactor } from './foe'
 import { fireTriggers, runTrigger, inflictWounds, hurtPlayer, reformSlots, condMet, EMPTY_DESC } from './triggers'
 import { gainBlock, addCharges, grantMana, healPlayer, dealAbilityDamage, extendRound } from './ops'
@@ -47,6 +47,7 @@ export interface NewCombatOpts {
   playerMax?: number
   stats?: StatBlock // Resolution v2: Power/Endurance/Speed (default BASE_STATS = old-system parity); incl. gear bonus
   riders?: Riders // §7 gear riders (flat per-card; default none = no gear equipped)
+  mods?: GearMods // §7 gear-exclusive scalars (dodge/penetration/soak/lifesteal; default none)
   procs?: AffixProc[] // §7 gear affix on-match procs (fired like passives)
   passives?: string[] // the chosen class's always-on passive ids
   consumables?: string[] // carried potions/scrolls for this run
@@ -57,9 +58,10 @@ export interface NewCombatOpts {
 /** Roll a foe's exchange total at the DEAL: each swing independently checks DODGE (your Speed vs
  *  theirs — §5.7); evaded swings vanish from the telegraph (Speed owns whether/when). Returns the
  *  summed surviving total + how many swings were dodged (for the 💨 tags / the DODGED! card). */
-function rollStrike(foe: FoeRuntime, playerSpeed: number, rng: Rng): { total: number; dodged: number } {
+function rollStrike(foe: FoeRuntime, playerSpeed: number, rng: Rng, dodgeBonus = 0): { total: number; dodged: number } {
   if (foe.damage <= 0) return { total: 0, dodged: 0 }
-  const pDodge = dodgeChance(playerSpeed, foe.stats.speed, DODGE_BASE, DODGE_K, DODGE_MIN, DODGE_MAX)
+  // §7 Evasive (gear dodge) adds flat chance on top of the Speed contest, clamped to the same ceiling
+  const pDodge = Math.min(DODGE_MAX, dodgeChance(playerSpeed, foe.stats.speed, DODGE_BASE, DODGE_K, DODGE_MIN, DODGE_MAX) + dodgeBonus)
   let total = 0
   let dodged = 0
   for (let i = 0; i < foe.swings; i++) {
@@ -85,7 +87,7 @@ export function createCombat(opts: NewCombatOpts, rng: Rng): CombatState {
   const nextStrikeRound = foe.strikeEvery
   // EARLY REVEAL (§5.7): the telegraph shows from round 1 — strikeEvery−1 rounds before it lands —
   // so slow foes are a savings test (block carries through the windup). Dodge is rolled here.
-  const first = foe.damage > 0 ? rollStrike(foe, stats.speed, rng) : { total: 0, dodged: 0 }
+  const first = foe.damage > 0 ? rollStrike(foe, stats.speed, rng, opts.mods?.dodge ?? 0) : { total: 0, dodged: 0 }
   return {
     playerHP: playerMax,
     playerMax,
@@ -94,6 +96,7 @@ export function createCombat(opts: NewCombatOpts, rng: Rng): CombatState {
     block: 0,
     stats,
     riders: opts.riders ?? NO_RIDERS,
+    mods: opts.mods ?? NO_MODS,
     procs: opts.procs ? opts.procs.slice() : [],
     mana: [0, 0, 0],
     tactic: 'stand', // the defensive default — you OPT INTO Maneuver's greed live (§5.7)
@@ -203,7 +206,7 @@ function completeSet(s: CombatState, slots: [number, number, number], deps: Deps
   if (!isSet(ca, cb, cc)) return // invalid pick — no-op (the UI handles misread feedback)
   if (s.attackFrozen) { s.attackFrozen = false; sink.emit({ type: 'buffFaded', id: 'invisibility', label: 'Invisibility fades — the enemy sees you again' }) }
   const cards: [Card, Card, Card] = [ca, cb, cc]
-  const res = resolveSet(cards, s.stats, s.foe.stats, deps.rng, s.riders)
+  const res = resolveSet(cards, s.stats, s.foe.stats, deps.rng, s.riders, s.mods.penetration)
   applyResolution(s, res, deps.rng, sink)
   sink.emit({ type: 'setResolved', damage: res.damage, block: res.block, mana: res.mana, slots })
   // character-innate passives react to this match's signature (Momentum may steer the refill below)...
@@ -316,6 +319,8 @@ function rollover(s: CombatState, deps: Deps, sink: EventSink): void {
     s.roundAttack = 0
     s.enemyHP = Math.max(0, s.enemyHP - dmg)
     sink.emit({ type: 'enemyDamaged', amount: dmg })
+    // §7 Lifesteal (Sanguine): heal a fraction of the damage dealt (deterministic; the offensive-sustain hook)
+    if (s.mods.lifesteal > 0 && dmg > 0) healPlayer(s, Math.floor(dmg * s.mods.lifesteal), deps.rng, sink)
     if (s.enemyHP <= 0) {
       onWin(s, sink)
       return
@@ -325,8 +330,9 @@ function rollover(s: CombatState, deps: Deps, sink: EventSink): void {
   // not yet due) there is NO strike and the guard CARRIES (§5.7 — the savings test).
   const strikeLands = s.incoming != null && finished >= s.nextStrikeRound
   if (strikeLands) {
-    const raw = s.incoming as number
-    const dodgedAll = raw === 0 && s.incomingDodged > 0 // every swing evaded at the deal
+    const raw0 = s.incoming as number
+    const raw = raw0 > 0 ? Math.max(0, raw0 - s.mods.soak) : 0 // §7 Soak (Ironhide): flat, permanent (pre-Block) mitigation
+    const dodgedAll = raw0 === 0 && s.incomingDodged > 0 // every swing evaded at the deal
     s.incoming = null
     s.incomingDodged = 0
     s.nextStrikeRound = finished + s.foe.strikeEvery
@@ -366,7 +372,7 @@ function rollover(s: CombatState, deps: Deps, sink: EventSink): void {
   s.roundExtendedS = 0
   s.roundAttack = 0
   if (s.foe.damage > 0 && s.incoming == null && s.round >= s.nextStrikeRound - (s.foe.strikeEvery - 1)) {
-    const strike = rollStrike(s.foe, s.stats.speed, deps.rng)
+    const strike = rollStrike(s.foe, s.stats.speed, deps.rng, s.mods.dodge)
     s.incoming = Math.round(strike.total * dreadFoeMult(s)) // §5.8: fold dread-at-reveal into the telegraph (honest ⚔)
     s.incomingDodged = strike.dodged
     sink.emit({ type: 'windup', amount: strike.total, strikesAt: s.roundEndsAt, dodged: strike.dodged, swings: s.foe.swings })

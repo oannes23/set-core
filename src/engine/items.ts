@@ -52,9 +52,16 @@ export type ProcEffect =
   | { kind: 'delay'; seconds: number } // extend the round (buy time)
 export interface AffixProc { when?: Condition; effect: ProcEffect; label?: string }
 
+/** Gear-EXCLUSIVE scalar mods (CRAWL §7 — exist nowhere else, gear's identity). dodge/lifesteal are
+ *  FRACTIONS (0–1); penetration/soak are flat. (Crit is deferred — RNG-% conflicts with §5.7 "set
+ *  output stays exact"; it needs a deterministic-condition design, so it stays a STAGED affix.) */
+export interface GearMods { dodge: number; penetration: number; soak: number; lifesteal: number }
+export const NO_MODS: GearMods = { dodge: 0, penetration: 0, soak: 0, lifesteal: 0 }
+
 export type AffixComponent =
   | { c: 'stat'; stat: StatKey; amount: number } // incl. negative (cursed) + off-stat patches
   | { c: 'rider'; riders: Partial<Riders> } // scoped per-card riders (fold via gearRiders — already live)
+  | { c: 'mod'; mod: keyof GearMods; amount: number } // gear-exclusive: dodge/penetration/soak/lifesteal
   | { c: 'proc'; proc: AffixProc } // on-match player proc (the affix-proc engine — LIVE)
   | { c: 'trigger'; trigger: Trigger } // alt-verb / foe-shape trigger — STAGED
   | { c: 'ability'; abilityId: string } // purple+ granted ability — STAGED
