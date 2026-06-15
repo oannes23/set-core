@@ -33,10 +33,13 @@ Traffic-light: green = pursue · yellow = consequence · red = wounded.
   **foe-difficulty raise rides chunk ②** (with the ability reprice + Primed — one coupled pass). Affix
   TRIGGER/ABILITY components aggregate but their bus-wiring + content pool also ride ② (today's dev-grant
   rolls stat-patch affixes only). Equip pulls from embedded instances; B3② may switch to Storage uid-refs.
-- **Chunk ② (next):** the ⭐ coupled sim pass (gear-share %, rider magnitudes, affix power, ability VPM,
-  the foe-raise — ONE decision) → flip `loot.ts` gear category ENABLED + the gear sub-roller + pity sawtooth
-  · author the affix CONTENT pool (the §7 hook families) + wire trigger/ability affixes onto the bus · the
-  foe HP/telegraph × gear factor · the ability reprice (contested + throughput-neutral) · **Primed**.
+- **Chunk ② progress:** ✅ the ⭐ coupled sim pass (DERIVED — sim §11+§12; TUNING) · ✅ **the LOOT FLIP**
+  (2026-06-15: `loot.ts` ENABLED += `gear` · `rollGearDrop` = base × tier-rarity × loot-tier · the **pity
+  sawtooth** (`GEAR_PITY_STEP` 8, threaded on `DELVE.gearPity`) · `RoomLoot.gear` → `DELVE.gearFound` →
+  banked to account Storage on a SAFE exit, lost on death · loot-reveal gear cards + cash-out/clear "stowed
+  N gear"; 161 tests). STILL OPEN: **equip-from-Storage** (the bag screen — dropped gear is stowed but not
+  yet equippable; the next slice) · the affix CONTENT pool (the §7 hook families) + trigger/ability affixes
+  on the bus · the **foe HP/telegraph × gear factor** · the ability reprice · **Primed** · the marquee roll.
 - **Spec:** `CRAWL-DESIGN.md` §7 (gear + the affix design surface + thematic overlay) · numbers:
   `sim/progression-sim.mjs` §11 + `TUNING.md` "Gear + the coupled balance pass".
 - **State of play (live):** combat core (dread + selection-protection + ward cue) · Emberdeep (D2/L7) ·
@@ -559,9 +562,10 @@ death ends the run and drops the satchel; the boss win is the clear. Constants i
   not DPS). Coupled to gear (caster mana-gear); part of the same pass.
 - `[~]` **Build — CHUNK ① DONE 2026-06-15** (the `Item`/gear data model `engine/items.ts`, the
   `data/gear.ts` catalog, `engine/gear.ts` aggregators + dev `rollGear`, riders → `resolveSet`,
-  `SavedChar.equipped` save-v4, the equip screen + dev-grant; 160 tests green). STILL OPEN: chunk ②
-  (gear loot — flip `loot.ts` ENABLED + sub-roller + pity sawtooth · affix content pool + bus-wiring ·
-  the foe-raise · ability reprice · Primed) and chunk ③ (the smith UI).
+  `SavedChar.equipped` save-v4, the equip screen + dev-grant; 160 tests green). CHUNK ② IN PROGRESS:
+  ✅ coupled sim (§11+§12) · ✅ the **loot flip** (gear drops live + pity sawtooth + bank-on-safe-exit;
+  2026-06-15). STILL OPEN: equip-from-Storage (the bag screen) · affix content pool + bus-wiring · the
+  foe-raise · ability reprice · Primed · the marquee roll. Then chunk ③ (the smith UI).
 
 ### Phase B4 — deeper progression
 - `[ ]` XP / levels → +HP / +ability-slots; boss-gated ability picks; spellbooks (cross-class learn).

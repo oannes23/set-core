@@ -25,10 +25,10 @@ import { createRun, runReduce, type RunState } from '../engine/run'
 import { createDelve, nextEncounter, fleeReroll, dreadBand, RUN_BAG_CAP, type DelveState, type EncounterTier } from '../engine/delve'
 import { rollRoomLoot } from '../engine/loot'
 import { gearStatBonus, gearRiders, rollGear } from '../engine/gear'
-import { EQUIP_SLOTS, type EquipSlot, type Rarity, type Affix, type AffixComponent } from '../engine/items'
+import { EQUIP_SLOTS, type EquipSlot, type Rarity, type Affix, type AffixComponent, type GearInstance } from '../engine/items'
 import { GEAR, gearBase, fitsSlot } from '../data/gear'
 import { CONSUMABLES } from '../engine/consumables'
-import { loadBank, bankGold, bankTithe } from './bank'
+import { loadBank, bankGold, bankTithe, saveBank, addManyToStorage } from './bank'
 import type { CombatState, FoeRuntime, StatBlock } from '../engine/state'
 import { CHARGE_CAP, MANA_CAP, START_GRACE_MS, ROUND_MS, WOUND_WARD_COST, WOUND_CAP_PER_EXCHANGE, woundQuantum, dreadLevel, DREAD_ONSET, DREAD_MAX } from '../engine/state'
 import type { CombatEvent } from '../engine/events'
@@ -260,7 +260,7 @@ let selectedCharId: string | null = null // persists the chosen hero across scen
 /** The LIVE DELVE (null = a lone practice fight). Survives scene transitions room → fork → room:
  *  the encounter schema state (engine/delve) + the run's consumable SATCHEL (what you carried in,
  *  minus what you drank, plus what you looted — HP-only attrition's sibling) + the current tier. */
-let DELVE: { d: DelveState; bag: string[]; tier: EncounterTier; gold: number } | null = null
+let DELVE: { d: DelveState; bag: string[]; tier: EncounterTier; gold: number; gearFound: GearInstance[]; gearPity: number } | null = null
 
 function characterSelectScene(root: HTMLElement): void {
   DELVE = null // any road back to town ends the run
@@ -642,6 +642,8 @@ function beginDelve(char: SavedChar, dungeonId: string): void {
     bag: char.consumables.filter((id) => !!id && !!CONSUMABLES[id]), // the loadout becomes the run satchel
     tier: 'minion',
     gold: 0, // run-gold: carried, banks on any safe exit, lost on death (a weightless counter, not a slot)
+    gearFound: [], // gear drops accrue here; banked to Storage on a SAFE exit, lost on death (like the satchel)
+    gearPity: 0, // the gear-drop sawtooth, carried across rooms
   }
   goScene((r) => delveRoom(r, char))
 }
@@ -2522,6 +2524,22 @@ function combatChart(): HTMLElement {
    elite sawtooth reset. Boss win → the dungeon is CLEARED (the run's best exit). Death → the run
    and the satchel are lost where you fell. Still TODO from the exit ladder: the parting blow on
    flee, gold/XP on the loot roll, the death tithe — they land with the economy (TODO §B2). */
+/** Bank the run's found gear into account Storage (SAFE exit only — lost on death, like the satchel).
+ *  Overflow (Storage cap 20 full) is dropped for now; the bag screen + return-triage (deferred B2) will
+ *  let you choose what to keep. Equipping from Storage is the NEXT slice — until then drops are stowed. */
+function bankGearFound(): { banked: number; overflow: number } {
+  if (!DELVE || !DELVE.gearFound.length) return { banked: 0, overflow: 0 }
+  const before = DELVE.gearFound.length
+  const { account, overflow } = addManyToStorage(loadBank(), DELVE.gearFound)
+  saveBank(account)
+  return { banked: before - overflow.length, overflow: overflow.length }
+}
+function gearLine(g: { banked: number; overflow: number }): string {
+  if (!g.banked && !g.overflow) return ''
+  const stow = g.banked ? ` Stowed <b>${g.banked}</b> gear in your vault.` : ''
+  return stow + (g.overflow ? ` (${g.overflow} lost — Storage full.)` : '')
+}
+
 function delveFork(result: 'win' | 'lose' | 'flee'): void {
   if (!V || !DELVE) return
   const char = V.char
@@ -2548,17 +2566,18 @@ function delveFork(result: 'win' | 'lose' | 'flee'): void {
 
   // BOSS DOWN — the dungeon is cleared (the run's best exit). Loot rolls, then the run-gold banks.
   if (result === 'win' && DELVE.tier === 'boss') {
-    const lootEl = delveLootReveal()
+    const lootEl = delveLootReveal() // accrues any boss-room gear into DELVE.gearFound FIRST
     const carried = DELVE.gold
     const bag = DELVE.bag
     const total = bankGold(carried) // the whole run's gold banks into the vault
+    const gear = bankGearFound() // …and the run's gear into Storage (before DELVE clears)
     DELVE = null
     const home = $<HTMLButtonElement>(`<button class="cta bob" style="display:block;margin:0 auto">🏆 Carry the spoils home</button>`)
     home.addEventListener('click', () => goScene(characterSelectScene))
     host.replaceChildren(
       $(`<div class="banner win">🏆 ${dgName} — CLEARED in ${room} rooms</div>`),
       lootEl, $(satchelHTML(bag)),
-      $(`<div class="forksub">Banked <b>${carried}🪙</b> — vault now <b>${total}🪙</b>.</div>`),
+      $(`<div class="forksub">Banked <b>${carried}🪙</b> — vault now <b>${total}🪙</b>.${gearLine(gear)}</div>`),
       combatChart(), home,
     )
     return
@@ -2580,8 +2599,9 @@ function delveFork(result: 'win' | 'lose' | 'flee'): void {
   const pips = '●'.repeat(band.step + 1) + '○'.repeat(4 - band.step)
   fork.appendChild($(`<div class="dread" data-tip-title="Dread" data-tip="The deeper you press, the surer the throne room. Each room entered walks the curve — cleared or fled."><span class="pips">${pips}</span>${band.label}</div>`))
   const btns = $(`<div class="forkbtns"></div>`)
-  const home = $<HTMLButtonElement>(`<button class="cta ghost">🏠 Cash out (bank ${DELVE.gold}🪙)</button>`)
-  home.addEventListener('click', () => { if (DELVE) bankGold(DELVE.gold); goScene(characterSelectScene) })
+  const gearN = DELVE.gearFound.length
+  const home = $<HTMLButtonElement>(`<button class="cta ghost">🏠 Cash out (bank ${DELVE.gold}🪙${gearN ? ` + ${gearN} gear` : ''})</button>`)
+  home.addEventListener('click', () => { if (DELVE) { bankGold(DELVE.gold); bankGearFound() } goScene(characterSelectScene) })
   const deeper = $<HTMLButtonElement>(`<button class="cta bob">▶ Delve deeper</button>`)
   deeper.addEventListener('click', () => goScene((r) => delveRoom(r, char)))
   btns.append(home, deeper)
@@ -2594,9 +2614,16 @@ function delveFork(result: 'win' | 'lose' | 'flee'): void {
 function delveLootReveal(): HTMLElement {
   const wrap = $(`<div class="lootreveal"></div>`)
   if (!DELVE) return wrap
-  const loot = rollRoomLoot(V!.state.foe, DELVE.d.room, systemRng)
+  const loot = rollRoomLoot(V!.state.foe, DELVE.d.room, systemRng, DELVE.gearPity)
   DELVE.gold += loot.gold
+  DELVE.gearPity = loot.gearPity // carry the sawtooth into the next room
   if (loot.gold > 0) wrap.appendChild($(`<div class="lootgold">🪙 <b>+${loot.gold}</b> gold</div>`))
+  for (const g of loot.gear) {
+    DELVE.gearFound.push(g) // accrues; banks to Storage on a safe exit (lost on death, like the satchel)
+    const base = gearBase(g.refId)
+    const affixTxt = g.affixes.length ? g.affixes.map(affixShort).join(' · ') : '—'
+    wrap.appendChild($(`<div class="lootcard gearloot"><span class="loot-lab r-${g.rarity}">${g.rarity}</span><span class="gs-ic r-${g.rarity}">${base?.icon ?? '🎁'}</span><div class="loot-id"><div class="ln r-${g.rarity}">${base?.name ?? g.refId}</div><div class="ld">${affixTxt}</div></div></div>`))
+  }
   for (const id of loot.items) {
     const c = CONSUMABLES[id]
     if (!c) continue
