@@ -1,11 +1,22 @@
 /* Level-equivalence + the outlevel XP penalty (CRAWL §3, sim §8). */
 
 import { test, expect } from 'vitest'
-import { foeLevelEquiv, outlevelXpMult, computeXP, OUTLEVEL_FLOOR } from './foe'
+import { foeLevelEquiv, outlevelXpMult, computeXP, OUTLEVEL_FLOOR, expectedRider, gearFactor } from './foe'
 import type { FoeRuntime } from './state'
 
 const mkFoe = (over: Partial<FoeRuntime> = {}): FoeRuntime =>
   ({ stats: { power: 14, endurance: 14, speed: 14 }, hp: 60, tier: 'minion', triggers: [], ...over } as unknown as FoeRuntime)
+
+test('the foe-difficulty raise: gearFactor ×1.0 through L6, climbs ~1 rarity tier / 3.4 levels (§11)', () => {
+  expect(expectedRider(3)).toBe(0) // grey baseline — early content is unaffected by the raise
+  expect(expectedRider(6)).toBe(0)
+  expect(expectedRider(7)).toBe(1) // white
+  expect(expectedRider(19)).toBe(4) // purple
+  expect(gearFactor(3)).toBeCloseTo(1.0, 5) // ≤L6 → no raise (warren/teaching foes untouched)
+  expect(gearFactor(7)).toBeCloseTo(1.12, 2) // (25+3)/25
+  expect(gearFactor(11)).toBeCloseTo(1.24, 2)
+  expect(gearFactor(19)).toBeCloseTo(1.48, 2)
+})
 
 test('foeLevelEquiv self-rates from the statline (inverts the parity line 10+2(L−1))', () => {
   expect(foeLevelEquiv(mkFoe({ stats: { power: 14, endurance: 14, speed: 14 } }))).toBe(3) // parity(3)=14

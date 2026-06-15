@@ -13,6 +13,7 @@ import { type CombatState, type FoeRuntime, type Pending, type TacticKind, type 
 import { type CombatEvent, EventSink } from './events'
 import { type Resolution, resolveSet, weightedRoll, telegraphPerSwing, dodgeChance } from './resolve'
 import { NO_RIDERS, type Riders } from './items'
+import { foeLevelEquiv, gearFactor } from './foe'
 import { fireTriggers, runTrigger, inflictWounds, hurtPlayer, reformSlots, EMPTY_DESC } from './triggers'
 import { gainBlock, addCharges } from './ops'
 import { firePassives } from './passives'
@@ -76,7 +77,10 @@ export function createCombat(opts: NewCombatOpts, rng: Rng): CombatState {
   // FINALIZE the telegraph: the foe's per-swing budget is the contest (its Power vs THIS player's
   // Endurance) × tier, packaged by the tempo law — level-invariant at parity (resolve.ts). The
   // assembled foe carried a parity seed; this binds it to the actual hero (stable for the fight).
-  const foe: FoeRuntime = { ...opts.foe, damage: telegraphPerSwing(opts.foe, stats.endurance) }
+  // §7/§11 FOE-DIFFICULTY RAISE: HP + telegraph × gearFactor(foe level-equiv) — foes balanced against
+  // the rarity-current GEARED baseline (×1.0 ≤L6, ~×1.6 orange). XP/gold use the BARE statline (foeValue).
+  const gf = gearFactor(foeLevelEquiv(opts.foe))
+  const foe: FoeRuntime = { ...opts.foe, hp: Math.round(opts.foe.hp * gf), damage: telegraphPerSwing(opts.foe, stats.endurance) * gf }
   const nextStrikeRound = foe.strikeEvery
   // EARLY REVEAL (§5.7): the telegraph shows from round 1 — strikeEvery−1 rounds before it lands —
   // so slow foes are a savings test (block carries through the windup). Dodge is rolled here.

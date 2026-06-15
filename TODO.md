@@ -39,9 +39,10 @@ Traffic-light: green = pursue · yellow = consequence · red = wounded.
   (2026-06-15: the equip screen's 5 slots open a **Storage picker** filtered by `fitsSlot`; equip pulls
   from Storage + stashes the displaced piece back; **unequip → Storage** (blocked if the bag's full); the
   dev-grant now mints into Storage so the real **drop→bank→browse→equip** loop is exercised; verified
-  in-browser). **THE GEAR LOOP IS CLOSED.** 161 tests; tsc + build clean. STILL OPEN: the affix CONTENT
-  pool (the §7 hook families) + trigger/ability affixes on the bus · the **foe HP/telegraph × gear factor**
-  (the "combat too easy" fix) · the ability reprice · **Primed** · the marquee roll · then chunk ③ (smith).
+  in-browser). **THE GEAR LOOP IS CLOSED.** · ✅ **the FOE-DIFFICULTY RAISE** (`foe.ts gearFactor`, applied
+  in `createCombat` to HP + telegraph; ≤L6 ×1.0; XP/gold bare — the "combat too easy with gear" fix).
+  163 tests; tsc + build clean. STILL OPEN: the affix CONTENT pool (the §7 hook families) + trigger/ability
+  affixes on the bus · the ability reprice · **Primed** · the marquee roll · then chunk ③ (smith).
 - **Spec:** `CRAWL-DESIGN.md` §7 (gear + the affix design surface + thematic overlay) · numbers:
   `sim/progression-sim.mjs` §11 + `TUNING.md` "Gear + the coupled balance pass".
 - **State of play (live):** combat core (dread + selection-protection + ward cue) · Emberdeep (D2/L7) ·
@@ -566,9 +567,11 @@ death ends the run and drops the satchel; the boss win is the clear. Constants i
   `data/gear.ts` catalog, `engine/gear.ts` aggregators + dev `rollGear`, riders → `resolveSet`,
   `SavedChar.equipped` save-v4, the equip screen + dev-grant; 160 tests green). CHUNK ② IN PROGRESS:
   ✅ coupled sim (§11+§12) · ✅ the **loot flip** (gear drops live + pity sawtooth + bank-on-safe-exit) ·
-  ✅ **equip-from-Storage** (the Storage picker per slot + unequip; the gear LOOP is closed; 2026-06-15).
-  STILL OPEN: affix content pool + bus-wiring · the foe-raise · ability reprice · Primed · the marquee
-  roll. Then chunk ③ (the smith UI).
+  ✅ **equip-from-Storage** (the Storage picker per slot + unequip; the gear LOOP is closed) · ✅ **the
+  FOE-DIFFICULTY RAISE** (2026-06-15: `foe.ts gearFactor`/`expectedRider`, applied in `createCombat` to
+  HP + telegraph; ≤L6 ×1.0 so warren/teaching untouched, XP/gold use the bare statline — the "combat too
+  easy with gear" fix). STILL OPEN: affix content pool + bus-wiring · ability reprice · Primed · the
+  marquee roll. Then chunk ③ (the smith UI).
 
 ### Phase B4 — deeper progression
 - `[ ]` XP / levels → +HP / +ability-slots; boss-gated ability picks; spellbooks (cross-class learn).

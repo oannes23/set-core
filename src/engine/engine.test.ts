@@ -4,7 +4,7 @@ import type { Card } from '../core/affine'
 import { findSets } from '../core/sets'
 import type { GenConfig } from '../core/generate'
 import { GAMEDATA } from '../data/game-data'
-import { assembleFoe } from './foe'
+import { assembleFoe, foeLevelEquiv, gearFactor } from './foe'
 import { createCombat, reduce, colsForN } from './combat'
 import { createRun, runReduce } from './run'
 import { resolveSet, SHAPE_ATTACK, SHAPE_MOVE } from './resolve'
@@ -21,6 +21,18 @@ const card = (col: number, sh: number, num: number): Card => [col, sh, 0, num]
 function foe(id: string, rng = mulberry32(1)) {
   return assembleFoe(id, GAMEDATA.dungeons.training, GAMEDATA, rng)!
 }
+
+test('the foe-difficulty raise: createCombat scales HP + telegraph by gearFactor (high L), inert at low L', () => {
+  const mk = (avg: number) => ({ id: 'x', name: 'x', tier: 'boss', hp: 200, stats: { power: avg, endurance: avg, speed: avg }, strikeEvery: 3, swings: 1, triggers: [], rules: {} } as unknown as ReturnType<typeof foe>)
+  const hi = mk(30) // → foeLevelEquiv 11 → factor 1.24
+  const lo = mk(10) // → foeLevelEquiv 1 → factor 1.0 (early content untouched)
+  const sHi = createCombat({ foe: hi, gen: GEN }, mulberry32(3))
+  const sLo = createCombat({ foe: lo, gen: GEN }, mulberry32(3))
+  expect(sHi.enemyHP).toBe(Math.round(200 * gearFactor(foeLevelEquiv(hi)))) // 248
+  expect(sHi.enemyHP).toBeGreaterThan(200)
+  expect(sLo.enemyHP).toBe(200) // ×1.0 — no raise below L7
+  expect(sHi.foe.damage).toBeGreaterThan(0) // telegraph also raised (finalized in createCombat)
+})
 
 // ---- resolution math (v3 contests: per card = rate(yourStat, theirOpposed) × quality) ----
 const STATS = { power: 10, endurance: 10, speed: 10 }

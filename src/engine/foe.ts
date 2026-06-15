@@ -43,6 +43,13 @@ export function foeLevelEquiv(foe: FoeRuntime): number {
   const avg = (foe.stats.power + foe.stats.endurance + foe.stats.speed) / 3
   return Math.max(1, Math.round(1 + (avg - 10) / 2))
 }
+
+/** The rarity a player is EXPECTED to carry at a level (~1 tier / 3.4 levels): 0 (grey, ≤L6) → 5 (orange). */
+export const expectedRider = (level: number): number => Math.min(5, Math.max(0, Math.floor((level - 3) / 3.4)))
+/** §7/§11 FOE-DIFFICULTY RAISE: foe HP + telegraph × this, keyed to the foe's level-equiv — so foes
+ *  are balanced against the rarity-current GEARED baseline (the "combat too easy with gear" fix). ×1.0
+ *  (grey, ≤L6) → ~×1.6 (orange). Applied at combat-time only → XP/gold (foeValue) use the BARE statline. */
+export const gearFactor = (level: number): number => (25 + 3 * expectedRider(level)) / 25
 /** Outlevel XP multiplier: full within GRACE levels, then −K/level down to FLOOR. Above-level = ×1. */
 export function outlevelXpMult(playerLevel: number, foeLevel: number): number {
   return Math.max(OUTLEVEL_FLOOR, Math.min(1, 1 - OUTLEVEL_K * Math.max(0, playerLevel - foeLevel - OUTLEVEL_GRACE)))
