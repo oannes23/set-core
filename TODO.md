@@ -530,7 +530,14 @@ death ends the run and drops the satchel; the boss win is the clear. Constants i
 - `[ ]` Optional: crawler reskin/palette (§1); a YAML data loader **only if** external authoring is
   wanted — today's typed `game-data.ts` is the equivalent (and type-safe).
 
-### Balance log — combat too easy for skilled play (playtest 2026-06-15; DEFER to the post-gear pass)
+### Balance log — combat too easy for skilled play (playtest 2026-06-15; FIX DERIVED 2026-06-15, sim §11)
+**RESOLVED (derivation):** the coupled sim pass (§11) confirmed the cause — gear adds ~⅓ power (riders),
+un-accounted → a geared baseline boss reads 70–88% (too easy) — and derived the fix: **foe HP + telegraph
+× a gear factor `(25+3·expectedRider(L))/25` (×1.0 grey → ~×1.6 orange)**, keyed to expected rarity by
+level. With it, geared-baseline boss → ~36% ≈ the bare-intended ~32% (curve restored), skilled → ~74%
+(the by-design reward). **APPLY when gear + the foe-raise land (B3)** — the foes' authored HP/telegraph
+get the factor folded in (per-dungeon expected-rarity). Also surfaced: **marginal Tactics charges ≈ 0
+value** (Speed-under-buys, now empirical — address with the gear pass).
 Emberdeep (D2) playtest: a L7 char cleared it "no sweat"; a **L1 char (6 levels UNDER) killed minions
 turn 1, elites turn 2–3** — only the Emberlord boss won. **Root cause: at high skill the card-game
 throughput out-races the stat contest, so fights end in 1–2 rounds BEFORE stats / traps / dread can

@@ -198,6 +198,17 @@ horizontal pick, **cap 3**. Buys map to the five run currencies (info/tempo/loot
 | Round-1 length | **`clamp(20 + (playerS − foeS), 15, 25)`s**; every other round flat **20s** | Speed = initiative; per-round scaling REJECTED (universal multiplier triple-dipping dodge+charges, breaks the 20s constant + kill budgets, re-couples scan speed). Lurk stacks. **Supersedes the §5.7 start-grace rider** |
 | Board preview | **voluntary-activation**: untimed; the **first set you complete starts the round** | baseline every fight (not just Lurk); supersedes the fixed 3s start-grace; kills opening-scan pressure |
 
+## Gear + the coupled balance pass — PLANNED (DERIVED 2026-06-15, sim §11; full design CRAWL §7)
+
+| Constant | Value (first-cut, sim-backed) | Meaning |
+|---|---|---|
+| Gear rider (weapon base) | **+0/+1/+2/+3/+4/+5 dmg per Attack card** (grey→orange) | the gear-power channel: 0→38% of attack power (orange ≈ ⅓); armor mirrors (+Block/Defend card) |
+| Gear share | **~⅓ of effective combat power** at rarity-current | up from the old ¼; safe because foes are tuned against it (the expected baseline) |
+| ⭐ Foe-difficulty raise | **foe HP + telegraph × `(25 + 3·expectedRider(L))/25`** (×1.0 grey → ~×1.6 orange) | THE "combat too easy" fix — accounts for gear so the geared baseline hits the kill budget; expectedRider ≈ 1 tier / 3.4 levels. Fold into authored foe HP/telegraph at B3 |
+| Ability effect values | **damage ≈ heal ≈ 1.0 · block ~0.2 · charge ~0** (context-dependent) | empirical marginal win-rate; price abilities off throughput (damage:heal ≈1; block/charge cheaper) |
+| Ability VPM | **≈ 4 dmg/mana** | 15-mana burst ≈ 60 dmg ≈ 2.4 sets; ability cost = effect-value ÷ VPM. Abilities = CONTESTED + throughput-neutral redirect |
+| ⚠ Tactics under-value | marginal charges ≈ 0 win-value | the Speed-under-buys issue, now empirical — needs richer charge sinks / Maneuver payoff / Speed gear hooks |
+
 ## Trap severity law (unchanged)
 
 | Rule | Value | File | Meaning |

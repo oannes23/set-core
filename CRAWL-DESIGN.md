@@ -1610,10 +1610,28 @@ Caster gear pumps mana → mana buys abilities, so the ability economy must be b
 - **Set bonuses** — themed 2/4/6-pc families (a parallel cross-build vector to spellbooks). The clean
   second wave once base gear + affixes + crafting prove out.
 
-### Open numbers — ONE coupled sim pass (gated)
-The gear-share %, per-rarity rider magnitudes, affix power, the ability **VPM + the relative-value table
-(measured empirically)**, and **the foe-difficulty raise** are *all one decision*, derived together — gear
-power, ability throughput, and foe difficulty only make sense relative to each other (the balance log).
+### The coupled balance pass — DERIVED 2026-06-15 (`sim/progression-sim.mjs` §11)
+Gear power + ability throughput + foe difficulty derived *together* (they only make sense relative to
+each other). First-cut, sim-backed:
+- **Gear riders (Part 1):** weapon base **+0 / +1 / +2 / +3 / +4 / +5 damage per Attack card** (grey→orange,
+  ×3 a set) → **0 → 38% of attack power** (orange ≈ ⅓, the target). Armor mirrors it (+Block per Defend
+  card). These flat per-card riders ARE the gear-power channel (a raw +stat barely moves the contest).
+- **⭐ The foe-difficulty raise (Part 2) — THE "combat too easy" fix:** foe **HP + telegraph × a gear
+  factor** `= (25 + 3·expectedRider(L)) / 25`, keyed to the rarity you're expected to carry at that level
+  (~1 rarity tier per 3.4 levels): **×1.00 (grey) → ~×1.6 (orange).** Validated: it takes the geared
+  *baseline* boss from a too-easy **70–88%** back to **~36% ≈ the bare-intended ~32%** (curve restored),
+  while a *skilled* geared player over-performs at **~74%** — the build/card-skill reward, by design.
+  (Minions/elites stay fodder, but their kill *time* is restored — no more 1-round kills.)
+- **Ability effect values (Part 3, empirical marginal win-rate):** **damage ≈ heal ≈ 1.0** (the
+  high-value effects — heal even edges damage when you're losing) · **Block ~0.2** (heavily discounted by
+  waste + the sated-guard cap) · **Tactics charge ~0** (⚠ a strong empirical restatement of the
+  Speed/Tactics under-value problem — see below). Values are **context-dependent** (survival is worth more
+  when losing); price abilities off the *throughput* basis (damage:heal ≈ 1; block/charge cheaper).
+  **VPM ≈ 4 dmg/mana** (15-mana burst ≈ 60 dmg ≈ 2.4 sets); ability cost = value ÷ VPM.
+- **⚠ Flagged balance thread:** the sim shows **marginal Tactics charges are near-worthless** (warding
+  wounds is low-value at the margin) — the Speed-under-buys issue, now empirical. Worth addressing
+  alongside the gear pass (richer charge sinks / a stronger Maneuver payoff / the Speed gear hooks).
+- **Still open:** affix power per loot-tier, the off-stat affix magnitudes, set-bonus tuning (deferred).
 
 ## 8. Deferred (next session)
 

@@ -167,7 +167,7 @@ function fight(foe, L, skill, rng, opts = {}) {
   let pHP = pMax, fHP = foe.hp, wounds = 0, guard = 0, charges = 0
   let telegraph = null, strikeRound = foe.strikeEvery // next round a strike lands
   const budget = foeBudget(foe, pStats.E)
-  const perSwing = (budget * foe.strikeEvery) / foe.swings
+  const perSwing = ((budget * foe.strikeEvery) / foe.swings) * (opts.foeDmgMult || 1) // §11 foe-difficulty raise (vs gear-block)
   const atkRate = rate(pStats.P, foe.E) // per card
   const defRate = rate(pStats.E, foe.P)
   const chgRate = moveRate(pStats.S, foe.S)
@@ -202,10 +202,11 @@ function fight(foe, L, skill, rng, opts = {}) {
         shape = needGuard ? 'def' : rng() < 0.18 ? 'mov' : 'atk'
       }
       if (opts.turtle && shape === 'atk') shape = 'def' // the pure-turtle stall model: refuses all offense
-      if (shape === 'atk') bankedAtk += atkRate * q
+      // §7 GEAR RIDERS — flat, post-contest, per-card (×3 a set): weapon → +dmg/Attack card, armor → +Block/Defend card
+      if (shape === 'atk') bankedAtk += atkRate * q + 3 * (opts.gearRider || 0)
       else if (shape === 'def') {
         const cap = guardRule === 'carry' && telegraph != null ? telegraph : Infinity
-        guard = Math.min(cap, guard + defRate * q) // sated guard: overbank is waste either way
+        guard = Math.min(cap, guard + defRate * q + 3 * (opts.gearBlock || 0)) // sated guard: overbank is waste either way
       } else charges = Math.min(15, charges + chgRate * q)
       if (rng() < TRAP_SPRING_P) { // the trap tax: bypasses guard; severity ∝ intended-level HP
         const trap = TRAP_HIT(foe.tier, foe.L) * dmult.foe // UNGUARDABLE damage rides the dread ramp
@@ -225,6 +226,11 @@ function fight(foe, L, skill, rng, opts = {}) {
     }
     // sustain (the stall lever, §7): a heal-over-time build — scaled by the PLAYER dread mult
     if (opts.heal) pHP = Math.min(pMax, pHP + opts.heal * dmult.player)
+    // §11 ability-VALUE injection: per-round flat add of ONE effect type (measure its marginal win-rate impact)
+    if (opts.bonusHeal) pHP = Math.min(pMax, pHP + opts.bonusHeal)
+    if (opts.bonusDmg) bankedAtk += opts.bonusDmg
+    if (opts.bonusBlock) guard += opts.bonusBlock
+    if (opts.bonusCharge) charges = Math.min(15, charges + opts.bonusCharge)
     // --- the exchange ---
     fHP -= bankedAtk * dmult.player // player offense rides the player-side ramp
     if (fHP <= 0) return { win: true, rounds, dmgTaken, pHP }
@@ -524,7 +530,60 @@ function section10() {
   console.log(`  of the engine's per-reform floor invariant). Quantize to the rollover: N pulls/round off the curve. SAFE TO BUILD.`)
 }
 
+// ---------- §11 THE COUPLED BALANCE PASS — gear riders × ability values × the foe-difficulty raise ----------
+const RARITY = ['grey', 'white', 'green', 'blue', 'purple', 'orange']
+const GEAR_RIDER = [0, 1, 2, 3, 4, 5] // §7 weapon base rider: +dmg per ATTACK card by rarity (first-cut)
+const expectedRider = (L) => Math.min(5, Math.max(0, Math.floor((L - 3) / 3.4))) // rarity climbs ~1 tier / 3.4 levels
+function section11() {
+  console.log('\n════ §11 THE COUPLED BALANCE PASS — gear riders × ability values × the foe-difficulty raise (CRAWL §7) ════')
+  const BARE_SET = RATE_BASE * QSUM // ~24.8: one attack set at parity
+
+  // ── Part 1: gear RIDERS → the ~⅓ power share ──
+  console.log('\n── Part 1: gear RIDERS (flat +dmg/Attack card, ×3 a set) → the gear power share ──')
+  console.log(`  bare attack set ≈ ${BARE_SET.toFixed(1)}; gear share = 3·rider / (bare + 3·rider):`)
+  RARITY.forEach((r, i) => {
+    const gear = 3 * GEAR_RIDER[i]
+    console.log(`    ${r.padEnd(7)} +${GEAR_RIDER[i]}/card → +${gear}/set · set ${(BARE_SET + gear).toFixed(0)} · gear share ${String(Math.round((100 * gear) / (BARE_SET + gear))).padStart(2)}%`)
+  })
+  console.log('  → orange ≈ ⅓ of attack power (the target); +0..+5/card is the magnitude. Armor mirrors it (+Block/Defend card).')
+
+  // ── Part 2: the FOE-DIFFICULTY RAISE (the "combat too easy" fix) ──
+  const gearFactor = (L) => (BARE_SET + 3 * expectedRider(L)) / BARE_SET
+  console.log('\n── Part 2: the FOE-DIFFICULTY RAISE — foes balanced vs the rarity-current GEARED baseline ──')
+  console.log('  expected rarity by level: ' + [3, 7, 11, 15, 19].map((L) => `L${L}→${RARITY[expectedRider(L)]}(×${gearFactor(L).toFixed(2)})`).join(' · '))
+  console.log('  Foe HP + telegraph rise by that factor so the kill budget holds against geared output.\n')
+  console.log('  winrate % / TTK rounds (baseline skill 3, balanced parity):')
+  for (const L of [11, 19]) {
+    const f = gearFactor(L), r = expectedRider(L)
+    console.log(`  — L${L} (expected ${RARITY[r]}, ×${f.toFixed(2)}) —`)
+    for (const tier of ['minion', 'elite', 'boss']) {
+      const foe = makeFoe(tier, L, tier === 'boss' ? 'heavy' : 'steady')
+      const G = { gearRider: r, gearBlock: r } // a FULL kit: attack (weapon) AND defense (armor) riders
+      const bare = mc(foe, L, 3, {}, 3000, 50)
+      const gOld = mc(foe, L, 3, G, 3000, 50)
+      const raised = { ...foe, hp: Math.round(foe.hp * f) }
+      const gNew = mc(raised, L, 3, { ...G, foeDmgMult: f }, 3000, 50)
+      const skill = mc(raised, L, 5, { ...G, foeDmgMult: f }, 3000, 50)
+      console.log(`    ${tier.padEnd(6)}: bare ${(bare.winrate * 100).toFixed(0)}/${bare.ttk.toFixed(1)} · geared-vs-OLD ${(gOld.winrate * 100).toFixed(0)}/${gOld.ttk.toFixed(1)} · geared-vs-RAISED ${(gNew.winrate * 100).toFixed(0)}/${gNew.ttk.toFixed(1)} · skilled-vs-RAISED ${(skill.winrate * 100).toFixed(0)}/${skill.ttk.toFixed(1)}`)
+    }
+  }
+  console.log("  READ: 'geared-vs-OLD' = the too-easy problem (free gear power). 'geared-vs-RAISED' should ≈ 'bare' (intended")
+  console.log("  curve restored). 'skilled-vs-RAISED' over-performs — the build/card-skill reward, by design.")
+
+  // ── Part 3: ability EFFECT VALUES (empirical) → throughput-neutral pricing ──
+  console.log('\n── Part 3: ability effect VALUES (marginal win-rate impact) → the pricing currency ──')
+  const refFoe = makeFoe('boss', 11, 'heavy') // a mid-winrate fight so marginals are visible
+  const base = mc(refFoe, 11, 3, {}, 8000, 60).winrate
+  const dWin = (opts) => mc(refFoe, 11, 3, opts, 8000, 60).winrate - base
+  const U = 6
+  const perUnit = { damage: dWin({ bonusDmg: U }) / U, block: dWin({ bonusBlock: U }) / U, heal: dWin({ bonusHeal: U }) / U, charge: dWin({ bonusCharge: 3 }) / 3 }
+  console.log(`  reference: boss L11, baseline skill, base winrate ${(base * 100).toFixed(0)}%; relative value = Δwin-per-unit ÷ damage's:`)
+  for (const [k, v] of Object.entries(perUnit)) console.log(`    ${k.padEnd(7)}: ${(v / perUnit.damage).toFixed(2)} × damage   (Δwin/unit ${(v * 100).toFixed(2)}pp)`)
+  console.log(`  closed-form predicted: block ~1.0 · heal ~1.0 · charge ~3.5. VPM anchor: 15-mana burst ≈ 60 dmg → VPM ≈ 4 dmg/mana.`)
+  console.log(`  ability cost = (effect value in dmg-equiv) ÷ VPM(4): 40-dmg spell → 10 mana · 40-HP heal → ~10 · 3-charge grant → ~3.`)
+}
+
 // ---------- run ----------
 console.log('SET.crawl — the numbers workshop (progression package derivation + conformance)')
-section1(); section2(); section3(); section4(); section5(); section6(); section7(); section8(); section9(); section10()
+section1(); section2(); section3(); section4(); section5(); section6(); section7(); section8(); section9(); section10(); section11()
 console.log('\nDone. Constants marked PROPOSED are the sim-backed picks for TUNING.md.')
