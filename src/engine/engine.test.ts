@@ -46,6 +46,18 @@ test('the affix-proc engine: an on-match proc fires player-favourably (condMet �
   expect(r.events.some((e) => e.type === 'passiveProc' && e.id === 'affix')).toBe(true)
 })
 
+test('the reactive proc family: an on-KILL heal fires when the foe dies (player-side event)', () => {
+  const rng = mulberry32(9)
+  const f = { id: 'x', name: 'x', tier: 'minion', hp: 100, stats: { power: 10, endurance: 10, speed: 10 }, strikeEvery: 2, swings: 1, triggers: [], rules: {} } as unknown as ReturnType<typeof foe>
+  const s = createCombat({ foe: f, gen: GEN, procs: [{ effect: { kind: 'damage', amount: 99 } }, { event: 'kill', effect: { kind: 'heal', amount: 20 } }] }, rng)
+  s.enemyHP = 5 // the match proc (99) overkills → the foe dies on this match
+  s.playerHP = 50 // room to see the on-kill heal
+  const sets = findSets(s.board)
+  const r = reduce(s, { type: 'completeSet', slots: sets[0] }, { data: GAMEDATA, rng })
+  expect(r.state.result).toBe('win')
+  expect(r.state.playerHP).toBe(70) // the on-kill Carnage heal (+20) fired in onWin
+})
+
 // ---- resolution math (v3 contests: per card = rate(yourStat, theirOpposed) × quality) ----
 const STATS = { power: 10, endurance: 10, speed: 10 }
 const FOE_PAR = { power: 10, endurance: 10, speed: 10 }

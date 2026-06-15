@@ -50,7 +50,9 @@ export type ProcEffect =
   | { kind: 'heal'; amount: number }
   | { kind: 'charges'; amount: number }
   | { kind: 'delay'; seconds: number } // extend the round (buy time)
-export interface AffixProc { when?: Condition; effect: ProcEffect; label?: string }
+/** When a proc fires: on a MATCH (condition on the set) or on a player-side EVENT (reactive family). */
+export type ProcEvent = 'match' | 'wound' | 'kill' | 'lowHP'
+export interface AffixProc { event?: ProcEvent; when?: Condition; effect: ProcEffect; label?: string }
 
 /** Gear-EXCLUSIVE scalar mods (CRAWL §7 — exist nowhere else, gear's identity). dodge/lifesteal are
  *  FRACTIONS (0–1); penetration/soak are flat. (Crit is deferred — RNG-% conflicts with §5.7 "set

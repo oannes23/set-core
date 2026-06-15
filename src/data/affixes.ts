@@ -65,11 +65,11 @@ export const AFFIXES: AffixDef[] = [
   // DETERMINISTIC-condition design (e.g. "rainbow Attacks crit") before it goes live.
   { sys: 'CritChance', name: 'Keen', family: 'crit', slots: ['weapon', 'trinket1'], minRarity: 'blue', weight: 4, live: false, note: 'STAGED: crit chance — needs a deterministic-condition design (§5.7)' },
   { sys: 'CritMultiplier', name: 'Vorpal', family: 'crit', slots: ['weapon'], minRarity: 'purple', weight: 2, live: false, note: 'STAGED: crit damage multiplier (pairs with a deterministic crit condition)' },
-  // ── REACTIVE (STAGED) — on-wound / on-kill / on-low-HP: need player-side trigger events ──
-  { sys: 'OnWoundThorns', name: 'Barbed', family: 'reactive', slots: ['armor', 'relic'], minRarity: 'blue', weight: 3, live: false, note: 'on taking a wound: reflect damage' },
-  { sys: 'OnWoundWard', name: "Guardian's", family: 'reactive', slots: ['armor', 'relic'], minRarity: 'purple', weight: 2, live: false, note: 'on taking a wound: a free Stand-Ground ward' },
-  { sys: 'OnKillHeal', name: 'Carnage', family: 'reactive', slots: ['weapon', 'trinket1'], minRarity: 'blue', weight: 3, live: false, note: 'on a kill: heal (snowball vs minion rooms)' },
-  { sys: 'OnLowHPSurge', name: 'Cornered', family: 'reactive', slots: ['armor', 'trinket1'], minRarity: 'purple', weight: 2, live: false, note: 'below an HP threshold: a defensive surge' },
+  // ── REACTIVE (LIVE via the affix-proc engine's player-side events: wound / kill / lowHP) ──
+  { sys: 'OnWoundThorns', name: 'Barbed', family: 'reactive', slots: ['armor', 'relic'], minRarity: 'blue', weight: 3, live: true, note: 'on taking a wound → reflect damage at the foe', build: (m) => [{ c: 'proc', proc: { event: 'wound', effect: { kind: 'damage', amount: round1(m, 2) }, label: `🌵${round1(m, 2)}` } }] },
+  { sys: 'OnWoundWard', name: "Guardian's", family: 'reactive', slots: ['armor', 'relic'], minRarity: 'purple', weight: 2, live: true, note: 'on taking a wound → bank a Stand-Ground charge', build: () => [{ c: 'proc', proc: { event: 'wound', effect: { kind: 'charges', amount: 1 }, label: '🛡+1' } }] },
+  { sys: 'OnKillHeal', name: 'Carnage', family: 'reactive', slots: ['weapon', 'trinket1'], minRarity: 'blue', weight: 3, live: true, note: 'on a kill → heal (carries to the next room)', build: (m) => [{ c: 'proc', proc: { event: 'kill', effect: { kind: 'heal', amount: round1(m, 3) }, label: `+${round1(m, 3)}hp` } }] },
+  { sys: 'OnLowHPSurge', name: 'Cornered', family: 'reactive', slots: ['armor', 'trinket1'], minRarity: 'purple', weight: 2, live: true, note: 'while below 30% HP → a Block surge each round', build: (m) => [{ c: 'proc', proc: { event: 'lowHP', effect: { kind: 'block', amount: round1(m, 2.5) }, label: `🛡+${round1(m, 2.5)}` } }] },
   // ── UTILITY (STAGED) ──
   { sys: 'FavorBias', name: 'Fated', family: 'utility', slots: ['trinket1'], minRarity: 'green', weight: 3, live: false, note: 'a passive deal-bias toward a chosen value (locked-board-safe)' },
   // ── UNIQUE (STAGED, orange) — curated named templates; locked + random affixes (§7) ──

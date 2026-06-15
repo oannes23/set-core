@@ -12,7 +12,7 @@ import type { GameData } from '../data/schema'
 import { type CombatState, type FoeRuntime, type Pending, type TacticKind, type ManeuverBias, type StatBlock, MANA_CAP, DEFAULT_PLAYER_MAX, BASE_STATS, ROUND_MS, DODGE_BASE, DODGE_K, DODGE_MIN, DODGE_MAX, MANEUVER_BURN_MS, dreadFoeMult, dreadPlayerMult, dreadBleed, driftRateMult } from './state'
 import { type CombatEvent, EventSink } from './events'
 import { type Resolution, type MatchDescriptor, resolveSet, weightedRoll, telegraphPerSwing, dodgeChance } from './resolve'
-import { NO_RIDERS, NO_MODS, type Riders, type GearMods, type AffixProc } from './items'
+import { NO_RIDERS, NO_MODS, type Riders, type GearMods, type AffixProc, type ProcEvent } from './items'
 import { foeLevelEquiv, gearFactor } from './foe'
 import { fireTriggers, runTrigger, inflictWounds, hurtPlayer, reformSlots, condMet, EMPTY_DESC } from './triggers'
 import { gainBlock, addCharges, grantMana, healPlayer, dealAbilityDamage, extendRound } from './ops'
@@ -169,15 +169,18 @@ function applyResolution(s: CombatState, res: Resolution, rng: Rng, sink: EventS
   if (charges > 0) addCharges(s, charges, sink)
 }
 
-/** The AFFIX-PROC ENGINE (CRAWL §7): gear affix on-match procs fire like class passives — the match
- *  descriptor gates each (condMet), then a player-favourable effect lands via ops. The data-driven
- *  sibling of firePassives; the proc magnitudes are first-cut (TUNING — a proc-value sim is the gate). */
-function fireAffixProcs(s: CombatState, desc: MatchDescriptor, rng: Rng, sink: EventSink): void {
+const LOW_HP_FRAC = 0.3 // §7 reactive: an on-lowHP proc (Cornered) fires while HP is below this fraction
+
+/** The AFFIX-PROC ENGINE (CRAWL §7): gear affix procs fire like class passives. ON-MATCH procs gate on
+ *  the match descriptor (condMet); REACTIVE procs (wound/kill/lowHP) fire on a player-side event (no
+ *  descriptor). A player-favourable effect lands via ops. Magnitudes are first-cut (TUNING — §13 gate). */
+function fireProcs(s: CombatState, event: ProcEvent, desc: MatchDescriptor | null, rng: Rng, sink: EventSink): void {
   for (const p of s.procs) {
-    if (!condMet(p.when, desc)) continue
+    if ((p.event ?? 'match') !== event) continue
+    if (event === 'match' && desc && !condMet(p.when, desc)) continue
     const e = p.effect
     if (e.kind === 'damage') dealAbilityDamage(s, e.amount, sink)
-    else if (e.kind === 'mana') grantMana(s, e.color ?? (desc.sameColor ?? 0), e.amount, sink)
+    else if (e.kind === 'mana') grantMana(s, e.color ?? (desc?.sameColor ?? 0), e.amount, sink)
     else if (e.kind === 'block') gainBlock(s, e.amount, rng, sink)
     else if (e.kind === 'heal') healPlayer(s, e.amount, rng, sink)
     else if (e.kind === 'charges') addCharges(s, e.amount, sink)
@@ -189,7 +192,8 @@ function fireAffixProcs(s: CombatState, desc: MatchDescriptor, rng: Rng, sink: E
 
 /** End this combat with a win. Run-level progression (the gauntlet's next foe; B2's room chain)
  *  lives in the RUN layer (run.ts), which composes combats — not in the combat reducer. */
-function onWin(s: CombatState, sink: EventSink): void {
+function onWin(s: CombatState, rng: Rng, sink: EventSink): void {
+  fireProcs(s, 'kill', null, rng, sink) // §7 on-kill procs (Carnage) — the heal carries to the next room
   s.running = false
   s.result = 'win'
   sink.emit({ type: 'won' })
@@ -212,13 +216,13 @@ function completeSet(s: CombatState, slots: [number, number, number], deps: Deps
   // character-innate passives react to this match's signature (Momentum may steer the refill below)...
   firePassives(s, 'match', res.desc, deps.rng, sink)
   // ...and the gear AFFIX procs fire on the same match (the affix-proc engine — player-favourable)
-  if (s.running) fireAffixProcs(s, res.desc, deps.rng, sink)
+  if (s.running) fireProcs(s, 'match', res.desc, deps.rng, sink)
   // ...and the FOE prices this match (traps + tricks fire on the same bus)
   if (s.running && s.enemyHP > 0) fireTriggers(s, 'match', res.desc, deps.rng, sink)
   if (!s.running) return
   if (s.enemyHP <= 0) {
     // a passive/trick (not the banked swing) finished the foe mid-round — the battle ends on the spot
-    onWin(s, sink)
+    onWin(s, deps.rng, sink)
     return
   }
   // clear the matched slots and refill (keeps ≥ FLOOR sets); a passive may bias this refill
@@ -322,7 +326,7 @@ function rollover(s: CombatState, deps: Deps, sink: EventSink): void {
     // §7 Lifesteal (Sanguine): heal a fraction of the damage dealt (deterministic; the offensive-sustain hook)
     if (s.mods.lifesteal > 0 && dmg > 0) healPlayer(s, Math.floor(dmg * s.mods.lifesteal), deps.rng, sink)
     if (s.enemyHP <= 0) {
-      onWin(s, sink)
+      onWin(s, deps.rng, sink)
       return
     }
   }
@@ -340,7 +344,7 @@ function rollover(s: CombatState, deps: Deps, sink: EventSink): void {
       const bite = Math.max(0, raw - s.block)
       hurtPlayer(s, raw, s.foe.name, sink)
       if (!s.running) return // the symmetric kill-race already gave the player their swing in ①
-      if (bite > 0) inflictWounds(s, bite, deps.rng, sink)
+      if (bite > 0) { inflictWounds(s, bite, deps.rng, sink); fireProcs(s, 'wound', null, deps.rng, sink) } // §7 on-wound (Barbed/Guardian's)
     } else if (dodgedAll) {
       sink.emit({ type: 'strikeDodged' }) // the full whiff — the DODGED! smash card
     } else {
@@ -358,6 +362,8 @@ function rollover(s: CombatState, deps: Deps, sink: EventSink): void {
     sink.emit({ type: 'playerDamaged', amount: bleed, absorbed: 0, source: 'the dread' })
     if (s.playerHP <= 0) { s.running = false; s.result = 'lose'; sink.emit({ type: 'lost' }); return }
   }
+  // §7 on-lowHP procs (Cornered): a defensive surge while cornered (fires each rollover below the floor)
+  if (s.running && s.playerHP < LOW_HP_FRAC * s.playerMax) fireProcs(s, 'lowHP', null, deps.rng, sink)
   // ⑤ the deal — one wound knits shut as the cards settle (stances are live; nothing to lock)
   let knit: number | null = null
   for (const [slot, p] of s.pending) if (p.wound) { knit = knit == null || slot < knit ? slot : knit }
@@ -392,7 +398,7 @@ export function reduce(state: CombatState, action: CombatAction, deps: Deps): { 
       tick(s, action.dtMs, deps, sink)
       break
     case 'castAbility':
-      if (castAbility(s, action.abilityId, deps.rng, sink) && s.running && s.enemyHP <= 0) onWin(s, sink)
+      if (castAbility(s, action.abilityId, deps.rng, sink) && s.running && s.enemyHP <= 0) onWin(s, deps.rng, sink)
       break
     case 'setTactic':
       setTactic(s, action.tactic, sink)
@@ -401,7 +407,7 @@ export function reduce(state: CombatState, action: CombatAction, deps: Deps): { 
       setBias(s, action.bias, sink)
       break
     case 'useConsumable':
-      if (useConsumable(s, action.slot, deps.rng, sink) && s.running && s.enemyHP <= 0) onWin(s, sink)
+      if (useConsumable(s, action.slot, deps.rng, sink) && s.running && s.enemyHP <= 0) onWin(s, deps.rng, sink)
       break
     case 'flee':
       if (s.running) { s.running = false; s.result = 'flee'; sink.emit({ type: 'fled' }) }
