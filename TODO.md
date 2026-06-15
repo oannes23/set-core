@@ -175,8 +175,10 @@ Build scope:
   sim-measured ~0 up to ~the closed-form ~3.5, closing the under-buy. A skill+commitment payoff (run
   Maneuver instead of Stand Ground, churn, AND match fast) and bounded. **IMPLEMENT WITH the gear/combat
   pass** (it raises player output → the foe-difficulty raise must account for it). Build: track churn
-  timestamps per slot; `resolveSet` bumps a recently-churned card's quality tier. Stand Ground's warding
-  stays *situationally* valuable (scales with the dread/drift pressure — the sim's calm ref under-credits it).
+  timestamps per slot; `resolveSet` bumps a recently-churned card's quality tier; **UI — a subtle SPARKLE
+  on primed cards** (a small twinkle so you can see which churned runes will hit a tier higher; fades when
+  the ~6s window lapses; reduced-motion → a static glint). Stand Ground's warding stays *situationally*
+  valuable (scales with the dread/drift pressure — the sim's calm ref under-credits it).
 - **Post-Resolution-v2 readings (2026-06-10, fourth playtest — instrument now honest):** reshape
   75 / 56 / 59% (bracketing the 65–70 target from both sides), spring 24 / 27 / 25%, sets/min
   16.4 / 16.8 / 12.2, wards 7/5/9 AND churns 11/10/5 — stance swapping is live play now. Verdict:
