@@ -1760,18 +1760,25 @@ loot roller (`rollAffixes`) mints a random `1..maxAffixes` distinct, slot/tier-g
   (fold via gearStatBonus)
 - **scoped riders** (slot-gated): `AttackDamagePerCard`→**Honed** (weapon) · `BlockPerDefendCard`→**Warding**
   (armor/relic) · `ManaPerMatch`→**Channeling** (caster) (fold via gearRiders)
-- **ON-MATCH PROCS** (the **affix-proc engine**, BUILT 2026-06-15 — `combat.fireAffixProcs`, the data-driven
-  sibling of `firePassives`: `condMet(when)` on the matched set → a player effect via ops): **Savage**
-  (all-Attack → bonus dmg) · **Searing** (all-Fire → burn) · **Attuned** (mono-colour → +mana to it) ·
-  **Renewing** (all-Defend → heal) · **Time-Eater** (rainbow → +1s round). All CONDITIONED + small (sim §12:
-  procs run hot — magnitudes are first-cut, a proc-value sim is the tuning gate).
+- **ON-MATCH + REACTIVE PROCS** (the **affix-proc engine**, BUILT 2026-06-15 — `combat.fireProcs`, the
+  data-driven sibling of `firePassives`: match procs gate on the descriptor via `condMet`, reactive procs
+  fire on a player-side event; effect → ops). ON-MATCH: **Savage** (all-Attack → dmg) · **Searing** (all-Fire
+  → burn) · **Attuned** (mono-colour → +mana) · **Renewing** (all-Defend → heal) · **Time-Eater** (rainbow →
+  +1s). REACTIVE: **Barbed** (on-wound thorns) · **Guardian's** (on-wound → +1 charge) · **Carnage** (on-kill
+  heal) · **Cornered** (lowHP → Block surge). All conditioned + small (sim §12: procs run hot — magnitudes
+  first-cut, a §13 proc-value sim is the tuning gate).
+- **GEAR-EXCLUSIVE mods** (the `GearMods` channel, BUILT 2026-06-15 — deterministic, gear's identity):
+  **Sundering** (`Penetration` — ignore foe Endurance in the Attack contest) · **Ironhide** (`FlatDamageReduction`
+  — pre-Block Soak) · **Sanguine** (`Lifesteal` — heal a fraction of damage dealt) · **Evasive** (`DodgeChance`
+  — +flat dodge).
+- **The dungeon-clear MARQUEE** (BUILT 2026-06-15 — `rollMarqueeGear`): a guaranteed **rare+** gear piece on
+  a boss kill (blue 50 / purple 35 / orange 15), the headline reward.
 
-**STAGED** (`live: false` — authored with names + the mechanic note, not yet rolled; each needs its engine):
+**STAGED** (`live: false` — authored, not yet rolled; each needs its engine):
 - **Trickster's** (`OnMatchChurn`) — needs proc-churn plumbing (deadest + bias).
-- **gear-exclusive** (new combat mechanics): Keen (`CritChance`) · **Vorpal** (`CritMultiplier`) · Sundering
-  (`Penetration`) · Evasive (`DodgeChance`) · Ironhide (`FlatDamageReduction`) · Sanguine (`Lifesteal`).
-- **reactive** (need player-side trigger EVENTS — onWound/onKill/onLowHP): Barbed · Guardian's · Carnage ·
-  Cornered · **utility:** Fated · **unique (orange):** Heartseeker · the Aegis.
+- **CRIT** — Keen (`CritChance`) · **Vorpal** (`CritMultiplier`): an RNG crit-% conflicts with §5.7 "set
+  output stays exact" → needs a DETERMINISTIC-condition design (e.g. "rainbow Attacks crit") before going live.
+- **utility:** Fated (`FavorBias`) · **unique (orange):** Heartseeker · the Aegis.
 
 The catalog grows by adding rows; flipping a family `live` (once its mechanic engine lands) makes it roll.
 

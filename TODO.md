@@ -47,13 +47,16 @@ Traffic-light: green = pursue · yellow = consequence · red = wounded.
   family + slot/tier gate + weight + live) → `AFFIX_THEME` (dev name source) + `rollAffixes` (inverse
   budget, slot/tier-gated). **LIVE & functional:** stat patches (Mighty/Stalwart/Fleet) + scoped riders
   (Honed/Warding/Channeling via a new `rider` affix component).
-  · ✅ **the AFFIX-PROC ENGINE** (2026-06-15): `combat.fireAffixProcs` (the data-driven sibling of
-  `firePassives` — `condMet(when)` on the matched set → a player effect via ops; `proc` AffixComponent +
-  `ProcEffect` + `CombatState.procs`, threaded run→combat→app via `gearProcs`). Flipped LIVE: **Savage /
-  Searing / Attuned / Renewing / Time-Eater** (conditioned + small). 169 tests. ⚠ proc magnitudes are
-  first-cut — a **proc-value sim (§13)** is the tuning gate. STILL OPEN for chunk ②: the gear-exclusive
-  mechanics (crit/dodge/pen — Vorpal et al.) · the reactive family (needs player-side onWound/onKill/
-  onLowHP events) · Trickster's churn · ability reprice · Primed · marquee. (Was "affix content pool".)
+  · ✅ **the AFFIX-PROC ENGINE** (`combat.fireProcs` — the data-driven sibling of `firePassives`; `proc`
+  AffixComponent + `ProcEffect` + `CombatState.procs`, threaded run→combat→app via `gearProcs`):
+  **on-match** (Savage/Searing/Attuned/Renewing/Time-Eater) + **reactive player events** wound/kill/lowHP
+  (Barbed/Guardian's/Carnage/Cornered). · ✅ **GEAR-EXCLUSIVE mods** (`GearMods` channel: Sundering
+  penetration / Ironhide soak / Sanguine lifesteal / Evasive dodge — deterministic, applied in resolveSet
+  + rollover + rollStrike). · ✅ **the MARQUEE** (boss clear → a guaranteed rare+ piece, `rollMarqueeGear`).
+  **172 tests; tsc + build clean. The themed affix catalog is almost entirely LIVE.** STILL OPEN for chunk ②:
+  **CRIT** (Keen/Vorpal — needs a DETERMINISTIC-condition design; RNG-% breaks §5.7 exactness) · Trickster's
+  churn · **ability reprice** (its own combat thread) · **Primed** (the Speed payoff) · the **§13 proc-value
+  sim** (firm the first-cut proc magnitudes). (Was "affix content pool".)
 - **Spec:** `CRAWL-DESIGN.md` §7 (gear + the affix design surface + thematic overlay) · numbers:
   `sim/progression-sim.mjs` §11 + `TUNING.md` "Gear + the coupled balance pass".
 - **State of play (live):** combat core (dread + selection-protection + ward cue) · Emberdeep (D2/L7) ·

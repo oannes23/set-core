@@ -228,6 +228,13 @@ is the tuning gate).** `data/affixes.ts` procs: amount = `max(1, round(magUnit �
 rainbow) to bound the per-round value — §12 flagged procs run hot (a per-match damage proc ≈ 4× a stat
 affix). Sim them before widening the pool or raising magnitudes.
 
+**Gear-exclusive mods + reactive procs — FIRST-CUT (BUILT 2026-06-15; same §13 gate).** GearMods:
+Sundering `penetration` & Ironhide `soak` = `round(magUnit×1.5)` (flat) · Evasive `dodge` & Sanguine
+`lifesteal` = `min(0.20, 0.03–0.04 × magUnit)` (fractions, clamped). Reactive: Barbed thorns `×2` ·
+Guardian's `+1 charge` · Carnage heal `×3` · Cornered Block-surge `×2.5` (fires < 30% HP). Marquee =
+guaranteed rare+ (blue 50 / purple 35 / orange 15). CRIT (Keen/Vorpal) deferred — RNG-% breaks §5.7
+exactness; needs a deterministic-condition design.
+
 ## Trap severity law (unchanged)
 
 | Rule | Value | File | Meaning |
