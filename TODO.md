@@ -512,6 +512,20 @@ death ends the run and drops the satchel; the boss win is the clear. Constants i
 - `[ ]` Optional: crawler reskin/palette (§1); a YAML data loader **only if** external authoring is
   wanted — today's typed `game-data.ts` is the equivalent (and type-safe).
 
+### Balance log — combat too easy for skilled play (playtest 2026-06-15; DEFER to the post-gear pass)
+Emberdeep (D2) playtest: a L7 char cleared it "no sweat"; a **L1 char (6 levels UNDER) killed minions
+turn 1, elites turn 2–3** — only the Emberlord boss won. **Root cause: at high skill the card-game
+throughput out-races the stat contest, so fights end in 1–2 rounds BEFORE stats / traps / dread can
+bite.** Minion/elite HP (~58/~110) is calibrated for baseline skill (~3 sets/rnd); a skilled player
+blows past it in round 1. `RATE_K` 0.2 is gentle, so a 6-level gap only ~−30% attack → the level gap
+has weak teeth. Difficulty lives ENTIRELY in the boss (200 HP survives long enough for its 4-trap
+squeeze). Dread is moot for fast kills (only bites dragged fights). **⚠ Gear will make this WORSE
+(more player power) → the post-gear balance pass must RAISE foe power (HP first — so fights last >1
+round and the threat layer/dread land — and/or `RATE_K` so levels bite), NOT tune in isolation. The
+foe-difficulty knob and the gear-power decision are ONE decision.** (Player is above-average — created
+it — so expect a higher base win rate than the target player; but parity content should still sweat.)
+GOOD: gold / XP / loot rates all feel right (the economy is validated).
+
 ### Balance log — the Bulwark loop (found by the dev instruments, 2026-06-10; FIXED)
 First playtest with the dev panel caught the first degenerate line: **Bulwark's magnitude flood**
 (shape→Defend AND mag→3) printed value — mag-3 boards give 9-value sets, collapse the number axis
