@@ -51,7 +51,12 @@ Detailed specs live in CRAWL-DESIGN.md + the sections below; this is the master 
 - `[ ]` Between-rooms approaches (5 verbs at the fork) + voluntary-activation preview + Speed→round-1
 
 ### Phase 5+ — Big systems *(design-gated / deep deps)*
-- `[ ]` Ability system (loadout/equip + cooldowns + spellbooks) · `[ ]` Gear B3 (affixes — design gate first)
+- `[~]` Ability system — **LOADOUT FOUNDATION BUILT 2026-06-15:** the kit GROWS with level (combat uses the first
+  `activeSlotsAt(level)` class abilities + `passiveSlotsAt` passives — cadence active 2→6 @ L3/6/10/14, passive 1→3
+  @ L8/16; auto-derived, no stored state/migration); the sheet greys locked abilities with "🔒 Lv N". STILL OPEN
+  (need the **class-kit content expansion** — currently 3 abilities/1 passive each, design assumes ~10/~5 — to make
+  the loadout a real CHOICE; then the stored loadout + equip screen): **cooldowns · spellbooks · stored loadout editor.**
+- `[ ]` Gear B3 (affixes — design gate first)
 - `[ ]` Achievement meta-layer → guild halls + bounties → town amenities
 
 ---

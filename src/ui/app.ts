@@ -30,7 +30,7 @@ import type { CombatState, FoeRuntime } from '../engine/state'
 import { CHARGE_CAP, MANA_CAP, START_GRACE_MS, ROUND_MS, WOUND_WARD_COST, WOUND_CAP_PER_EXCHANGE, woundQuantum, dreadLevel, DREAD_ONSET, DREAD_MAX } from '../engine/state'
 import type { CombatEvent } from '../engine/events'
 import { bumpTurn, pick, strikeWord, healWord, drainWord, magicLead, tierOf, joinClauses, voiceOf, ABILITY_FLAVOR } from './flavor'
-import { type SavedChar, type StatAlloc, loadRoster, upsertChar, deleteChar, makeChar, freshId, CONSUMABLE_SLOTS, effectiveStats, xpForLevel, pendingLevels, applyLevelUp, LEVEL_CAP } from './save'
+import { type SavedChar, type StatAlloc, loadRoster, upsertChar, deleteChar, makeChar, freshId, CONSUMABLE_SLOTS, effectiveStats, xpForLevel, pendingLevels, applyLevelUp, LEVEL_CAP, activeSlotsAt, passiveSlotsAt, activeUnlockLevel } from './save'
 
 const GEN: GenConfig = COMBAT_GEN
 /** one shared reduced-motion query — card feel (tilt/flights/staggers) falls back to fades */
@@ -269,11 +269,14 @@ function characterSelectScene(root: HTMLElement): void {
     host.appendChild($(`<div class="sheet-stat" data-tip-title="Stats — sets steer, stats carry" data-tip="Each card in a matched set fires its shape's stat: Attack swings with Power, Defend guards with Endurance, Move steps with Speed. The card's number is the action's QUALITY (① glancing ×0.7 · ② solid ×1.0 · ③ heavy ×1.4). Each level grants +6 to distribute (≤3 per stat); gear grows them further.">⚔ Power <b>${st.power}</b> · 🛡 Endurance <b>${st.endurance}</b> · 👟 Speed <b>${st.speed}</b></div>`))
     host.appendChild($(`<label style="margin-top:14px">Abilities</label>`))
     const ab = $(`<div class="sheet-abils"></div>`)
-    for (const id of cls.abilities) {
-      const a = ABILITIES[id]; if (!a) continue
-      const cost = a.cost.map((n, i) => (n > 0 ? `${MANA_ICON[i]}${n}` : '')).filter(Boolean).join(' ')
-      ab.appendChild($(`<div class="sheet-abil" data-tip-title="${a.name}${cost ? ` · ${cost}` : ''}" data-tip="${a.desc}"><span class="abi">${a.icon}</span><span class="abn">${a.name}</span><span class="abc">${cost}</span></div>`))
-    }
+    const unlockedActives = activeSlotsAt(c.level) // §3 cadence: your kit grows with level
+    cls.abilities.forEach((id, i) => {
+      const a = ABILITIES[id]; if (!a) return
+      const cost = a.cost.map((n, j) => (n > 0 ? `${MANA_ICON[j]}${n}` : '')).filter(Boolean).join(' ')
+      const locked = i >= unlockedActives
+      const tail = locked ? `<span class="abc lock">🔒 Lv ${activeUnlockLevel(i)}</span>` : `<span class="abc">${cost}</span>`
+      ab.appendChild($(`<div class="sheet-abil${locked ? ' locked' : ''}" data-tip-title="${a.name}${cost ? ` · ${cost}` : ''}" data-tip="${locked ? `Unlocks at level ${activeUnlockLevel(i)} — your ability kit grows as you level. ` : ''}${a.desc}"><span class="abi">${a.icon}</span><span class="abn">${a.name}</span>${tail}</div>`))
+    })
     host.appendChild(ab)
     host.appendChild($(`<label style="margin-top:14px">Passive</label>`))
     host.appendChild($(`<div class="sheet-stat">${cls.passives.map((p) => PASSIVES[p]?.name).filter(Boolean).join(' · ') || '—'}</div>`))
@@ -584,11 +587,14 @@ function startCombat(root: HTMLElement, char: SavedChar, dungeonId: string, foe:
   const rng: Rng = systemRng
   const dg: Dungeon = GAMEDATA.dungeons[dungeonId]
   const cls = classById(char.classId)
+  // §3 loadout cadence: your kit GROWS with level — equip the first N class abilities/passives by level.
+  const acts = cls.abilities.slice(0, activeSlotsAt(char.level))
+  const pass = cls.passives.slice(0, passiveSlotsAt(char.level))
   // §5.8 dread: depth floor from the delve's dread band (1 if a lone fight); OFF for coach/teaching fights
   const dreadFloor = DELVE ? [1, 2.5, 4, 5, 5][dreadBand(DELVE.d).step] : 1
-  const run = createRun({ foe, gen: GEN, playerMax: char.maxHp, stats: effectiveStats(char), passives: cls.passives, consumables, sequence, dungeonId, dreadFloor, coach: !!dg.coach }, rng)
+  const run = createRun({ foe, gen: GEN, playerMax: char.maxHp, stats: effectiveStats(char), passives: pass, consumables, sequence, dungeonId, dreadFloor, coach: !!dg.coach }, rng)
   run.combat.playerHP = Math.max(0, Math.min(char.maxHp, char.hp)) // the hero enters at their persisted HP, not full
-  V = { root, deps: { data: GAMEDATA, rng }, run, state: run.combat, char, actions: [], classId: cls.id, loadout: cls.abilities.slice(), coach: !!dg.coach, coachCue: null, manaColor: dominantManaColor(cls.abilities), paused: true, hitstopUntil: 0, holdHud: false, preview: null, selected: [], raf: 0, lastT: 0, boardSig: '', refs: {}, stats: { dealt: 0, taken: 0, blocked: 0, healed: 0, sets: 0, traps: 0, xp: 0 }, morphSrc: new Map(), dev: { reshapeYou: 0, reshapeFoe: 0, matches: 0, springs: 0, k1: 0, wards: 0, churns: 0 } }
+  V = { root, deps: { data: GAMEDATA, rng }, run, state: run.combat, char, actions: [], classId: cls.id, loadout: acts, coach: !!dg.coach, coachCue: null, manaColor: dominantManaColor(acts), paused: true, hitstopUntil: 0, holdHud: false, preview: null, selected: [], raf: 0, lastT: 0, boardSig: '', refs: {}, stats: { dealt: 0, taken: 0, blocked: 0, healed: 0, sets: 0, traps: 0, xp: 0 }, morphSrc: new Map(), dev: { reshapeYou: 0, reshapeFoe: 0, matches: 0, springs: 0, k1: 0, wards: 0, churns: 0 } }
   buildPlay()
   renderBoard()
   updateBar()

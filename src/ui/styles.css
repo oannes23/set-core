@@ -404,6 +404,9 @@ button.cta.bob { animation: ctabob 1.6s ease-in-out infinite; }
 .sheet-abil .abi { font-size: 16px; line-height: 1; }
 .sheet-abil .abn { flex: 1; font-weight: 600; }
 .sheet-abil .abc { color: var(--ink-dim); font-variant-numeric: tabular-nums; }
+.sheet-abil.locked { opacity: .5; border-style: dashed; }
+.sheet-abil.locked .abn { font-weight: 500; }
+.sheet-abil .abc.lock { color: var(--gold); opacity: .85; white-space: nowrap; }
 .sheet-actions { display: flex; gap: 8px; margin-top: 16px; }
 .sheet-actions .cta { margin-top: 0; flex: 1; }
 .cta.ghost.danger:hover { border-color: var(--red); color: var(--red); }

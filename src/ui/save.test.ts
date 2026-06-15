@@ -67,7 +67,13 @@ test('sanitizeChar truncates an oversized loadout to the slot cap', () => {
 })
 
 // ---- progression (CRAWL §3): the XP curve, level-up application, effective stats ----
-import { xpForLevel, maxHpForLevel, effectiveStats, pendingLevels, applyLevelUp, LEVEL_CAP } from './save'
+import { xpForLevel, maxHpForLevel, effectiveStats, pendingLevels, applyLevelUp, LEVEL_CAP, activeSlotsAt, passiveSlotsAt, activeUnlockLevel } from './save'
+
+test('the loadout slot cadence: active 2→6 (L3/6/10/14), passive 1→3 (L8/16)', () => {
+  expect([1, 2, 3, 5, 6, 9, 10, 13, 14, 21].map(activeSlotsAt)).toEqual([2, 2, 3, 3, 4, 4, 5, 5, 6, 6])
+  expect([1, 7, 8, 15, 16, 21].map(passiveSlotsAt)).toEqual([1, 1, 2, 2, 3, 3])
+  expect([0, 1, 2, 3, 4, 5].map(activeUnlockLevel)).toEqual([1, 1, 3, 6, 10, 14]) // when each active slot opens
+})
 
 test('the XP curve anchors: 110·L^1.7 (steepened 2026-06-14 for ~56 clears to ★), climbs polynomially', () => {
   expect(xpForLevel(1)).toBe(110) // need(1→2); onboarding hits L2 via the dummy's xp override

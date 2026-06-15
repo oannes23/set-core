@@ -52,6 +52,24 @@ export const maxHpForLevel = (level: number): number => DEFAULT_MAX_HP + HP_PER_
 export function effectiveStats(c: SavedChar): StatBlock {
   return { power: BASE_STATS.power + c.alloc.power, endurance: BASE_STATS.endurance + c.alloc.endurance, speed: BASE_STATS.speed + c.alloc.speed }
 }
+// --- the LOADOUT slot cadence (CRAWL §3): active slots 2→6 (open at L3/6/10/14), passive 1→3 (L8/16).
+// Combat uses the first `activeSlotsAt(level)` of the class kit (capped by the kit) → your kit GROWS as you
+// level. (Stored per-character loadout choice arrives when class kits exceed the slot caps — future content.)
+const ACTIVE_UNLOCKS = [3, 6, 10, 14] // levels the 3rd…6th active slots open (1st + 2nd are class starters)
+const PASSIVE_UNLOCKS = [8, 16] // levels the 2nd / 3rd passive slots open (1st is the signature)
+export const ACTIVE_SLOT_CAP = 6
+export const PASSIVE_SLOT_CAP = 3
+export function activeSlotsAt(level: number): number {
+  return Math.min(ACTIVE_SLOT_CAP, 2 + ACTIVE_UNLOCKS.filter((l) => level >= l).length)
+}
+export function passiveSlotsAt(level: number): number {
+  return Math.min(PASSIVE_SLOT_CAP, 1 + PASSIVE_UNLOCKS.filter((l) => level >= l).length)
+}
+/** The level at which the (0-based) active slot index opens — for the "locked · Lv N" sheet display. */
+export function activeUnlockLevel(i: number): number {
+  return i < 2 ? 1 : (ACTIVE_UNLOCKS[i - 2] ?? LEVEL_CAP)
+}
+
 /** How many level-ups the banked XP currently affords (capped at LEVEL_CAP) — pure, non-mutating. */
 export function pendingLevels(c: SavedChar): number {
   let lvl = c.level
