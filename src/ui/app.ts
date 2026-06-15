@@ -28,7 +28,7 @@ import { gearStatBonus, gearRiders, rollGear } from '../engine/gear'
 import { EQUIP_SLOTS, type EquipSlot, type Rarity, type Affix, type AffixComponent, type GearInstance } from '../engine/items'
 import { GEAR, gearBase, fitsSlot } from '../data/gear'
 import { CONSUMABLES } from '../engine/consumables'
-import { loadBank, bankGold, bankTithe, saveBank, addManyToStorage } from './bank'
+import { loadBank, bankGold, bankTithe, saveBank, addManyToStorage, addToStorage, removeFromStorage, storageFull, storageCount } from './bank'
 import type { CombatState, FoeRuntime, StatBlock } from '../engine/state'
 import { CHARGE_CAP, MANA_CAP, START_GRACE_MS, ROUND_MS, WOUND_WARD_COST, WOUND_CAP_PER_EXCHANGE, woundQuantum, dreadLevel, DREAD_ONSET, DREAD_MAX } from '../engine/state'
 import type { CombatEvent } from '../engine/events'
@@ -158,15 +158,42 @@ function affixShort(a: Affix): string {
   const stat = a.components.find((c): c is Extract<AffixComponent, { c: 'stat' }> => c.c === 'stat')
   return `${displayName(a.label)}${stat ? ` +${stat.amount}` : ''}`
 }
-/** Dev test affordance: mint a slot-appropriate random gear into the first empty slot (loot-tier =
- *  hero level as a proxy). The real source-themed loot roller lands with chunk ②. */
-function grantTestGear(c: SavedChar): void {
-  const slot = EQUIP_SLOTS.find((s) => !c.equipped[s]) ?? 'weapon'
+/** Equip a Storage gear instance into a slot: pull it from Storage, stash any displaced item back
+ *  (Storage just freed a slot by removing the pick, so the swap always has room). Persists both stores. */
+function equipFromStorage(c: SavedChar, slot: EquipSlot, uid: string): boolean {
+  let bank = loadBank()
+  const item = bank.storage.find((i) => i.uid === uid)
+  if (!item || item.kind !== 'gear') return false
+  bank = removeFromStorage(bank, uid)
+  const displaced = c.equipped[slot]
+  if (displaced) bank = addToStorage(bank, displaced).account // the old piece returns to the bag
+  c.equipped[slot] = item as GearInstance
+  saveBank(bank); upsertChar(c)
+  return true
+}
+/** Unequip a slot back to Storage — blocked (kept equipped) if the bag is full (triage UI is later). */
+function unequipToStorage(c: SavedChar, slot: EquipSlot): boolean {
+  const g = c.equipped[slot]
+  if (!g) return true
+  let bank = loadBank()
+  if (storageFull(bank)) return false
+  bank = addToStorage(bank, g).account
+  delete c.equipped[slot]
+  saveBank(bank); upsertChar(c)
+  return true
+}
+/** Dev test affordance: mint a slot-appropriate random gear into STORAGE (then equip via the picker —
+ *  exercises the real drop→bank→equip flow). The source-themed loot roller proper is live in loot.ts. */
+function grantTestGear(): boolean {
+  const slot = EQUIP_SLOTS[Math.floor(systemRng() * EQUIP_SLOTS.length)]
   const bases = Object.values(GEAR).filter((b) => fitsSlot(b, slot))
   const base = bases[Math.floor(systemRng() * bases.length)] ?? Object.values(GEAR)[0]
   const rarities: Rarity[] = ['white', 'green', 'blue', 'purple', 'orange']
   const rarity = rarities[Math.floor(systemRng() * rarities.length)]
-  c.equipped[slot] = rollGear(base.id, rarity, c.level, systemRng)
+  const lootTier = 6 + Math.floor(systemRng() * 12) // a spread of loot-tiers for varied affix magnitudes
+  const r = addToStorage(loadBank(), rollGear(base.id, rarity, lootTier, systemRng))
+  if (r.ok) saveBank(r.account)
+  return r.ok
 }
 
 /* ============================================================
@@ -284,6 +311,8 @@ function characterSelectScene(root: HTMLElement): void {
   let creating = roster.length === 0 // no heroes yet → open straight into the creator
   let newClassId = CLASSES[0].id
   let nameInput: HTMLInputElement | null = null
+  let pickerSlot: EquipSlot | null = null // the equip slot whose Storage picker is open
+  let gearNote = '' // a transient gear message (e.g. "Storage full"); cleared on the next action
 
   const renderCreator = (host: HTMLElement): void => {
     host.appendChild($(`<label>New hero</label>`))
@@ -334,20 +363,43 @@ function characterSelectScene(root: HTMLElement): void {
     for (const slot of EQUIP_SLOTS) {
       const g = c.equipped[slot]
       const base = g ? gearBase(g.refId) : undefined
-      const slotEl = $(`<div class="gearslot${g ? ' filled' : ''}"></div>`)
+      const open = pickerSlot === slot
+      const slotEl = $(`<div class="gearslot${g ? ' filled' : ''}${open ? ' open' : ''}"></div>`)
       if (g && base) {
         const affixTxt = g.affixes.length ? g.affixes.map(affixShort).join(' · ') : '—'
-        slotEl.innerHTML = `<span class="gs-ic r-${g.rarity}">${base.icon}</span><div class="gs-meta"><div class="gs-n r-${g.rarity}">${base.name}</div><div class="gs-a">${affixTxt}</div></div><button class="gs-x" title="Unequip">✕</button>`
-        slotEl.querySelector('.gs-x')!.addEventListener('click', () => { delete c.equipped[slot]; upsertChar(c); roster = loadRoster(); render() })
+        slotEl.innerHTML = `<span class="gs-ic r-${g.rarity}">${base.icon}</span><div class="gs-meta"><div class="gs-n r-${g.rarity}">${base.name}</div><div class="gs-a">${affixTxt}</div></div><button class="gs-x" title="Unequip → Storage">✕</button>`
+        slotEl.querySelector('.gs-x')!.addEventListener('click', (e) => {
+          e.stopPropagation()
+          gearNote = unequipToStorage(c, slot) ? '' : 'Storage full — free a slot first.'
+          roster = loadRoster(); render()
+        })
       } else {
-        slotEl.innerHTML = `<span class="gs-ic empty">${SLOT_ICON[slot]}</span><div class="gs-meta"><div class="gs-n dim">${SLOT_LABEL[slot]}</div><div class="gs-a dim">empty</div></div>`
+        slotEl.innerHTML = `<span class="gs-ic empty">${SLOT_ICON[slot]}</span><div class="gs-meta"><div class="gs-n dim">${SLOT_LABEL[slot]}</div><div class="gs-a dim">${open ? 'choose from Storage…' : 'empty — click to equip'}</div></div>`
       }
+      slotEl.addEventListener('click', () => { pickerSlot = open ? null : slot; gearNote = ''; render() })
       gearGrid.appendChild(slotEl)
     }
     host.appendChild(gearGrid)
+    if (gearNote) host.appendChild($(`<div class="gearnote">${gearNote}</div>`))
+    // the Storage picker for the open slot — compatible gear in the shared bag
+    if (pickerSlot) {
+      const bank = loadBank()
+      const opts = bank.storage.filter((i): i is GearInstance => i.kind === 'gear' && !!gearBase(i.refId) && fitsSlot(gearBase(i.refId)!, pickerSlot!))
+      const pick = $(`<div class="gearpicker"></div>`)
+      pick.appendChild($(`<div class="gp-hd">Equip ${SLOT_LABEL[pickerSlot]} <span class="gp-ct">· Storage ${storageCount(bank)}/${bank.storageCap}</span></div>`))
+      if (!opts.length) pick.appendChild($(`<div class="gp-empty">No compatible gear in Storage — delve to find some.</div>`))
+      for (const it of opts) {
+        const b = gearBase(it.refId)!
+        const aff = it.affixes.length ? it.affixes.map(affixShort).join(' · ') : '—'
+        const row = $(`<div class="gp-row"><span class="gs-ic r-${it.rarity}">${b.icon}</span><div class="gs-meta"><div class="gs-n r-${it.rarity}">${b.name}</div><div class="gs-a">${aff}</div></div><button class="gp-eq">equip</button></div>`)
+        row.querySelector('.gp-eq')!.addEventListener('click', () => { equipFromStorage(c, pickerSlot!, it.uid); pickerSlot = null; gearNote = ''; roster = loadRoster(); render() })
+        pick.appendChild(row)
+      }
+      host.appendChild(pick)
+    }
     if (isDev()) {
-      const grant = $(`<button class="devgrant" data-tip="Mint a random gear instance into the first empty slot — chunk ① test affordance (real loot rolls land in chunk ②).">⚙ grant test gear</button>`)
-      grant.addEventListener('click', () => { grantTestGear(c); upsertChar(c); roster = loadRoster(); render() })
+      const grant = $(`<button class="devgrant" data-tip="Mint a random gear instance into Storage — then equip it via a slot picker (exercises the real drop→bank→equip flow).">⚙ grant test gear → Storage</button>`)
+      grant.addEventListener('click', () => { gearNote = grantTestGear() ? '' : 'Storage full.'; roster = loadRoster(); render() })
       host.appendChild(grant)
     }
     host.appendChild($(`<label style="margin-top:14px">Consumables</label>`))
@@ -399,7 +451,7 @@ function characterSelectScene(root: HTMLElement): void {
       const lvl = c.level >= LEVEL_CAP ? '★' : `Lv ${c.level}`
       const up = pendingLevels(c) > 0 ? ' <span class="rdyup">⬆</span>' : ''
       const card = $(`<div class="charcard${!creating && c.id === selectedCharId ? ' sel' : ''}" data-id="${c.id}"><span class="ci">${cls.icon}</span><div class="cmeta"><div class="cn">${c.name}${up}</div><div class="cc">${cls.name} · ${lvl} · ${c.hp}/${c.maxHp} HP</div></div></div>`)
-      card.addEventListener('click', () => { creating = false; selectedCharId = c.id; render() })
+      card.addEventListener('click', () => { creating = false; selectedCharId = c.id; pickerSlot = null; gearNote = ''; render() })
       list.appendChild(card)
     }
     const newCard = $(`<div class="charcard newchar${creating ? ' sel' : ''}"><span class="ci">＋</span><div class="cmeta"><div class="cn">New Character</div><div class="cc">create a hero</div></div></div>`)

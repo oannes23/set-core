@@ -405,6 +405,22 @@ button.cta.bob { animation: ctabob 1.6s ease-in-out infinite; }
 .gearslot .gs-x:hover { color: var(--warn); background: var(--line2); }
 .devgrant { margin-top: 8px; font: 600 11px/1 'Spline Sans Mono', monospace; color: var(--phos); background: transparent; border: 1px dashed var(--phos); border-radius: 6px; padding: 6px 10px; cursor: pointer; opacity: .8; }
 .devgrant:hover { opacity: 1; }
+/* the equip slot is clickable (opens the Storage picker); the open one is highlighted */
+.gearslot { cursor: pointer; transition: border-color .12s ease, background .12s ease; }
+.gearslot:hover { border-color: var(--line3, var(--phos)); }
+.gearslot.open { border-color: var(--phos); background: color-mix(in srgb, var(--phos) 7%, transparent); }
+.gearnote { margin-top: 6px; font-size: 11px; color: var(--warn); }
+/* the Storage → slot equip picker */
+.gearpicker { margin-top: 8px; border: 1px solid var(--phos); border-radius: 9px; padding: 9px; display: flex; flex-direction: column; gap: 6px; }
+.gp-hd { font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-dim); }
+.gp-hd .gp-ct { color: var(--ink-faint); }
+.gp-empty { font-size: 12px; color: var(--ink-faint); }
+.gp-row { display: flex; align-items: center; gap: 9px; border: 1px solid var(--line2); border-radius: 7px; padding: 5px 8px; font-size: 12px; }
+.gp-row .gs-meta { flex: 1; min-width: 0; }
+.gp-row .gs-n { font-weight: 700; }
+.gp-row .gs-a { font-size: 10.5px; color: var(--ink-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.gp-eq { background: var(--phos); color: #0b0d12; border: 0; border-radius: 5px; padding: 4px 10px; font: 600 11px/1 'Spline Sans Mono', monospace; cursor: pointer; }
+.gp-eq:hover { filter: brightness(1.1); }
 /* rarity ink (grey→orange) — shared by gear name + icon */
 .r-grey { color: #8a8f98; } .r-white { color: #e8e8ea; } .r-green { color: #5fbf5f; }
 .r-blue { color: #5a9bff; } .r-purple { color: #b06bff; } .r-orange { color: #ff9b3d; }
