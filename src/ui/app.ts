@@ -23,7 +23,7 @@ import { assembleFoe, pickWeightedFoe, computeXP } from '../engine/foe'
 import { colsForN, COMBAT_GEN, type Deps, type CombatAction } from '../engine/combat'
 import { createRun, runReduce, type RunState } from '../engine/run'
 import { createDelve, nextEncounter, fleeReroll, dreadBand, RUN_BAG_CAP, type DelveState, type EncounterTier } from '../engine/delve'
-import { rollRoomLoot } from '../engine/loot'
+import { rollRoomLoot, rollMarqueeGear } from '../engine/loot'
 import { gearStatBonus, gearRiders, gearProcs, gearMods, rollGear } from '../engine/gear'
 import { EQUIP_SLOTS, type EquipSlot, type Rarity, type Affix, type AffixComponent, type GearInstance } from '../engine/items'
 import { GEAR, gearBase, fitsSlot } from '../data/gear'
@@ -2596,6 +2596,12 @@ function gearLine(g: { banked: number; overflow: number }): string {
   const stow = g.banked ? ` Stowed <b>${g.banked}</b> gear in your vault.` : ''
   return stow + (g.overflow ? ` (${g.overflow} lost — Storage full.)` : '')
 }
+/** The dungeon-clear MARQUEE reveal — the headline rare+ piece (§3). */
+function marqueeCardEl(g: GearInstance): HTMLElement {
+  const b = gearBase(g.refId)
+  const aff = g.affixes.length ? g.affixes.map(affixShort).join(' · ') : '—'
+  return $(`<div class="lootcard gearloot marquee"><span class="loot-lab r-${g.rarity}">★ marquee · ${g.rarity}</span><span class="gs-ic r-${g.rarity}">${b?.icon ?? '🎁'}</span><div class="loot-id"><div class="ln r-${g.rarity}">${b?.name ?? g.refId}</div><div class="ld">${aff}</div></div></div>`)
+}
 
 function delveFork(result: 'win' | 'lose' | 'flee'): void {
   if (!V || !DELVE) return
@@ -2624,16 +2630,19 @@ function delveFork(result: 'win' | 'lose' | 'flee'): void {
   // BOSS DOWN — the dungeon is cleared (the run's best exit). Loot rolls, then the run-gold banks.
   if (result === 'win' && DELVE.tier === 'boss') {
     const lootEl = delveLootReveal() // accrues any boss-room gear into DELVE.gearFound FIRST
+    const marquee = rollMarqueeGear(V!.state.foe, DELVE.d.room, systemRng) // §3 dungeon-clear MARQUEE: a guaranteed rare+ piece
+    DELVE.gearFound.push(marquee)
+    const mqEl = marqueeCardEl(marquee)
     const carried = DELVE.gold
     const bag = DELVE.bag
     const total = bankGold(carried) // the whole run's gold banks into the vault
-    const gear = bankGearFound() // …and the run's gear into Storage (before DELVE clears)
+    const gear = bankGearFound() // …and the run's gear (incl. the marquee) into Storage (before DELVE clears)
     DELVE = null
     const home = $<HTMLButtonElement>(`<button class="cta bob" style="display:block;margin:0 auto">🏆 Carry the spoils home</button>`)
     home.addEventListener('click', () => goScene(characterSelectScene))
     host.replaceChildren(
       $(`<div class="banner win">🏆 ${dgName} — CLEARED in ${room} rooms</div>`),
-      lootEl, $(satchelHTML(bag)),
+      mqEl, lootEl, $(satchelHTML(bag)),
       $(`<div class="forksub">Banked <b>${carried}🪙</b> — vault now <b>${total}🪙</b>.${gearLine(gear)}</div>`),
       combatChart(), home,
     )

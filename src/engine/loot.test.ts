@@ -7,7 +7,7 @@ import { mulberry32 } from '../core/rng'
 import { GAMEDATA } from '../data/game-data'
 import { assembleFoe, foeValue } from './foe'
 import { CONSUMABLES } from './consumables'
-import { rollGold, rollRoomLoot, rollConsumable, GOLD_K, ENABLED } from './loot'
+import { rollGold, rollRoomLoot, rollConsumable, rollMarqueeGear, GOLD_K, ENABLED } from './loot'
 import { GEAR } from '../data/gear'
 import { RARITY, RARITIES } from './items'
 
@@ -46,6 +46,15 @@ test('gear is LIVE in the loot tables (chunk ②); items + gear validate', () =>
     }
   }
   expect(sawGear).toBe(true) // gear actually drops now
+})
+
+test('the dungeon-clear marquee is ALWAYS a rare+ gear piece (blue/purple/orange)', () => {
+  const boss = foe('goblin_king')
+  for (let i = 0; i < 100; i++) {
+    const g = rollMarqueeGear(boss, 10, mulberry32(i + 1))
+    expect(g.kind).toBe('gear')
+    expect(['blue', 'purple', 'orange'], `marquee rarity ${g.rarity}`).toContain(g.rarity)
+  }
 })
 
 test('the gear pity sawtooth: gear-less drops raise the gear weight, a hit resets it', () => {

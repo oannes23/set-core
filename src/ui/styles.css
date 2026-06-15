@@ -424,6 +424,9 @@ button.cta.bob { animation: ctabob 1.6s ease-in-out infinite; }
 /* rarity ink (grey→orange) — shared by gear name + icon */
 .r-grey { color: #8a8f98; } .r-white { color: #e8e8ea; } .r-green { color: #5fbf5f; }
 .r-blue { color: #5a9bff; } .r-purple { color: #b06bff; } .r-orange { color: #ff9b3d; }
+/* the dungeon-clear marquee reward — a gold-glowing headline card */
+.lootcard.marquee { border-color: var(--gold); box-shadow: 0 0 18px -6px var(--gold), inset 0 0 12px -8px var(--gold); }
+.lootcard.marquee .loot-lab { color: var(--gold); letter-spacing: .1em; }
 /* XP progress (sheet + end-screen footer + level-up): a thin gold bar */
 .sheet-xp, .summary-xp { display: flex; align-items: center; gap: 8px; margin-top: 5px; font-size: 11.5px; font-variant-numeric: tabular-nums; }
 .summary-xp { justify-content: center; max-width: 360px; margin: 10px auto 0; padding-top: 9px; border-top: 1px solid var(--line); }

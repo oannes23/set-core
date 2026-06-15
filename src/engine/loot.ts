@@ -70,6 +70,19 @@ export function rollGearDrop(foe: FoeRuntime, depth: number, rng: Rng): GearInst
 /** Gear pity: each gear-LESS category drop adds this to the gear weight; a gear hit resets it (sawtooth). */
 export const GEAR_PITY_STEP = 8
 
+/** The dungeon-clear MARQUEE roll (CRAWL §3): one GUARANTEED rare+ gear piece on a boss kill — the
+ *  dungeon's headline reward. (Spellbook-marquee lands at B4; for now the marquee is always gear.) */
+const MARQUEE_WEIGHTS: Array<[Rarity, number]> = [['blue', 50], ['purple', 35], ['orange', 15]]
+export function rollMarqueeGear(foe: FoeRuntime, depth: number, rng: Rng): GearInstance {
+  const ids = Object.keys(GEAR)
+  const refId = ids[Math.floor(rng() * ids.length)]
+  const total = MARQUEE_WEIGHTS.reduce((s, [, w]) => s + w, 0)
+  let r = rng() * total
+  let rarity: Rarity = 'blue'
+  for (const [rar, w] of MARQUEE_WEIGHTS) { r -= w; if (r < 0) { rarity = rar; break } }
+  return rollGear(refId, rarity, foeLevelEquiv(foe) + depth, rng)
+}
+
 const depthMult = (depth: number): number => 1 + DEPTH_RATE * Math.max(0, depth - 1)
 
 /** One standard gold roll for this foe at this depth (the unit the guarantee multiplies). */
