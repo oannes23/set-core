@@ -159,7 +159,10 @@ function affixShort(a: Affix): string {
   for (const c of a.components) {
     if (c.c === 'stat') { amt = ` +${c.amount}`; break }
     if (c.c === 'rider') { amt = ` +${c.riders.atkDamagePerCard ?? c.riders.blockPerDefendCard ?? c.riders.manaPerMatch ?? 0}`; break }
-    if (c.c === 'mod') { amt = c.mod === 'dodge' || c.mod === 'lifesteal' ? ` ${Math.round(c.amount * 100)}%` : ` +${c.amount}`; break }
+    if (c.c === 'mod') {
+      amt = c.mod === 'critMult' ? ` +${c.amount.toFixed(2)}×` : c.mod === 'dodge' || c.mod === 'lifesteal' || c.mod === 'critChance' ? ` +${Math.round(c.amount * 100)}%` : ` +${c.amount}`
+      break
+    }
   }
   return `${displayName(a.label)}${amt}`
 }
@@ -1869,16 +1872,25 @@ function interpretChunk(events: CombatEvent[]): void {
         // log quiet — only mark the moment the bank runs dry, so the tide reads as continuous, not spammy.
         if (e.remaining === 0) log('<b>Maneuver</b> — the bank runs dry; the tide settles.', 'you')
         break
+      case 'chained':
+        // §7 combo streak — the visceral skill layer: a colour+shape chain ramps crit chance. Escalating
+        // float (silent at len 1 = most matches); a louder smash at 3+ to seed the "charge-up" feel.
+        if (e.len >= 2) {
+          const tint = e.color >= 0 ? `var(--c${e.color})` : 'var(--phos)'
+          floatBoard(`✦ ${e.len}× combo`, tint, 'you')
+          if (e.len >= 3) bamWord(`${e.len}× COMBO`, 'tide', V.refs.board, 1 + Math.min(0.35, e.len * 0.05))
+        }
+        break
       case 'enemyDamaged': {
         if (e.immune) { log('Swords pass through — only magic bites this foe.', 'foe'); floatBoard('blocked', 'var(--ink-faint)', 'enemy'); break } // fixed rule line — never varied
-        floatBoard(`-${e.amount}`, e.magic ? 'var(--gold)' : 'var(--red)', 'enemy')
+        // §7 CRIT — the exchange-delight: a louder float + a screen flash; "more than you expected"
+        if (e.crit) { floatBoard(`✦ CRIT −${e.amount}`, 'var(--gold)', 'enemy'); bamWord('CRITICAL!', 'hit', V.refs.ehpv, 1.15) } else floatBoard(`-${e.amount}`, e.magic ? 'var(--gold)' : 'var(--red)', 'enemy')
         flashStat('ehpv')
         spriteReact('foe', 'sphit'); spriteReact('you', 'splunge')
         V.stats.dealt += e.amount
-        if (actor) { actor.dmg += e.amount; if (e.magic) actor.magic = true; break } // fold into the action's own line
-        const tier = tierOf(e.amount, 12)
-        if (e.magic) log(`${magicLead()} — drains <b>${e.amount}</b>.`, 'you')
-        else log(`You land ${strikeWord(tier)} — <b>−${e.amount}</b>.`, tier === 'heavy' ? 'you big' : 'you')
+        if (actor && !e.crit) { actor.dmg += e.amount; if (e.magic) actor.magic = true; break } // fold into the action's own line (a crit gets its own shout)
+        if (e.crit) log(`✦ <b>CRITICAL</b> — you strike for <b>−${e.amount}</b>!`, 'you big')
+        else { const tier = tierOf(e.amount, 12); if (e.magic) log(`${magicLead()} — drains <b>${e.amount}</b>.`, 'you'); else log(`You land ${strikeWord(tier)} — <b>−${e.amount}</b>.`, tier === 'heavy' ? 'you big' : 'you') }
         break
       }
       case 'enemyHealed':

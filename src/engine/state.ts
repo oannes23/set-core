@@ -74,7 +74,8 @@ export interface CombatState {
   stats: StatBlock // Resolution v2: sets steer, these carry (Power/Endurance/Speed) — incl. gear stat bonus
   riders: Riders // §7 gear riders: flat per-card damage/block/mana added AFTER the contest (resolveSet)
   procs: AffixProc[] // §7 gear affix ON-MATCH procs (fired like passives — the affix-proc engine)
-  mods: GearMods // §7 gear-exclusive scalars: dodge / penetration / soak / lifesteal
+  mods: GearMods // §7 gear-exclusive scalars: dodge / penetration / soak / lifesteal / crit
+  chain: { key: string | null; len: number } // §7 colour+shape combo streak → ramps crit chance (the visceral skill layer)
   mana: [number, number, number] // capped at MANA_CAP per color; gains past it are pure loss
   // Tactics v3 (CRAWL §5.6): a charge bank spent by the selected stance
   tactic: TacticKind
@@ -179,6 +180,15 @@ export const DODGE_BASE = 0.1
 export const DODGE_K = 0.015
 export const DODGE_MIN = 0.03
 export const DODGE_MAX = 0.4
+// CRIT (§7 — the shared exchange-delight channel; player-only, HIGHLY restricted so it never becomes
+// reliable DPS): total chance = BASE + gear(Keen) + the chain ramp, capped at CRIT_CAP; mult = base +
+// gear(Vorpal). Rolled once on the player's banked swing at the rollover (the set stays exact).
+export const BASE_CRIT_CHANCE = 0.05
+export const BASE_CRIT_MULT = 1.5
+export const CRIT_CAP = 0.2 // total chance ceiling (base+gear+chain) — keeps crit a delight, not a strategy
+// CHAINS (§7 — a colour+shape streak ramps crit chance; the visceral skill layer): both axes must match
+// consecutively (hard to sustain), and the per-link bump is small.
+export const CHAIN_CRIT_STEP = 0.03 // +crit chance per chain link past the first (chain 2 → +0.03, …)
 // MANEUVER LIVE-BURN: stances now act LIVE (no round-lock). Entering Maneuver pays a GATHER, then
 // burns ~1 charge/sec (each burn churns one deadest-not-matching card toward the bias). Bailing to
 // Stand Ground is instant (keeps the remainder). The gather damps wheel-drumming.

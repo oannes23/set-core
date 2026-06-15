@@ -9,7 +9,7 @@ import { findSets } from '../core/sets'
 import { type GenConfig, genInitial } from '../core/generate'
 import type { Rng } from '../core/rng'
 import type { GameData } from '../data/schema'
-import { type CombatState, type FoeRuntime, type Pending, type TacticKind, type ManeuverBias, type StatBlock, MANA_CAP, DEFAULT_PLAYER_MAX, BASE_STATS, ROUND_MS, DODGE_BASE, DODGE_K, DODGE_MIN, DODGE_MAX, MANEUVER_BURN_MS, dreadFoeMult, dreadPlayerMult, dreadBleed, driftRateMult } from './state'
+import { type CombatState, type FoeRuntime, type Pending, type TacticKind, type ManeuverBias, type StatBlock, MANA_CAP, DEFAULT_PLAYER_MAX, BASE_STATS, ROUND_MS, DODGE_BASE, DODGE_K, DODGE_MIN, DODGE_MAX, MANEUVER_BURN_MS, BASE_CRIT_CHANCE, BASE_CRIT_MULT, CRIT_CAP, CHAIN_CRIT_STEP, dreadFoeMult, dreadPlayerMult, dreadBleed, driftRateMult } from './state'
 import { type CombatEvent, EventSink } from './events'
 import { type Resolution, type MatchDescriptor, resolveSet, weightedRoll, telegraphPerSwing, dodgeChance } from './resolve'
 import { NO_RIDERS, NO_MODS, type Riders, type GearMods, type AffixProc, type ProcEvent } from './items'
@@ -98,6 +98,7 @@ export function createCombat(opts: NewCombatOpts, rng: Rng): CombatState {
     riders: opts.riders ?? NO_RIDERS,
     mods: opts.mods ?? NO_MODS,
     procs: opts.procs ? opts.procs.slice() : [],
+    chain: { key: null, len: 0 },
     mana: [0, 0, 0],
     tactic: 'stand', // the defensive default — you OPT INTO Maneuver's greed live (§5.7)
     maneuverBias: null,
@@ -171,6 +172,34 @@ function applyResolution(s: CombatState, res: Resolution, rng: Rng, sink: EventS
 
 const LOW_HP_FRAC = 0.3 // §7 reactive: an on-lowHP proc (Cornered) fires while HP is below this fraction
 
+/** §7 CHAINS: a match's colour+shape signature, only if it's mono on BOTH axes (the hard streak). */
+function chainSig(desc: MatchDescriptor): string | null {
+  return desc.sameColor != null && desc.sameShape != null ? `${desc.sameColor}:${desc.sameShape}` : null
+}
+/** Update the combo streak on a match: same colour+shape as the streak → extend; else reset/restart;
+ *  a not-mono-both match breaks it. The streak ramps crit chance (chainCritBonus) — the visceral layer. */
+function updateChain(s: CombatState, desc: MatchDescriptor, sink: EventSink): void {
+  const sig = chainSig(desc)
+  if (sig == null) {
+    if (s.chain.len > 0) { s.chain = { key: null, len: 0 }; sink.emit({ type: 'chained', len: 0, color: -1, shape: -1 }) }
+    return
+  }
+  s.chain = sig === s.chain.key ? { key: sig, len: s.chain.len + 1 } : { key: sig, len: 1 }
+  sink.emit({ type: 'chained', len: s.chain.len, color: desc.sameColor as number, shape: desc.sameShape as number })
+}
+/** The crit-chance the streak contributes (0 below a 2-chain; +CHAIN_CRIT_STEP per link past the first). */
+function chainCritBonus(s: CombatState): number {
+  return s.chain.len >= 2 ? (s.chain.len - 1) * CHAIN_CRIT_STEP : 0
+}
+/** §7 the shared crit channel: total chance = base + gear(Keen) + the chain ramp, CAPPED (highly
+ *  restricted so crit stays a delight, never reliable DPS); mult = base + gear(Vorpal). */
+export function playerCritChance(s: CombatState): number {
+  return Math.min(CRIT_CAP, BASE_CRIT_CHANCE + s.mods.critChance + chainCritBonus(s))
+}
+export function playerCritMult(s: CombatState): number {
+  return BASE_CRIT_MULT + s.mods.critMult
+}
+
 /** The AFFIX-PROC ENGINE (CRAWL §7): gear affix procs fire like class passives. ON-MATCH procs gate on
  *  the match descriptor (condMet); REACTIVE procs (wound/kill/lowHP) fire on a player-side event (no
  *  descriptor). A player-favourable effect lands via ops. Magnitudes are first-cut (TUNING — §13 gate). */
@@ -213,6 +242,7 @@ function completeSet(s: CombatState, slots: [number, number, number], deps: Deps
   const res = resolveSet(cards, s.stats, s.foe.stats, deps.rng, s.riders, s.mods.penetration)
   applyResolution(s, res, deps.rng, sink)
   sink.emit({ type: 'setResolved', damage: res.damage, block: res.block, mana: res.mana, slots })
+  updateChain(s, res.desc, sink) // §7 combo streak (colour+shape) — ramps crit chance for the exchange
   // character-innate passives react to this match's signature (Momentum may steer the refill below)...
   firePassives(s, 'match', res.desc, deps.rng, sink)
   // ...and the gear AFFIX procs fire on the same match (the affix-proc engine — player-favourable)
@@ -319,11 +349,15 @@ function rollover(s: CombatState, deps: Deps, sink: EventSink): void {
   sink.emit({ type: 'roundEnded', round: finished })
   // ① player swing — banked Attack lands; lethal cancels the enemy's swing entirely
   if (s.roundAttack > 0) {
-    const dmg = Math.round(s.roundAttack * dreadPlayerMult(s)) // §5.8: the player-side ramp (the swing-moment)
+    const swing = Math.round(s.roundAttack * dreadPlayerMult(s)) // §5.8: the player-side ramp (the swing-moment)
     s.roundAttack = 0
+    // §7 CRIT — the exchange-delight roll on the AGGREGATE swing (player-only; the set stayed exact). Chance
+    // = base + gear(Keen) + the chain ramp, capped; mult = base + gear(Vorpal). A rare upward surprise.
+    const crit = deps.rng() < playerCritChance(s)
+    const dmg = crit ? Math.round(swing * playerCritMult(s)) : swing
     s.enemyHP = Math.max(0, s.enemyHP - dmg)
-    sink.emit({ type: 'enemyDamaged', amount: dmg })
-    // §7 Lifesteal (Sanguine): heal a fraction of the damage dealt (deterministic; the offensive-sustain hook)
+    sink.emit({ type: 'enemyDamaged', amount: dmg, crit })
+    // §7 Lifesteal (Sanguine): heal a fraction of the (possibly crit) damage dealt (deterministic)
     if (s.mods.lifesteal > 0 && dmg > 0) healPlayer(s, Math.floor(dmg * s.mods.lifesteal), deps.rng, sink)
     if (s.enemyHP <= 0) {
       onWin(s, deps.rng, sink)
@@ -430,6 +464,7 @@ export function cloneState(s: CombatState): CombatState {
     passives: s.passives.slice(),
     consumables: s.consumables.slice(),
     tickAccum: { ...s.tickAccum },
+    chain: { ...s.chain },
     foe: s.foe, // immutable per encounter
     gen: s.gen,
   }

@@ -54,11 +54,13 @@ export type ProcEffect =
 export type ProcEvent = 'match' | 'wound' | 'kill' | 'lowHP'
 export interface AffixProc { event?: ProcEvent; when?: Condition; effect: ProcEffect; label?: string }
 
-/** Gear-EXCLUSIVE scalar mods (CRAWL §7 — exist nowhere else, gear's identity). dodge/lifesteal are
- *  FRACTIONS (0–1); penetration/soak are flat. (Crit is deferred — RNG-% conflicts with §5.7 "set
- *  output stays exact"; it needs a deterministic-condition design, so it stays a STAGED affix.) */
-export interface GearMods { dodge: number; penetration: number; soak: number; lifesteal: number }
-export const NO_MODS: GearMods = { dodge: 0, penetration: 0, soak: 0, lifesteal: 0 }
+/** Gear-EXCLUSIVE scalar mods (CRAWL §7 — exist nowhere else, gear's identity). dodge/lifesteal/critChance
+ *  are FRACTIONS (0–1); penetration/soak flat; critMult is added to the base ×1.5. CRIT is the SHARED
+ *  "exchange-delight" channel (base 5% + gear Keen/Vorpal + the chain ramp, capped) — a deliberate,
+ *  narrow §5.7 carve-out: the SET still resolves exact; the crit is a rare upward roll on the aggregate
+ *  swing at the exchange, never a misread (player-only — foe damage stays honestly telegraphed). */
+export interface GearMods { dodge: number; penetration: number; soak: number; lifesteal: number; critChance: number; critMult: number }
+export const NO_MODS: GearMods = { dodge: 0, penetration: 0, soak: 0, lifesteal: 0, critChance: 0, critMult: 0 }
 
 export type AffixComponent =
   | { c: 'stat'; stat: StatKey; amount: number } // incl. negative (cursed) + off-stat patches

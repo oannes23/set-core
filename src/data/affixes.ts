@@ -61,10 +61,10 @@ export const AFFIXES: AffixDef[] = [
   { sys: 'FlatDamageReduction', name: 'Ironhide', family: 'utility', slots: ['armor', 'relic'], minRarity: 'green', weight: 4, live: true, note: 'flat damage reduction (Soak; permanent, pre-Block)', build: (m) => [{ c: 'mod', mod: 'soak', amount: round1(m, 1.5) }] },
   { sys: 'DodgeChance', name: 'Evasive', family: 'utility', slots: ['armor', 'trinket1'], minRarity: 'blue', weight: 3, live: true, note: '+dodge chance (Speed-adjacent; +flat on the per-swing roll)', build: (m) => [{ c: 'mod', mod: 'dodge', amount: Math.min(0.2, 0.03 * m) }] },
   { sys: 'Lifesteal', name: 'Sanguine', family: 'proc', slots: ['weapon', 'trinket1'], minRarity: 'purple', weight: 2, live: true, note: 'heal a fraction of damage dealt (offensive sustain)', build: (m) => [{ c: 'mod', mod: 'lifesteal', amount: Math.min(0.2, 0.04 * m) }] },
-  // crit STAYS staged — an RNG crit-% conflicts with §5.7 "set output stays exact"; it needs a
-  // DETERMINISTIC-condition design (e.g. "rainbow Attacks crit") before it goes live.
-  { sys: 'CritChance', name: 'Keen', family: 'crit', slots: ['weapon', 'trinket1'], minRarity: 'blue', weight: 4, live: false, note: 'STAGED: crit chance — needs a deterministic-condition design (§5.7)' },
-  { sys: 'CritMultiplier', name: 'Vorpal', family: 'crit', slots: ['weapon'], minRarity: 'purple', weight: 2, live: false, note: 'STAGED: crit damage multiplier (pairs with a deterministic crit condition)' },
+  // CRIT (LIVE — the shared exchange-delight channel; a narrow §5.7 carve-out, player-only, capped).
+  // Both are always useful because there's a 5% global base to build on (no dead-affix combo trap).
+  { sys: 'CritChance', name: 'Keen', family: 'crit', slots: ['weapon', 'trinket1'], minRarity: 'blue', weight: 4, live: true, note: '+crit chance (adds to the 5% base; capped at 20%)', build: (m) => [{ c: 'mod', mod: 'critChance', amount: Math.min(0.1, 0.02 * m) }] },
+  { sys: 'CritMultiplier', name: 'Vorpal', family: 'crit', slots: ['weapon'], minRarity: 'purple', weight: 2, live: true, note: '+crit damage multiplier (scales every crit — base ×1.5 + this)', build: (m) => [{ c: 'mod', mod: 'critMult', amount: Math.min(1.0, 0.25 * m) }] },
   // ── REACTIVE (LIVE via the affix-proc engine's player-side events: wound / kill / lowHP) ──
   { sys: 'OnWoundThorns', name: 'Barbed', family: 'reactive', slots: ['armor', 'relic'], minRarity: 'blue', weight: 3, live: true, note: 'on taking a wound → reflect damage at the foe', build: (m) => [{ c: 'proc', proc: { event: 'wound', effect: { kind: 'damage', amount: round1(m, 2) }, label: `🌵${round1(m, 2)}` } }] },
   { sys: 'OnWoundWard', name: "Guardian's", family: 'reactive', slots: ['armor', 'relic'], minRarity: 'purple', weight: 2, live: true, note: 'on taking a wound → bank a Stand-Ground charge', build: () => [{ c: 'proc', proc: { event: 'wound', effect: { kind: 'charges', amount: 1 }, label: '🛡+1' } }] },
