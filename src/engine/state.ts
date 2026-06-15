@@ -76,6 +76,7 @@ export interface CombatState {
   procs: AffixProc[] // §7 gear affix ON-MATCH procs (fired like passives — the affix-proc engine)
   mods: GearMods // §7 gear-exclusive scalars: dodge / penetration / soak / lifesteal / crit
   chain: { key: string | null; len: number } // §7 colour+shape combo streak → ramps crit chance (the visceral skill layer)
+  primed: Record<number, number> // §7 Primed: slot → churn timestamp; matched within PRIMED_WINDOW_MS → +1 quality tier
   mana: [number, number, number] // capped at MANA_CAP per color; gains past it are pure loss
   // Tactics v3 (CRAWL §5.6): a charge bank spent by the selected stance
   tactic: TacticKind
@@ -189,6 +190,10 @@ export const CRIT_CAP = 0.2 // total chance ceiling (base+gear+chain) — keeps 
 // CHAINS (§7 — a colour+shape streak ramps crit chance; the visceral skill layer): both axes must match
 // consecutively (hard to sustain), and the per-link bump is small.
 export const CHAIN_CRIT_STEP = 0.03 // +crit chance per chain link past the first (chain 2 → +0.03, …)
+// PRIMED (§7/§11 — the Speed/Maneuver OUTPUT payoff): a Maneuver-churned card matched within this window
+// counts ONE quality tier higher (① glancing → ② solid → ③ heavy, capped). Converts Speed's board-control
+// into measurable output, in-lane (the under-buy fix). Bounded: only churned-then-matched cards, +1 tier.
+export const PRIMED_WINDOW_MS = 6000
 // MANEUVER LIVE-BURN: stances now act LIVE (no round-lock). Entering Maneuver pays a GATHER, then
 // burns ~1 charge/sec (each burn churns one deadest-not-matching card toward the bias). Bailing to
 // Stand Ground is instant (keeps the remainder). The gather damps wheel-drumming.

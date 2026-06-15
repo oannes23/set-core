@@ -60,6 +60,15 @@ test('resolveSet applies riders FLAT and post-contest (NO_RIDERS = unchanged)', 
   expect(withR.mana[0] - base.mana[0]).toBe(3) // mono-colour set → caster mana rider lands
 })
 
+test('Primed: a churned-and-matched card counts one quality tier higher (more output)', () => {
+  const stats = { power: 10, endurance: 10, speed: 10 }
+  const foe = { power: 10, endurance: 10, speed: 10 }
+  const lightAttacks: [Card, Card, Card] = [[0, 0, 0, 0], [1, 0, 0, 0], [2, 0, 0, 0]] // 3 light (tier-0) Attack cards
+  const base = resolveSet(lightAttacks, stats, foe, mulberry32(1))
+  const primed = resolveSet(lightAttacks, stats, foe, mulberry32(1), undefined, 0, [true, false, false])
+  expect(primed.damage).toBeGreaterThan(base.damage) // the primed card bumps ① → ② → more damage
+})
+
 test('gearMods sums affix mod components; penetration raises the attack contest', () => {
   const wpn = inst({ refId: 'axe', rarity: 'blue', affixes: [{ id: 'p', label: 'Penetration', components: [{ c: 'mod', mod: 'penetration', amount: 4 }] }] })
   const arm = inst({ refId: 'plate', rarity: 'green', affixes: [{ id: 's', label: 'FlatDamageReduction', components: [{ c: 'mod', mod: 'soak', amount: 3 }] }] })

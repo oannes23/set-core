@@ -60,6 +60,7 @@ export function liveBurn(s: CombatState, rng: Rng, sink: EventSink): boolean {
   const pick = pool.reduce((best, i) => (cost(i) < cost(best) ? i : best), pool[0]) // the single deadest
   s.charges -= 1
   transmute(s, [pick], { bias: biasToFavor(bias), source: 'churn' }, sink) // calm morph — reforms shortly after
+  s.primed[pick] = s.now // §7 Primed: this churned card, if matched within the window, counts a tier higher
   sink.emit({ type: 'tacticsBurned', churned: 1, remaining: s.charges })
   return true
 }

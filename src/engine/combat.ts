@@ -9,7 +9,7 @@ import { findSets } from '../core/sets'
 import { type GenConfig, genInitial } from '../core/generate'
 import type { Rng } from '../core/rng'
 import type { GameData } from '../data/schema'
-import { type CombatState, type FoeRuntime, type Pending, type TacticKind, type ManeuverBias, type StatBlock, MANA_CAP, DEFAULT_PLAYER_MAX, BASE_STATS, ROUND_MS, DODGE_BASE, DODGE_K, DODGE_MIN, DODGE_MAX, MANEUVER_BURN_MS, BASE_CRIT_CHANCE, BASE_CRIT_MULT, CRIT_CAP, CHAIN_CRIT_STEP, dreadFoeMult, dreadPlayerMult, dreadBleed, driftRateMult } from './state'
+import { type CombatState, type FoeRuntime, type Pending, type TacticKind, type ManeuverBias, type StatBlock, MANA_CAP, DEFAULT_PLAYER_MAX, BASE_STATS, ROUND_MS, DODGE_BASE, DODGE_K, DODGE_MIN, DODGE_MAX, MANEUVER_BURN_MS, BASE_CRIT_CHANCE, BASE_CRIT_MULT, CRIT_CAP, CHAIN_CRIT_STEP, PRIMED_WINDOW_MS, dreadFoeMult, dreadPlayerMult, dreadBleed, driftRateMult } from './state'
 import { type CombatEvent, EventSink } from './events'
 import { type Resolution, type MatchDescriptor, resolveSet, weightedRoll, telegraphPerSwing, dodgeChance } from './resolve'
 import { NO_RIDERS, NO_MODS, type Riders, type GearMods, type AffixProc, type ProcEvent } from './items'
@@ -99,6 +99,7 @@ export function createCombat(opts: NewCombatOpts, rng: Rng): CombatState {
     mods: opts.mods ?? NO_MODS,
     procs: opts.procs ? opts.procs.slice() : [],
     chain: { key: null, len: 0 },
+    primed: {},
     mana: [0, 0, 0],
     tactic: 'stand', // the defensive default — you OPT INTO Maneuver's greed live (§5.7)
     maneuverBias: null,
@@ -239,7 +240,11 @@ function completeSet(s: CombatState, slots: [number, number, number], deps: Deps
   if (!isSet(ca, cb, cc)) return // invalid pick — no-op (the UI handles misread feedback)
   if (s.attackFrozen) { s.attackFrozen = false; sink.emit({ type: 'buffFaded', id: 'invisibility', label: 'Invisibility fades — the enemy sees you again' }) }
   const cards: [Card, Card, Card] = [ca, cb, cc]
-  const res = resolveSet(cards, s.stats, s.foe.stats, deps.rng, s.riders, s.mods.penetration)
+  // §7 Primed: which of the three were Maneuver-churned within the window → +1 quality tier in resolveSet
+  const primedFlags: [boolean, boolean, boolean] = [a, b, c].map((i) => s.primed[i] != null && s.now - s.primed[i] <= PRIMED_WINDOW_MS) as [boolean, boolean, boolean]
+  for (const i of slots) delete s.primed[i] // consumed (or refilled fresh) — clear the marks
+  const res = resolveSet(cards, s.stats, s.foe.stats, deps.rng, s.riders, s.mods.penetration, primedFlags)
+  if (primedFlags.some(Boolean)) sink.emit({ type: 'passiveProc', id: 'primed', label: '✦ primed' })
   applyResolution(s, res, deps.rng, sink)
   sink.emit({ type: 'setResolved', damage: res.damage, block: res.block, mana: res.mana, slots })
   updateChain(s, res.desc, sink) // §7 combo streak (colour+shape) — ramps crit chance for the exchange
@@ -465,6 +470,7 @@ export function cloneState(s: CombatState): CombatState {
     consumables: s.consumables.slice(),
     tickAccum: { ...s.tickAccum },
     chain: { ...s.chain },
+    primed: { ...s.primed },
     foe: s.foe, // immutable per encounter
     gen: s.gen,
   }

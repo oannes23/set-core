@@ -124,7 +124,7 @@ export interface Resolution {
  *  GEAR RIDERS (§7) add FLAT, AFTER the contest (bounded — they never scale with the rate): the
  *  weapon's damage per Attack card, the armor's Block per Defend card, caster mana per mono-colour set.
  *  Default NO_RIDERS → identical to the pre-gear result (backward-compatible). */
-export function resolveSet(cards: [Card, Card, Card], stats: StatBlock, foeStats: StatBlock, _rng: Rng, riders: Riders = NO_RIDERS, penetration = 0): Resolution {
+export function resolveSet(cards: [Card, Card, Card], stats: StatBlock, foeStats: StatBlock, _rng: Rng, riders: Riders = NO_RIDERS, penetration = 0, primed: [boolean, boolean, boolean] = [false, false, false]): Resolution {
   // §7 Penetration (Sundering): ignore some foe Endurance in the ATTACK contest only (anti-armour)
   const atkRate = contestRate(stats.power, Math.max(1, foeStats.endurance - penetration))
   const defRate = contestRate(stats.endurance, foeStats.power)
@@ -136,14 +136,17 @@ export function resolveSet(cards: [Card, Card, Card], stats: StatBlock, foeStats
   let charges = 0
   let nAtk = 0
   let nDef = 0
-  for (const c of cards) {
+  for (let k = 0; k < cards.length; k++) {
+    const c = cards[k]
     const shape = c[1]
-    const q = QUALITY[c[3]] // card magnitude = the action's quality tier
+    // §7 Primed: a Maneuver-churned card matched in time counts ONE quality tier higher (capped at heavy)
+    const tier = primed[k] ? Math.min(2, c[3] + 1) : c[3]
+    const q = QUALITY[tier] // card magnitude = the action's quality tier
     if (shape === SHAPE_ATTACK) {
       nAtk++
       const hit = Math.round(atkRate * q)
-      if (c[3] === 0) dmgLight += hit
-      else if (c[3] === 1) dmgMed += hit
+      if (tier === 0) dmgLight += hit
+      else if (tier === 1) dmgMed += hit
       else dmgHeavy += hit
     } else if (shape === SHAPE_DEFEND) {
       nDef++

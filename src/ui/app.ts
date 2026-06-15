@@ -30,7 +30,7 @@ import { GEAR, gearBase, fitsSlot } from '../data/gear'
 import { CONSUMABLES } from '../engine/consumables'
 import { loadBank, bankGold, bankTithe, saveBank, addManyToStorage, addToStorage, removeFromStorage, storageFull, storageCount } from './bank'
 import type { CombatState, FoeRuntime, StatBlock } from '../engine/state'
-import { CHARGE_CAP, MANA_CAP, START_GRACE_MS, ROUND_MS, WOUND_WARD_COST, WOUND_CAP_PER_EXCHANGE, woundQuantum, dreadLevel, DREAD_ONSET, DREAD_MAX } from '../engine/state'
+import { CHARGE_CAP, MANA_CAP, START_GRACE_MS, ROUND_MS, WOUND_WARD_COST, WOUND_CAP_PER_EXCHANGE, woundQuantum, dreadLevel, DREAD_ONSET, DREAD_MAX, PRIMED_WINDOW_MS } from '../engine/state'
 import type { CombatEvent } from '../engine/events'
 import { bumpTurn, pick, strikeWord, healWord, drainWord, magicLead, tierOf, joinClauses, voiceOf, ABILITY_FLAVOR } from './flavor'
 import { type SavedChar, type StatAlloc, loadRoster, upsertChar, deleteChar, makeChar, freshId, CONSUMABLE_SLOTS, effectiveStats, xpForLevel, pendingLevels, applyLevelUp, LEVEL_CAP, activeSlotsAt, passiveSlotsAt, activeUnlockLevel } from './save'
@@ -1069,6 +1069,7 @@ function renderBoard(verbs?: Map<number, CardVerb>): void {
     }
     if (locked) cls.push('locked')
     else if (bait != null && c[0] === bait && !V!.selected.includes(i) && mates.complete !== i && !mates.set.has(i)) cls.push('bait')
+    if (s.primed[i] != null && s.now - s.primed[i] <= PRIMED_WINDOW_MS) cls.push('primed') // §7 churned-and-ready: a tier higher if matched in time
     let stagger = ''
     if (!firstRender && oldKeys[i] !== key) {
       cls.push('enter')
