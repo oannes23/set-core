@@ -9,7 +9,7 @@ import type { Rng } from '../core/rng'
 import type { FavorBias } from '../core/generate'
 import type { Condition, Selector, Bias, Effect, Trigger } from '../data/schema'
 import type { CombatState, Pending } from './state'
-import { WOUND_CAP_PER_EXCHANGE, woundQuantum } from './state'
+import { WOUND_CAP_PER_EXCHANGE, woundQuantum, dreadFoeMult } from './state'
 import { extendRound, shortenRound, tryWard, reformSlots } from './ops'
 import type { EventSink } from './events'
 import { type MatchDescriptor, weightedRoll } from './resolve'
@@ -185,7 +185,7 @@ function runEffect(s: CombatState, e: Effect, desc: MatchDescriptor, rng: Rng, s
   switch (e.effect) {
     case 'damage': {
       const raw = e.scale === 'set_mag' ? scaledBySetMag(desc) : e.amount != null ? e.amount : weightedRoll(e.max ?? 4, rng)
-      const amt = legacyDmg(raw)
+      const amt = Math.round(legacyDmg(raw) * dreadFoeMult(s)) // §5.8: trap/tick damage rides the foe dread ramp
       hurtPlayer(s, amt, s.foe.name, sink)
       return `⚔${amt}`
     }

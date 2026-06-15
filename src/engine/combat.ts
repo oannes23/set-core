@@ -9,7 +9,7 @@ import { findSets } from '../core/sets'
 import { type GenConfig, genInitial } from '../core/generate'
 import type { Rng } from '../core/rng'
 import type { GameData } from '../data/schema'
-import { type CombatState, type FoeRuntime, type Pending, type TacticKind, type ManeuverBias, type StatBlock, MANA_CAP, DEFAULT_PLAYER_MAX, BASE_STATS, ROUND_MS, DODGE_BASE, DODGE_K, DODGE_MIN, DODGE_MAX, MANEUVER_BURN_MS } from './state'
+import { type CombatState, type FoeRuntime, type Pending, type TacticKind, type ManeuverBias, type StatBlock, MANA_CAP, DEFAULT_PLAYER_MAX, BASE_STATS, ROUND_MS, DODGE_BASE, DODGE_K, DODGE_MIN, DODGE_MAX, MANEUVER_BURN_MS, dreadFoeMult, dreadPlayerMult, dreadBleed, driftRateMult } from './state'
 import { type CombatEvent, EventSink } from './events'
 import { type Resolution, resolveSet, weightedRoll, telegraphPerSwing, dodgeChance } from './resolve'
 import { fireTriggers, runTrigger, inflictWounds, hurtPlayer, reformSlots, EMPTY_DESC } from './triggers'
@@ -46,6 +46,8 @@ export interface NewCombatOpts {
   stats?: StatBlock // Resolution v2: Power/Endurance/Speed (default BASE_STATS = old-system parity)
   passives?: string[] // the chosen class's always-on passive ids
   consumables?: string[] // carried potions/scrolls for this run
+  dreadFloor?: number // §5.8 dread depth floor (from the delve band; default 1 = not in a delve)
+  coach?: boolean // a teaching/coach fight → dread escalation stays OFF (the dummy is pressure-free)
 }
 
 /** Roll a foe's exchange total at the DEAL: each swing independently checks DODGE (your Speed vs
@@ -110,6 +112,8 @@ export function createCombat(opts: NewCombatOpts, rng: Rng): CombatState {
     nextStrikeRound,
     incoming: foe.damage > 0 ? first.total : null, // revealed from round 1 (held until the strike round)
     incomingDodged: first.dodged,
+    dreadFloor: opts.dreadFloor ?? 1, // §5.8 — depth floor from the delve band (1 = not in a delve)
+    dreadOn: !opts.coach, // teaching/coach fights stay pressure-free (no dread escalation)
     tickAccum: {},
     running: true,
     result: null,
@@ -213,7 +217,9 @@ function tick(s: CombatState, dtMs: number, deps: Deps, sink: EventSink): void {
   }
   for (const { key, trig } of tickers) {
     s.tickAccum[key] = (s.tickAccum[key] ?? 0) + dt
-    const period = trig.every || 5
+    // §5.8 soft lane: dread ACCELERATES the dungeon drift (shorter period as the meter climbs); authored
+    // tick-traps keep their own cadence. Bounded by the curve so max drift stays under the TRAPS §6 ceiling.
+    const period = (trig.every || 5) / (key === 'drift' ? driftRateMult(s) : 1)
     let guard = 0
     while (s.tickAccum[key] >= period && s.running && guard++ < 4) {
       s.tickAccum[key] -= period
@@ -277,7 +283,7 @@ function rollover(s: CombatState, deps: Deps, sink: EventSink): void {
   sink.emit({ type: 'roundEnded', round: finished })
   // ① player swing — banked Attack lands; lethal cancels the enemy's swing entirely
   if (s.roundAttack > 0) {
-    const dmg = s.roundAttack
+    const dmg = Math.round(s.roundAttack * dreadPlayerMult(s)) // §5.8: the player-side ramp (the swing-moment)
     s.roundAttack = 0
     s.enemyHP = Math.max(0, s.enemyHP - dmg)
     sink.emit({ type: 'enemyDamaged', amount: dmg })
@@ -309,6 +315,14 @@ function rollover(s: CombatState, deps: Deps, sink: EventSink): void {
     // during a windup round we SKIP this (the carry), so banked Defend survives toward the strike.
     s.block = 0
   }
+  // §5.8 — the generic UNGUARDABLE dread bleed: a per-round drain past the onset (bypasses Block; the
+  // foe-INDEPENDENT anti-stall lane the sim proved necessary). Only reached if the player survived ①②.
+  const bleed = Math.round(dreadBleed(s))
+  if (bleed > 0 && s.running) {
+    s.playerHP = Math.max(0, s.playerHP - bleed)
+    sink.emit({ type: 'playerDamaged', amount: bleed, absorbed: 0, source: 'the dread' })
+    if (s.playerHP <= 0) { s.running = false; s.result = 'lose'; sink.emit({ type: 'lost' }); return }
+  }
   // ⑤ the deal — one wound knits shut as the cards settle (stances are live; nothing to lock)
   let knit: number | null = null
   for (const [slot, p] of s.pending) if (p.wound) { knit = knit == null || slot < knit ? slot : knit }
@@ -324,7 +338,7 @@ function rollover(s: CombatState, deps: Deps, sink: EventSink): void {
   s.roundAttack = 0
   if (s.foe.damage > 0 && s.incoming == null && s.round >= s.nextStrikeRound - (s.foe.strikeEvery - 1)) {
     const strike = rollStrike(s.foe, s.stats.speed, deps.rng)
-    s.incoming = strike.total
+    s.incoming = Math.round(strike.total * dreadFoeMult(s)) // §5.8: fold dread-at-reveal into the telegraph (honest ⚔)
     s.incomingDodged = strike.dodged
     sink.emit({ type: 'windup', amount: strike.total, strikesAt: s.roundEndsAt, dodged: strike.dodged, swings: s.foe.swings })
   }

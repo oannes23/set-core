@@ -5,7 +5,7 @@
 import type { Rng } from '../core/rng'
 import { patch, patchFavor, type FavorBias } from '../core/generate'
 import type { CombatState } from './state'
-import { CHARGE_CAP, MANA_CAP, ROUND_EXTEND_CAP_S, WOUND_WARD_COST, woundQuantum } from './state'
+import { CHARGE_CAP, MANA_CAP, ROUND_EXTEND_CAP_S, WOUND_WARD_COST, woundQuantum, dreadPlayerMult } from './state'
 import type { EventSink } from './events'
 import { weightedRoll } from './resolve'
 
@@ -73,6 +73,7 @@ export function grantMana(s: CombatState, color: number, amount: number, sink: E
  *  the heal's SIZE, not the HP applied, so a full-HP heal still repairs the board). */
 export function healPlayer(s: CombatState, amt: number, rng: Rng, sink: EventSink): number {
   if (amt <= 0) return 0
+  amt = Math.round(amt * dreadPlayerMult(s)) // §5.8: the player-side ramp scales healing too (the swing-moment)
   const before = s.playerHP
   s.playerHP = Math.min(s.playerMax, s.playerHP + amt)
   const healed = s.playerHP - before

@@ -107,6 +107,9 @@ export interface CombatState {
    *  0 = a strike was fully DODGED (every swing evaded at the deal). */
   incoming: number | null
   incomingDodged: number // swings of the pending telegraph evaded at the deal (💨 tags; 0 = none)
+  // dread escalation (§5.8) — the within-fight anti-stall; the live level derives from these + round
+  dreadFloor: number // across-run depth floor (from the delve dread band; 1 if not in a delve)
+  dreadOn: boolean // is dread active? false for coach/teaching fights (the dummy stays pressure-free)
   tickAccum: Record<string, number> // trigger key -> seconds accumulated toward its `every`
   // run / gauntlet
   running: boolean
@@ -126,6 +129,37 @@ export const DEFAULT_PLAYER_MAX = 100 // the decimal rebase: HP 100 so the /10 w
 export const CHARGE_CAP = 15 // exact both ways: a max 5-wound haymaker (5×3) or a whole-board (15) dump
 export const WOUND_WARD_COST = 3 // Stand Ground's live cost to fizzle ONE incoming wound (board verbs cost 1)
 export const MANA_CAP = 15 // per color; gains past it are pure loss (gear may raise it later)
+
+// DREAD ESCALATION (CRAWL §5.8; sim §7/§10) — one meter drives two lanes: drift (soft) + a two-way
+// damage ramp (the resolver). Goal: ACCELERATE every fight + the dread swing-moment, not punish stalls.
+export const DREAD_RISE = 0.5 // within-fight climb per round
+export const DREAD_DEPTH_CAP = 5 // the depth floor never reaches the damage band alone (always earned by dragging)
+export const DREAD_MAX = 10
+export const DREAD_ONSET = 7 // the damage multiplier is OFF below this, then ramps to max at DREAD_MAX
+export const DREAD_FOE_MAX = 2.0 // foe damage scale at dread 10
+export const DREAD_PLAYER_MAX = 1.5 // player damage + healing scale at dread 10
+export const DREAD_BLEED_MAX = 0.06 // the generic UNGUARDABLE drain: fraction of maxHP/round at dread 10
+
+/** The live dread level (depth floor + within-fight rise), clamped [1,10]; 0 when dread is OFF (coach). */
+export function dreadLevel(s: CombatState): number {
+  if (!s.dreadOn) return 0
+  return Math.min(DREAD_MAX, Math.max(1, s.dreadFloor + DREAD_RISE * s.round))
+}
+const dreadBand01 = (d: number): number => Math.max(0, Math.min(1, (d - DREAD_ONSET) / (DREAD_MAX - DREAD_ONSET)))
+/** Foe damage multiplier (rides the strike-at-reveal + the unguardable lanes). 1 below the onset. */
+export const dreadFoeMult = (s: CombatState): number => 1 + dreadBand01(dreadLevel(s)) * (DREAD_FOE_MAX - 1)
+/** Player damage + healing multiplier (the swing-moment side). 1 below the onset. */
+export const dreadPlayerMult = (s: CombatState): number => 1 + dreadBand01(dreadLevel(s)) * (DREAD_PLAYER_MAX - 1)
+/** The generic per-round UNGUARDABLE dread bleed in HP (∝ maxHP); 0 below the onset. Foe-independent
+ *  so the anti-stall never hangs on a foe's trap kit (sim §7's load-bearing correction). */
+export const dreadBleed = (s: CombatState): number => dreadBand01(dreadLevel(s)) * DREAD_BLEED_MAX * s.playerMax
+/** Drift-rate multiplier (the SOFT lane): ~1 at low dread, steepens past the knee (≈2.5 at dread 10);
+ *  bounded so max drift stays under the TRAPS §6 transmute ceiling (sim §10). 1 when dread is off. */
+export function driftRateMult(s: CombatState): number {
+  const d = dreadLevel(s)
+  if (d <= 0) return 1
+  return d <= 5 ? 1 + 0.1 * (d - 1) : 1.4 + 0.22 * (d - 5)
+}
 // Wounds (CRAWL §5.6) — computed, never authored. Both laws share one quantum: a tenth of max HP.
 export const WOUND_CAP_PER_EXCHANGE = 5
 export const woundQuantum = (s: CombatState): number => s.playerMax / 10

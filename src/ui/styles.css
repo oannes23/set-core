@@ -116,6 +116,19 @@ button.cta.bob { animation: ctabob 1.6s ease-in-out infinite; }
 @keyframes barshove { 0%, 100% { transform: translateX(0); } 30% { transform: translateX(7px); } }
 #clock.low { color: var(--warn); } #clock.crit { color: var(--red); font-weight: 700; }
 
+/* §5.8 the DREAD METER — depth-floor base + within-fight rise; ⚔ marks where it turns lethal */
+.dreadbar { width: 100%; margin: 8px 0 2px; }
+.dreadbar .dlab { display: flex; justify-content: space-between; font-size: 10px; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-dim); margin-bottom: 3px; }
+.dreadbar .dlab b { color: #c79; font-variant-numeric: tabular-nums; }
+.dreadbar .dtrack { position: relative; height: 6px; border-radius: 3px; background: rgba(150,110,140,.16); }
+.dreadbar .dfloor { position: absolute; left: 0; top: 0; height: 100%; border-radius: 3px; background: rgba(160,120,150,.30); transition: width .3s ease; }
+.dreadbar .dfill { position: absolute; left: 0; top: 0; height: 100%; border-radius: 3px; background: linear-gradient(90deg, #6f5570, #9a6a86); transition: width .3s ease; }
+.dreadbar.rising .dfill { background: linear-gradient(90deg, #9a6a86, #c07a52); }
+.dreadbar.lethal .dfill { background: linear-gradient(90deg, #c0504a, #e2483a); box-shadow: 0 0 8px rgba(226,72,58,.55); }
+.dreadbar .donset { position: absolute; top: -8px; transform: translateX(-50%); font-size: 9px; color: #e2635a; pointer-events: none; line-height: 1; }
+.dreadbar.lethal { animation: dreadpulse 1.3s ease-in-out infinite; }
+@keyframes dreadpulse { 0%, 100% { opacity: .92; } 50% { opacity: 1; } }
+
 /* the telegraph chip — "their strike", living beside their HP and clock in the foe band */
 .exchange.foeread { display: flex; align-items: center; gap: 9px; background: #0e1118; border: 1px solid var(--line); border-radius: 10px; padding: 4px 14px; }
 .ex-lab { font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-faint); white-space: nowrap; }

@@ -26,11 +26,12 @@ Detailed specs live in CRAWL-DESIGN.md + the sections below; this is the master 
   AUTOMATIC turnover — churn/drift/trap/trick — skips a selected card or its set-mate, while a deliberate player
   cast is exempt; carried in `cloneState`). User chose the **aggressive scope** (shield all set-mates from the
   1st selected card). 4 new tests (`protection.test.ts`); 138 green; typecheck clean.
-- `[~]` **1b. Dread escalation engine** (CRAWL §5.8) — **drift curve VALIDATED 2026-06-14 (sim §10):** max drift
-  0.35 c/s ≤ the 0.4 ceiling, reshape share glides 76%→56% (intended tension), FLOOR holds → SAFE TO BUILD. NEXT:
-  build the meter (depth floor from delve band + within-fight rise), drift accel past the knee (wired to the meter),
-  the two-way damage ramp (unguardable lane + generic `DREAD_BLEED`) folded into the telegraph at reveal, two-motion
-  meter UI. (Traces needed first: the round state machine + telegraph/strike resolution + the drift tick.)
+- `[x]` **1b. Dread escalation engine** (CRAWL §5.8) — **BUILT 2026-06-14.** Drift curve validated (sim §10).
+  `state.ts`: the meter (`dreadLevel` = floor + 0.5·round, OFF for coach) + `dreadFoeMult`/`dreadPlayerMult`/
+  `dreadBleed`/`driftRateMult` (sim §7/§10 numbers). Wired: drift tick-rate accel · foe mult into the telegraph
+  AT REVEAL + trap/tick damage · player mult on attack (rollover) + heals (ops) · the unguardable per-round
+  `dreadBleed` (bypasses Block); depth floor from the delve band, coach-exempt. Functional two-motion dread meter
+  in the HUD. 7 dread tests (5 unit + 2 behavioral end-to-end); 145 green; typecheck + production build clean.
 
 ### Phase 2 — Inventory loop *(finish B2; data layer already built)*
 - `[ ]` Storage UI (the bag screen) · loadout-from-Storage (`takeFromStorage`, survivors auto-return)
@@ -306,7 +307,7 @@ Build order (everything sim-gated where it touches contest constants):
 ## NEXT COMBAT BUILD — dread escalation + selection-protected turnover (SETTLED + SIM-VALIDATED 2026-06-13)
 Both settled this session (CRAWL §5.8 + the hard-rules invariant #6); spec + sim done, engine pending.
 Combat-only; builds *with* B2 (the dread depth floor reads the delve's dread band).
-- `[ ]` **Dread escalation (CRAWL §5.8; constants TUNING "Dread escalation").** One `dread` meter
+- `[x]` **Dread escalation (CRAWL §5.8) — BUILT 2026-06-14** (see the BUILD ORDER tracker, Phase 1b). One `dread` meter
   (1–10) = depth floor `D₀` (from the delve dread band, capped 5) + within-fight rise (~0.5/round,
   resets at fight end). Two lanes: **drift** accelerates past the knee (5), bounded by the TRAPS §6
   ceiling; **damage escalation** off until dread 7 → foe ×2.0 (rides the UNGUARDABLE lane — trap/tick

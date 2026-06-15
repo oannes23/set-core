@@ -1297,8 +1297,13 @@ vs. multi-round threat mismatch, not the statline, is the difficulty skew. The s
 
 ## 5.8 The dread escalation — the structural anti-stall (SETTLED 2026-06-13)
 
-> **STATUS: settled + SIM-VALIDATED 2026-06-13 (`sim/progression-sim.mjs` §7); engine build pending
-> (lands with B2).** Closes the long-open structural anti-stall (`FABLE.md` §8.1; the old §2.4
+> **STATUS: BUILT 2026-06-14** (engine + functional UI; 145 tests). LIVE: the meter (`dreadLevel` =
+> `dreadFloor` + 0.5·round, depth floor from the delve band, OFF for coach fights), drift accel
+> (`driftRateMult` scales the tick rate), the two-way ramp (`dreadFoeMult` folds into the telegraph
+> AT REVEAL + trap/tick damage · `dreadPlayerMult` on attack + heals), the generic unguardable
+> `dreadBleed` (bypasses Block, per round past the onset), the two-motion dread meter HUD. Constants
+> + helpers in `state.ts`; sim-validated (§7 damage + §10 drift). Settled + SIM-VALIDATED 2026-06-13
+> (`sim/progression-sim.mjs` §7). Closes the long-open structural anti-stall (`FABLE.md` §8.1; the old §2.4
 > ramping-DoT idea). Constants tabled in `TUNING.md` ("Dread escalation — PLANNED"). The sim
 > confirmed the calibration (band past the kill budgets), the inert-backstop property (ON ≈ OFF for
 > normal fights), and the anti-stall bite — and corrected the design: **the foe ramp rides the

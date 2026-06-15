@@ -27,7 +27,7 @@ import { rollRoomLoot } from '../engine/loot'
 import { CONSUMABLES } from '../engine/consumables'
 import { loadBank, bankGold, bankTithe } from './bank'
 import type { CombatState, FoeRuntime } from '../engine/state'
-import { CHARGE_CAP, MANA_CAP, START_GRACE_MS, ROUND_MS, WOUND_WARD_COST, WOUND_CAP_PER_EXCHANGE, woundQuantum } from '../engine/state'
+import { CHARGE_CAP, MANA_CAP, START_GRACE_MS, ROUND_MS, WOUND_WARD_COST, WOUND_CAP_PER_EXCHANGE, woundQuantum, dreadLevel, DREAD_ONSET, DREAD_MAX } from '../engine/state'
 import type { CombatEvent } from '../engine/events'
 import { bumpTurn, pick, strikeWord, healWord, drainWord, magicLead, tierOf, joinClauses, voiceOf, ABILITY_FLAVOR } from './flavor'
 import { type SavedChar, type StatAlloc, loadRoster, upsertChar, deleteChar, makeChar, freshId, CONSUMABLE_SLOTS, effectiveStats, xpForLevel, pendingLevels, applyLevelUp, LEVEL_CAP } from './save'
@@ -578,7 +578,9 @@ function startCombat(root: HTMLElement, char: SavedChar, dungeonId: string, foe:
   const rng: Rng = systemRng
   const dg: Dungeon = GAMEDATA.dungeons[dungeonId]
   const cls = classById(char.classId)
-  const run = createRun({ foe, gen: GEN, playerMax: char.maxHp, stats: effectiveStats(char), passives: cls.passives, consumables, sequence, dungeonId }, rng)
+  // §5.8 dread: depth floor from the delve's dread band (1 if a lone fight); OFF for coach/teaching fights
+  const dreadFloor = DELVE ? [1, 2.5, 4, 5, 5][dreadBand(DELVE.d).step] : 1
+  const run = createRun({ foe, gen: GEN, playerMax: char.maxHp, stats: effectiveStats(char), passives: cls.passives, consumables, sequence, dungeonId, dreadFloor, coach: !!dg.coach }, rng)
   run.combat.playerHP = Math.max(0, Math.min(char.maxHp, char.hp)) // the hero enters at their persisted HP, not full
   V = { root, deps: { data: GAMEDATA, rng }, run, state: run.combat, char, actions: [], classId: cls.id, loadout: cls.abilities.slice(), coach: !!dg.coach, coachCue: null, manaColor: dominantManaColor(cls.abilities), paused: true, hitstopUntil: 0, holdHud: false, preview: null, selected: [], raf: 0, lastT: 0, boardSig: '', refs: {}, stats: { dealt: 0, taken: 0, blocked: 0, healed: 0, sets: 0, traps: 0, xp: 0 }, morphSrc: new Map(), dev: { reshapeYou: 0, reshapeFoe: 0, matches: 0, springs: 0, k1: 0, wards: 0, churns: 0 } }
   buildPlay()
@@ -628,6 +630,12 @@ function buildPlay(): void {
       <button class="fleebtn" id="fleebtn" data-tip-title="Flee" data-tip="Forfeit this encounter and retreat to town. Available any time.">🏃 Flee</button>
     </div>`))
   head.appendChild($(`<div class="strip" id="strip"></div>`))
+  // §5.8 the DREAD METER — two motions: the depth-floor base + the within-fight rise; a ⚔ tick marks
+  // where it turns lethal (the damage onset). Hidden in coach fights (dread off).
+  head.appendChild($(`<div class="dreadbar" id="dreadbar" style="display:none" data-tip-title="Dread" data-tip="The dungeon's dread rises each round — and starts higher the closer you are to the throne. Past the ⚔ marker it turns LETHAL: both sides hit harder and an unguardable bleed sets in. It only bites if a fight drags; close it before then.">
+    <div class="dlab">dread <b id="dreadlab">—</b></div>
+    <div class="dtrack"><span class="dfloor" id="dreadfloor"></span><span class="dfill" id="dreadfill"></span><span class="donset" style="left:${(DREAD_ONSET / DREAD_MAX) * 100}%">⚔</span></div>
+  </div>`))
   wrap.appendChild(head)
 
   // ═ BATTLEFIELD ═ — log rail (the archive earns its own rail) · board · command rail
@@ -683,7 +691,7 @@ function buildPlay(): void {
   if (!document.getElementById('ptint')) document.body.appendChild($(`<div id="ptint"></div>`)) // low-HP vignette (body-level)
 
   V.refs = {}
-  for (const id of ['foename', 'foedesc', 'fleebtn', 'enemylab', 'phpv', 'ehpv', 'php', 'ehp', 'clock', 'roundlab', 'roundfill', 'exatk', 'exinc', 'exguard', 'exfoe', 'tricounter', 'tcatk', 'tcgrd', 'tctac', 'tcch', 'tcbite', 'tacpips', 'm0', 'm1', 'm2', 'mp0', 'mp1', 'mp2', 'buffind', 'strip', 'boardwrap', 'board', 'tugbar', 'tugmarker', 'tugfoe', 'tugyou', 'devstats', 'spyou', 'spfoe', 'stancebadge', 'log', 'abilities', 'tactics', 'passives', 'consumables', 'floatlayer']) {
+  for (const id of ['foename', 'foedesc', 'fleebtn', 'enemylab', 'phpv', 'ehpv', 'php', 'ehp', 'clock', 'roundlab', 'roundfill', 'exatk', 'exinc', 'exguard', 'exfoe', 'tricounter', 'tcatk', 'tcgrd', 'tctac', 'tcch', 'tcbite', 'tacpips', 'm0', 'm1', 'm2', 'mp0', 'mp1', 'mp2', 'buffind', 'strip', 'dreadbar', 'dreadfill', 'dreadfloor', 'dreadlab', 'boardwrap', 'board', 'tugbar', 'tugmarker', 'tugfoe', 'tugyou', 'devstats', 'spyou', 'spfoe', 'stancebadge', 'log', 'abilities', 'tactics', 'passives', 'consumables', 'floatlayer']) {
     const el = wrap.querySelector('#' + id)
     if (el) V.refs[id] = el as HTMLElement
   }
@@ -2153,6 +2161,19 @@ function updateBar(): void {
     V.refs.roundfill.style.width = `${s.running ? frac * 100 : 100}%`
     V.refs.roundfill.classList.toggle('low', remain <= 5 && remain > 2.5)
     V.refs.roundfill.classList.toggle('crit', remain <= 2.5)
+    // §5.8 the DREAD METER — floor base (static) + within-fight fill (rises per round); lethal past the onset
+    if (V.refs.dreadbar) {
+      if (!s.dreadOn) V.refs.dreadbar.style.display = 'none'
+      else {
+        V.refs.dreadbar.style.display = ''
+        const d = dreadLevel(s)
+        V.refs.dreadfill.style.width = `${(d / DREAD_MAX) * 100}%`
+        V.refs.dreadfloor.style.width = `${(Math.min(s.dreadFloor, DREAD_MAX) / DREAD_MAX) * 100}%`
+        V.refs.dreadlab.textContent = d.toFixed(1)
+        V.refs.dreadbar.classList.toggle('lethal', d >= DREAD_ONSET)
+        V.refs.dreadbar.classList.toggle('rising', d >= 5 && d < DREAD_ONSET)
+      }
+    }
     // THE TRI-COUNTER — your three round accumulators (the resource you build) vs their telegraph
     V.refs.exatk.textContent = String(Math.round(s.roundAttack))
     const lethal = s.running && s.roundAttack > 0 && s.roundAttack >= s.enemyHP
