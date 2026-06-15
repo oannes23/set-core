@@ -1771,13 +1771,23 @@ loot roller (`rollAffixes`) mints a random `1..maxAffixes` distinct, slot/tier-g
   **Sundering** (`Penetration` — ignore foe Endurance in the Attack contest) · **Ironhide** (`FlatDamageReduction`
   — pre-Block Soak) · **Sanguine** (`Lifesteal` — heal a fraction of damage dealt) · **Evasive** (`DodgeChance`
   — +flat dodge).
+- **CRIT** (LIVE — the shared **exchange-delight channel**, BUILT 2026-06-15; a deliberate, narrow §5.7
+  carve-out — the SET stays exact, the crit is a rare upward roll on the aggregate SWING at the rollover,
+  player-only): a global **base 5% / ×1.5**, **capped at 20%** (highly restricted → delight, never DPS),
+  fed by gear (**Keen** +chance · **Vorpal** +mult — both always useful thanks to the base) AND by chains.
 - **The dungeon-clear MARQUEE** (BUILT 2026-06-15 — `rollMarqueeGear`): a guaranteed **rare+** gear piece on
   a boss kill (blue 50 / purple 35 / orange 15), the headline reward.
 
+### The combo CHAINS + PRIMED (the feel layer, BUILT 2026-06-15)
+- **Chains** (`combat.updateChain`): a **colour+SHAPE** streak (both axes must match consecutively — *hard*
+  to sustain, so it stays visceral not powerful) ramps crit chance **+3%/link** (into the same capped
+  channel). The visceral skill chase — a combo counter escalates toward the crit payoff at the exchange.
+- **Primed** (§11 Speed payoff): a **Maneuver-churned** card matched within **6s** counts one quality tier
+  higher (capped). Converts Speed's board-control into measurable OUTPUT in-lane; a gold ✦ twinkle marks
+  primed cards. Distinct from chains (Primed = build-specific *power*; chains = universal *delight*).
+
 **STAGED** (`live: false` — authored, not yet rolled; each needs its engine):
 - **Trickster's** (`OnMatchChurn`) — needs proc-churn plumbing (deadest + bias).
-- **CRIT** — Keen (`CritChance`) · **Vorpal** (`CritMultiplier`): an RNG crit-% conflicts with §5.7 "set
-  output stays exact" → needs a DETERMINISTIC-condition design (e.g. "rainbow Attacks crit") before going live.
 - **utility:** Fated (`FavorBias`) · **unique (orange):** Heartseeker · the Aegis.
 
 The catalog grows by adding rows; flipping a family `live` (once its mechanic engine lands) makes it roll.

@@ -228,6 +228,14 @@ is the tuning gate).** `data/affixes.ts` procs: amount = `max(1, round(magUnit �
 rainbow) to bound the per-round value — §12 flagged procs run hot (a per-match damage proc ≈ 4× a stat
 affix). Sim them before widening the pool or raising magnitudes.
 
+**Crit + chains + Primed — the exchange-delight feel layer (BUILT 2026-06-15; §13 sim to firm).**
+`state.ts`: **`BASE_CRIT_CHANCE` 0.05 · `BASE_CRIT_MULT` 1.5 · `CRIT_CAP` 0.20** (player-only, rolled on the
+aggregate swing at rollover ①; a narrow §5.7 carve-out — the SET stays exact). Gear: Keen `+min(0.10,
+0.02·mag)` chance · Vorpal `+min(1.0, 0.25·mag)` mult. **Chains** (`CHAIN_CRIT_STEP` 0.03/link, colour+shape
+streak) feed the same capped channel. **Primed** (`PRIMED_WINDOW_MS` 6000): a Maneuver-churned card matched
+in time = +1 quality tier (capped at heavy). Crit cap is load-bearing — keeps the whole channel a delight,
+never reliable DPS.
+
 **Gear-exclusive mods + reactive procs — FIRST-CUT (BUILT 2026-06-15; same §13 gate).** GearMods:
 Sundering `penetration` & Ironhide `soak` = `round(magUnit×1.5)` (flat) · Evasive `dodge` & Sanguine
 `lifesteal` = `min(0.20, 0.03–0.04 × magUnit)` (fractions, clamped). Reactive: Barbed thorns `×2` ·

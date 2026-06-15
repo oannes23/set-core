@@ -53,10 +53,14 @@ Traffic-light: green = pursue · yellow = consequence · red = wounded.
   (Barbed/Guardian's/Carnage/Cornered). · ✅ **GEAR-EXCLUSIVE mods** (`GearMods` channel: Sundering
   penetration / Ironhide soak / Sanguine lifesteal / Evasive dodge — deterministic, applied in resolveSet
   + rollover + rollStrike). · ✅ **the MARQUEE** (boss clear → a guaranteed rare+ piece, `rollMarqueeGear`).
-  **172 tests; tsc + build clean. The themed affix catalog is almost entirely LIVE.** STILL OPEN for chunk ②:
-  **CRIT** (Keen/Vorpal — needs a DETERMINISTIC-condition design; RNG-% breaks §5.7 exactness) · Trickster's
-  churn · **ability reprice** (its own combat thread) · **Primed** (the Speed payoff) · the **§13 proc-value
-  sim** (firm the first-cut proc magnitudes). (Was "affix content pool".)
+  The themed affix catalog is almost entirely LIVE.**
+  · ✅ **the EXCHANGE-DELIGHT feel layer** (2026-06-15): **CRIT** (global base 5%/×1.5, `CRIT_CAP` 20%,
+  player-only on the aggregate swing — a narrow §5.7 carve-out; decision: crits live in the gear layer where
+  the exception is acceptable + a 5% global base so Keen/Vorpal are both always useful) · **CHAINS** (a
+  colour+shape streak ramps crit +3%/link — the visceral skill chase) · **PRIMED** (Maneuver-churned card
+  matched ≤6s → +1 quality tier, the Speed-output payoff). **176 tests; tsc + build clean.** STILL OPEN for
+  chunk ②: Trickster's churn · the **ability reprice** (its own combat thread) · the **§13 proc/crit-value
+  sim** (firm the first-cut magnitudes). (Was "affix content pool".)
 - **Spec:** `CRAWL-DESIGN.md` §7 (gear + the affix design surface + thematic overlay) · numbers:
   `sim/progression-sim.mjs` §11 + `TUNING.md` "Gear + the coupled balance pass".
 - **State of play (live):** combat core (dread + selection-protection + ward cue) · Emberdeep (D2/L7) ·
