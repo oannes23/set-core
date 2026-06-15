@@ -117,7 +117,10 @@ blow, a deferred B2 item; `GOLD_K` recalibrates once the shop sink lands.)
 | Trap severity *(sim)* | author ∝ intended-level HP: ≈ **6% · tierOut of expected maxHP** per hit | flat numbers let bulk eat the threat layer (boss row drifted 37→90% before this) |
 | ✅ XP law (LIVE) | `(hp/10 + P + E + S) × (1 + 0.15·traps) × tierMult` | `foe.ts computeXP`; computed — except a teaching-foe `xp` override (dummy/gauntlet, for the onboarding curve) |
 | ✅ XP tier mult (LIVE) | **×1 / ×2 / ×4** | deliberately above the stat ladder (×1/×1.5/×2) — risk beats grinding |
-| ✅ XP curve (LIVE; geometric REJECTED) | **polynomial: need(L→L+1) = 55 × L^1.7** (`xpForLevel`) (display-rounded to 5s), anchored dummy→L2 · gauntlet→L3 · warren = fresh L3 | first warren minion (55 XP) → L2 exactly · 2→3 ≈ an elite + a minion · first boss ≈ a full level · **~29 tier-appropriate clears to ★** · XP always banks, even on death |
+| ✅ XP curve (LIVE; base STEEPENED 2026-06-14, sim §8) | **polynomial: need(L→L+1) = 110 × L^1.7** (`xpForLevel`) — base 55→80→**110** to hit **~50–60 level-matched dungeon clears to ★** (110→~56; base rises because foe XP rises w/ dungeon level). need(1→2)=110 · (2→3)=355 · (3→4)=710 | anchored dummy→L2 · gauntlet→L3 (teaching `xp` overrides: dummy 110, gauntlet 95/170/90=355) · first clear still ≈ 1 level · XP always banks |
+| Dungeon difficulty 1–5 *(PLANNED, sim §8)* | **dungeon LEVEL = 3 + 4(D−1)** → D1 L3 · D2 L7 · D3 L11 · D4 L15 · **D5 L19 ("18+")**, ±2 ramp | the parity-authoring level of a dungeon's foes; you climb D1→D5 as you level. `schema.ts` already has `difficulty` |
+| Foe level-equivalent *(PLANNED, sim §8)* | **`L_foe ≈ 1 + (avgStat − 10)/2`** (self-rated, inverts parity) | no authoring — strength IS level; elites/bosses read ~1 higher via the E-bump (within the grace band) |
+| Outlevel XP penalty *(PLANNED, sim §8)* | **`clamp(1 − 0.15·max(0, L_player − L_foe − 2), 0.1, 1)`** | full XP within 2 levels; one tier down (gap~4) ×0.70; two tiers (gap~8) floors ×0.1. Makes "level-matched clears" real (anti-backtrack-farm). Above-level ×1.0 (bonus = a lever). Engine wiring: `computeXP(foe, playerLevel?)` |
 | Gear stat share | **~25%** of endgame stats (~+30–40 pts/kit, ≈+5–7/slot) | gear's identity = per-card riders + slot mechanics (§7), not stats |
 | ✅ Drop count (LIVE) | minion **1** · elite **2–3** · boss **5** | `loot.ts` TABLES; plus a guaranteed gold WAGE ×2 / ×4 (elite/boss) |
 | ✅ Category weights (LIVE) | minion **60/30/10** · elite **45/35/20** · boss **30/40/30** (gold/cons/gear) | elites+bosses roll consumable quality with ADVANTAGE; **gear/spellbook DISABLED (B3/B4)** → their weight redistributes to the live categories (`ENABLED`) |
@@ -131,6 +134,17 @@ blow, a deferred B2 item; `GOLD_K` recalibrates once the shop sink lands.)
 | ✅ Maneuver live-burn (LIVE) | **~1 charge/sec**, gather **~1.5–2s** to enter, bail-out to SG instant (keeps remainder) | replaces the rollover dump; burn rate = the scan-stability dial |
 | Speed riders | ✅ start grace ↑ with Speed edge (LIVE) · ⏳ parting blow ↓ with Speed edge (waits on the flee parting blow) | the escape stat |
 | Crits | **deferred** to gear/abilities (deterministic hooks only) | set output stays exact |
+| Loadout caps *(settled 2026-06-13)* | **6 active + 3 passive** (the **signature passive counts** → 2 free passive slots) | build-tension vs a ~10-deep list; each class has ~5 passives, begins with 1 fixed signature; a class = `{X abilities, Y passives, Z gear}` (counts class-defined) |
+| Ability gating *(settled 2026-06-13)* | **mana `cost` and/or `cooldown` (rounds)** | cooldowns join mana as a 2nd gating dimension — a variety + balance lever; either/both/neither per ability |
+| Slot-unlock cadence *(SETTLED 2026-06-14)* | **active slots L3·L6·L10·L14** (2-start → 6 by L14) · **passive L8·L16** (signature+2 → 3 by L16) | level-up unlocks a slot + grants a pick (**supersedes the boss-gated pick**); surplus grants (kit-heavy or **prestige** packages) → a REPLACE from the (prestige) set |
+| Per-level BUNDLE + cadence *(SETTLED 2026-06-14; full table CRAWL §3)* | **auto each level:** +5 HP · +6 stats (≤3/stat) · +mana cap (15→~35). **scheduled (fixed):** satchel +1 ×5 → **15** (L2/4/9/12/17) · consumable loadout +1 ×2 → **5** (L5/13). **picked:** exploration approach-up ×10 → all 5 maxed by ★ (L3/7/10/11/13/15/18-21) | capacity is FIXED (no real choice), approaches are the PICK (order = identity); all OFF the combat-power curve. **Excluded:** charge cap (stays 15 — board invariant) · Storage (gold-bought `N²`) |
+| Creation facets *(settled 2026-06-14)* | **Class × Background**, both achievement-gated | start = **Adventurer** only (generic/balanced); tutorial unlocks a few classes; prestige = the deep end of the same gate. **Background** = 1 permanent NEUTRAL passive in a **dedicated 4th slot** (powerful vs normal, broadly useful, never changed) — racial/signature-item/size/career flavor; Background × Class is the long-tail unlock space |
+| Spellbook prices *(settled 2026-06-13)* | active **1000g** · passive **2500g** | pricey — enables twinking *to a limited degree*; keeps the class-hall shop a **pity backstop** to the drop lottery, not a shortcut. Spellbooks **REPLACE** (never raise the 6/3 cap — any ceiling bump is *earned, not bought*) |
+| Storage-slot upgrade *(settled 2026-06-13)* | **`cost(N) = N²`**, 10-slot steps off base 20: 30=900g · 40=1600g · 50=2500g · … · 100=10,000g (~38k all-in) | the steady always-useful gold sink; square = cheap early, a real long-game dump at the top |
+| Character-slot cost *(settled 2026-06-14, sim §9)* | slot 1 free; **N≤10: ~40·N²** (cum to 10 ≈ **15k**) · **N>10: 4000+120·(N−10)²** (slot 20 = **16k**, cum 11–20 ≈ **86k**, all-20 ≈ **102k**) | shared account; **PEGGED to lifetime gold ~23k/char (1→★)** — invariant: cost(#20) ≤ one char's lifetime gold (×1.4 margin) so you can never get slot-locked. Rescale with `GOLD_K` if it recalibrates |
+| Sell-back rate *(settled 2026-06-13)* | **~20% of value** (a town amenity raises it later) | low by default so flipping shop stock is never arbitrage |
+| Class-hall level metric *(OPEN)* | highest level of any owned char of that class | top tiers stock that class's spellbooks; a maxed (★) char opens the full catalog to the whole roster |
+| Dungeon-clear marquee roll *(settled 2026-06-13)* | 1 guaranteed high-quality roll: **spellbook** (if consumable) / **rare+** (if gear) | the boss's growth feel now that ability picks moved to the level cadence; the **lottery-primary** spellbook faucet |
 
 ## Delve encounter schema (LIVE, first cut — CRAWL §2)
 
@@ -141,6 +155,48 @@ blow, a deferred B2 item; `GOLD_K` recalibrates once the shop sink lands.)
 | `RUN_BAG_CAP` | 10 | `src/engine/delve.ts` | The run consumable satchel (the 10-slot run inventory's seed) |
 | dread bands | 15 / 45 / 80 (% cum, next room) | `src/engine/delve.ts` (`dreadBand`) | quiet → drums → throne stirs → he is near → throne room found |
 | room loot | 1 random consumable (¾ potion / ¼ scroll) | `src/engine/delve.ts` (`rollDelveLoot`) | ⚠ PLACEHOLDER — real loot tables (gold/XP/gear by loot_tier) replace it |
+
+## Dread escalation — PLANNED (settled 2026-06-13; the structural anti-stall; CRAWL §5.8)
+
+The unified `dread` meter (1–10) drives two lanes: **drift = soft tension** (can't touch HP),
+**a two-way damage multiplier = the hard anti-stall**. **SIM-VALIDATED 2026-06-13**
+(`sim/progression-sim.mjs` §7): the damage band sits past the A6 kill budgets (onset round 12
+shallow vs budgets 2.5/5/10), ON ≈ OFF for normal fights (inert backstop), and the ramp breaks
+realistic sustain (10%/rnd heal: 69% stall → 1%). **Key finding: the foe ramp must ride the
+UNGUARDABLE lane** (trap/tick), not the telegraph — sated guard neutralizes a pure strike multiplier.
+
+| Constant | Value (first cut) | Meaning |
+|---|---|---|
+| `DREAD_SCALE` | **1 – 10** | the meter; extends the existing dread bands (§2) into a numeric driver |
+| Depth floor `D₀` | bands → **1 / 2.5 / 4 / 5**, **cap 5** | from the cumulative boss-total; set per room, resets at Town. Capped at 5 so depth never reaches the damage band alone |
+| `DREAD_RISE` | **~0.5 / round** | within-fight climb: `dread = clamp(D₀ + RISE×round, 1, 10)`; resets to `D₀` at fight end |
+| `DREAD_KNEE` | **5** | below = near-flat gentle drift; above = drift steepens toward the ceiling |
+| Drift ceiling | **≤ ~0.3–0.4 c/s** (TRAPS §6) | even max dread respects the net-transmute budget → the makeable-FLOOR holds; drift quantized to the **rollover** (no continuous clock) |
+| `DMG_ONSET` | **dread 7** | the two-way damage multiplier is OFF below this; ramps linearly to max at dread 10 |
+| `DREAD_DMG_FOE_MAX` | **×2.0** at dread 10 | foe damage scale at max |
+| `DREAD_DMG_PLAYER_MAX` | **×1.5** at dread 10 | player damage **+ healing** scale at max — sustain scales 1.5 vs incoming 2.0 → equilibrium breaks to the house |
+| `DREAD_BLEED_MAX` *(generic, split out 2026-06-13)* | **6%·maxHP/round** at dread 10 (0 below onset) | a foe-INDEPENDENT unguardable drain so the anti-stall doesn't depend on the foe's trap kit; authored traps/ticks ride on top. This is the clean primitive (a universal dread bleed, not a per-foe DoT) |
+| Multiplier scope | foe ×: **all foe DAMAGE incl. unguardable trap/tick + the bleed** · player ×: **damage + heals**; NEITHER touches **drift** (the transmute, no HP) | the unguardable lane is what bites (sated guard caps a pure telegraph ×); folds in AT REVEAL so the ⚔ stays honest; dodge/guard/SG still apply to the bigger numbers |
+| Goal / cap behavior *(reframed 2026-06-13)* | **capped at dread 10**; goal = ACCELERATE to a resolution + the dread swing-moment, NOT force-kill the turtle | sim §7: breaks realistic sustain ≤~20%/rnd, normal fights inert (ON≈OFF). An indefinite-heal build wins nothing → needs no force-kill; absurd out-healing is a sustain-NUMBER cap, fix at source |
+
+## Between-rooms approaches — PLANNED (settled 2026-06-13; CRAWL §2)
+
+Pick ONE at the fork, free, resets per room. Universal (all start usable); leveled via the per-level
+horizontal pick, **cap 3**. Buys map to the five run currencies (info/tempo/loot/HP/mana).
+
+| Approach | Buys | L1 / L2 / L3 |
+|---|---|---|
+| **Scout** | information | **tier** / +foe / +traps (Scout 1 is a FREE baseline for everyone; depth scales) |
+| **Lurk** | tempo | **+3 / +6 / +9s on round 1** (initiative vs the fixed foe telegraph; stacks with Speed) |
+| **Scavenge** | reward | next loot roll **+2 / +4 / +6 effective-depth** (reuses `DEPTH_RATE` ≈ +14/28/42%) |
+| **Recover** | HP | **+5% / +10% / +15% maxHP** — hard-capped low (a choice vs the attrition spine, not sustain) |
+| **Prepare** | mana | start round 1 with **~20% / 35% / 50% of mana cap** (rest rebuilds in-fight, §6) |
+| **Investigate** *(DEFERRED)* | encounter type | bias the next room toward EVENTS — lands with the non-combat room system; Scout then reads room type too |
+
+| Constant | Value | Meaning |
+|---|---|---|
+| Round-1 length | **`clamp(20 + (playerS − foeS), 15, 25)`s**; every other round flat **20s** | Speed = initiative; per-round scaling REJECTED (universal multiplier triple-dipping dodge+charges, breaks the 20s constant + kill budgets, re-couples scan speed). Lurk stacks. **Supersedes the §5.7 start-grace rider** |
+| Board preview | **voluntary-activation**: untimed; the **first set you complete starts the round** | baseline every fight (not just Lurk); supersedes the fixed 3s start-grace; kills opening-scan pressure |
 
 ## Trap severity law (unchanged)
 

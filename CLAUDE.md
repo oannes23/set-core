@@ -54,6 +54,17 @@ foundation migration is complete (TODO §A); next is **set.crawl on the modules*
    **spec→spec transforms**, never direct generator inputs. This is the
    structural fairness guarantee — do not add a difficulty input that bypasses it.
 5. Control aggregate stats; randomize specifics (no positional tells).
+6. **Selection-protected turnover (settled 2026-06-13; build pending).** No card *turnover*
+   (any transmute — drift / churn / trap / dread / any owner) may target a card that is
+   currently **selected** OR is a **set-mate of a selected card** (a board card that completes
+   a set with one or more selected cards). Kills the "I clicked 2 of the 3 and the last one
+   morphed" bad-feel — your pattern-finding beats your click speed, never the reverse. Holding a
+   partial selection therefore *shields* those cards: an acceptable (clever) exploit, far
+   outweighed by removing the bad feel. Pre-first-select turnover is **unprotected** (rare,
+   acceptable). Invariant-safe: protection only *restricts* eligible targets, so it can only
+   reduce churn — it never breaks the FLOOR (a turnover with no legal target simply skips).
+   Implementation note: selection is UI-ephemeral, so the turnover path needs the live selection
+   (a `selected` field on combat state, or passed via the action context).
 
 ## Working style notes
 - The generation core is heavily validated (100k+ clears/config, zero invariant

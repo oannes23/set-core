@@ -16,6 +16,40 @@ Traffic-light: green = pursue · yellow = consequence · red = wounded.
 
 ---
 
+## ⭐ BUILD ORDER — the active progress tracker (set 2026-06-14; UPDATE on every implementation)
+Agreed sequence: **complete the core loop (combat → inventory → leveling → content), then enrich, then the meta.**
+Detailed specs live in CRAWL-DESIGN.md + the sections below; this is the master checklist — tick items as they land.
+
+### Phase 1 — Combat core *(engine; self-contained, validated)* ← ACTIVE
+- `[x]` **1a. Selection-protected turnover** (hard rule #6) — **BUILT 2026-06-14** (`selected` on `CombatState`,
+  UI-synced each dispatch; `protectedSlots` in select.ts; filtered in `transmute()` when `source` is set, so
+  AUTOMATIC turnover — churn/drift/trap/trick — skips a selected card or its set-mate, while a deliberate player
+  cast is exempt; carried in `cloneState`). User chose the **aggressive scope** (shield all set-mates from the
+  1st selected card). 4 new tests (`protection.test.ts`); 138 green; typecheck clean.
+- `[~]` **1b. Dread escalation engine** (CRAWL §5.8) — **drift curve VALIDATED 2026-06-14 (sim §10):** max drift
+  0.35 c/s ≤ the 0.4 ceiling, reshape share glides 76%→56% (intended tension), FLOOR holds → SAFE TO BUILD. NEXT:
+  build the meter (depth floor from delve band + within-fight rise), drift accel past the knee (wired to the meter),
+  the two-way damage ramp (unguardable lane + generic `DREAD_BLEED`) folded into the telegraph at reveal, two-motion
+  meter UI. (Traces needed first: the round state machine + telegraph/strike resolution + the drift tick.)
+
+### Phase 2 — Inventory loop *(finish B2; data layer already built)*
+- `[ ]` Storage UI (the bag screen) · loadout-from-Storage (`takeFromStorage`, survivors auto-return)
+- `[ ]` satchel `string[]` → `Item[]` (delve.ts + app.ts — the heaviest refactor surface)
+- `[ ]` bank kept items home on safe exit · retire `SavedChar.consumables` · return triage (keep→Storage / sell→Gold @20%)
+
+### Phase 3 — Progression tangible
+- `[ ]` 3a. Level-up modal: **+6/≤3** allocation widget + the cadence grants (incremental)
+- `[ ]` 3b. Dungeon difficulty **1–5 ladder**: author D1–D5 + the `L=3+4(D−1)` mapping (gives the outlevel penalty a destination)
+
+### Phase 4 — Run-loop enrichment
+- `[ ]` Between-rooms approaches (5 verbs at the fork) + voluntary-activation preview + Speed→round-1
+
+### Phase 5+ — Big systems *(design-gated / deep deps)*
+- `[ ]` Ability system (loadout/equip + cooldowns + spellbooks) · `[ ]` Gear B3 (affixes — design gate first)
+- `[ ]` Achievement meta-layer → guild halls + bounties → town amenities
+
+---
+
 ## Done (summaries — detail in git history + design docs)
 
 - **Foundation migration (§A).** The modular `src/` client is the live game at full combat parity
@@ -269,6 +303,22 @@ Build order (everything sim-gated where it touches contest constants):
   ~40% over the first cut) — recalibrate `GOLD_K` when the shop sink exists. Replaced the delve's
   placeholder one-consumable roll.
 
+## NEXT COMBAT BUILD — dread escalation + selection-protected turnover (SETTLED + SIM-VALIDATED 2026-06-13)
+Both settled this session (CRAWL §5.8 + the hard-rules invariant #6); spec + sim done, engine pending.
+Combat-only; builds *with* B2 (the dread depth floor reads the delve's dread band).
+- `[ ]` **Dread escalation (CRAWL §5.8; constants TUNING "Dread escalation").** One `dread` meter
+  (1–10) = depth floor `D₀` (from the delve dread band, capped 5) + within-fight rise (~0.5/round,
+  resets at fight end). Two lanes: **drift** accelerates past the knee (5), bounded by the TRAPS §6
+  ceiling; **damage escalation** off until dread 7 → foe ×2.0 (rides the UNGUARDABLE lane — trap/tick
+  **+ the generic `DREAD_BLEED` 6%·maxHP/rnd**) / player ×1.5 (damage + heals), folded into the
+  telegraph AT REVEAL. Goal = ACCELERATE to a resolution + the dread swing-moment, not force-kill.
+  Sim §7 validated calibration + inert-backstop + the bite. Render the meter's two motions (depth
+  floor base + within-fight overlay; mark the knee + the damage onset).
+- `[x]` **Selection-protected turnover (hard rule #6) — BUILT 2026-06-14.** See the BUILD ORDER tracker (Phase 1a).
+  `selected` on `CombatState` (UI-synced each dispatch) → `protectedSlots` (selected + all set-mates via `findSets`)
+  → filtered in `transmute()` for sourced (automatic) turnover only; deliberate player casts exempt. Aggressive
+  scope (shield from the 1st selected card). `protection.test.ts`; 138 green.
+
 ## Open — combat polish (small, optional)
 - `[ ]` **Explain-mid-play tutorial variant** — fire explain-popovers at trigger points during a
   *normal* fight (first trap spring, first lock) rather than only as the staged intro: same coaching
@@ -325,9 +375,17 @@ inventory-full during a run → **swap-or-discard prompt** · consumables are **
   both Storage (20) and the run inventory (10) hold `Item[]`. **`SavedChar.consumables` is removed** — the
   3-slot delve loadout (drawn from Storage) is **run-state**, not character-state; gear equip-slots
   (B3) are character-state but pull items from the shared bag.
-- `[ ]` **B2 — economy core:** the account store + `Item` model + **starter-stash seeding once per
-  account** (not per new hero, else create/delete farms it) + Storage UI; dungeon-select loadout becomes
-  "load 3 from Storage."
+- `[~]` **B2 — economy core:** DATA LAYER DONE (2026-06-13). `src/engine/items.ts` (the unified `Item`
+  instance model — consumables + gear share the shape) + `src/ui/bank.ts` grown from gold-only into the
+  full **account store** `{ gold, storage: Item[], storageCap 20, seeded }` (v1→v2 migration, same key;
+  pure storage transforms: add/addMany/remove/take/expand + the swap-or-discard `ok:false` signal) +
+  **starter-stash seeding once per account** (the `seeded` flag — create/delete can't farm it). 25 new
+  tests (`items.test.ts` + grown `bank.test.ts`); 131 green; typecheck clean; the running app is
+  untouched (gold call sites kept via aliases). STILL OPEN (the app.ts wiring slice): the **Storage UI**
+  (the bag screen + return triage keep/sell) · dungeon-select loadout becomes "**load 3 from Storage**"
+  (drawing `Item[]` via `takeFromStorage`, survivors auto-return) · convert the delve **satchel
+  `string[]` → `Item[]`** + bank kept items home on a safe exit · retire `SavedChar.consumables`. Keep
+  the free-pick loadout live until the loot→storage loop closes (no dead-air gap).
 - `[ ]` **B2/B3 — run loop:** run-state (seed + room chain + **10-slot run inventory**); loot on win;
   **swap-or-discard** when full; between-room refill of the 3 active slots from run loot; HP-only
   attrition (replaces `onWin` full-heal); **return triage** (keep → Storage / sell → Gold; *keep* greyed
@@ -336,6 +394,20 @@ inventory-full during a run → **swap-or-discard prompt** · consumables are **
   to triage's sell-side).
 - Sequencing note: keep the current free-pick loadout live as the interim potion source and **flip it off
   only once the loot+shop loop exists** (B3/B4) — same end state, no dead-air gap.
+
+### Between-rooms approaches + the per-level bundle — SETTLED 2026-06-13 (CRAWL §2 + §3; TUNING)
+- `[ ]` **Between-rooms approaches** — at the fork, pick ONE (free, resets/room): **Scout** (info:
+  tier→+foe→+traps; Scout 1 free for all), **Lurk** (+3/6/9s on round 1), **Scavenge** (loot
+  +2/4/6 effective-depth), **Recover** (5/10/15% maxHP, capped), **Prepare** (~20/35/50% mana). The
+  5 currencies (info/tempo/loot/HP/mana) — shore up your weakest axis. **Investigate** = deferred 6th
+  (biases toward EVENT rooms; lands with the non-combat room system).
+- `[ ]` **Voluntary-activation board preview** (baseline every fight) — untimed; the first set you
+  complete starts the round. Supersedes the fixed 3s start-grace. (Onboarding + v3-deliberate win.)
+- `[ ]` **Speed → round-1 length** — `clamp(20 + (playerS−foeS), 15, 25)`s; every other round flat
+  20s. Migrates the §5.7 start-grace Speed rider; Lurk stacks. (Per-round scaling rejected — OP.)
+- `[ ]` **The per-level reward bundle** — automatic each level: +5 HP · +3/+2/+1 stats · **+mana cap**
+  (15→~35); plus a **horizontal pick** (approach↑ cap 3 · +satchel 10→15 · +consumable loadout 3→5 ·
+  +Storage slot · +charge cap). Ability-slot pick layers on at cadence. Every level is juicy.
 
 ### Exit ladder / cost triad — PLAN (settled 2026-06-09; full spec in `CRAWL-DESIGN.md` §6)
 The four run-exits are strictly ordered (each rung worse than the one above):
@@ -356,9 +428,12 @@ The four run-exits are strictly ordered (each rung worse than the one above):
   throne room, once found, stays found** (fleeing the boss → fork, but pressing on is always
   the boss — farming's point of no return); the **dread meter** shows the running total as
   **thematic bands** (fiction surface, true curve underneath). Full spec: `CRAWL-DESIGN.md` §2.
-  Still open: tithe %. ⚠ Companion requirement: free Rest + flee-farming + sustain builds =
-  unbounded farming → the **structural anti-stall** (soft-enrage / per-room pressure,
-  `FABLE.md` §8.1) should land *with* B2, not after.
+  Still open: tithe %. ✅ Companion requirement SETTLED (2026-06-13): free Rest + flee-farming +
+  sustain builds = unbounded farming → the **structural anti-stall** is now the **dread escalation**
+  (`CRAWL-DESIGN.md` §5.8; constants `TUNING.md` "Dread escalation — PLANNED") — a unified 1–10
+  dread meter driving accelerating drift (soft tension) + a two-way damage multiplier past round
+  ~12 (the hard resolver). Sim-gated; should build *with* B2. Supersedes the per-foe `dread_drums`
+  DoT as the load-bearing anti-stall.
 
 ### Phase B2 — run loop + first loot (consumables)
 **FIRST CUT SHIPPED (2026-06-12) — the delve flow.** `engine/delve.ts` (pure, tested:
@@ -392,9 +467,42 @@ death ends the run and drops the satchel; the boss win is the clear. Constants i
 ### Phase B4 — deeper progression
 - `[ ]` XP / levels → +HP / +ability-slots; boss-gated ability picks; spellbooks (cross-class learn).
 - `[ ]` Gold economy + town shop (buy/sell); the **run-level contribution chart** feel idea fits here.
+- `[ ]` **Guild halls + bounties + the achievement-unlock web — SETTLED 2026-06-14 (CRAWL §3).** Big
+  system, B4/B5. **Hall shop:** on-theme random scrolls/potions/gear + a **daily spellbook rotation**
+  (≤3 active + 1 passive); **dual-axis** = class char-level FLOORS loot quality (global, even at 0 gold)
+  + gates upgrades · gold BUYS shop slots + higher tier-tables (3–5 gear tiers). **Trainers:** respec +
+  guaranteed-ability buy (member discount, unlock-gated). **Bounties:** known-reward contracts (gold /
+  consumable / rare gear / XP), daily + repeatable, **first clear mints an achievement** (often a
+  content GATE). **Unlock web:** Adventurer hall → other-CLASS unlocks · class halls → related-class
+  unlocks · **Tavern** → BACKGROUND unlocks · some bounties → new DUNGEONS (added to your known list).
+  **Hall-unique procedural dungeons** w/ NPC-class foes (⚙ needs the **ability↔trap parity
+  translation** — both are spec→spec board-verb transforms, so tractable). **Generation seed = per-class
+  BIAS METADATA** (themes / loot slant / related-class pointers) → halls/shops/bounties fall out.
+  Depends on: the **achievement meta-layer** + the account store (B2) + gear (B3).
+- `[ ]` **Achievement meta-layer + base-building — SETTLED 2026-06-14 (CRAWL §3).** The connective
+  tissue under every unlock. **BASE TOWN is fully open from day 1** (gold only — Tavern / Bank / Barracks /
+  Temple / Weaponsmith / Armorsmith / Trinket / Alchemist): gold sinks before any unlock + broad
+  building direction. **Achievements gate the EXPANSION** (classes / backgrounds / dungeons / class
+  halls / advanced amenities) via "unlock blueprint → gold fills it." **Two achievement kinds:**
+  escalation COUNTERS (1·10·100·1k·10k, from the engine's existing `stats` + dev-instrument + run/meta
+  events) = **ONLY unlock-gates + bragging** (no combat/capacity/currency; unlock value ∝ action
+  RARITY; per-dungeon 1/10/100 → first usually unlocks, rest bragging) · milestone GATES (bounty-minted).
+  **DUAL-SOURCE:** the achievement grind is the guaranteed path; a **rare bounty** unlocks the same early.
+  **Backgrounds** ← the big varied cumulative counters (dungeons/char, total battles, items sold…).
+  **⭐ GUARDRAIL: HORIZONTAL only** — ACCESS, never flat account-wide combat multipliers (power stays
+  per-character). **Build** = account COUNTER store (persist/aggregate, survives death) + an
+  achievement-definition table → blueprint-unlocks. Most data already produced by combat/run.
 
 ### Phase B5 — content & tuning
 - `[ ]` Author foes / variants / templates / dungeons beyond the teaching set; tune XP / HP / gold curves.
+- **XP / difficulty retune — DONE 2026-06-14 (sim §8; CRAWL §3; TUNING):** curve base **55→80→110**
+  → `need = 110·L^1.7` (**~56 level-matched dungeon clears to ★**, the 50–60 target); teaching `xp`
+  overrides re-tuned (dummy 110, gauntlet 95/170/90=355). **LIVE in `foe.ts`:** `foeLevelEquiv` (foes
+  self-rate their level from the statline) + the **outlevel XP penalty** `computeXP(foe, playerLevel)`
+  = `clamp(1−0.15·max(0, ΔL−2), 0.1, 1)` (full within 2 levels, floors ×0.1 — farming trivial content
+  doesn't pay). **STILL OPEN (this phase):** author the **dungeon difficulty 1–5 ladder** (`L=3+4(D−1)`
+  → D1 L3 · D5 L19 "18+"); today only the warren (~D1) + teaching exist, so the penalty has nowhere to
+  send an over-leveled player yet. Optional: a small **above-level XP bonus** (lever, not taken).
 - `[ ]` Optional: crawler reskin/palette (§1); a YAML data loader **only if** external authoring is
   wanted — today's typed `game-data.ts` is the equivalent (and type-safe).
 
@@ -440,8 +548,33 @@ design session: what each axis directs, what magnitude becomes, and the clock-fe
 
 ### Open design decisions (carry from `CRAWL-DESIGN.md` §6 — settle as each phase lands)
 - ~~Loss-condition framing + the flee penalty~~ — **SETTLED 2026-06-09: the exit ladder** (above).
-- Ability slots vs. a known-ability library (implies a loadout screen in town).
-- Cooldowns vs. resource-only gating for actives.
+- ~~Ability slots vs. a known-ability library (implies a loadout screen in town).~~ **SETTLED
+  2026-06-13 (CRAWL §3 loadout + class halls; numbers in TUNING.md):** 6 active + 3 passive slots,
+  filled on the **level-up cadence** (slot + pick — supersedes the boss-gated pick); a class = a
+  dynamic `{X abilities, Y passives, Z gear}` package (enables prestige classes); **spellbooks**
+  replace an equipped ability (cross-class; passive books rarer); **class halls** sell spellbooks
+  (unlocked by owning that class, full catalog at ★); a **guaranteed dungeon-clear marquee roll**
+  (spellbook/rare+) carries the boss reward. MORE settled 2026-06-13: signature passive **counts**
+  toward the 3 (~5 passives/class, 1 fixed start → 2 free); **off-levels grant a capacity bump**
+  (satchel etc. — every level progresses); **spellbooks REPLACE, never raise the cap** (twinking =
+  better not more; ceiling bumps earned not bought); **lottery-primary** sourcing (shop = pity
+  backstop); prices **1000g active / 2500g passive book**, **storage `cost(N)=N²`**, **sell 20%**.
+  STILL OPEN: hall-level metric. **SETTLED 2026-06-14 — the full level cadence** (CRAWL §3 table;
+  TUNING): active slots L3/6/10/14 · passive L8/16 · satchel +1 ×5→15 (fixed) · consumable loadout
+  +1 ×2→5 (fixed) · exploration approach-up ×10→all maxed by ★ (picked; order = identity). Capacity
+  fixed, approaches picked; charge cap (15, board invariant) + Storage (gold `N²`) excluded.
+- ~~Prestige-class unlock conditions.~~ **SETTLED 2026-06-14 (CRAWL §3 "Character creation"):** the
+  WHOLE game is **achievement-gated** — start = **Adventurer** only (generic/balanced starter), tutorial
+  unlocks a few classes, more behind varied achievements; **prestige = the deep end of the same gate**
+  (no separate system). NEW: **Background** = a 2nd creation facet — 1 permanent NEUTRAL passive in a
+  dedicated 4th slot (powerful, broadly useful, never changed; racial/signature-item/size/career
+  flavor), also achievement-gated → Background × Class is the long-tail. Needs an account-level
+  **achievement-tracking meta-layer** (B4/B5; hooks — class-locked creation + the Background slot —
+  designed now). Also: **level-up modal UI** changes (3/2/1 → **+6 freely, ≤3/stat**; data layer
+  already supports it — `save.ts applyLevelUp` just adds the delta).
+- ~~Cooldowns vs. resource-only gating for actives.~~ **SETTLED 2026-06-13: BOTH** — cooldowns join
+  mana as a second gating dimension (variety + balance lever); each ability authors `cost` (mana)
+  and/or `cooldown` (rounds), either/both/neither. (CRAWL §3 loadout; TUNING "Ability gating".)
 - ~~Level / XP / HP / gold curves; the death-tithe %~~ — **SETTLED 2026-06-12: the progression
   package** (CRAWL §3 + §5.7; first-cut numbers in TUNING.md, sim-gated). Inventory limits:
   run satchel 10 (live) · Storage 20 (B2 economy build).

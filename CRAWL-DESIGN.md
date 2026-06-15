@@ -123,7 +123,9 @@ f=3/N=15 grid; only the skin changes.
   - **The dread meter (between-rooms UI, Phase B2):** the running total is surfaced
     as **thematic bands** (≈4–5 steps: "the warren is quiet" → "drums echo" →
     "the throne stirs" → "he is near"), monotone and honest against the true
-    cumulative — fiction on the surface, the exact curve underneath.
+    cumulative — fiction on the surface, the exact curve underneath. **These bands
+    also set the combat `dread` *depth floor* `D₀` (§5.8)** — the across-run threat
+    that the within-fight escalation builds on.
 
 - **Elite chance per room** — checked *only if the boss didn't trigger this room*, and
   **recurring** (the elite tier is met repeatedly). Chance = **10% × (rooms since the
@@ -134,6 +136,57 @@ f=3/N=15 grid; only the skin changes.
 
 - **Town** between dungeons: **sell** gear/spellbooks, **buy** from shop loot-table
   inventory (gear, consumables, spellbooks). Healing/restock happens here.
+
+### Between-rooms approaches — the exploration verbs *(SETTLED 2026-06-13; build with the B2 run loop)*
+At the between-rooms fork (after a clear, before the next room — alongside press-on / flee /
+cash-out, §6) you choose **one approach** for the next room. **Free, one per transition, resets each
+room** — the opportunity cost (only one) *is* the decision, and it turns the fork from a continue
+button into a live read. This realizes the shelved Scout & Scavenge "run-fork verbs" (the Tactics v2
+notes) as a full set. The five live approaches map onto **the five things a run can be short on** —
+pick to shore up your weakest axis:
+
+- **Scout (information)** — preview the next encounter. **Free baseline at L1 for everyone**
+  (new-player-friendly — info is what de-risks early runs), scaling by *information depth*: L1 the
+  **tier** (minion/elite/boss — the brace-or-flee signal) · L2 **+ the exact foe** · L3 **+ its
+  traps/signature** (the full threat read). The meta approach: it informs *which* approach to take
+  next AND the flee/press decision (Scout an elite → flee it before committing) — Scout is the exit
+  ladder's natural partner.
+- **Lurk (tempo)** — **+seconds on round 1** (+3 / +6 / +9s at L1/2/3). Initiative falls out of v3
+  for free: the foe's telegraph is a *fixed per-round budget*, so a longer round 1 is pure player
+  accumulation against it. **Stacks with the Speed initiative** (below).
+- **Scavenge (reward)** — the next room's loot roll gets **+2 / +4 / +6 effective-depth** (reuses the
+  `DEPTH_RATE` machinery — ≈ +14 / +28 / +42% gold + quality bias), L1/2/3.
+- **Recover (sustain)** — heal **5% / 10% / 15% maxHP** (L1/2/3). **Hard-capped low on purpose** —
+  it's a *choice against* the HP-attrition spine, never a sustain engine.
+- **Prepare (resource)** — start round 1 with a **partial mana pool** (~20% / 35% / 50% of cap; the
+  rest still rebuilds in-fight per §6 — bounds caster snowballing), L1/2/3.
+
+**The voluntary-activation board preview (baseline — every fight, not just Lurk).** The pre-round
+preview is *untimed*: plan freely, and **the first set you complete activates the round** (it counts
+as your opening move). Kills opening-scan pressure — fits the v3 deliberate register, great for
+onboarding — while fast players still go fast. **Supersedes the fixed 3s start-grace.**
+
+**Speed = initiative, via round-1 length.** Round 1 runs `clamp(20 + (playerS − foeS), 15, 25)`
+seconds (faster-than-foe → up to 25s, slower → down to 15s); **every other round stays a flat 20s**
+(the v3 pacing constant holds). Lurk adds on top. *Scoping rationale (the load-bearing call):*
+scaling **every** round by Speed would be a universal throughput multiplier (it lifts attack AND
+defend AND charges vs a fixed foe budget) that **triple-dips** with dodge + charges, unsettles the
+20s pacing constant + the kill budgets, and **re-couples output to scan speed** (undoing "sets steer,
+stats carry") — so the initiative is confined to the opener. Bonus: it helps the sim-flagged "Speed
+under-buys" gap. **Speed's old start-grace rider migrates here** (supersedes §5.7's
+start-grace-stretches-with-Speed).
+
+**Acquisition.** The five are **universal** (everyone can use all of them); you **level them via the
+per-level horizontal pick** (§3) — four scale L1→3, Scout's depth L1→3, capped at 3. *Which* you
+level and in what *order* is the playstyle expression. **Class synergy is optional flavor** (a class
+*may* carry a passive that boosts one approach), never a per-class requirement.
+
+**Deferred — Investigate (the 6th, with the event-room system).** When non-combat rooms exist (the
+StS-style events / merchants / camps run-variety thread), **Investigate** buys *encounter type* —
+biasing the next room's roll toward event scenes. It dovetails with Scout, which then reads room
+*type* too ("an event lies ahead"): Investigate shifts the odds, Scout reads the result. Event rooms
+may themselves *offer* a free or boosted approach (a campfire = a bigger Recover), keeping the two
+systems reinforcing rather than parallel.
 
 ### Scenes & persistence (the hub)
 The game is **two top-level scenes**, not one screen: the **Hub** (town/menu) and the
@@ -162,10 +215,13 @@ budget-conformance sim; constants tabled in `TUNING.md` "Progression & loot — 
 > onboarding curve. STILL OPEN from §3: the **loot tables** (gold/gear/spellbook drops).
 - **Cap: level 21** — numeric to 20; the 21st renders as a **★** (the cap badge).
 - **Per level: +5 max HP** (base 100 → **200 at cap**; gear/passives can add ~+100 more for a
-  practical ~300 ceiling on a dedicated build) **+ stat points +3/+2/+1, player-allocated**
-  (+3 to one of P/E/S, your pick; +2 and +1 to the others) → +6/level, **+120 over the arc**;
-  a focused main stat ends ~+60 over base, a balanced spread ~+40 each. Pre-gear build
-  identity lives here (classes start stat-uniform).
+  practical ~300 ceiling on a dedicated build) **+ 6 stat points, freely distributed, ≤3 per stat**
+  (REVISED 2026-06-14 — was a rigid +3/+2/+1 permutation; now any split summing to 6 with each ≤3:
+  **3/3/0 · 2/2/2 · 3/2/1**). → +6/level, **+120 over the arc**. The freedom adds **two-stat-focus**
+  builds (3/3/0 → two stats +60, the third dumped to base) alongside the old focused-main (+60) and
+  balanced (+40 each). Totals + bounds are **unchanged** (max one stat is still +3/level → +60; the
+  contest clamp [2,20] binds at ±60), so the sim's parity line + conformance hold — dumping a stat is
+  the real cost. Pre-gear build identity lives here (classes start stat-uniform).
 - **The re-denomination corollary (SIM-DERIVED 2026-06-12 — `sim/progression-sim.mjs`,
   constants in `TUNING.md`):** contests are DIFFERENCE-based, so the wide point arc re-derives
   the per-point constants — `RATE_K` 0.8 → **0.2**, `MOVE_RATE_K` 0.1 → **0.025**; the
@@ -180,31 +236,148 @@ budget-conformance sim; constants tabled in `TUNING.md` "Progression & loot — 
   **tierMult ×1 / ×2 / ×4** (minion/elite/boss) — deliberately ABOVE the stat ladder's
   ×1/×1.5/×2, so harder targets always beat grinding per minute (the economic anti-stall).
   The authored `xp` field retires with the data rebase.
-- **Curve anchors (settled; SHAPE SIM-DERIVED 2026-06-12):** **polynomial —
-  `need(L→L+1) = 55 × L^1.7`** (geometric REJECTED by the sim: XP income grows ~linearly with
-  the parity line, so a geometric requirement walls off at ~70 clears AND undershoots the 2→3
-  anchor). Pinned at the bottom: beating the **tutorial dummy → level 2**; clearing the
-  **training gauntlet → level 3**; the real dungeons assume a **fresh level-3 entrant** (⚠
-  re-tune the warren slightly harder for stat growth — but err EASY, new players land there).
-  A skilled player skipping the tutorials hits 2 off their **first warren minion** (55 XP =
-  need(1→2) exactly) and 3 an elite-plus-a-minion later; the first boss kill ≈ a full level;
-  **~29 tier-appropriate clears to ★**. **XP always banks, even on death** — the curve itself
-  is the catch-up valve.
-- Each level grants **+HP + stat points** as above and (periodically) **+1 ability slot**.
-- **Classes** start with **~4 abilities + 1 signature set-passive** (the class
-  identity trigger, e.g. Rogue's Move→Attack bias). Ability slots cap how many
-  abilities you can equip at once; leveling widens the loadout.
-- **Boss-gated ability advancement** (planned). Each **class has ~10 abilities** in its
-  list, but starts with only the kit above. **Every boss you kill → pick one new
-  ability from your class list** to learn. Bosses become the growth milestone (beating
-  one = build progress), and the wide list (10/class) + which picks you take, in what
-  order, means **lots of build variety within a single class** — before spellbooks even
-  cross the streams. (Boss-kill picks are the *intra-class* growth vector; spellbooks
-  below are the *cross-class* one.)
-- **Spellbooks** are the cross-class vector: **consume** one to *instantly learn* its
-  ability (even outside your class — Firebolt is on Wizard, Sorcerer, *and*
-  Pyromancer), or **sell** it in town for gold. This is how a build escapes its class
-  starting kit.
+- **Curve anchors (shape SIM-DERIVED 2026-06-12; base STEEPENED 2026-06-14 — sim §8):** **polynomial —
+  `need(L→L+1) = 110 × L^1.7`** (geometric REJECTED by the sim: XP income grows ~linearly with the
+  parity line, so a geometric requirement walls off AND undershoots the 2→3 anchor). **The base was
+  raised 55 → 80 → 110** to hit the target of **~50–60 level-matched dungeon clears to ★** (110 → ~56)
+  — the base RISES because foe XP income rises with dungeon level (below), and `L^1.7` keeps the
+  requirement outpacing income. (At 55 a first warren clear gave ~2 levels — too fast; 110 still keeps
+  it ≈ 1 level. The curve-base is now DECOUPLED from the L3-minion XP, coincidentally both 55.) Pinned
+  at the bottom by the teaching foes' `xp` overrides: **dummy → L2** (need(1→2)=110), **gauntlet → L3**
+  (need(2→3)=355); real dungeons assume a **fresh level-3 entrant**. **XP always banks, even on death.**
+
+#### Dungeon difficulty, level-equivalence & the outlevel penalty *(SETTLED 2026-06-14 — sim §8)*
+- **Dungeons carry a difficulty 1–5 → a dungeon LEVEL** (the parity-authoring level of its foes),
+  `L = 3 + 4(D−1)`: **D1→L3 · D2→L7 · D3→L11 · D4→L15 · D5→L19** (±2 ramp within each). **D5 is the
+  "18+" endgame**; you climb D1→D5 as you level. Higher-difficulty foes have bigger statlines → **bigger
+  XP** (computed from the statline), so the curve must — and does — steepen to match (above).
+- **Every foe SELF-RATES a level-equivalent from its statline** (inverting the parity line):
+  `L_foe ≈ 1 + (avgStat − 10)/2`. No authoring — a foe's strength *is* its level. (Elites/bosses read
+  ~1 higher via their E-bump; within the penalty's grace band, so harmless.)
+- **The outlevel XP penalty (anti-backtrack-farm):** `xpMult = clamp(1 − 0.15·max(0, L_player −
+  L_foe − 2), 0.1, 1)` — full XP within **2 levels**, then −15%/level to a **×0.1 floor**: one tier
+  down (gap ~4) ×0.70, two tiers (gap ~8) ×0.1 (farming trivial content is pointless). Above-level =
+  ×1.0 (a small above-level *bonus* is an available lever, not taken yet). This is what makes the
+  "50–60 *level-matched* clears" target real — you can't cheese it by grinding easy rooms.
+#### The loadout — slots, the level cadence & class packages *(SETTLED 2026-06-13; supersedes the boss-gated pick)*
+- **Loadout caps: 6 active abilities + 3 passives.** The equipped loadout is what you
+  fight with; the cap is the build-tension constraint (a ~10-deep class list never all
+  fits — you choose). Each level also grants **+HP + stat points** (above).
+- **The signature passive COUNTS toward the 3** (settled 2026-06-13). Each class has **~5
+  passives to choose from but begins with one particular signature** (the identity trigger,
+  e.g. Rogue's Move→Attack bias) occupying one passive slot → **2 free passive slots** to fill
+  from the rest of the list (or via passive spellbooks). Tight on purpose — passives are scarce,
+  which is why passive books are the premium tier.
+- **Actives gate on MANA and/or COOLDOWN** (settled 2026-06-13): cooldowns join mana as a second
+  gating dimension — a balance + variety lever (a cheap-but-cooldowned nuke vs a mana-hungry
+  spammable read very differently). Each ability authors `cost` (mana) and/or `cooldown` (rounds);
+  either, both, or neither (a free-but-conditional trigger). Lands with the ability-system build.
+- **A class is a PACKAGE — `{ X starter abilities, Y starter passives, Z beginner gear }`
+  — and the counts are CLASS-DEFINED, not fixed.** A standard class opens with a small kit
+  (room to grow); the package is the class's whole opening identity (kit + the beginner gear
+  that the kit wants). The class also owns a **~10-deep ability list** (its learnable pool —
+  the intra-class build variety) + its passive list.
+- **Advancement is on the LEVEL-UP cadence (this REPLACES the old "one pick per boss").**
+  A level-up both **unlocks a slot** (toward the 6/3 caps, on the cadence below) **and grants a pick**
+  — learn one ability/passive from your class list into the newly opened slot. So the 6+3 loadout
+  fills in *over the arc*, and *which* picks in *what order* is the build. **Active slots unlock at
+  L3 · L6 · L10 · L14** (from a 2-active start → cap by L14); **passive slots at L8 · L16** (signature
+  + 2 → cap by L16). The back third (L17–21) is stats / approaches / swaps + spellbooks. (Surplus
+  grants — a kit-heavy package already at cap, or a prestige class — convert to a free REPLACE pick.)
+  **Bosses keep their growth feel via the guaranteed dungeon-clear roll** (Loot, below).
+- **Every level grants a BUNDLE — leveling is always juicy (cadence SETTLED 2026-06-14).** *Automatic*
+  each level: **+5 HP · +6 stats (≤3/stat) · +mana cap** (15 → ~35 at cap, gear raises further).
+  *On top*, a **scheduled cadence** of capacity + ability + exploration, all **off the combat-power
+  curve** (never touches balance). The split: **capacity (satchel / consumable slots) is FIXED &
+  guaranteed** ("+1 satchel vs +1 satchel" is no real choice), while the **exploration approach-ups
+  stay the player's PICK** (which of the five you level, and in what *order*, is the early-game
+  exploration identity). The full arc:
+
+  | Lvl | Ability slot (+pick) | Capacity (fixed) | Approach pick |
+  |---|---|---|---|
+  | 1 | *start:* 2 active + signature + Background | satchel 10 · cons 3 | all 5 approaches @ L1 |
+  | 2 | | satchel→11 | |
+  | 3 | active #3 | | approach↑ |
+  | 4 | | satchel→12 | |
+  | 5 | | consumable→4 | |
+  | 6 | active #4 | | |
+  | 7 | | | approach↑ |
+  | 8 | passive #2 | | |
+  | 9 | | satchel→13 | |
+  | 10 | active #5 | | approach↑ |
+  | 11 | | | approach↑ |
+  | 12 | | satchel→14 | |
+  | 13 | | consumable→5 | approach↑ |
+  | 14 | active #6 ✓ | | |
+  | 15 | | | approach↑ |
+  | 16 | passive #3 ✓ | | |
+  | 17 | | satchel→15 ✓ | |
+  | 18–21 | | | approach↑ ×4 |
+
+  Counts land exactly: **satchel 10→15** (5), **consumables 3→5** (2), **active 2→6** (done L14),
+  **passive 1→3** (done L16), **10 approach-picks → all 5 approaches maxed by ★** (the *order* is the
+  climb's identity; off-power-curve, so a complete kit at cap is fine). L3/10/13 double up (slot *and*
+  approach). **Excluded on purpose:** charge cap (stays **15** — the Rounds-v3 board invariant, not a
+  lever) and Storage (gold-bought, `N²`). Every level is a fistful.
+- **PRESTIGE CLASSES (future, unlockable):** the dynamic package count is what makes these work —
+  a prestige class **starts with ~2 of 3** the loadout filled (a near-complete kit at L1), and **at
+  the levels it would normally unlock a slot it instead gets a REPLACE option** drawn from the
+  *prestige pick set* — so its leveling is **customization, not growth** (swap toward your build
+  rather than fill empty slots). Same machinery, inverted: a big starter package + level-ups that
+  grant swaps instead of fresh slots.
+- **Swapping the equipped loadout among *known* abilities is free in town;** *acquiring* new
+  known abilities is the gated part (the level pick from your class list, or a spellbook).
+- **Spellbooks — the cross-class vector (REPLACE, not expand — settled 2026-06-13).** A spellbook
+  grants an ability **outside your class list**; using one teaches it into your known pool and you
+  **slot it by REPLACING an equipped ability** — it does **NOT** raise the 6/3 cap. (Firebolt lives
+  once; Wizard/Sorcerer/Pyromancer all reference it — a Rogue *learns* it from the book.) **Why
+  replace, not exceed:** the whole loadout-tension design + the combat budget/telegraph economy
+  assume a *bounded* per-round output; letting gold buy a 7th active dissolves the central choice
+  and reads as the pay/grind-to-win the genre punishes. Replace-only **still fully enables twinking**
+  — a kitted character runs *better / cross-class* abilities, just not *more* of them; variety lives
+  in *which* books. Any ceiling bump above 6/3 should be **earned, not bought** (a rare achievement/
+  boss unlock), so the power ceiling is gated by mastery, not gold. **Passive spellbooks are RARER**
+  (passive slots are scarcer). Sources lean **lottery-primary**: the dungeon-clear marquee roll +
+  drops are the exciting faucet; the **class-hall shop** (Town, below) is the *targeted pity backstop*
+  — priced so a drop is usually the faster path and buying is the "I gave up waiting" route. Sell
+  unwanted books for gold.
+
+#### Character creation — classes, backgrounds & the achievement gate *(SETTLED 2026-06-14)*
+Character creation has **two orthogonal facets — Class × Background — and almost everything is
+achievement-gated.** Unlocking content (not grinding gold) is the meta-progression spine; the
+combinatorial Class × Background space is the long-tail replayability.
+
+- **Classes are achievement-gated, opening with one starter.** A new account can only make an
+  **Adventurer** — a deliberately **generic, very balanced** first-entry class that gently teaches
+  the game (no sharp identity to misplay). **Completing the tutorial unlocks a few basic classes**;
+  everything beyond is gated behind progressively more interesting achievements. **Prestige classes
+  are just the deep end of this same ladder** (this answers the earlier open "prestige unlock
+  conditions" — there is no separate system; it's all one achievement gate, prestige = harder gates).
+- **Background — the second facet (a permanent, powerful, NEUTRAL passive).** At creation you also
+  pick a **Background**, which grants **one extra Passive in a DEDICATED slot** (on top of the 3
+  class-passive slots → 4 passives total) that **can NEVER be changed**. Backgrounds are:
+  - **Thematic but neutrally oriented** — broadly useful across many builds, *not* build-defining
+    (class owns build identity; Background is a flavorful, widely-applicable boost). Keep them from
+    becoming a must-pick meta — neutral + roughly equal power is the design guard.
+  - **Fairly powerful** vs a normal passive (the premium for permanence + the one-per-character
+    scarcity). Since *every* character gets one, it raises the floor + adds identity, not an
+    advantage *between* characters.
+  - A flexible fiction bucket: **racial ancestries, bound signature items that auto-scale with the
+    character** (a permanent scaling weapon/relic without spending a gear slot), **size/physical
+    traits** (big → +HP/−dodge, small → +dodge/−HP), **flavorful careers**, etc.
+  - **Achievement-gated too** — easy to author a *huge* number behind varied, interesting unlock
+    conditions, so the **Background × Class** combination space keeps opening up as you play.
+- **Implication: an achievement-tracking meta-layer** is now a real system (account-level, like the
+  bank/class-halls — survives individual deaths). Lands later (B4/B5 content phase), but the *hooks*
+  (class-locked creation, the Background slot) get designed now. Adventurer-only + tutorial-unlock is
+  the onboarding's first slice.
+- **Character slots are gold-bought (settled 2026-06-14, sim §9).** Slot 1 is free; each further slot
+  unlocks for gold on a rising curve — **cheap to ~10** (cumulative ~15k), **steep 11→20** (slot 20 =
+  16k; cumulative 11–20 ≈ 86k; all-20 ≈ 102k). PEGGED to the **~23k lifetime gold a character banks
+  on its 1→★ climb** (sim §9), with the affordability **invariant** `cost(slot 20) ≤ one char's
+  lifetime gold` (×1.4 margin) — so leveling one more hero always funds the next slot; you can't get
+  slot-locked. Shared account; rescale with `GOLD_K` if it recalibrates. (`TUNING.md` for the curve.)
+
 ### Gear vs levels — the stat share (settled)
 **~75% of endgame STATS come from levels** (+120 points); a full endgame kit contributes
 **~+30–40 stat points** (≈ +5–7/slot). Gear's real identity is NOT stats — it's the **flat
@@ -225,6 +398,12 @@ fantasy — a drop makes you stronger, never makes levels feel optional. HP mirr
 > recalibrate `GOLD_K` once the shop sink exists.
 - **Drop count by tier:** minion **1** · elite **2–3** + **guaranteed gold (×2 standard)** ·
   boss **5** + guaranteed gold (×4). The guarantee is the WAGE; the drops are the lottery.
+- **Dungeon-clear MARQUEE roll (SETTLED 2026-06-13):** beating the boss (= clearing the dungeon)
+  grants **one guaranteed HIGH-QUALITY roll** on top of the boss table — a **spellbook** if it
+  lands in the consumable category, a **rare+ piece** if it lands in gear. This is the dungeon's
+  headline reward and the main *organic* spellbook faucet (the class-hall shop is the *targeted*
+  one). It's also what carries the bosses' growth feel now that ability picks moved to the level
+  cadence (§ loadout) — you beat the boss FOR the marquee item.
 - Each drop rolls a **CATEGORY** (per-tier weights — minion **60/30/10**
   gold/consumable/gear · elite **45/35/20** · boss **30/40/30**), then a sub-table within it.
   Elites/bosses also roll **quality with advantage** (roll twice, keep better). *(Rejected:
@@ -250,6 +429,148 @@ fantasy — a drop makes you stronger, never makes levels feel optional. HP mirr
 **Abilities can be shared across classes.** An ability is a standalone data object;
 classes (and spellbooks) merely *reference* it. Firebolt exists once; Wizard,
 Sorcerer, Pyromancer all list it.
+
+### Class halls — the town's spellbook shops *(SETTLED 2026-06-13; build phase B4)*
+The town has **one hall per class**, and they unlock through *play*, not gold:
+- **Playing a class unlocks its hall.** Create/own a character of class C → hall C appears in
+  town. (No character of that class → its hall stays locked.) The roster *is* the key ring.
+- **The hall LEVELS with the class** (proposed metric: the **highest level any of your
+  characters of that class has reached**; a `TUNING.md` open number). Higher hall tiers unlock
+  **better shops** — and the **top tiers stock that class's SPELLBOOKS**. So **maxing a
+  character of class C (→ ★) opens C's full spellbook catalog** for purchase by your *whole*
+  roster (the account-shared bank pays). This is the targeted spellbook faucet (vs the dungeon
+  marquee roll's organic one): a maxed Wizard lets your Rogue walk in and *buy* Firebolt.
+- **Prices (settled 2026-06-13):** **1000g an active spellbook · 2500g a passive** — pricey by
+  design: enough to **enable twinking but only to a limited degree** (a passive is a serious
+  save-up, ~10+ clears of gold). The high tag keeps the shop a *backstop* to the drop lottery, not
+  a shortcut, and the passive premium mirrors the scarcity of passive slots (3) + the rarity of
+  passive books. **Sell-back is low by default — ~20% of value** (a town amenity raises it later),
+  so flipping shop stock is never an arbitrage.
+- **Storage-slot upgrades price as the SQUARE of the target size** (settled 2026-06-13), bought in
+  10-slot steps off the base 20: **30 slots = 900g · 40 = 1600g · 50 = 2500g · … · 100 = 10,000g**
+  (`cost(N) = N²`). The square makes early expansion cheap and a maxed 100-slot vault a genuine
+  long-game gold sink (~38k all-in) — Storage is the steady, always-useful place to dump gold.
+- **The cross-class dream made concrete:** halls turn "I leveled a Pyromancer" into permanent
+  account power — every other hero can now buy the fire line. Class mastery is account progress.
+- Sits on the **shared account bank** (gold + Storage) the B2 economy core builds; the hall shop
+  is one more sink alongside consumables, gear, and amenities. (Rest stays free — §6.)
+
+**The dual-axis hall — character level FLOORS quality, gold BUYS breadth (settled 2026-06-14).**
+- **Character level in the class** (the highest you've reached) has a **subtle GLOBAL effect**: it
+  raises the **default loot-quality floor** of the hall's random rolls — a ★ Pyromancer's hall with
+  *zero gold invested* still rolls better on its low-end table than a level-3 account's Pyromancer
+  hall. It also **gates the upgrades**: reaching a level unlocks the *option* to spend gold on a
+  given hall upgrade.
+- **Gold invested buys BREADTH**: more **shop slots** (stock quantity) and access to **higher reward
+  TIER-TABLES** (≈3–5 gear tiers, each random roll made on the highest table you've unlocked). So
+  **level = the floor, gold = the ceiling + volume.**
+
+**What a hall stocks (all on-theme, seeded by the class's bias metadata):**
+- **Random scrolls · potions · gear**, themed to the class (its bias metadata slants the loot table);
+  **gear quality scales with the highest class char-level** (the floor effect above).
+- **Spellbooks are a DAILY rotation — at most 3 active + 1 passive**, any from the class list. Very
+  limited and re-rolled each day: the daily refresh *is* the chase (come back tomorrow for a different
+  roll). Reinforces **lottery-primary** (§3) — the shop is a *rotating* backstop, never an
+  everything-store.
+- **Trainers (unlock-gated):** **respec** a character (re-allocate stats / swap loadout) — **cheaper
+  for members of the class, pricier for outsiders** — and **guarantee a specific ability** for gold
+  (the deterministic-buy path), again **much pricier for non-members**. The member discount makes a
+  class's own hall its true home.
+
+### Bounties & the quest layer *(SETTLED 2026-06-14; the achievement-unlock engine)*
+The game's **quest system** — a large part of the long game is **bounty-hunting specific dungeons for
+specific rewards** — and bounties are the engine that *drives* the achievement→unlock web (§3 creation).
+- **A bounty is a KNOWN-reward contract:** you see the reward *before* you accept — some combination of
+  **gold · a good consumable (e.g. a spellbook) · rare-quality gear · bonus XP**. Bounties are
+  **random, refresh daily, and are repeatable.**
+- **First completion mints an ACHIEVEMENT** (the bounty's correlated achievement), and those
+  achievements are **often the gates for unlocked content** (classes / backgrounds / dungeons). So
+  bounties are *how you earn* the achievement-gated content the whole game hangs on — repeatable for
+  the loot, one-time for the unlock.
+- **Posted in halls, themed to the hall's bias** — a bounty's reward slants to the same loot-table
+  biases that hall's shop uses. Where you grind shapes what you get.
+- **The unlock web (who points where):**
+  - **The Adventurer Guild Hall** (your free starter hall) is the **best source of bounties pointing
+    toward the achievements that unlock other CLASSES** — the onboarding's content funnel.
+  - **Each class hall's bounties** reward on-theme loot AND **funnel toward RELATED classes** (e.g. the
+    Wizard hall pushes you toward Pyromancer / Cryomancer / Chronomancer unlocks).
+  - **A generic Tavern** posts **fully-random bounties** — the best, most consistent route to the
+    achievements that unlock new **BACKGROUNDS**.
+  - **Some bounties unlock DUNGEONS** — completing one **adds that dungeon to your known list**; the
+    bounty board is how the dungeon roster grows.
+- **Hall-unique dungeons:** each hall likely hosts a **few signature dungeons**, mostly
+  **procedurally generated, staffed by NPC versions of the class.** ⚙ **Open design thread — the
+  ability↔trap parity translation:** a class's own kit, mirrored as the foe's threat layer (its
+  abilities become the NPC's traps/tricks). Surmountable precisely because the information model is
+  **geometric** — abilities and traps are *both* spec→spec transforms over the same board verbs, so a
+  translation table is tractable.
+
+**Generation seed = class BIAS METADATA.** A hall (shop slant + bounty pool + related-class funnel) is
+**dynamically generated from a few per-class metadata fields** — bias preferences (themes, loot-table
+slants, related-class pointers) that seed the loot tables, the bounties, and the unlock funnel. New
+class → author its bias metadata → its hall, shop, and bounty funnel fall out. (Fits the data-driven
+architecture, §4; the same spec→spec discipline as foes/abilities.)
+
+### Achievements, the meta-reward web & base-building *(SETTLED 2026-06-14)*
+The account-level meta spine — the connective tissue under the class/background/dungeon unlocks, the
+guild halls + bounties (above), and the town itself. Two ideas unify it, and most of it *falls out* of
+data the engine already produces.
+
+**1. Achievements fall OUT of the mechanics — two kinds:**
+- **Escalation counters (the bulk):** almost every tracked action is a counter with **tiered
+  thresholds — 1 · 10 · 100 · 1,000 · 10,000** (each tier a "level" of the achievement, ~×10 the
+  count). The engine already produces most (the combat `stats` block — dealt/taken/blocked/healed/sets/
+  traps — + the dev instruments + run/meta events); they just need to **persist + aggregate
+  account-wide**. Natural counters: kills (total / by tier / by foe / **by class** — feeds the hall
+  funnel) · sets by shape & quality · dodges / wards / transmutes / traps-sprung · dungeon clears (by
+  difficulty / dungeon) · depth · deaths · bounties · characters maxed · gold earned · items &
+  spellbooks looted · levels gained · perfect (no-damage) clears · low-HP comebacks. The **1k / 10k**
+  tiers are the months-long retention goals.
+- **Milestone gates (the content keys):** one-time "first time you do X", mostly **bounty-correlated**
+  (a bounty's first clear mints its achievement). These are the **unlock gates** for classes /
+  backgrounds / dungeons.
+
+**2. The BASE town is fully open from day 1; achievements gate the EXPANSION on top.**
+- **The base town is FULLY OPEN at the start** (no achievement gate) and gold-upgradeable immediately:
+  the **Tavern** (bounty leads — esp. background hunts), the **Bank** (storage vault, `N²` slots), the
+  **Barracks** (roster / character slots), the **Temple** (healing services; Rest stays free), and the
+  general shops — **Weaponsmith · Armorsmith · Trinket shop · Alchemist** (gear by slot + consumables).
+  Deliberate: it gives **gold a sink from day one** (wealth always has somewhere to go *before* any
+  unlock) and a **breadth of building direction so diverse you won't max it all** unless you're
+  dedicated.
+- **Achievements then unlock EXPANSION content on top** — new **classes, backgrounds, dungeons**, the
+  **class halls** (by playing the class), and advanced amenities. *This* layer runs on "unlock the
+  blueprint → gold fills it in"; the basics need no blueprint. And because it's all data-pattern,
+  **adding a new dungeon or class is trivial** — author its bias metadata, the halls/bounties/shop
+  slant fall out.
+- **⭐ GUARDRAIL — the meta is HORIZONTAL, never a flat power multiplier.** Achievements unlock
+  **ACCESS** (more classes / backgrounds / dungeons / amenities) — the achievement **badge itself is
+  the bragging reward**; there is **no separate currency / cosmetic / power payout**, and **never**
+  account-wide combat bonuses (+X% damage / XP / stats), which would inflate over the account's life
+  and break the difference-based balance. Power comes **only from leveling a character** (per-character,
+  resets on a new hero). The meta widens *what you can do*, never *how strong you flatly are*.
+  (Backgrounds/classes are *option*-power — you still level into them — not multipliers.)
+
+**Which gate applies:**
+- **Base town (capacity + basic services)** → **fully open + gold only**, from the start. No
+  achievement gate on storage, slots, the smiths, the alchemist, the temple, the tavern.
+- **Content (classes / backgrounds / dungeons)** → **achievement-gated, and DUAL-SOURCE:** the
+  achievement grind is the *guaranteed, natural-pace* path; a **rare bounty** can unlock the same thing
+  *early* (the lucky shortcut). Two roads to every unlock.
+- **Escalation tiers = ONLY unlock gates + bragging** — never combat, never capacity, never currency.
+  The unlock value scales with the action's **RARITY**: 1,000 *damage* is trivial (bragging only),
+  1,000 dungeon *clears* is enormous (a real unlock). **Each dungeon carries its own clear series
+  (1 / 10 / 100): the FIRST clear usually unlocks something; 10 / 100 are bragging** (unless the class
+  roster grows into the hundreds, when deeper tiers can gate too).
+- **Backgrounds** lean on the **big, varied cumulative counters everyone racks up** — dungeons on a
+  single character, total dungeons, total battles, items sold, all sorts — so the background space is
+  broad and grindy-but-guaranteed (with the rare-bounty early-out).
+
+**The build** = an account **COUNTER store** (persist + aggregate the engine's existing event counters,
+survives death like the bank) + an **achievement-definition table** (counter + thresholds →
+blueprint-unlocks; the reward IS the unlock + the badge) that feeds the creation / hall / dungeon gates,
+with a **rare-bounty side-channel** to the same unlocks. Clean event aggregation — the data is mostly
+already there. Lands with the B4/B5 meta-layer.
 
 ---
 
@@ -965,10 +1286,109 @@ vs. multi-round threat mismatch, not the statline, is the difficulty skew. The s
   shrinks to knit/deal/stance-lock; **the exchange gets LOUDER**.
 - **Speed riders:** the flee **parting blow scales down with Speed edge** (Speed = the escape
   stat; lands with the exit-ladder build) · the pre-round **start grace stretches** with Speed
-  edge ("you size them up") · B3 gives Speed its gear hooks (Speed-keyed relics).
+  edge ("you size them up") — ⚠ **superseded 2026-06-13: this migrates to *round-1 length*** (Speed =
+  initiative, `clamp(20 + ΔS, 15, 25)`s; the start grace itself becomes the untimed voluntary-
+  activation preview — see §2 "Between-rooms approaches") · B3 gives Speed its gear hooks.
 - **Presentation direction:** big Persona / Mörk Borg-style **smash-art declarations** (DODGED!,
   the exchange beats) over a paused, dimmed board + sprite acting — extends the existing
   bamWord impact-card system; reduced-motion falls back per the established pattern.
+
+---
+
+## 5.8 The dread escalation — the structural anti-stall (SETTLED 2026-06-13)
+
+> **STATUS: settled + SIM-VALIDATED 2026-06-13 (`sim/progression-sim.mjs` §7); engine build pending
+> (lands with B2).** Closes the long-open structural anti-stall (`FABLE.md` §8.1; the old §2.4
+> ramping-DoT idea). Constants tabled in `TUNING.md` ("Dread escalation — PLANNED"). The sim
+> confirmed the calibration (band past the kill budgets), the inert-backstop property (ON ≈ OFF for
+> normal fights), and the anti-stall bite — and corrected the design: **the foe ramp rides the
+> UNGUARDABLE lane** (trap/tick), since sated guard neutralizes a pure telegraph multiplier. This
+> supersedes the per-foe `dread_drums` DoT as the *load-bearing* anti-stall — authored dread ticks
+> survive only as optional theming on top of the global rule.
+
+**The goal is ACCELERATION + DRAMA, not punishing the stall.** (Reframed 2026-06-13.) Stalling is
+already self-defeating — you want the foe dead *fast* to reach the loot; an indefinite-heal turtle
+wins nothing, so we don't need to force-kill it. What the meter does is **push every fight toward a
+determined outcome** and **manufacture the dread-driven swing moment** — the board turns chaotically
+against you, your damage is escalated by dread *and* low HP, and you rip a flurry of attack matches
+to one-shot the foe before it finishes you. The "hard counter to forever-stalling" framing is
+demoted; *acceleration toward a good-enough resolution* is the real job.
+
+The mechanism is **one unified `dread` meter (1–10)** driving two lanes with different jobs:
+**drift = soft, atmospheric tension** (it can never threaten HP — the FLOOR invariant forbids it,
+see §6 / `TRAPS.md` §6) and **a two-way damage escalation = the resolver** (the one axis the FLOOR
+can't protect). Drift makes a long fight *feel* dire; the damage ramp accelerates it to a close.
+The two are separated on purpose — don't ask drift to do the killing.
+
+- **The meter (`dread` ∈ [1,10]).** Two stacked components:
+  - **Depth floor `D₀`** — the run's across-run threat, read from the cumulative boss-total
+    (the existing dread *bands*, §2): quiet → 1, drums → ~2.5, throne-stirs → ~4, he-is-near
+    → **5 (hard cap)**. Set per room, persists across the run, resets at Town. **Capped at 5
+    on purpose** — depth alone gets you into the *tense* zone but **never into the damage band**
+    (≥7). The lethal top half of the meter is *always* earned by dragging the fight in front of
+    you, not by how deep you are.
+  - **Within-fight rise** — `dread = clamp(D₀ + DREAD_RISE × round, 1, 10)`, climbing each
+    round from the deal. **Resets to `D₀` at fight end** (no half-enraged state carries to the
+    next room; flee resets the rise but the depth floor stands, since the boss total advanced).
+- **Lane 1 — drift (soft / flavor), accelerates past the knee.** Drift cadence = `base ×
+  driftCurve(dread)`: gentle and near-flat through `dread ≤ 5`, then **steepening past the knee
+  at 5** toward the `TRAPS.md` §6 net-transmute ceiling (≤ ~0.3–0.4 c/s — even max dread cannot
+  break the makeable-set floor; the budget is the wall). Quantized to the **rollover** (N pulls
+  at the round boundary, N off the curve) — consistent with v3 retiring the continuous clock;
+  the old "next pull in Ns" countdown is gone. This is the mounting-tension read: the board rots
+  faster the longer you stay, Stand Ground has more to ward, the music darkens — but nobody dies
+  from it.
+- **Lane 2 — the two-way damage multiplier (hard / the anti-stall), engages LATE.** Off until
+  `dread ≥ DMG_ONSET` (**7**), then ramps **linearly to max at dread 10**:
+  - **Foe damage ×1.0 → ×2.0** · **Player damage *and healing* ×1.0 → ×1.5.** The multiplier
+    is a global "everything resolves harder, split by side" knob; it touches damage both ways
+    **and player heals** (so sustain scales with the player's 1.5 while incoming scales 2.0 →
+    a heal-equilibrium stalemate breaks decisively toward the house, by construction).
+  - **⚠ THE FOE SIDE MUST RIDE THE *UNGUARDABLE* LANE (the sim's load-bearing finding,
+    `progression-sim.mjs` §7).** Scaling only the *telegraphed strike* does **nothing** to a
+    turtle — sated guard simply caps at the inflated ⚔ and the bite stays 0. So the foe ×2.0
+    applies to **all foe-dealt damage including trap-hit and dread-tick damage** (the lane that
+    bypasses Defend — the original §2.4 "clock you cannot pause", now ramped by the meter).
+    That unguardable half is what actually accelerates the close; the telegraph half just bites
+    players who *can't* meet the guard. The multiplier does **NOT** touch **drift** (a transmute —
+    no HP — stays purely soft lane 1). Dodge/guard/Stand Ground still function against the bigger
+    numbers (skill extends your tolerance; the asymmetry still wins).
+  - **THE GENERIC `dread bleed` — a foe-independent baseline drain (settled 2026-06-13).** Because
+    the foe ramp routes through the unguardable lane, the bite would otherwise *depend on the foe's
+    trap kit* — a trap-light foe would have weak teeth. So the dread escalation contributes its
+    **own** guaranteed unguardable drain past the onset: a small per-round HP bleed
+    (`DREAD_BLEED`, ∝ maxHP, 0 below dread 7 → its max at dread 10), present **regardless of the
+    foe's traps**. This is the generic, split-out anti-stall — decoupled from threat-layer
+    authoring; authored traps/ticks ride *on top* as flavor. It's the clean primitive the design
+    converged on: a universal dread bleed, not a per-foe DoT.
+  - **It folds into the telegraph AT REVEAL**, so the shown ⚔ stays honest (v3 invariant): a slow
+    foe's windup-revealed strike bakes the dread-at-reveal multiplier and that frozen number is
+    what lands.
+  - **Two-way, not enemy-only, on purpose:** the fight accelerates toward *resolution* in both
+    directions — a player who's close to the kill gets their 1.5× to finish (a climactic
+    power-surge, not just punishment), a player who's losing dies faster. And the asymmetry
+    (2.0 > 1.5) **self-protects against the reverse-exploit**: deliberately dragging to nuke
+    with your 1.5× is always net-negative, because the foe's 2.0× outpaces it.
+  - **First cut caps at dread 10** (foe 2.0× / player 1.5× + the `DREAD_BLEED` max). We do **NOT**
+    chase an absolute kill-the-turtle guarantee (the reframe: an indefinite-heal build wins nothing,
+    so it needs no force-kill) — the sim confirmed the ramp breaks *realistic* sustain (≤~15%/rnd
+    heal), which is the point. If a future build trivially out-heals even the bleed, that's a
+    sustain-*number* cap to fix at the source, not a reason to crank the ramp into normal-fight
+    territory.
+- **Calibration anchor — the damage band sits PAST the kill budgets** (A6: minion 2.5 / elite
+  5 / boss 10 rounds). At `DREAD_RISE ≈ 0.5/round` a *shallow* fight (`D₀ = 1`) reaches the
+  onset (dread 7) around **round 12** and max around **round 18** — minions never approach it,
+  a normal boss kill barely grazes it, only a genuine drag bites. A *deep* fight (`D₀ = 5`,
+  near the throne) reaches the onset in ~4 of its own rounds — which is the **boss-climax
+  feature**: the run's deepest, most dramatic fight starts tense and ramps to a both-sides
+  climax, a natural finite finale rather than a silent timer. Depth shortens the patience
+  window; it never removes it.
+- **Presentation — the meter telegraphs its own teeth (the v3 ethos).** Render the two motions
+  distinctly: the depth floor as a **filled base**, the within-fight rise as a **rising
+  overlay**, with the **knee (5)** and the **damage onset (7)** marked on the gauge so "past
+  here it turns lethal" is *visible* before it happens. Dread crossing 7 wants a beat — the
+  board-edge darkens, a Mörk-Borg-register cue ("the dark presses in") — so the gloves coming
+  off reads as earned drama, not a sudden spike.
 
 ---
 

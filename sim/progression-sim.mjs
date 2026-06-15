@@ -70,7 +70,7 @@ function weightedRoll(max, rng) {
 // ---------- §1 THE RE-DENOMINATION (closed-form) ----------
 function section1() {
   console.log('\n════ §1 THE RE-DENOMINATION (closed-form) ════')
-  console.log(`Arc: +3/+2/+1 per level, cap 21 → +120 points; focused main +60, balanced +40/stat.
+  console.log(`Arc: +6/level (freely distributed, ≤3/stat: 3/3/0·2/2/2·3/2/1), cap 21 → +120 points; focused main +60, balanced +40/stat.
 Parity line (balanced): stat(L) = 10 + 2(L−1)  →  L1=10 · L3=14 · L12=32 · L20=48 (endgame foes ≈40–80 ✓)`)
   const k = NEW_RATE_K
   console.log(`\nRATE_K ${k} (was 0.8). At parity rate=8 (A4 anchor holds at EVERY level — difference math):`)
@@ -130,6 +130,33 @@ const TRAP_SPRING_P = 0.22
 const TRAP_HIT = (tier, L) => 6 * TIER_OUT[tier] * (maxHP(L) / 100)
 const BOSS_TICK = (L) => 3 * (maxHP(L) / 100)
 
+// ---------- THE DREAD ESCALATION (CRAWL §5.8 — the structural anti-stall) ----------
+// One meter (1–10) = depth floor D0 (across-run, capped 5) + a within-fight rise. It drives two
+// lanes: DRIFT (soft tension, not modeled here — it's a transmute bounded by the TRAPS §6 ceiling,
+// can't touch HP) and a TWO-WAY DAMAGE MULTIPLIER (the hard resolver, modeled below). The multiplier
+// is OFF until dread 7, then ramps linearly to foe ×2.0 / player ×1.5 (damage + heals) at dread 10.
+// It touches damage both ways + player heals; NOT board verbs (traps/ticks stay lane 1). Folded into
+// the telegraph AT REVEAL so the shown ⚔ stays honest (v3 invariant). §7 derives/validates these.
+const DREAD_RISE = 0.5 // dread climb per round within a fight
+const DREAD_DEPTH_CAP = 5 // depth floor never reaches the damage band alone (always earned by dragging)
+const DREAD_MAX = 10
+const DMG_ONSET = 7 // the damage multiplier engages here; sits PAST the kill budgets (validated §7)
+const DREAD_DMG_FOE_MAX = 2.0 // foe damage scale at dread 10
+const DREAD_DMG_PLAYER_MAX = 1.5 // player damage + healing scale at dread 10
+// THE GENERIC dread BLEED (split out 2026-06-13): a foe-INDEPENDENT unguardable HP drain past the
+// onset, ∝ maxHP, so the anti-stall doesn't depend on the foe's trap kit. Authored traps ride on top.
+const DREAD_BLEED_MAX = 0.06 // fraction of maxHP/round drained at dread 10 (0 below the onset)
+const dreadAt = (round, D0) => Math.min(DREAD_MAX, Math.max(1, D0 + DREAD_RISE * round))
+/** 0..1 ramp fraction across the damage band [onset, max] — drives both the mult and the bleed. */
+const dreadBand01 = (dread) => Math.max(0, Math.min(1, (dread - DMG_ONSET) / (DREAD_MAX - DMG_ONSET)))
+function dmgMult(dread) {
+  if (dread < DMG_ONSET) return { foe: 1, player: 1 }
+  const t = (dread - DMG_ONSET) / (DREAD_MAX - DMG_ONSET) // 0..1 across the band
+  return { foe: 1 + t * (DREAD_DMG_FOE_MAX - 1), player: 1 + t * (DREAD_DMG_PLAYER_MAX - 1) }
+}
+/** Depth floor D0 from the cumulative boss-% (the dread bands §2): quiet→1, drums→2.5, stirs→4, near→5. */
+const depthFloor = (cumPct) => cumPct >= 80 ? DREAD_DEPTH_CAP : cumPct >= 45 ? 4 : cumPct >= 15 ? 2.5 : 1
+
 /** One combat. skill = sets/round (A2: struggling 1.8 · baseline 3 · competent 5).
  *  guardRule: 'reset' (live code) | 'carry' (§5.7 — persists through windup, capped at telegraph).
  *  Player stats default balanced parity at L; override for the EV tests. */
@@ -149,6 +176,8 @@ function fight(foe, L, skill, rng, opts = {}) {
 
   for (let round = 1; round <= 40; round++) {
     rounds = round
+    // the dread escalation (§5.8): the two-way damage multiplier this round (1× unless dread is on)
+    const dmult = opts.dread ? dmgMult(dreadAt(round, opts.D0 ?? 1)) : { foe: 1, player: 1 }
     // telegraph reveal: strike round (rule reset) — or at windup start (rule carry, strikeEvery>1)
     const revealAt = guardRule === 'carry' ? strikeRound - (foe.strikeEvery - 1) : strikeRound
     if (telegraph == null && round >= revealAt) {
@@ -156,7 +185,7 @@ function fight(foe, L, skill, rng, opts = {}) {
       let t = 0
       const pDodge = Math.min(DODGE_MAX, Math.max(DODGE_MIN, DODGE_BASE + DODGE_K * (pStats.S - foe.S)))
       for (let s = 0; s < foe.swings; s++) if (rng() >= pDodge) t += weightedRoll(perSwing, rng)
-      telegraph = t
+      telegraph = t * dmult.foe // dread folds in AT REVEAL — the shown ⚔ stays honest
     }
     // --- the round: make sets ---
     const liveScale = Math.pow((15 - wounds) / 15, 1.5) // wounds shrink the board → set rate
@@ -172,24 +201,32 @@ function fight(foe, L, skill, rng, opts = {}) {
         const needGuard = telegraph != null && guard < telegraph
         shape = needGuard ? 'def' : rng() < 0.18 ? 'mov' : 'atk'
       }
+      if (opts.turtle && shape === 'atk') shape = 'def' // the pure-turtle stall model: refuses all offense
       if (shape === 'atk') bankedAtk += atkRate * q
       else if (shape === 'def') {
         const cap = guardRule === 'carry' && telegraph != null ? telegraph : Infinity
         guard = Math.min(cap, guard + defRate * q) // sated guard: overbank is waste either way
       } else charges = Math.min(15, charges + chgRate * q)
       if (rng() < TRAP_SPRING_P) { // the trap tax: bypasses guard; severity ∝ intended-level HP
-        pHP -= TRAP_HIT(foe.tier, foe.L)
-        dmgTaken += TRAP_HIT(foe.tier, foe.L)
+        const trap = TRAP_HIT(foe.tier, foe.L) * dmult.foe // UNGUARDABLE damage rides the dread ramp
+        pHP -= trap
+        dmgTaken += trap
         if (pHP <= 0) return { win: false, rounds, dmgTaken, pHP: 0 }
       }
     }
-    if (foe.tier === 'boss') { // ambient dread tick
-      pHP -= BOSS_TICK(foe.L)
-      dmgTaken += BOSS_TICK(foe.L)
+    if (foe.tier === 'boss') { // ambient boss dread tick — also rides the ramp (unguardable, §5.8)
+      const tick = BOSS_TICK(foe.L) * dmult.foe
+      pHP -= tick; dmgTaken += tick
       if (pHP <= 0) return { win: false, rounds, dmgTaken, pHP: 0 }
     }
+    if (opts.dread) { // the GENERIC dread bleed — foe-independent unguardable drain past the onset
+      const bleed = dreadBand01(dreadAt(round, opts.D0 ?? 1)) * DREAD_BLEED_MAX * pMax
+      if (bleed > 0) { pHP -= bleed; dmgTaken += bleed; if (pHP <= 0) return { win: false, rounds, dmgTaken, pHP: 0 } }
+    }
+    // sustain (the stall lever, §7): a heal-over-time build — scaled by the PLAYER dread mult
+    if (opts.heal) pHP = Math.min(pMax, pHP + opts.heal * dmult.player)
     // --- the exchange ---
-    fHP -= bankedAtk
+    fHP -= bankedAtk * dmult.player // player offense rides the player-side ramp
     if (fHP <= 0) return { win: true, rounds, dmgTaken, pHP }
     if (round >= strikeRound && telegraph != null) {
       const bite = Math.max(0, telegraph - guard)
@@ -217,6 +254,21 @@ function mc(foe, L, skill, opts, n = 3000, seed = 1234) {
     dmg += r.dmgTaken / r.rounds
   }
   return { winrate: wins / n, ttk: ttkN ? ttk / ttkN : NaN, dmgPerRound: dmg / n }
+}
+
+/** Like mc but separates a TIMEOUT (the 40-round stall) from a resolved loss — the anti-stall metric.
+ *  Also tracks mean rounds-to-resolution (the "drag") and damage-taken/round (the "danger"). */
+function mcStall(foe, L, skill, opts, n = 4000, seed = 1234) {
+  const rng = mulberry32(seed)
+  let wins = 0, stalls = 0, rounds = 0, dmg = 0
+  for (let i = 0; i < n; i++) {
+    const r = fight(foe, L, skill, rng, opts)
+    if (!r.win && r.rounds >= 40) stalls++
+    if (r.win) wins++
+    rounds += r.rounds
+    dmg += r.dmgTaken / r.rounds
+  }
+  return { winrate: wins / n, stall: stalls / n, rounds: rounds / n, dmgPerRound: dmg / n }
 }
 
 // ---------- §3 BUDGET CONFORMANCE ----------
@@ -312,12 +364,167 @@ function section6() {
     console.log(`    ${label.padEnd(36)} need 1→2: ${String(n2).padStart(4)} · 2→3: ${String(n3).padStart(4)} · clears to ★: ${clears}`)
   }
   console.log(`  READ: geometric needs XP sources growing geometrically too — ours grow ~linearly with the parity line,
-  so the geometric tail walls off (and its early steps undershoot the 2→3 anchor). PROPOSAL:
-  need(L→L+1) = ${x3.m} × L^1.7 (display-rounded to 5s) — first minion → L2 exactly, 2→3 ≈ an
-  elite + a minion, the first boss kill ≈ a full level, ~29 tier-appropriate clears to ★.`)
+  so the geometric tail walls off (and its early steps undershoot the 2→3 anchor). The shape is polynomial L^1.7.
+  SHIPPED (steepened 2026-06-14): need(L→L+1) = 110 × L^1.7 — see §8 for the retune to the 50–60-clear
+  target (base 55→80→110; the L3-minion XP and the curve base were coincidentally both 55, now DECOUPLED).
+  Onboarding holds via teaching xp overrides re-tuned to need(1→2)=110 / need(2→3)=355.`)
+}
+
+// ---------- §7 THE DREAD ESCALATION (the structural anti-stall) ----------
+function section7() {
+  console.log('\n════ §7 THE DREAD ESCALATION — the structural anti-stall (CRAWL §5.8) ════')
+  console.log(`Dread = clamp(D0 + ${DREAD_RISE}·round, 1, ${DREAD_MAX}); damage mult OFF below ${DMG_ONSET}, → foe ×${DREAD_DMG_FOE_MAX} / player ×${DREAD_DMG_PLAYER_MAX} at ${DREAD_MAX}.`)
+  console.log(`Depth floor D0 (across-run, capped ${DREAD_DEPTH_CAP}): quiet 1 · drums 2.5 · stirs 4 · near ${DREAD_DEPTH_CAP}. Drift (soft lane) not modeled — it can't touch HP.`)
+
+  // (1) the calibration curve — the damage band must sit PAST the kill budgets
+  console.log('\n  — calibration: dread by round (with the foe/player mult once it engages) —')
+  for (const D0 of [1, 2.5, 5]) {
+    const cells = [1, 5, 8, 10, 12, 15, 18, 20].map((r) => {
+      const d = dreadAt(r, D0), m = dmgMult(d)
+      return `r${String(r).padStart(2)}:${d.toFixed(1)}${d >= DMG_ONSET ? `→f${m.foe.toFixed(2)}/p${m.player.toFixed(2)}` : ''}`
+    })
+    console.log(`    D0 ${String(D0).padEnd(3)}: ${cells.join('  ')}`)
+  }
+  const onset = (D0) => Math.ceil((DMG_ONSET - D0) / DREAD_RISE)
+  console.log(`    damage ONSET round: shallow D0=1 → round ${onset(1)} · mid D0=2.5 → ${onset(2.5)} · deep D0=5 → ${onset(5)}`)
+  console.log(`    kill budgets (rounds): minion ${KILL_BUDGET.minion} · elite ${KILL_BUDGET.elite} · boss ${KILL_BUDGET.boss}` +
+    ` — all below the shallow onset (${onset(1)}). ✓ a normally-paced fight never sees the teeth; only a drag does.`)
+
+  // (2) normal-play perturbation — a backstop must NOT tax normal fights
+  console.log('\n  — normal-play perturbation (dread OFF vs ON, shallow D0=1; baseline skill, L12) —')
+  for (const tier of ['minion', 'elite', 'boss']) {
+    const L = 12, foe = makeFoe(tier, L, tier === 'boss' ? 'heavy' : 'steady')
+    const off = mc(foe, L, 3, { dread: false }, 4000, 7)
+    const on = mc(foe, L, 3, { dread: true, D0: 1 }, 4000, 7)
+    const dW = (on.winrate - off.winrate) * 100
+    console.log(`    ${tier.padEnd(6)}: OFF win ${(off.winrate * 100).toFixed(0)}% ttk ${off.ttk.toFixed(1)}  →  ON win ${(on.winrate * 100).toFixed(0)}% ttk ${on.ttk.toFixed(1)}  (Δwin ${dW >= 0 ? '+' : ''}${dW.toFixed(1)})`)
+  }
+  console.log('    READ: ON should ≈ OFF for normal fights — they end before the onset, so the backstop is inert until you overstay.')
+
+  // (3) the anti-stall — what the DAMAGE lane does and does NOT own (a real boundary the sim found).
+  const L = 12, boss = makeFoe('boss', L, 'heavy')
+  const baseIn = foeBudget(boss, parityStat(L) + 12) // ≈ a tanky build's incoming/round (its E is +12)
+  const tanky = { ...boss, hp: Math.round(boss.hp * 2.5) } // an OUTSCALED target → forces a long, dragging fight
+  const stats = { P: parityStat(L), E: parityStat(L) + 12, S: parityStat(L) } // a sturdy sustain build
+
+  // (3a) the realistic degenerate: PRODUCTIVE safe-grinding (low-but-positive offense + sustain).
+  console.log('\n  — anti-stall (3a): SAFE-GRINDING a tanky target (sustain build, heal 1.0×base, vs a 2.5×HP foe) —')
+  console.log('    the real degenerate: win slowly in near-perfect safety. The ramp should COMPRESS the drag + raise the danger.')
+  const gOff = mcStall(tanky, L, 3, { stats, heal: baseIn, dread: false }, 4000, 23)
+  const gOn = mcStall(tanky, L, 3, { stats, heal: baseIn, dread: true, D0: 5 }, 4000, 23)
+  console.log(`    OFF: ${gOff.rounds.toFixed(1)} rnds · ${gOff.dmgPerRound.toFixed(1)} dmg-in/rnd · win ${(gOff.winrate * 100).toFixed(0)}% · stall ${(gOff.stall * 100).toFixed(0)}%`)
+  console.log(`    ON : ${gOn.rounds.toFixed(1)} rnds · ${gOn.dmgPerRound.toFixed(1)} dmg-in/rnd · win ${(gOn.winrate * 100).toFixed(0)}% · stall ${(gOn.stall * 100).toFixed(0)}%`)
+  console.log(`    READ: ON cuts the drag ${(gOff.rounds / gOn.rounds).toFixed(1)}× and lifts incoming ${(gOn.dmgPerRound / Math.max(0.1, gOff.dmgPerRound)).toFixed(1)}× — safe-grinding becomes a timed, risky proposition.`)
+
+  // (3b) the SUSTAIN THRESHOLD — at what heal/round does the (unguardable) ramp stop breaking a pure turtle?
+  console.log('\n  — anti-stall (3b): the SUSTAIN THRESHOLD — a pure idle turtle (zero offense) vs the ramp, by heal/round —')
+  console.log(`    the foe ramp rides the UNGUARDABLE lane (trap/tick + the generic ${(DREAD_BLEED_MAX * 100).toFixed(0)}%/rnd dread BLEED), so guard can't neutralize it.`)
+  for (const pct of [0.05, 0.1, 0.2, 0.3]) {
+    const heal = pct * maxHP(L)
+    const on = mcStall(boss, L, 3, { stats, heal, turtle: true, dread: true, D0: 5 }, 4000, 11)
+    const off = mcStall(boss, L, 3, { stats, heal, turtle: true, dread: false }, 4000, 11)
+    console.log(`    heal ${(pct * 100).toFixed(0).padStart(2)}%/rnd (${heal.toFixed(0)} HP): OFF stall ${(off.stall * 100).toFixed(0).padStart(3)}%  →  ON stall ${(on.stall * 100).toFixed(0).padStart(3)}% · falls ~rnd ${on.rounds.toFixed(0)}`)
+  }
+  console.log(`    READ: the ramp breaks REALISTIC sustain (≤~20%/rnd) — only absurd out-healing (≳ the foe's whole
+    budget, ~24%/rnd here) survives, and THAT is a sustain-number cap, not the anti-stall's job. A zero-offense
+    turtle wins/farms nothing regardless; the DRIFT lane + depth floor + economic XP ×2/×4 own the idle-sitter.
+    Conclusion: every PRODUCTIVE fight resolves and any dragged fight gets dangerous (3a) — no farm-stall survives.`)
+}
+
+// ---------- §8 DUNGEON DIFFICULTY · LEVEL-EQUIVALENCE · THE OUTLEVEL PENALTY · the clear-target retune ----------
+const DUNGEON_LEVEL = (D) => 3 + 4 * (D - 1) // difficulty 1–5 → the parity-authoring level of its foes
+const foeLevelEquiv = (foe) => Math.round(1 + ((foe.P + foe.E + foe.S) / 3 - 10) / 2) // invert parity 10+2(L−1)
+const OUTLEVEL_GRACE = 2, OUTLEVEL_K = 0.15, OUTLEVEL_FLOOR = 0.1
+const outlevelMult = (pL, fL) => Math.max(OUTLEVEL_FLOOR, Math.min(1, 1 - OUTLEVEL_K * Math.max(0, pL - fL - OUTLEVEL_GRACE)))
+function section8() {
+  console.log('\n════ §8 DUNGEON DIFFICULTY (1–5) · LEVEL-EQUIVALENCE · OUTLEVEL PENALTY · the 50–60-clear retune ════')
+  console.log('Dungeon difficulty 1–5 → dungeon LEVEL (the parity-authoring level of its foes), ±2 ramp within each:')
+  console.log('  ' + [1, 2, 3, 4, 5].map((D) => `D${D}→L${DUNGEON_LEVEL(D)}`).join(' · ') + '   (D5 = the "18+" endgame; you climb D1→D5 as you level)')
+  console.log('Foe level-equivalent (SELF-rated from the statline, inverting parity): L ≈ 1 + (avgStat−10)/2')
+  console.log(`  check — minion@L3: ${foeLevelEquiv(makeFoe('minion', 3))} · elite@L11: ${foeLevelEquiv(makeFoe('elite', 11))} · boss@L19: ${foeLevelEquiv(makeFoe('boss', 19, 'heavy'))} ✓`)
+  console.log(`Outlevel XP penalty (anti-backtrack-farm): mult = clamp(1 − ${OUTLEVEL_K}·max(0, pL − fL − ${OUTLEVEL_GRACE}), ${OUTLEVEL_FLOOR}, 1)`)
+  console.log('  gap pL−fL:  ' + [0, 2, 4, 6, 8, 10].map((g) => `+${g}: ×${outlevelMult(10, 10 - g).toFixed(2)}`).join(' · '))
+  console.log(`  → within ${OUTLEVEL_GRACE} levels = full XP; one tier down (gap~4) ×${outlevelMult(10, 6).toFixed(2)}; two tiers (gap~8) floors at ×${OUTLEVEL_FLOOR} (farming trivial content is pointless). Above-level = ×1.0 (optional bonus is a lever).`)
+
+  const need = (L, base) => Math.round((base * Math.pow(L, 1.7)) / 5) * 5
+  const clearsToCap = (base) => {
+    let lvl = 3, xp = 0, c = 0, g = 0
+    while (lvl < 21 && g++ < 100000) {
+      const L = Math.min(20, Math.max(3, lvl)) // a level-MATCHED dungeon (difficulty climbs with you → gap 0, no penalty)
+      xp += 7 * xpFor(makeFoe('minion', L)) + 2.5 * xpFor(makeFoe('elite', L)) + xpFor(makeFoe('boss', L, 'heavy'))
+      c++
+      while (lvl < 21 && xp >= need(lvl, base)) { xp -= need(lvl, base); lvl++ }
+    }
+    return c
+  }
+  console.log('\nCurve base retune — target 50–60 level-matched DUNGEON clears to ★ (income rises with dungeon level,')
+  console.log('so the need-base must rise to match; L^1.7 keeps need outpacing income → clears/level grows with level):')
+  for (const b of [80, 95, 110, 125]) console.log(`  base ${String(b).padStart(3)}×L^1.7 → ${clearsToCap(b)} clears`)
+  console.log(`  PICK: 110×L^1.7 → ~${clearsToCap(110)} clears (hits 50–60; a first warren clear still ≈ 1 level).`)
+  console.log(`  steps: need(1→2)=${need(1, 110)} · (2→3)=${need(2, 110)} · (3→4)=${need(3, 110)} (teaching overrides re-tuned to the first two).`)
+}
+
+// ---------- §9 GOLD ACCUMULATION → THE CHARACTER-SLOT COST CURVE ----------
+// Faithful to loot.ts: gold = foeValue × GOLD_K × depthMult × (1±0.3, avg 1); per-tier drop counts,
+// guaranteed-gold WAGES, and the category P(gold) after the disabled gear/spellbook weight redistributes.
+const GOLD_K_SIM = 0.12
+const fval = (f) => f.hp / 10 + f.P + f.E + f.S
+const DEPTH_BY_TIER = { minion: 1.2, elite: 1.4, boss: 1.6 } // avg depthMult within a clear (minions early, boss deep)
+const LOOT = { minion: { drops: 1, wage: 0, pGold: 60 / 90 }, elite: { drops: 2.5, wage: 2, pGold: 45 / 80 }, boss: { drops: 5, wage: 4, pGold: 30 / 70 } }
+const goldPerFoe = (f) => { const g = LOOT[f.tier], unit = fval(f) * GOLD_K_SIM * DEPTH_BY_TIER[f.tier]; return unit * g.wage + unit * g.drops * g.pGold }
+const goldPerClear = (L) => 7 * goldPerFoe(makeFoe('minion', L)) + 2.5 * goldPerFoe(makeFoe('elite', L)) + goldPerFoe(makeFoe('boss', L, 'heavy'))
+
+// character-slot cost curve: slot N (N≥2; slot 1 free). Cheap to ~10, steep 11→20.
+const slotCost = (N) => N <= 10 ? Math.round(40 * N * N / 50) * 50 : Math.round((40 * 100 + 120 * (N - 10) * (N - 10)) / 50) * 50
+
+function section9() {
+  console.log('\n════ §9 GOLD ACCUMULATION → CHARACTER-SLOT COST CURVE ════')
+  console.log(`Gold/clear by dungeon level (loot.ts model, GOLD_K ${GOLD_K_SIM}, depth-weighted):`)
+  for (const L of [3, 7, 11, 15, 19]) console.log(`  L${String(L).padStart(2)} (D${(L - 3) / 4 + 1}): ${Math.round(goldPerClear(L))}g/clear`)
+  const need = (L) => Math.round((110 * Math.pow(L, 1.7)) / 5) * 5
+  let lvl = 3, xp = 0, gold = 0, clears = 0, g = 0
+  while (lvl < 21 && g++ < 100000) {
+    const L = Math.min(20, Math.max(3, lvl))
+    xp += 7 * xpFor(makeFoe('minion', L)) + 2.5 * xpFor(makeFoe('elite', L)) + xpFor(makeFoe('boss', L, 'heavy'))
+    gold += goldPerClear(L); clears++
+    while (lvl < 21 && xp >= need(lvl)) { xp -= need(lvl); lvl++ }
+  }
+  console.log(`\nLIFETIME GOLD 1→★ (gross, ${clears} clears, level-matched): ~${Math.round(gold).toLocaleString()}g (${(gold / 1000).toFixed(1)}k)`)
+  console.log('  net-of-sinks (a char spends some on consumables/spellbooks) is lower → slot costs want headroom under gross.')
+  console.log('\nCHARACTER-SLOT cost curve (slot 1 free; cumulative to own N slots):')
+  let cum = 0
+  for (const N of [2, 5, 8, 10, 12, 15, 18, 20]) { /* show milestones */ }
+  cum = 0
+  const cumAt = (n) => { let s = 0; for (let i = 2; i <= n; i++) s += slotCost(i); return s }
+  for (const N of [5, 10, 12, 15, 20]) console.log(`  slot ${String(N).padStart(2)}: ${String(slotCost(N)).padStart(6)}g  ·  cumulative to ${N} slots: ${cumAt(N).toLocaleString()}g`)
+  console.log(`\n  AFFORDABILITY INVARIANT: lifetime gold (~${(gold / 1000).toFixed(1)}k) vs the single most-expensive slot (#20 = ${slotCost(20).toLocaleString()}g):`)
+  console.log(`    one 1→★ run ${gold >= slotCost(20) ? 'CLEARS' : 'FALLS SHORT OF'} slot #20 (margin ×${(gold / slotCost(20)).toFixed(1)}) — you can always fund the next slot by leveling one more hero.`)
+  console.log(`  Targets: first 10 slots ${(cumAt(10) / 1000).toFixed(0)}k (intuition 10–30k) · slots 11–20 +${((cumAt(20) - cumAt(10)) / 1000).toFixed(0)}k (intuition +100k) · all-20 ${(cumAt(20) / 1000).toFixed(0)}k`)
+}
+
+// ---------- §10 DREAD DRIFT (the soft lane) — curve validation before the engine build ----------
+function section10() {
+  console.log('\n════ §10 DREAD DRIFT (soft lane) — curve validation: bounded by the TRAPS §6 ceiling (CRAWL §5.8) ════')
+  const DRIFT_BASE = 0.14 // c/s — the shipped Ember Drift (1 card / 7s)
+  const CEILING = 0.4 // TRAPS §6 net-transmute ceiling (c/s) — the makeable-FLOOR + composition guarantee
+  // gentle through the knee (dread 5), then steepens toward the ceiling at dread 10
+  const driftCurve = (d) => d <= 5 ? DRIFT_BASE * (1 + 0.1 * (d - 1)) : DRIFT_BASE * (1.4 + 0.22 * (d - 5))
+  const reshape = (sets) => (sets * 3) / 20 // player reshape c/s = sets/round × 3 cards / 20s round
+  console.log(`drift = base(${DRIFT_BASE} c/s) × curve(dread), knee@5 → ceiling@10. Player reshape: baseline 3 sets/rnd (${reshape(3).toFixed(2)} c/s) · struggling 1.8 (${reshape(1.8).toFixed(2)}):`)
+  for (const d of [1, 3, 5, 7, 9, 10]) {
+    const dr = driftCurve(d)
+    const sb = reshape(3) / (reshape(3) + dr), ss = reshape(1.8) / (reshape(1.8) + dr)
+    console.log(`  dread ${String(d).padStart(2)}: drift ${dr.toFixed(3)} c/s (${(dr * 20).toFixed(1)}/rnd) · reshape share — baseline ${(sb * 100).toFixed(0)}% · struggling ${(ss * 100).toFixed(0)}%${dr > CEILING ? '  ⚠ OVER CEILING' : ''}`)
+  }
+  const max = driftCurve(10)
+  console.log(`  CEILING ${CEILING} c/s: max drift (dread 10) = ${max.toFixed(3)} → ${max <= CEILING ? 'WITHIN ceiling ✓' : 'OVER ceiling ✗'}`)
+  console.log(`  READ: reshape share glides ~76%→~56% (baseline) over the arc — the INTENDED soft tension (the board rots`)
+  console.log(`  faster the longer you drag), still player-majority; a struggling player feels it harder (~44% at max), as designed.`)
+  console.log(`  Because drift stays ≤ the ceiling, the makeable FLOOR holds (TRAPS §6: ≤ceiling IS the floor guarantee, on top`)
+  console.log(`  of the engine's per-reform floor invariant). Quantize to the rollover: N pulls/round off the curve. SAFE TO BUILD.`)
 }
 
 // ---------- run ----------
 console.log('SET.crawl — the numbers workshop (progression package derivation + conformance)')
-section1(); section2(); section3(); section4(); section5(); section6()
+section1(); section2(); section3(); section4(); section5(); section6(); section7(); section8(); section9(); section10()
 console.log('\nDone. Constants marked PROPOSED are the sim-backed picks for TUNING.md.')

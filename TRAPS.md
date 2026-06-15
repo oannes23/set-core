@@ -117,6 +117,12 @@ transmute the highest-magnitude Defend → Red." Structural role beyond flavor:
 > intensity (worse each tick; optionally persisting across rooms in the crawl) is
 > what makes it *dread* rather than background damage.
 
+> **SUPERSEDED as the load-bearing anti-stall (2026-06-13 → `CRAWL-DESIGN.md` §5.8).**
+> The structural job is now the global **dread escalation** (a unified 1–10 meter →
+> accelerating drift + a two-way damage multiplier past round ~12), not a per-foe
+> authored DoT. `on:tick` dread traps survive as *optional theming* on top of the
+> global rule — flavor accents, no longer the thing holding the floor up.
+
 ### 2.5 Legibility rule — show the rule, hunt the instance
 This is a reading game; you cannot read a hidden rule.
 
