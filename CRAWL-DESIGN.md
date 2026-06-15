@@ -1628,9 +1628,13 @@ each other). First-cut, sim-backed:
   Speed/Tactics under-value problem — see below). Values are **context-dependent** (survival is worth more
   when losing); price abilities off the *throughput* basis (damage:heal ≈ 1; block/charge cheaper).
   **VPM ≈ 4 dmg/mana** (15-mana burst ≈ 60 dmg ≈ 2.4 sets); ability cost = value ÷ VPM.
-- **⚠ Flagged balance thread:** the sim shows **marginal Tactics charges are near-worthless** (warding
-  wounds is low-value at the margin) — the Speed-under-buys issue, now empirical. Worth addressing
-  alongside the gear pass (richer charge sinks / a stronger Maneuver payoff / the Speed gear hooks).
+- **The Speed/Tactics under-value — FIX DECIDED (`Primed`):** the sim shows marginal Tactics charges
+  ≈ 0 (warding is low-value at the margin; Maneuver's churn value is invisible to the model). Fix: adopt
+  **Primed** — a Maneuver-churned card matched within ~6s counts one quality tier higher (≈ **+2.8
+  dmg-equiv/charge**, up from ~0), converting Speed's board-control into measurable OUTPUT *in-lane*
+  (Braced — charges→mitigation — is OUT, it breaks the §5.7 distinctness law). Implement WITH this pass
+  (it raises player output → folded into the foe-difficulty raise). Stand Ground warding stays
+  situationally valuable vs the dread/drift pressure (the calm-fight sim under-credits it).
 - **Still open:** affix power per loot-tier, the off-stat affix magnitudes, set-bonus tuning (deferred).
 
 ## 8. Deferred (next session)

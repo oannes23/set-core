@@ -161,10 +161,16 @@ Build scope:
   off."** Volume-up pass landed (stance auras on the board edge, swap flash, sprite stance badge,
   stronger toggle styling). Root cause is partly structural: pre-v2 the generous board made
   composition low-stakes — re-read AFTER Resolution v2 (shape mix is now the action economy).
-  ⚙ Mechanical sharpeners PROPOSED (decide after v2 playtest): **Braced** (Stand Ground charges
-  each reduce a telegraphed incoming by 1 — the defensive stance meets the windup system) and
-  **Primed** (a Maneuver-churned card matched within ~6s counts one quality tier higher — your
-  tide creates value, not just composition).
+  ⚙ Mechanical sharpeners — **DECIDED 2026-06-15 (the Speed/Tactics under-value fix, sim §11):**
+  **Braced is OUT** (charges → telegraph reduction would violate the §5.7 distinctness law — Speed
+  never does partial mitigation, that's Defend's). **Primed is IN** (a Maneuver-churned card matched
+  within ~6s counts one quality tier higher) — converts Speed's board-control into measurable OUTPUT,
+  in-lane: a +1 tier ≈ **+~2.8 dmg-equiv per churned-matched card**, taking a Maneuver charge from the
+  sim-measured ~0 up to ~the closed-form ~3.5, closing the under-buy. A skill+commitment payoff (run
+  Maneuver instead of Stand Ground, churn, AND match fast) and bounded. **IMPLEMENT WITH the gear/combat
+  pass** (it raises player output → the foe-difficulty raise must account for it). Build: track churn
+  timestamps per slot; `resolveSet` bumps a recently-churned card's quality tier. Stand Ground's warding
+  stays *situationally* valuable (scales with the dread/drift pressure — the sim's calm ref under-credits it).
 - **Post-Resolution-v2 readings (2026-06-10, fourth playtest — instrument now honest):** reshape
   75 / 56 / 59% (bracketing the 65–70 target from both sides), spring 24 / 27 / 25%, sets/min
   16.4 / 16.8 / 12.2, wards 7/5/9 AND churns 11/10/5 — stance swapping is live play now. Verdict:
