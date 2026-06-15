@@ -387,11 +387,14 @@ button.cta.bob { animation: ctabob 1.6s ease-in-out infinite; }
 .lu-hd { font-family: "Syne", sans-serif; font-weight: 800; font-size: 18px; color: var(--gold); }
 .lu-sub { font-size: 12px; color: var(--ink-dim); margin-top: 6px; line-height: 1.5; }
 .lu-rows { display: flex; flex-direction: column; gap: 8px; margin: 14px 0; }
-.lu-row { display: flex; align-items: center; gap: 10px; border: 1px solid var(--line2); border-radius: 10px; padding: 10px 12px; background: #0e1118; color: var(--ink); font: inherit; cursor: pointer; text-align: left; }
-.lu-row:hover { border-color: var(--ink-dim); }
+.lu-row { display: flex; align-items: center; gap: 10px; border: 1px solid var(--line2); border-radius: 10px; padding: 10px 12px; background: #0e1118; color: var(--ink); font: inherit; text-align: left; }
 .lu-row.picked { border-color: var(--gold); box-shadow: inset 0 0 16px -9px var(--gold); }
 .lu-row .lu-ic { font-size: 18px; }
 .lu-row .lu-nm { flex: 1; font-weight: 600; }
+.lu-row .lu-step { display: flex; gap: 5px; }
+.lu-row .lu-step .lu-stepb { width: 27px; height: 27px; border-radius: 7px; border: 1px solid var(--line2); background: #11151d; color: var(--ink); font: 700 16px/1 inherit; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+.lu-row .lu-step .lu-stepb:hover:not(:disabled) { border-color: var(--gold); color: var(--gold); }
+.lu-row .lu-step .lu-stepb:disabled { opacity: .3; cursor: default; }
 .lu-row .lu-val { font-variant-numeric: tabular-nums; color: var(--ink-dim); font-size: 12.5px; }
 .lu-row .lu-plus { color: var(--gold); font-weight: 700; }
 .lu-row .lu-val b { color: var(--ink); }

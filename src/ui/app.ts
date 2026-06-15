@@ -266,7 +266,7 @@ function characterSelectScene(root: HTMLElement): void {
       host.appendChild($(`<div class="sheet-xp"><span class="sx-lab">XP</span><span class="sx-bar"><span style="width:${Math.min(100, (c.xp / need) * 100)}%"></span></span><span class="sx-num">${c.xp}/${need}</span></div>`))
     }
     const st = effectiveStats(c)
-    host.appendChild($(`<div class="sheet-stat" data-tip-title="Stats — sets steer, stats carry" data-tip="Each card in a matched set fires its shape's stat: Attack swings with Power, Defend guards with Endurance, Move steps with Speed. The card's number is the action's QUALITY (① glancing ×0.7 · ② solid ×1.0 · ③ heavy ×1.4). Levels grant +3/+2/+1 to distribute; gear grows them further.">⚔ Power <b>${st.power}</b> · 🛡 Endurance <b>${st.endurance}</b> · 👟 Speed <b>${st.speed}</b></div>`))
+    host.appendChild($(`<div class="sheet-stat" data-tip-title="Stats — sets steer, stats carry" data-tip="Each card in a matched set fires its shape's stat: Attack swings with Power, Defend guards with Endurance, Move steps with Speed. The card's number is the action's QUALITY (① glancing ×0.7 · ② solid ×1.0 · ③ heavy ×1.4). Each level grants +6 to distribute (≤3 per stat); gear grows them further.">⚔ Power <b>${st.power}</b> · 🛡 Endurance <b>${st.endurance}</b> · 👟 Speed <b>${st.speed}</b></div>`))
     host.appendChild($(`<label style="margin-top:14px">Abilities</label>`))
     const ab = $(`<div class="sheet-abils"></div>`)
     for (const id of cls.abilities) {
@@ -473,49 +473,55 @@ const LU_STATS: { key: keyof StatAlloc; icon: string; name: string }[] = [
   { key: 'endurance', icon: '🛡', name: 'Endurance' },
   { key: 'speed', icon: '👟', name: 'Speed' },
 ]
-const LU_BONUS = [3, 2, 1] // assigned in click order: 1st pick → +3, 2nd → +2, 3rd → +1
+const LU_POINTS = 6 // points to distribute per level (CRAWL §3, revised 2026-06-14)
+const LU_MAX_PER = 3 // ≤3 to any one stat → 3/3/0 · 2/2/2 · 3/2/1 (was a rigid 3/2/1 permutation)
 
 function openLevelUp(c: SavedChar, onComplete: (c: SavedChar) => void): void {
   document.getElementById('levelup')?.remove()
   const base = effectiveStats(c)
-  let picks: (keyof StatAlloc)[] = []
+  const alloc: StatAlloc = { power: 0, endurance: 0, speed: 0 }
+  const spent = (): number => alloc.power + alloc.endurance + alloc.speed
   const overlay = $(`<div id="levelup"><div class="lucard">
     <div class="lu-hd">⬆ Level Up — <b>Lv ${c.level} → ${c.level + 1}</b></div>
-    <div class="lu-sub">Assign <b>+3</b>, <b>+2</b>, <b>+1</b> to your stats — click in priority order.</div>
+    <div class="lu-sub">Distribute <b>+6</b> across your stats — up to <b>+3</b> each. <b id="lu-left"></b></div>
     <div class="lu-rows"></div>
     <div class="lu-btns"><button class="confbtn" id="lu-later">Later</button><button class="confbtn primary" id="lu-go" disabled>Confirm</button></div>
   </div></div>`) as HTMLElement & { _cancel?: () => void }
   document.body.appendChild(overlay)
   const rowsEl = overlay.querySelector('.lu-rows') as HTMLElement
+  const leftEl = overlay.querySelector('#lu-left') as HTMLElement
   const goBtn = overlay.querySelector('#lu-go') as HTMLButtonElement
   const cleanup = (): void => { overlay.remove(); document.removeEventListener('keydown', onKey) }
   const onKey = (e: KeyboardEvent): void => { if (e.key === 'Escape') { cleanup() } }
   overlay._cancel = cleanup
 
-  const paint = (): void => {
+  const bump = (key: keyof StatAlloc, d: number): void => {
+    const next = alloc[key] + d
+    if (next < 0 || next > LU_MAX_PER || (d > 0 && spent() >= LU_POINTS)) return
+    alloc[key] = next
+    paint()
+  }
+  function paint(): void {
+    const left = LU_POINTS - spent()
+    leftEl.textContent = `${left} left`
     rowsEl.innerHTML = ''
     for (const s of LU_STATS) {
-      const idx = picks.indexOf(s.key)
-      const bonus = idx >= 0 ? LU_BONUS[idx] : 0
-      const row = $(`<button class="lu-row${bonus ? ' picked' : ''}" data-key="${s.key}">
+      const b = alloc[s.key]
+      const row = $(`<div class="lu-row${b ? ' picked' : ''}">
         <span class="lu-ic">${s.icon}</span><span class="lu-nm">${s.name}</span>
-        <span class="lu-val">${base[s.key]}${bonus ? ` <span class="lu-plus">+${bonus}</span> → <b>${base[s.key] + bonus}</b>` : ''}</span>
-      </button>`)
-      row.addEventListener('click', () => {
-        const i = picks.indexOf(s.key)
-        if (i >= 0) picks.splice(i, 1) // un-assign (and everything after shifts down a tier)
-        else if (picks.length < 3) picks.push(s.key)
-        paint()
-      })
+        <span class="lu-val">${base[s.key]}${b ? ` <span class="lu-plus">+${b}</span> → <b>${base[s.key] + b}</b>` : ''}</span>
+        <span class="lu-step"><button class="lu-stepb" data-k="${s.key}" data-d="-1"${b <= 0 ? ' disabled' : ''}>−</button><button class="lu-stepb" data-k="${s.key}" data-d="1"${b >= LU_MAX_PER || left <= 0 ? ' disabled' : ''}>+</button></span>
+      </div>`)
       rowsEl.appendChild(row)
     }
-    goBtn.disabled = picks.length !== 3
+    rowsEl.querySelectorAll<HTMLButtonElement>('.lu-stepb').forEach((btn) =>
+      btn.addEventListener('click', () => bump(btn.dataset.k as keyof StatAlloc, Number(btn.dataset.d))),
+    )
+    goBtn.disabled = spent() !== LU_POINTS
   }
   goBtn.addEventListener('click', () => {
-    if (picks.length !== 3) return
-    const delta: StatAlloc = { power: 0, endurance: 0, speed: 0 }
-    picks.forEach((key, i) => { delta[key] = LU_BONUS[i] })
-    const up = applyLevelUp(c, delta)
+    if (spent() !== LU_POINTS) return
+    const up = applyLevelUp(c, alloc) // alloc is the level's delta (sum 6, ≤3 each — enforced here)
     upsertChar(up) // persist each level as it's taken
     cleanup()
     if (pendingLevels(up) > 0) openLevelUp(up, onComplete) // chain the next pending level

@@ -33,14 +33,19 @@ Detailed specs live in CRAWL-DESIGN.md + the sections below; this is the master 
   `dreadBleed` (bypasses Block); depth floor from the delve band, coach-exempt. Functional two-motion dread meter
   in the HUD. 7 dread tests (5 unit + 2 behavioral end-to-end); 145 green; typecheck + production build clean.
 
-### Phase 2 — Inventory loop *(finish B2; data layer already built)*
+### Phase 3 — Progression tangible ← ACTIVE *(re-ordered ahead of Phase 2 — 2026-06-15, user pick: "give the game legs")*
+- `[x]` 3a. Level-up modal — **BUILT 2026-06-15.** Free **+6/≤3** allocation (per-stat ± steppers, "N left", confirm at
+  exactly 6); was the rigid 3/2/1 picker. Data layer already supported it; UI enforces sum-6/≤3. tsc + build clean.
+- `[~]` 3b. Dungeon difficulty ladder — **FIRST RUNG BUILT 2026-06-15: The Emberdeep (D2, L7).** A deeper/hotter
+  descent below the warren — 7 new foes on the parity-22 line (HP level-invariant; stats carry the level), reusing
+  the ember drift + existing traps/variants. Auto-appears in dungeon-select; data-integrity test green. So the dread
+  depth-floor + the outlevel penalty now have a real stage (outgrow the warren → move to the Emberdeep). STILL OPEN:
+  D3–D5 rungs (the haunted_warren is labelled D3 but its foes are L3 — re-level or replace) + the procedural/ability↔trap path.
+
+### Phase 2 — Inventory loop *(DEFERRED — pairs with the shop/B4 so consumables aren't finite-without-a-refill)*
 - `[ ]` Storage UI (the bag screen) · loadout-from-Storage (`takeFromStorage`, survivors auto-return)
 - `[ ]` satchel `string[]` → `Item[]` (delve.ts + app.ts — the heaviest refactor surface)
 - `[ ]` bank kept items home on safe exit · retire `SavedChar.consumables` · return triage (keep→Storage / sell→Gold @20%)
-
-### Phase 3 — Progression tangible
-- `[ ]` 3a. Level-up modal: **+6/≤3** allocation widget + the cadence grants (incremental)
-- `[ ]` 3b. Dungeon difficulty **1–5 ladder**: author D1–D5 + the `L=3+4(D−1)` mapping (gives the outlevel penalty a destination)
 
 ### Phase 4 — Run-loop enrichment
 - `[ ]` Between-rooms approaches (5 verbs at the fork) + voluntary-activation preview + Speed→round-1

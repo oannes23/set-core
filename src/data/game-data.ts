@@ -234,6 +234,50 @@ export const GAMEDATA: GameData = {
       voice: { hit: ['hexes', 'curses', 'blights'], zero: 'mutters, the omen unbroken' },
       traps: ['red_threes_omen'], variants: ['nimble', 'plagued'], loot_tier: 3,
     },
+
+    // === THE EMBERDEEP (D2 → a fresh L7 → parity 22) — a deeper, hotter descent below the warren.
+    // Same fire theme + ember drift; HP is level-invariant (kill budget), the STATS carry the level. ===
+    emberkin: { // steady fire-imp
+      name: 'Emberkin', tier: 'minion', stats: { power: 22, endurance: 22, speed: 22 }, hp: 58,
+      desc: 'A coal-bodied imp clawed up from the deep vents, trailing sparks.',
+      voice: { hit: ['burns', 'scorches', 'sears'], zero: 'gutters, missing' },
+      variants: ['firebrand', 'bloodthirsty'], loot_tier: 3,
+    },
+    magma_bat: { // swift (S−P +5 → chip swings), fragile
+      name: 'Magma Bat', tier: 'minion', stats: { power: 20, endurance: 20, speed: 27 }, hp: 42,
+      desc: 'A bat with cinders for eyes, diving in searing flickers.',
+      voice: { hit: ['singes', 'flits past', 'nicks'], zero: 'wheels away' },
+      variants: ['sneaky', 'elusive'], loot_tier: 2,
+    },
+    cinder_shaman: { // heavy caster (S−P −7 → every-2nd round, double budget)
+      name: 'Cinder Shaman', tier: 'minion', stats: { power: 24, endurance: 22, speed: 17 }, hp: 62,
+      desc: 'A robed ember-caller dragging your runes into the coals.',
+      voice: { hit: ['immolates', 'chars', 'roasts'], heal: ['feeds on the embers'], zero: 'sputters out' },
+      variants: ['scorched', 'hexer'], loot_tier: 3,
+    },
+    slag_brute: { // tanky heavy minion — its threat is your board more than your HP
+      name: 'Slag Brute', tier: 'minion', stats: { power: 24, endurance: 24, speed: 17 }, hp: 66,
+      desc: 'A lumbering thing of cooled lava, cracking molten with every step.',
+      voice: { hit: ['crushes', 'pounds', 'flattens'], zero: 'grinds to a halt' },
+      variants: ['cruel', 'grasping'], loot_tier: 2,
+    },
+    molten_warlord: { // steady elite (E +4) — the Emberdeep's telegraph
+      name: 'Molten Warlord', tier: 'elite', stats: { power: 22, endurance: 26, speed: 22 }, hp: 110,
+      desc: 'A warlord sheathed in glowing slag, bellowing the deep-fire’s war-cry — the Emberlord is near.',
+      voice: { hit: ['cleaves', 'sears', 'smashes'], zero: 'swings wide, roaring' },
+      traps: ['war_cry_lesser'], variants: ['bloodthirsty', 'cruel'], loot_tier: 4,
+    },
+    ash_oracle: { // heavy elite caster — drags rows into the flame
+      name: 'Ash Oracle', tier: 'elite', stats: { power: 24, endurance: 26, speed: 17 }, hp: 105,
+      desc: 'A blind seer of ash, reading ruin in the embers and pulling whole rows into the fire.',
+      voice: { hit: ['immolates', 'scorches', 'sears'], heal: ['gathers the cinders'], zero: 'fizzles to smoke' },
+      traps: ['ember_sweep'], variants: ['scorched', 'covetous'], loot_tier: 4,
+    },
+    emberlord: { // boss (E +8) — the molten heart of the deep
+      name: 'The Emberlord', tier: 'boss', stats: { power: 22, endurance: 30, speed: 22 }, hp: 200,
+      desc: 'The molten heart of the Emberdeep — a crowned giant of living fire, the warren’s King made small beside him.',
+      traps: ['war_cry', 'molten_veins', 'confusion', 'dread_drums'], loot_tier: 5,
+    },
   },
 
   // --- VARIANTS: an adjective = a themed trap (+ optional stat tweak). Rolled from the creature. ---
@@ -327,6 +371,12 @@ export const GAMEDATA: GameData = {
       theme: { axis: 'color', value: 'red' }, drift: 'ember', boss_mirror: 'war_cry_lesser',
       enemy_table: [{ foe: 'goblin', weight: 35 }, { foe: 'cave_bat', weight: 20 }, { foe: 'goblin_shaman', weight: 15 }, { foe: 'goblin_archer', weight: 12 }, { foe: 'goblin_sapper', weight: 10 }, { foe: 'warren_rat', weight: 8 }],
       elite_pool: ['goblin_warlord', 'ember_shaman', 'warren_butcher', 'goblin_oracle'], boss: 'goblin_king', template: null,
+    },
+    emberdeep: { // D2 (L7) — the next rung below the warren; a fresh-L7 entrant, harder than an outgrown D1
+      name: 'The Emberdeep', difficulty: 2,
+      theme: { axis: 'color', value: 'red' }, drift: 'ember', boss_mirror: 'war_cry_lesser',
+      enemy_table: [{ foe: 'emberkin', weight: 32 }, { foe: 'magma_bat', weight: 20 }, { foe: 'cinder_shaman', weight: 16 }, { foe: 'slag_brute', weight: 12 }],
+      elite_pool: ['molten_warlord', 'ash_oracle'], boss: 'emberlord', template: null,
     },
     haunted_warren: {
       name: 'The Haunted Warren', difficulty: 3, extends: 'goblin_warren',
