@@ -1622,7 +1622,7 @@ function choreographRollover(events: CombatEvent[]): void {
     if (sm && sm.weapon > 0) terms.push({ txt: `🗡 Weapon +${sm.weapon}`, sub: `+${nAtk > 0 ? Math.round(sm.weapon / nAtk) : sm.weapon}/card · ${wpn ? wpn.name : 'weapon'}`, mag: 0.5 })
     if (sm && sm.crit) terms.push({ txt: `✦ CRIT ×${sm.mult.toFixed(1)}`, sub: 'skill-earned — your chains paid off', mag: 0.85 })
     terms.push({ txt: `${won ? '☠ ' : ''}${swingDmg} damage`, sub: won ? `the ${foeName} falls` : `foe ${postFoeHP + swingDmg} → ${postFoeHP}`, mag: 1, total: true })
-    parts.push({ title: 'Your Swing', cls: 'atk', terms, onTotal: () => { interpretChunk(seg.swing); paintHP('e', postFoeHP); if (won) sceneTimeout(() => interpretChunk(finale), 850) } })
+    parts.push({ title: 'Your Swing', cls: 'atk', terms, onTotal: () => { interpretChunk(seg.swing); paintHP('e', postFoeHP) } })
   }
   if (!won) {
     if (raw != null) { // ② THEIR STRIKE — telegraph − soak − block → the net
@@ -1631,7 +1631,7 @@ function choreographRollover(events: CombatEvent[]): void {
       const blk = bm ? bm.block : absorbed
       if (blk > 0) terms.push({ txt: `🛡 Block −${blk}`, sub: bm ? `${plural(bm.defends, 'defend card')} × Endurance${bm.blkRider > 0 ? ` · +${bm.blkRider} armor` : ''}` : 'your guard', mag: 0.55 })
       terms.push({ txt: bite > 0 ? `−${bite} to you` : 'Held! 0', sub: bite > 0 ? `HP ${postYouHP + bite} → ${postYouHP}` : 'the guard holds — no wound', mag: bite > 0 ? 1 : 0.8, total: true })
-      parts.push({ title: 'Their Strike', cls: bite > 0 ? 'def' : 'hold', terms, onTotal: () => { interpretChunk(seg.counter); paintHP('p', postYouHP); if (lost) sceneTimeout(() => interpretChunk(finale), 850) } })
+      parts.push({ title: 'Their Strike', cls: bite > 0 ? 'def' : 'hold', terms, onTotal: () => { interpretChunk(seg.counter); paintHP('p', postYouHP) } })
     } else if (dodgedAll) { // the full whiff — a free round
       parts.push({ title: 'Their Strike', cls: 'dodge', terms: [{ txt: '💨 DODGED', sub: 'every swing slipped — a free round', mag: 1, total: true }], onTotal: () => { spriteReact('you', 'splunge'); interpretChunk(seg.counter) } })
     }
@@ -1670,32 +1670,41 @@ function choreographRollover(events: CombatEvent[]): void {
     }
   }
 
+  // a fight-ENDING rollover (a kill, or your death) doesn't re-open the round — it hands off to the end
+  // screen (the win-reveal / defeat card). No board settle, no tableau: the lethal panel pops, then ends.
+  const ending = won || lost
   // RELEASE — the popover closed; re-brighten, settle the board (morphs/knits/wound-cracks), stamp the round
-  const release = (): void => {
-    if (!V) return // combat ended during the breakdown (win/lose already transitioned) — nothing to re-open
-    V.holdHud = false
-    exchangeExit()
-    for (const sl of shatters) boomSlot(sl, verbs)
-    if (shatters.length) bamWord('CRACK!', 'pain', V.refs.boardwrap, 1.1)
-    interpretChunk(seg.tide)
-    if (boardSignature(V.state) !== V.boardSig) renderBoard(verbs)
-    holdKnits(knits, B.knitHold)
-    interpretChunk(seg.deal)
-    if (raw == null && !dodgedAll && !seg.counter.length) log(`<span style="opacity:.7">The ${foeName} doesn't strike.</span>`, 'foe')
-    roundStamp(V.state.round)
-    pulseTelegraph() // the new telegraph reveals with its flourish
-    V.roundFx = emptyRoundFx() // the new round starts with a clean activity slate (settle events above are flushed)
-  }
+  const release = ending
+    ? (): void => { if (V) interpretChunk(finale) } // → endScreen (win reveal / defeat) takes the stage
+    : (): void => {
+      if (!V) return
+      V.holdHud = false
+      exchangeExit()
+      for (const sl of shatters) boomSlot(sl, verbs)
+      if (shatters.length) bamWord('CRACK!', 'pain', V.refs.boardwrap, 1.1)
+      interpretChunk(seg.tide)
+      if (boardSignature(V.state) !== V.boardSig) renderBoard(verbs)
+      holdKnits(knits, B.knitHold)
+      interpretChunk(seg.deal)
+      if (raw == null && !dodgedAll && !seg.counter.length) log(`<span style="opacity:.7">The ${foeName} doesn't strike.</span>`, 'foe')
+      roundStamp(V.state.round)
+      pulseTelegraph() // the new telegraph reveals with its flourish
+      V.roundFx = emptyRoundFx() // the new round starts with a clean activity slate (settle events above are flushed)
+    }
+
+  // the slide-to-corner TABLEAU is for surviving multi-panel rounds only — a kill, a death, or a lone
+  // panel just pops and goes (the user's "don't slide when it's the only thing / the killing blow").
+  const tableau = !ending && parts.length > 1
 
   // FREEZE + LOCKOUT, then play. The hitstop spans the whole breakdown so the new round opens on a full clock.
   V.holdHud = true
-  hitstop(breakdownDuration(parts) + B.releasePad)
+  hitstop(breakdownDuration(parts, 1, tableau) + B.releasePad)
   V.selected = []
   V.refs.board?.querySelectorAll('.card.sel, .card.badpair, .card.bad').forEach((el) => el.classList.remove('sel', 'badpair', 'bad'))
   exchangeEnter() // the board locks + dims (the popover backdrop dims the rest)
   log(`<span style="opacity:.8">— the exchange —</span>`, 'you')
   if (parts.length === 0) { sceneTimeout(release, 220); return } // a quiet round — no formula to show
-  playBreakdown(parts, release)
+  playBreakdown(parts, release, 1, tableau)
 }
 
 /* THE BREAKDOWN POPOVER — the exchange cutscene as a centered modal over a fully-dimmed playfield. Each
@@ -1719,13 +1728,17 @@ const XB_PARK = [
   'translate(calc(-50% - 36vw), -50%) scale(.46) rotate(2deg)', // mid-left
   'translate(calc(-50% + 36vw), -50%) scale(.46) rotate(-1.5deg)', // mid-right
 ]
-function breakdownDuration(parts: BPart[], pace = 1): number {
+const XB_QUICKHOLD = 760 // the dwell when there's no tableau (a single panel, a kill swing, the opener) — pop, linger, go
+function breakdownDuration(parts: BPart[], pace = 1, tableau = parts.length > 1): number {
   const X = xbT(pace)
   let t = X.intro
   for (const p of parts) { t += X.partIntro; for (const term of p.terms) t += term.total ? X.total : X.term; t += X.gap }
-  return t + X.hold + X.outro
+  return t + (tableau ? X.hold : XB_QUICKHOLD) + X.outro
 }
-function playBreakdown(parts: BPart[], release: () => void, pace = 1): void {
+/** The sequenced ledger. tableau (default = more than one part) scatters finished panels to corners and
+ *  holds the spread; without it (a lone panel, a kill swing, the round-1 opener) each panel just fades as
+ *  the next appears and the run ends on a short linger — no slide, no long pause. */
+function playBreakdown(parts: BPart[], release: () => void, pace = 1, tableau = parts.length > 1): void {
   const view = V
   if (!view) return
   const X = xbT(pace)
@@ -1734,12 +1747,13 @@ function playBreakdown(parts: BPart[], release: () => void, pace = 1): void {
   document.body.appendChild(stage)
   void stage.offsetWidth; stage.classList.add('in')
   const park = (i: number): void => { const c = cards[i]; if (c) { c.classList.add('parked'); c.style.transform = XB_PARK[i % XB_PARK.length] } } // slide+scale to its corner
+  const fade = (i: number): void => { const c = cards[i]; if (c) { c.classList.remove('show'); window.setTimeout(() => c.remove(), 450) } } // no-tableau: the panel just leaves
   const cards: HTMLElement[] = []
   let t = X.intro
   parts.forEach((part, idx) => {
     sceneTimeout(() => {
       if (view !== V) return
-      if (idx > 0) park(idx - 1) // the previous part slides to its slot as this one takes centre
+      if (idx > 0) { if (tableau) park(idx - 1); else fade(idx - 1) } // the previous panel slides to its slot, or fades out
       const card = $(`<div class="xb-card ${part.cls}"><div class="xb-title in"></div><div class="xb-row"></div></div>`)
       card.querySelector('.xb-title')!.textContent = part.title
       stage.appendChild(card); cards[idx] = card
@@ -1761,8 +1775,8 @@ function playBreakdown(parts: BPart[], release: () => void, pace = 1): void {
     }
     t = tt + X.gap
   })
-  sceneTimeout(() => { if (view === V) park(parts.length - 1) }, t) // the last part parks too → the full ledger sits scattered
-  t += X.hold
+  if (tableau) sceneTimeout(() => { if (view === V) park(parts.length - 1) }, t) // the last part parks too → the full ledger sits scattered
+  t += tableau ? X.hold : XB_QUICKHOLD
   sceneTimeout(() => { stage.classList.add('out'); window.setTimeout(() => stage.remove(), X.outro); document.body.classList.remove('xbreak-on'); if (view === V) release() }, t)
 }
 
@@ -2827,80 +2841,119 @@ function delveFork(result: 'win' | 'lose' | 'flee'): void {
     return
   }
 
-  // BOSS DOWN — the dungeon is cleared (the run's best exit). Loot rolls, then the run-gold banks.
-  if (result === 'win' && DELVE.tier === 'boss') {
-    const lootEl = delveLootReveal() // accrues any boss-room gear into DELVE.gearFound FIRST
-    const marquee = rollMarqueeGear(V!.state.foe, DELVE.d.room, systemRng) // §3 dungeon-clear MARQUEE: a guaranteed rare+ piece
-    DELVE.gearFound.push(marquee)
-    const mqEl = marqueeCardEl(marquee)
-    const carried = DELVE.gold
-    const bag = DELVE.bag
-    const total = bankGold(carried) // the whole run's gold banks into the vault
-    const gear = bankGearFound() // …and the run's gear (incl. the marquee) into Storage (before DELVE clears)
-    DELVE = null
-    const home = $<HTMLButtonElement>(`<button class="cta bob" style="display:block;margin:0 auto">🏆 Carry the spoils home</button>`)
-    home.addEventListener('click', () => goScene(characterSelectScene))
-    host.replaceChildren(
-      $(`<div class="banner win">🏆 ${dgName} — CLEARED in ${room} rooms</div>`),
-      mqEl, lootEl, $(satchelHTML(bag)),
-      $(`<div class="forksub">Banked <b>${carried}🪙</b> — vault now <b>${total}🪙</b>.${gearLine(gear)}</div>`),
-      combatChart(), home,
-    )
-    return
+  // a WIN rolls its loot ONCE now (gold/gear/satchel banked into the run); flee forfeits the room.
+  const isBoss = result === 'win' && DELVE.tier === 'boss'
+  const loot = result === 'win' ? rollDelveLoot() : null
+  const marquee = isBoss ? rollMarqueeGear(V.state.foe, DELVE.d.room, systemRng) : undefined // §3 dungeon-clear MARQUEE
+  if (marquee) DELVE.gearFound.push(marquee)
+
+  // the screen builder — runs directly for a flee, or as the ledger-reveal's release for a win
+  const render = (): void => {
+    if (!V || !DELVE) return
+    // BOSS DOWN — the dungeon is cleared (the run's best exit); the run-gold + gear bank now
+    if (isBoss) {
+      const mqEl = marqueeCardEl(marquee!)
+      const lootEl = lootRevealEl(loot!)
+      const carried = DELVE.gold
+      const bag = DELVE.bag
+      const total = bankGold(carried)
+      const gear = bankGearFound() // …incl. the marquee, into Storage (before DELVE clears)
+      DELVE = null
+      const home = $<HTMLButtonElement>(`<button class="cta bob" style="display:block;margin:0 auto">🏆 Carry the spoils home</button>`)
+      home.addEventListener('click', () => goScene(characterSelectScene))
+      host.replaceChildren(
+        $(`<div class="banner win">🏆 ${dgName} — CLEARED in ${room} rooms</div>`),
+        mqEl, lootEl, $(satchelHTML(bag)),
+        $(`<div class="forksub">Banked <b>${carried}🪙</b> — vault now <b>${total}🪙</b>.${gearLine(gear)}</div>`),
+        combatChart(), home,
+      )
+      return
+    }
+    // THE FORK — press on or go home (between rooms only, after a clear; flee pays its price here)
+    const fork = $(`<div class="forkwrap"></div>`)
+    if (result === 'win') {
+      fork.appendChild($(`<div class="banner win">★ Room ${room} cleared</div>`))
+      fork.appendChild(lootRevealEl(loot!))
+    } else {
+      DELVE.d = fleeReroll(DELVE.d) // the sawtooth resets; the next chamber rerolls (bossFound holds)
+      fork.appendChild($(`<div class="banner lose">🏃 You slip away</div>`))
+      fork.appendChild($(`<div class="forksub">No spoils from this room. The passages shift behind you — the next chamber is rerolled.</div>`))
+    }
+    fork.appendChild($(satchelHTML(DELVE.bag)))
+    fork.appendChild($(`<div class="runpurse" data-tip-title="Carried gold" data-tip="Gold gathered this run. It banks to your vault the moment you reach town — but a death loses it all.">🪙 <b>${DELVE.gold}</b> carried</div>`))
+    const band = dreadBand(DELVE.d)
+    const pips = '●'.repeat(band.step + 1) + '○'.repeat(4 - band.step)
+    fork.appendChild($(`<div class="dread" data-tip-title="Dread" data-tip="The deeper you press, the surer the throne room. Each room entered walks the curve — cleared or fled."><span class="pips">${pips}</span>${band.label}</div>`))
+    const btns = $(`<div class="forkbtns"></div>`)
+    const gearN = DELVE.gearFound.length
+    const home = $<HTMLButtonElement>(`<button class="cta ghost">🏠 Cash out (bank ${DELVE.gold}🪙${gearN ? ` + ${gearN} gear` : ''})</button>`)
+    home.addEventListener('click', () => { if (DELVE) { bankGold(DELVE.gold); bankGearFound() } goScene(characterSelectScene) })
+    const deeper = $<HTMLButtonElement>(`<button class="cta bob">▶ Delve deeper</button>`)
+    deeper.addEventListener('click', () => goScene((r) => delveRoom(r, char)))
+    btns.append(home, deeper)
+    fork.appendChild(btns)
+    host.replaceChildren(fork)
   }
 
-  // THE FORK — press on or go home (between rooms only, after a clear; flee pays its price here)
-  const fork = $(`<div class="forkwrap"></div>`)
-  if (result === 'win') {
-    fork.appendChild($(`<div class="banner win">★ Room ${room} cleared</div>`))
-    fork.appendChild(delveLootReveal())
-  } else {
-    DELVE.d = fleeReroll(DELVE.d) // the sawtooth resets; the next chamber rerolls (bossFound holds)
-    fork.appendChild($(`<div class="banner lose">🏃 You slip away</div>`))
-    fork.appendChild($(`<div class="forksub">No spoils from this room. The passages shift behind you — the next chamber is rerolled.</div>`))
-  }
-  fork.appendChild($(satchelHTML(DELVE.bag)))
-  fork.appendChild($(`<div class="runpurse" data-tip-title="Carried gold" data-tip="Gold gathered this run. It banks to your vault the moment you reach town — but a death loses it all.">🪙 <b>${DELVE.gold}</b> carried</div>`))
-  const band = dreadBand(DELVE.d)
-  const pips = '●'.repeat(band.step + 1) + '○'.repeat(4 - band.step)
-  fork.appendChild($(`<div class="dread" data-tip-title="Dread" data-tip="The deeper you press, the surer the throne room. Each room entered walks the curve — cleared or fled."><span class="pips">${pips}</span>${band.label}</div>`))
-  const btns = $(`<div class="forkbtns"></div>`)
-  const gearN = DELVE.gearFound.length
-  const home = $<HTMLButtonElement>(`<button class="cta ghost">🏠 Cash out (bank ${DELVE.gold}🪙${gearN ? ` + ${gearN} gear` : ''})</button>`)
-  home.addEventListener('click', () => { if (DELVE) { bankGold(DELVE.gold); bankGearFound() } goScene(characterSelectScene) })
-  const deeper = $<HTMLButtonElement>(`<button class="cta bob">▶ Delve deeper</button>`)
-  deeper.addEventListener('click', () => goScene((r) => delveRoom(r, char)))
-  btns.append(home, deeper)
-  fork.appendChild(btns)
-  host.replaceChildren(fork)
+  // a WIN reveals the spoils in the ledger (gold → loot → marquee → XP) first, then lands the screen
+  if (result === 'win') playBreakdown(buildLootParts(loot!, marquee), render, 0.9)
+  else render() // flee — no spoils, no reveal
 }
 
-/** Roll a cleared room's loot (CRAWL §3): gold → the run purse, consumables → the satchel (cap 10).
- *  Returns the reveal: a gold line + an item card per drop (or a "satchel full" note on overflow). */
-function delveLootReveal(): HTMLElement {
+/** What a cleared room dropped, captured so the roll happens ONCE — the ledger reveal and the fork's
+ *  static list both read this (no double-roll). `added`/`left` = consumables that fit / overflowed. */
+interface DelveLoot { gold: number; gear: GearInstance[]; added: string[]; left: string[]; trace: string[] }
+/** Roll a cleared room's loot (CRAWL §3) + bank it into the run state (gold → purse, gear → gearFound,
+ *  consumables → satchel cap RUN_BAG_CAP). Pure of DOM — returns the drop for the reveal + the list. */
+function rollDelveLoot(): DelveLoot {
+  const loot = rollRoomLoot(V!.state.foe, DELVE!.d.room, systemRng, DELVE!.gearPity)
+  DELVE!.gold += loot.gold
+  DELVE!.gearPity = loot.gearPity // carry the sawtooth into the next room
+  for (const g of loot.gear) DELVE!.gearFound.push(g) // accrues; banks on a safe exit (lost on death)
+  const added: string[] = [], left: string[] = []
+  for (const id of loot.items) {
+    if (!CONSUMABLES[id]) continue
+    if (DELVE!.bag.length >= RUN_BAG_CAP) { left.push(id); continue }
+    DELVE!.bag.push(id); added.push(id)
+  }
+  return { gold: loot.gold, gear: loot.gear, added, left, trace: loot.trace }
+}
+/** The fork's static loot list, built from an already-rolled DelveLoot (no re-roll). */
+function lootRevealEl(loot: DelveLoot): HTMLElement {
   const wrap = $(`<div class="lootreveal"></div>`)
-  if (!DELVE) return wrap
-  const loot = rollRoomLoot(V!.state.foe, DELVE.d.room, systemRng, DELVE.gearPity)
-  DELVE.gold += loot.gold
-  DELVE.gearPity = loot.gearPity // carry the sawtooth into the next room
   if (loot.gold > 0) wrap.appendChild($(`<div class="lootgold">🪙 <b>+${loot.gold}</b> gold</div>`))
   for (const g of loot.gear) {
-    DELVE.gearFound.push(g) // accrues; banks to Storage on a safe exit (lost on death, like the satchel)
     const base = gearBase(g.refId)
     const affixTxt = g.affixes.length ? g.affixes.map(affixShort).join(' · ') : '—'
     wrap.appendChild($(`<div class="lootcard gearloot"><span class="loot-lab r-${g.rarity}">${g.rarity}</span><span class="gs-ic r-${g.rarity}">${base?.icon ?? '🎁'}</span><div class="loot-id"><div class="ln r-${g.rarity}">${base?.name ?? g.refId}</div><div class="ld">${affixTxt}</div></div></div>`))
   }
-  for (const id of loot.items) {
-    const c = CONSUMABLES[id]
-    if (!c) continue
-    if (DELVE.bag.length >= RUN_BAG_CAP) { wrap.appendChild($(`<div class="forksub">Satchel full — the ${c.name} is left behind.</div>`)); continue }
-    DELVE.bag.push(id)
+  for (const id of loot.added) {
+    const c = CONSUMABLES[id]; if (!c) continue
     const tint = c.color != null ? `var(--c${c.color})` : 'var(--line2)'
     wrap.appendChild($(`<div class="lootcard"><span class="loot-lab">loot</span><span class="cons-slot${c.kind === 'scroll' ? ' scroll' : ''}" style="--cc:${tint}"><span class="cons-ic">${c.icon}</span></span><div class="loot-id"><div class="ln">${c.name}</div><div class="ld">${c.desc}</div></div></div>`))
   }
+  for (const id of loot.left) { const c = CONSUMABLES[id]; if (c) wrap.appendChild($(`<div class="forksub">Satchel full — the ${c.name} is left behind.</div>`)) }
   if (!wrap.children.length) wrap.appendChild($(`<div class="forksub">The room holds nothing of value.</div>`))
   if (isDev() && loot.trace.length) wrap.appendChild($(`<div class="devpanel devtrace"><span class="dvl">loot roll</span>${loot.trace.map((l) => `<span>${l}</span>`).join('')}</div>`))
   return wrap
+}
+/** The delve-win LEDGER reveal parts (CRAWL §3): gold → gear/satchel drops → the boss marquee → XP. Same
+ *  Mörk Borg grammar as the exchange; played before the fork so the spoils land beat by beat. */
+function buildLootParts(loot: DelveLoot, marquee?: GearInstance): BPart[] {
+  const parts: BPart[] = []
+  if (loot.gold > 0) parts.push({ title: 'Gold', cls: 'sum', terms: [{ txt: `🪙 +${loot.gold}`, sub: 'into the run purse', mag: 0.8, total: true }] })
+  const drops: BTerm[] = []
+  for (const g of loot.gear) { const b = gearBase(g.refId); drops.push({ txt: `${b?.icon ?? '🎁'} ${b?.name ?? g.refId}`, sub: `${g.rarity}${g.affixes.length ? ` · ${g.affixes.map(affixShort).join(' · ')}` : ''}`, mag: 0.7 }) }
+  for (const id of loot.added) { const c = CONSUMABLES[id]; if (c) drops.push({ txt: `${c.icon} ${c.name}`, sub: 'into the satchel', mag: 0.5 }) }
+  if (drops.length) { drops[drops.length - 1].total = true; parts.push({ title: 'Loot', cls: 'abil', terms: drops }) }
+  if (marquee) { const b = gearBase(marquee.refId); parts.push({ title: 'Marquee', cls: 'mana', terms: [{ txt: `★ ${b?.icon ?? '🎁'} ${b?.name ?? marquee.refId}`, sub: `${marquee.rarity} · the dungeon's prize${marquee.affixes.length ? ` · ${marquee.affixes.map(affixShort).join(' · ')}` : ''}`, mag: 1, total: true }] }) }
+  const ch = V!.char, st = V!.stats
+  const ready = pendingLevels(ch)
+  const xpTerms: BTerm[] = []
+  if (ready > 0) xpTerms.push({ txt: `⬆ ${ready} level-up${ready > 1 ? 's' : ''}`, sub: 'allocate in town', mag: 0.6 })
+  xpTerms.push({ txt: `✦ +${st.xp} XP`, sub: ch.level >= LEVEL_CAP ? '★ max level' : `Lv ${ch.level} · ${ch.xp}/${xpForLevel(ch.level)}`, mag: 0.9, total: true })
+  parts.push({ title: 'Experience', cls: 'sum', terms: xpTerms })
+  return parts
 }
 
 /** The run satchel as a chip row (the carried consumables — next room's combat loadout). */
