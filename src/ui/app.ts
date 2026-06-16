@@ -2096,6 +2096,9 @@ function interpretChunk(events: CombatEvent[]): void {
         hs = Math.max(hs, 150)
         break
       }
+      case 'enemyStrikes':
+        kickClock() // an instant strike landed OUTSIDE the exchange — the round bar recoils (the interrupt beat;
+        break       // the paired trap chip + −HP carry the rest, so this only adds the "not-at-the-rollover" jolt)
       case 'triggerSprung': {
         if (e.trigger.on === 'match' && e.trigger.kind !== 'trick') V.dev.springs++
         const trick = e.trigger.kind === 'trick'
