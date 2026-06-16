@@ -30,7 +30,7 @@ export type CombatEvent =
   | { type: 'warded'; what: 'transmute' | 'lock' | 'shatter'; cost: number; slots?: number[] } // Stand Ground ate a hostile board verb (1 charge; a wound costs 3); slots = the saved cards (for the shake→settle cue)
   | { type: 'clockChanged'; deltaSeconds: number } // round stretched (+, stall spells — interim) or yanked shorter (−)
   | { type: 'enemyStrikes' } // an instant attack landed mid-round (trap effect — outside the exchange)
-  | { type: 'windup'; amount: number; strikesAt: number; dodged?: number; swings?: number } // the foe TELEGRAPHS the pending exchange (revealed early for slow foes); dodged = swings evaded at the deal (💨)
+  | { type: 'windup'; amount: number; strikesAt: number; dodged: number; swings: number } // the foe TELEGRAPHS the pending exchange (revealed early for slow foes); dodged = swings evaded at the deal (💨)
   | { type: 'strikeDodged' } // §5.7: every swing of a strike was evaded — the full whiff (the DODGED! card)
   | { type: 'cardsTransmuted'; slots: number[]; gapMs: number; hostile?: boolean; source?: 'churn' | 'drift' | 'trap' | 'trick' } // hostile = boomed; source = WHO pulled (undefined = a player cast) — the tug-attribution channel
   | { type: 'cardsReformed'; slots: number[] }

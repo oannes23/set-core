@@ -1601,9 +1601,12 @@ function choreographRollover(events: CombatEvent[]): void {
   const knits = events.flatMap((e) => (e.type === 'cardsReformed' ? e.slots : [])) // at the rollover, reforms = the knit
   const verbs = verbsFromEvents(events) // booms (wounds) + morphs (tide) + reforms (knit/deal)
   const foeName = s.foe.name
+  // the next strike's WINDUP (if any reveals this rollover) — drives the telegraph-construction beat at ⑤
+  const wEv = seg.deal.find((e): e is Extract<CombatEvent, { type: 'windup' }> => e.type === 'windup')
+  const tgDur = wEv && wEv.swings > 0 ? tgDuration(wEv.swings) : 0
 
   V.holdHud = true
-  hitstop(B.deal + B.releasePad) // the freeze covers the WHOLE beat — the new round opens with a full clock
+  hitstop(B.deal + tgDur + B.releasePad) // the freeze covers the WHOLE beat (incl. the telegraph construction) — the new round opens with a full clock
   // BOARD LOCKOUT — clear any half-made pick NOW (it can't survive the deal anyway) and strip its
   // glow from the still-dimming board; onBoardClick ignores the field until ⑤ (holdHud is the lock)
   V.selected = []
@@ -1713,15 +1716,21 @@ function choreographRollover(events: CombatEvent[]): void {
     holdKnits(knits, B.knitHold)
   }, B.tide)
 
+  // ④.5 TELEGRAPH CONSTRUCTION — the next strike ASSEMBLES in view (guided-eye dim, board recedes):
+  //     each swing is dodge-checked, the survivors stack and fly up into the foe's telegraph + your
+  //     guard goal. Plays during the hold; the release waits for it. (Only on a windup-reveal round.)
+  if (tgDur > 0) sceneTimeout(() => { if (V && V.holdHud && wEv) telegraphConstruct(wEv) }, B.deal)
+
   // ⑤ RELEASE — the field re-brightens, the HUD snaps to the new round, "Round N" stamps, the telegraph reveals
   sceneTimeout(() => {
     if (!V || !V.holdHud) return
     V.holdHud = false // the HUD snaps to the new round: fresh bar, fresh accumulators…
     exchangeExit()
+    V.refs.boardwrap?.classList.remove('tgdim')
     interpretChunk(seg.deal)
     roundStamp(V.state.round)
     pulseTelegraph() // …and the new telegraph reveals with its flourish
-  }, B.deal)
+  }, B.deal + tgDur)
 }
 
 /** A scene-safe rAF tween for the exchange drains (eased 0→1). Dies silently if the combat view
@@ -1821,6 +1830,51 @@ function roundStamp(round: number): void {
   void el.offsetWidth
   el.classList.add('go')
   sceneTimeout(() => el.remove(), 1300)
+}
+
+/* TELEGRAPH CONSTRUCTION (beat ④.5) — the next strike assembles in view so the player SEES where the
+   number comes from: a "winding up" caption, one chip per swing (each dodge-checked → ⚔ lands & ticks
+   the running total, or 💨 whiffs), then the stack flies UP into the foe telegraph + the guard goal,
+   both flashing, while the board recedes under a guided-eye dim. Timings are first-cut (tune in play). */
+const TG = { cap: 200, chip: 165, settle: 240, send: 440 }
+function tgDuration(swings: number): number { return TG.cap + swings * TG.chip + TG.settle + TG.send }
+function telegraphConstruct(w: { amount: number; swings: number; dodged: number }): void {
+  const view = V
+  if (!view || !view.refs.floatlayer || w.swings <= 0) return
+  view.refs.boardwrap?.classList.add('tgdim') // the eye goes UP to the telegraph + guard; the cards recede
+  const wrap = $(`<div class="tgbuild"><div class="tg-cap">⚡ winding up</div><div class="tg-chips"></div><div class="tg-sum">⚔ 0</div></div>`)
+  view.refs.floatlayer.appendChild(wrap)
+  void wrap.offsetWidth; wrap.classList.add('go')
+  const chipRow = wrap.querySelector('.tg-chips') as HTMLElement
+  const sumEl = wrap.querySelector('.tg-sum') as HTMLElement
+  const landed = w.swings - w.dodged
+  const per = landed > 0 ? Math.floor(w.amount / landed) : 0
+  const lastExtra = w.amount - per * landed // remainder rides the last landing swing → the sum lands EXACTLY on amount
+  let running = 0, landSeen = 0
+  for (let i = 0; i < w.swings; i++) {
+    const isLand = i < landed // lands first (the stack builds), whiffs trail (reads as "two land, one slips")
+    sceneTimeout(() => {
+      if (view !== V || !V.holdHud) return
+      const chip = $(`<span class="tg-chip ${isLand ? 'land' : 'whiff'}">${isLand ? '⚔' : '💨'}</span>`)
+      chipRow.appendChild(chip); void chip.offsetWidth; chip.classList.add('in')
+      if (isLand) {
+        landSeen++
+        running += per + (landSeen === landed ? lastExtra : 0)
+        sumEl.textContent = `⚔ ${running}`
+        sumEl.classList.remove('bump'); void sumEl.offsetWidth; sumEl.classList.add('bump')
+      }
+    }, TG.cap + i * TG.chip)
+  }
+  // SEND — the assembled stack flies up; the foe telegraph reveals + the guard goal flashes (where to defend)
+  sceneTimeout(() => {
+    if (view !== V || !V.holdHud) return
+    if (w.amount === 0) { sumEl.textContent = '💨 free round'; sumEl.classList.add('whiffall') }
+    wrap.classList.add('send')
+    pulseTelegraph()
+    const grd = V.refs.tcgrd
+    if (grd) { grd.classList.remove('goalflash'); void grd.offsetWidth; grd.classList.add('goalflash'); sceneTimeout(() => grd.classList.remove('goalflash'), TG.send + 200) }
+    sceneTimeout(() => wrap.remove(), TG.send + 220)
+  }, TG.cap + w.swings * TG.chip + TG.settle)
 }
 
 /** Beat ⑤: the scoreboard's foe side flares as the fresh telegraph lands. */

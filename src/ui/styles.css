@@ -960,6 +960,27 @@ body.dev #devtoggle { opacity: .9; color: var(--phos); border-color: var(--phos)
   72% { opacity: 1; }
   100% { opacity: 0; transform: translate(-50%, -50%) scale(1); }
 }
+/* TELEGRAPH CONSTRUCTION (beat ④.5) — the next strike assembles over the play area, then flies up */
+.boardwrap.tgdim .board { filter: brightness(.32) saturate(.6); } /* guided-eye dim: the cards recede (floatlayer stays bright) */
+.tgbuild { position: absolute; left: 50%; top: 40%; transform: translate(-50%, -50%) translateY(8px); pointer-events: none; z-index: 8;
+  display: flex; flex-direction: column; align-items: center; gap: 8px; opacity: 0; transition: opacity .25s ease, transform .25s ease; }
+.tgbuild.go { opacity: 1; transform: translate(-50%, -50%); }
+.tgbuild.send { opacity: 0; transform: translate(-50%, -50%) translateY(-120px) scale(.7); transition: opacity .42s ease, transform .42s cubic-bezier(.4, 0, .7, .2); }
+.tg-cap { font-family: "Syne", sans-serif; font-weight: 700; font-size: 13px; letter-spacing: .18em; text-transform: uppercase; color: var(--warn); text-shadow: 0 0 12px rgba(245, 165, 36, .5); }
+.tg-chips { display: flex; gap: 7px; }
+.tg-chip { font-size: 24px; opacity: 0; transform: scale(.4) translateY(6px); transition: opacity .18s ease, transform .18s cubic-bezier(.18, 1.4, .4, 1); }
+.tg-chip.in { opacity: 1; transform: scale(1) translateY(0); }
+.tg-chip.land { filter: drop-shadow(0 0 6px rgba(245, 86, 91, .7)); }
+.tg-chip.whiff { opacity: .55; filter: grayscale(.5); animation: tgwhiff 1s ease forwards; }
+@keyframes tgwhiff { 0% { opacity: .9; } 60% { opacity: .5; } 100% { opacity: .25; transform: scale(.9) translateX(8px); } }
+.tg-sum { font-weight: 800; font-size: 26px; font-variant-numeric: tabular-nums; color: var(--warn); text-shadow: 0 1px 8px #000c, 0 0 14px rgba(245, 165, 36, .5); transition: transform .12s ease; }
+.tg-sum.bump { animation: tgbump .18s ease; }
+.tg-sum.whiffall { color: var(--phos); font-size: 18px; }
+@keyframes tgbump { 50% { transform: scale(1.28); } }
+/* the guard cell flashes as the stack arrives — "raise your defense to HERE" */
+.tc-cell.grd.goalflash { animation: tggoal 1s ease; }
+@keyframes tggoal { 0%, 100% { box-shadow: none; } 30% { box-shadow: 0 0 0 2px var(--blue), 0 0 16px var(--blue); } }
+
 /* a "wasted" floater (sated/overflow Block) — grey, smaller, sinks the eye instead of rewarding it */
 .floater.wasted { font-size: 13px; font-weight: 600; opacity: .9; font-style: italic; }
 
