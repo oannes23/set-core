@@ -29,7 +29,8 @@ import { gearStatBonus, gearRiders, gearProcs, gearMods, rollGear } from '../eng
 import { EQUIP_SLOTS, type EquipSlot, type Rarity, type Affix, type AffixComponent, type GearInstance } from '../engine/items'
 import { GEAR, gearBase, fitsSlot } from '../data/gear'
 import { CONSUMABLES } from '../engine/consumables'
-import { loadBank, saveBank, addToStorage, removeFromStorage, storageFull, storageCount, spendGold, updateStorageItem } from './bank'
+import { loadBank, saveBank, addToStorage, removeFromStorage, storageFull, storageCount, spendGold, updateStorageItem, addGold } from './bank'
+import { sellValue, itemValue, consumableValue, sellValueOfConsumable } from '../engine/value'
 import { type SmithOp, smithCost, nextRarity, canUpgrade, openSlots, enchantOptions, canEnchant, canReroll, canReceiveAffix, upgradeRarity, enchant, rerollAffixes, transferAffix } from '../engine/smith'
 import { type DelveRun, type DelveLoot, applyRoomLoot, resolveDelveExit } from './delve-run'
 import type { CombatState, FoeRuntime, StatBlock } from '../engine/state'
@@ -422,6 +423,9 @@ function characterSelectScene(root: HTMLElement): void {
       })
       footer.appendChild(createBtn)
     } else if (selectedCharId) {
+      const bag = $<HTMLButtonElement>(`<button class="cta ghost" data-tip-title="Storage" data-tip="Your shared account vault: browse gear and consumables, and sell anything for gold.">🎒 Storage</button>`)
+      bag.addEventListener('click', () => goScene(storageScene))
+      footer.appendChild(bag)
       const smith = $<HTMLButtonElement>(`<button class="cta ghost" data-tip-title="The smithy" data-tip="Upgrade rarity, enchant open slots, reroll or transfer affixes on gear in your Storage. Spends vault gold.">🔨 Smithy</button>`)
       smith.addEventListener('click', () => goScene(smithScene))
       footer.appendChild(smith)
@@ -575,6 +579,85 @@ function smithScene(root: HTMLElement): void {
     if (g) renderBench(rightP, g)
     else rightP.appendChild($(`<div class="sheet-soon">Select a piece of gear to work it at the bench.</div>`))
     if (note) rightP.appendChild($(`<div class="sm-note">${note}</div>`))
+
+    const back = $<HTMLButtonElement>(`<button class="cta ghost">◂ Back to town</button>`)
+    back.addEventListener('click', () => goScene(characterSelectScene))
+    footer.appendChild(back)
+  }
+  render()
+}
+
+/* ============================================================
+   THE STORAGE / BAG screen (CRAWL §3 town economy) — the shared account vault, browsable: GEAR and
+   CONSUMABLES tabs, each item sellable for its sell-back price (engine/value). Consumables stack by
+   refId with a count. Account-level (the whole roster shares the bag). The loadout draws from here;
+   the loot scene banks into here.
+   ============================================================ */
+function storageScene(root: HTMLElement): void {
+  const wrap = $(`<div class="wrap"></div>`)
+  wrap.appendChild($(`<h1>set.core</h1>`))
+  const sub = $(`<div class="sub">town · storage &nbsp;·&nbsp; <span class="vault">🪙 0 vault</span></div>`)
+  wrap.appendChild(sub)
+  const goldEl = sub.querySelector('.vault')!
+  const panel = $(`<div class="panel"></div>`)
+  wrap.appendChild(panel)
+  const footer = $(`<div class="hubfoot"></div>`)
+  wrap.appendChild(footer)
+  root.appendChild(wrap)
+
+  let tab: 'gear' | 'cons' = 'gear'
+
+  const sellByUid = (uid: string): void => {
+    let acc = loadBank()
+    const it = acc.storage.find((i) => i.uid === uid)
+    if (!it) return
+    acc = addGold(removeFromStorage(acc, uid), sellValue(it))
+    saveBank(acc); render()
+  }
+
+  const render = (): void => {
+    const acc = loadBank()
+    goldEl.textContent = `🪙 ${acc.gold} vault`
+    panel.innerHTML = ''; footer.innerHTML = ''
+    const gear = acc.storage.filter((i): i is GearInstance => i.kind === 'gear' && !!gearBase(i.refId))
+    const cons = acc.storage.filter((i) => i.kind === 'consumable' && !!CONSUMABLES[i.refId])
+
+    panel.appendChild($(`<div class="sub" style="margin:0 0 10px">Vault — ${storageCount(acc)} / ${acc.storageCap} slots used</div>`))
+    const tabs = $(`<div class="tabs"></div>`)
+    const mkTab = (id: 'gear' | 'cons', label: string): void => {
+      const t = $<HTMLButtonElement>(`<button class="tab${tab === id ? ' on' : ''}">${label}</button>`)
+      t.addEventListener('click', () => { tab = id; render() })
+      tabs.appendChild(t)
+    }
+    mkTab('gear', `Gear (${gear.length})`)
+    mkTab('cons', `Consumables (${cons.length})`)
+    panel.appendChild(tabs)
+
+    const list = $(`<div class="baglist"></div>`)
+    if (tab === 'gear') {
+      if (!gear.length) list.appendChild($(`<div class="sheet-soon">No gear stowed. Loot some in a delve.</div>`))
+      for (const g of gear) {
+        const base = gearBase(g.refId)!
+        const aff = g.affixes.length ? g.affixes.map(affixShort).join(' · ') : '—'
+        const row = $(`<div class="gp-row"><span class="gs-ic r-${g.rarity}">${base.icon}</span><div class="gs-meta"><div class="gs-n r-${g.rarity}">${base.name}</div><div class="gs-a">${RARITY_LABEL[g.rarity]} · ${aff}</div></div><button class="sellbtn" data-tip="Worth ${itemValue(g)}g — sell for 20%">sell 🪙${sellValue(g)}</button></div>`)
+        row.querySelector('.sellbtn')!.addEventListener('click', () => sellByUid(g.uid))
+        list.appendChild(row)
+      }
+    } else {
+      if (!cons.length) list.appendChild($(`<div class="sheet-soon">No consumables stowed.</div>`))
+      // stack by refId (consumables are fungible) → one row with a count + a sell-one button
+      const counts = new Map<string, string[]>() // refId → uids
+      for (const c of cons) { const a = counts.get(c.refId) ?? []; a.push(c.uid); counts.set(c.refId, a) }
+      for (const [refId, uids] of counts) {
+        const c = CONSUMABLES[refId]
+        const tint = c.color != null ? `var(--c${c.color})` : 'var(--line2)'
+        const n = uids.length
+        const row = $(`<div class="gp-row"><span class="cons-slot${c.kind === 'scroll' ? ' scroll' : ''}" style="--cc:${tint}"><span class="cons-ic">${c.icon}</span></span><div class="gs-meta"><div class="gs-n">${c.name}${n > 1 ? ` <span class="bag-x">×${n}</span>` : ''}</div><div class="gs-a">${c.desc}</div></div><button class="sellbtn" data-tip="Worth ${consumableValue(refId)}g — sell for 20%">sell 🪙${sellValueOfConsumable(refId)}</button></div>`)
+        row.querySelector('.sellbtn')!.addEventListener('click', () => sellByUid(uids[0]))
+        list.appendChild(row)
+      }
+    }
+    panel.appendChild(list)
 
     const back = $<HTMLButtonElement>(`<button class="cta ghost">◂ Back to town</button>`)
     back.addEventListener('click', () => goScene(characterSelectScene))

@@ -448,6 +448,19 @@ button.cta.bob { animation: ctabob 1.6s ease-in-out infinite; }
 .sm-donorhd .gs-ic { font-size: 14px; }
 .sm-donorhd .dim { color: var(--ink-faint); }
 .sm-note { margin-top: 10px; font-size: 12px; color: var(--ink-dim); }
+/* the STORAGE / bag screen — tabs + sellable rows */
+.tabs { display: flex; gap: 6px; margin-bottom: 10px; }
+.tab { font: 600 12px/1 'Spline Sans Mono', monospace; color: var(--ink-dim); background: transparent; border: 1px solid var(--line2);
+  border-radius: 8px; padding: 7px 13px; cursor: pointer; transition: color .12s ease, border-color .12s ease, background .12s ease; }
+.tab:hover { color: var(--ink); border-color: var(--ink-dim); }
+.tab.on { color: var(--phos); border-color: var(--phos); background: color-mix(in srgb, var(--phos) 8%, transparent); }
+.baglist { display: flex; flex-direction: column; gap: 6px; }
+.baglist .gp-row { padding: 7px 9px; }
+.baglist .gp-row .cons-slot { flex: none; }
+.bag-x { color: var(--ink-faint); font-weight: 600; }
+.sellbtn { font: 600 11px/1 'Spline Sans Mono', monospace; color: var(--gold); background: transparent; border: 1px solid color-mix(in srgb, var(--gold) 45%, transparent);
+  border-radius: 6px; padding: 5px 9px; cursor: pointer; white-space: nowrap; transition: background .12s ease; }
+.sellbtn:hover { background: color-mix(in srgb, var(--gold) 14%, transparent); }
 /* §7 PRIMED — a churned card matched in time hits a tier higher; a subtle gold twinkle marks it */
 .card.primed { box-shadow: inset 0 0 16px -6px var(--gold), 0 0 0 1px color-mix(in srgb, var(--gold) 65%, transparent), 0 0 12px -5px var(--gold); }
 /* §7 Primed: a scatter of twinkling ✦ across the card (injected as .prs spans when primed) */
