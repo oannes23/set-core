@@ -569,3 +569,83 @@ test('shape floods no longer bias magnitude (the Bulwark loop is dead)', () => {
   const threes = mags.filter((m) => m === 2).length
   expect(threes).toBeLessThan(10) // an 8× mag bias would land ~12+ threes; natural is ~5
 })
+
+// ---- the flee PARTING BLOW (§5.7 / exit ladder) ----
+const fleeCombat = (over: { damage?: number; foeSpeed?: number; playerSpeed?: number; dodge?: number; hp?: number } = {}): CombatState => {
+  const s = createCombat({ foe: foe('goblin'), gen: GEN }, mulberry32(1))
+  s.foe = { ...s.foe, damage: over.damage ?? 20, stats: { ...s.foe.stats, speed: over.foeSpeed ?? 10 } }
+  s.stats = { ...s.stats, speed: over.playerSpeed ?? 1 } // low speed → minimal dodge
+  s.mods = { ...s.mods, dodge: over.dodge ?? 0, soak: 0 }
+  s.block = 0
+  if (over.hp != null) s.playerHP = over.hp
+  return s
+}
+
+test('flee: a harmless foe (no damage) gives a clean getaway — no parting blow', () => {
+  const s = fleeCombat({ damage: 0 })
+  const hp0 = s.playerHP
+  const r = reduce(s, { type: 'flee' }, { data: GAMEDATA, rng: mulberry32(7) })
+  expect(r.state.running).toBe(false)
+  expect(r.state.result).toBe('flee')
+  expect(r.state.playerHP).toBe(hp0) // untouched
+  expect(r.events.some((e) => e.type === 'playerDamaged')).toBe(false)
+  expect(r.events.some((e) => e.type === 'fled')).toBe(true)
+})
+
+// the parting blow always carries a DODGE_MIN floor chance — find a seed that LANDS (no dodge) so the
+// hit/block/lethal mechanics test deterministically (the dodge path has its own test below).
+const landSeed = (s: CombatState): number => {
+  for (let seed = 1; seed < 300; seed++) {
+    if (!reduce(s, { type: 'flee' }, { data: GAMEDATA, rng: mulberry32(seed) }).events.some((e) => e.type === 'strikeDodged')) return seed
+  }
+  throw new Error('no landing seed')
+}
+
+test('flee: a damaging foe lands one parting swing; survived → a clean flee (fled, result flee)', () => {
+  const s = fleeCombat({ damage: 20, dodge: 0 })
+  const hp0 = s.playerHP
+  const r = reduce(s, { type: 'flee' }, { data: GAMEDATA, rng: mulberry32(landSeed(s)) })
+  expect(r.state.running).toBe(false)
+  expect(r.state.result).toBe('flee')
+  expect(r.state.playerHP).toBeLessThan(hp0) // the swing landed
+  expect(r.events.some((e) => e.type === 'playerDamaged')).toBe(true)
+  expect(r.events.some((e) => e.type === 'fled')).toBe(true)
+})
+
+test('flee: banked Block soaks the parting blow', () => {
+  const s = fleeCombat({ damage: 20, dodge: 0 })
+  const seed = landSeed(s) // a seed that doesn't dodge — so Block is what saves us
+  s.block = 999 // fully guarded
+  const hp0 = s.playerHP
+  const r = reduce(s, { type: 'flee' }, { data: GAMEDATA, rng: mulberry32(seed) })
+  expect(r.state.playerHP).toBe(hp0) // absorbed
+  expect(r.events.some((e) => e.type === 'playerBlocked')).toBe(true)
+  expect(r.state.result).toBe('flee')
+})
+
+test('flee: a lethal parting blow is a DEATH while fleeing (lost, result lose, no fled)', () => {
+  const s = fleeCombat({ damage: 50, dodge: 0, hp: 3 })
+  const r = reduce(s, { type: 'flee' }, { data: GAMEDATA, rng: mulberry32(landSeed(s)) })
+  expect(r.state.running).toBe(false)
+  expect(r.state.result).toBe('lose')
+  expect(r.state.playerHP).toBe(0)
+  expect(r.events.some((e) => e.type === 'lost')).toBe(true)
+  expect(r.events.some((e) => e.type === 'fled')).toBe(false) // no clean getaway
+})
+
+test('flee: a high Dodge can evade the parting blow whole (strikeDodged, no damage)', () => {
+  const s = fleeCombat({ damage: 20, dodge: 1, playerSpeed: 30 }) // pDodge clamps to DODGE_MAX
+  const hp0 = s.playerHP
+  // find a seed that rolls under the dodge ceiling (deterministic per seed)
+  let dodged = false
+  for (let seed = 1; seed < 60 && !dodged; seed++) {
+    const r = reduce(s, { type: 'flee' }, { data: GAMEDATA, rng: mulberry32(seed) })
+    if (r.events.some((e) => e.type === 'strikeDodged')) {
+      dodged = true
+      expect(r.state.playerHP).toBe(hp0) // evaded whole — no HP lost
+      expect(r.events.some((e) => e.type === 'playerDamaged')).toBe(false)
+      expect(r.state.result).toBe('flee')
+    }
+  }
+  expect(dodged).toBe(true) // SOME seed dodges at the ceiling chance
+})

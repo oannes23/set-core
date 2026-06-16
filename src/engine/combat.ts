@@ -71,6 +71,25 @@ function rollStrike(foe: FoeRuntime, playerSpeed: number, rng: Rng, dodgeBonus =
   return { total, dodged }
 }
 
+/** The flee PARTING BLOW (§5.7 / the exit ladder): turning to run gives the foe ONE swing on your way
+ *  out. Your Dodge (the same Speed contest + Evasive gear as the deal) can evade it WHOLE; banked Block
+ *  + Soak mitigate it like any strike, and damage suffered scars (wounds). A harmless foe (no damage,
+ *  e.g. the training dummy) gives a clean getaway. If the blow is lethal, `hurtPlayer` ends the run with
+ *  `lost` (a death while fleeing) — the caller checks `s.running` before declaring the flee. Returns the
+ *  HP damage dealt (0 = dodged or fully blocked). */
+function partingBlow(s: CombatState, rng: Rng, sink: EventSink): number {
+  if (s.foe.damage <= 0) return 0
+  const pDodge = Math.min(DODGE_MAX, dodgeChance(s.stats.speed, s.foe.stats.speed, DODGE_BASE, DODGE_K, DODGE_MIN, DODGE_MAX) + s.mods.dodge)
+  if (rng() < pDodge) { sink.emit({ type: 'strikeDodged' }); return 0 } // read the blow, slip aside — clean escape
+  const raw = weightedRoll(s.foe.damage, rng)
+  const hit = Math.max(0, raw - s.mods.soak) // §7 Soak (Ironhide): flat pre-Block mitigation
+  const bite = Math.max(0, hit - s.block) // HP damage after the standing guard → wounds
+  hurtPlayer(s, hit, s.foe.name, sink) // applies Block, emits playerDamaged; emits `lost` if lethal
+  if (s.running && bite > 0) inflictWounds(s, bite, rng, sink)
+  s.block = 0
+  return hit
+}
+
 /** Build a fresh combat state: a generated board + full vitals + round 1 primed (the telegraph
  *  for a round-1 striker is rolled here — revealed at the deal, per the v3 grammar). */
 export function createCombat(opts: NewCombatOpts, rng: Rng): CombatState {
@@ -474,7 +493,10 @@ export function reduce(state: CombatState, action: CombatAction, deps: Deps): { 
       if (useConsumable(s, action.slot, deps.rng, sink) && s.running && s.enemyHP <= 0) onWin(s, deps.rng, sink)
       break
     case 'flee':
-      if (s.running) { s.running = false; s.result = 'flee'; sink.emit({ type: 'fled' }) }
+      if (s.running) {
+        partingBlow(s, deps.rng, sink) // §5.7: the foe lands one (dodge-able) swing on your way out
+        if (s.running) { s.running = false; s.result = 'flee'; sink.emit({ type: 'fled' }) } // survived → a clean flee
+      }
       break
   }
   return { state: s, events: sink.events }
