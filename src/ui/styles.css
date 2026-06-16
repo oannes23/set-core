@@ -959,43 +959,53 @@ body.dev #devtoggle { opacity: .9; color: var(--phos); border-color: var(--phos)
   72% { opacity: 1; }
   100% { opacity: 0; transform: translate(-50%, -50%) scale(1); }
 }
-/* THE EXCHANGE BREAKDOWN POPOVER — a centered modal over a fully-dimmed playfield; each formula's terms
-   POP in turn (shake·zoom·dropshadow·colour-dash), the TOTAL biggest, then the next part. */
+/* THE EXCHANGE BREAKDOWN POPOVER — a centered ledger over a fully-dimmed playfield, Mörk Borg lean:
+   stark black, acid-yellow, heavy stamped type. Each formula's terms POP top-to-bottom (zoom·shake·
+   dropshadow·colour-dash) with a line of detail under each, the TOTAL biggest + longest, then the next part. */
 #xbreak { position: fixed; inset: 0; z-index: 60; display: flex; align-items: center; justify-content: center;
-  background: rgba(4, 6, 10, .8); backdrop-filter: blur(3px); opacity: 0; transition: opacity .35s ease; pointer-events: none; }
+  background: rgba(2, 3, 5, .86); backdrop-filter: blur(3px); opacity: 0; transition: opacity .35s ease; pointer-events: none; }
 #xbreak.in { opacity: 1; }
 #xbreak.out { opacity: 0; }
-.xb-card { min-width: 300px; max-width: min(80vw, 560px); padding: 26px 36px 30px; border-radius: 18px; text-align: center;
-  display: flex; flex-direction: column; align-items: center; gap: 16px;
-  background: linear-gradient(180deg, rgba(28, 33, 44, .96), rgba(16, 19, 27, .96)); border: 1px solid var(--line);
-  box-shadow: 0 24px 70px -12px #000e, inset 0 1px 0 rgba(255, 255, 255, .05); }
-.xb-card.atk { border-color: rgba(240, 86, 91, .5); } /* your swing — red */
-.xb-card.def { border-color: rgba(245, 165, 36, .5); } /* their strike that bites — amber */
-.xb-card.hold { border-color: rgba(91, 148, 245, .5); } /* fully held — blue */
-.xb-card.dodge, .xb-card.tele { border-color: rgba(94, 234, 212, .5); } /* whiff / next telegraph — phosphor */
-.xb-card.sum { border-color: rgba(245, 197, 66, .5); } /* round shine — gold */
-.xb-title { font-family: "Syne", sans-serif; font-weight: 800; font-size: 14px; letter-spacing: .22em; text-transform: uppercase; color: var(--ink-dim); opacity: 0; }
+.xb-card { min-width: 320px; max-width: min(82vw, 480px); max-height: 86vh; overflow: hidden; padding: 22px 34px 26px;
+  display: flex; flex-direction: column; align-items: center; gap: 14px; text-align: center; transform: rotate(-.5deg); /* a stamped tilt */
+  background: #07080b; border: 2px solid var(--gold); border-radius: 3px;
+  box-shadow: 9px 9px 0 0 #000, 0 0 0 1px #000, 0 0 44px -6px rgba(245, 197, 66, .25); } /* hard xerox drop-shadow */
+.xb-card.atk { border-color: var(--red); box-shadow: 9px 9px 0 0 #000, 0 0 0 1px #000, 0 0 44px -6px rgba(240, 86, 91, .3); }
+.xb-card.def { border-color: var(--warn); box-shadow: 9px 9px 0 0 #000, 0 0 0 1px #000, 0 0 44px -6px rgba(245, 165, 36, .3); }
+.xb-card.hold { border-color: var(--blue); box-shadow: 9px 9px 0 0 #000, 0 0 0 1px #000, 0 0 44px -6px rgba(91, 148, 245, .3); }
+.xb-card.dodge, .xb-card.tele { border-color: var(--phos); box-shadow: 9px 9px 0 0 #000, 0 0 0 1px #000, 0 0 44px -6px rgba(94, 234, 212, .3); }
+.xb-card.abil { border-color: var(--trick); box-shadow: 9px 9px 0 0 #000, 0 0 0 1px #000, 0 0 44px -6px rgba(52, 211, 153, .3); }
+.xb-card.mana, .xb-card.sum { border-color: var(--gold); }
+.xb-title { font-family: "Syne", sans-serif; font-weight: 800; font-size: 15px; letter-spacing: .34em; text-transform: uppercase;
+  color: #07080b; background: var(--gold); padding: 4px 16px 3px; margin: -2px 0 2px; opacity: 0; } /* the inked label plate */
+.xb-card.atk .xb-title { background: var(--red); } .xb-card.def .xb-title { background: var(--warn); }
+.xb-card.hold .xb-title { background: var(--blue); } .xb-card.dodge .xb-title, .xb-card.tele .xb-title { background: var(--phos); }
+.xb-card.abil .xb-title { background: var(--trick); }
 .xb-title.in { animation: xbtitle .4s ease forwards; }
-@keyframes xbtitle { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
-.xb-row { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; justify-content: center; min-height: 54px; }
-.xb-term { font-weight: 700; font-variant-numeric: tabular-nums; font-size: calc(17px + var(--mag, .5) * 24px); color: var(--ink); opacity: 0; white-space: nowrap; }
+@keyframes xbtitle { from { opacity: 0; transform: translateY(-6px) scale(.96); } to { opacity: 1; transform: none; } }
+.xb-row { display: flex; flex-direction: column; gap: 12px; align-items: center; justify-content: center; min-height: 60px; width: 100%; }
+.xb-term { opacity: 0; color: #efe7cf; display: flex; flex-direction: column; align-items: center; gap: 1px; }
+.xb-val { font-family: "Syne", sans-serif; font-weight: 800; font-variant-numeric: tabular-nums; font-size: calc(18px + var(--mag, .5) * 22px); line-height: 1.04; color: inherit; }
+.xb-sub { font-size: 11px; letter-spacing: .08em; color: var(--ink-dim); text-transform: lowercase; }
 .xb-term.whiff { color: var(--ink-faint); }
-.xb-term.pop { animation: xbpop .8s cubic-bezier(.2, 1.4, .4, 1) both; }
-@keyframes xbpop { /* zoom-in + a quick shake, a 1s gold dropshadow/colour dash, settle */
+.xb-term.pop { animation: xbpop .82s cubic-bezier(.2, 1.4, .4, 1) both; }
+@keyframes xbpop { /* zoom-in + a quick shake + a gold colour/dropshadow dash, then settle to bone */
   0% { opacity: 0; transform: scale(.4); }
-  16% { opacity: 1; transform: scale(1.32) rotate(-3deg); color: var(--gold); filter: drop-shadow(0 0 14px var(--gold)); }
-  30% { transform: scale(1.06) rotate(2deg); }
-  44% { transform: scale(1.14) rotate(-1.5deg); }
-  60% { transform: scale(1) rotate(0); color: var(--gold); filter: drop-shadow(0 0 7px rgba(245, 197, 66, .5)); }
+  16% { opacity: 1; transform: scale(1.28) rotate(-2.5deg); color: var(--gold); filter: drop-shadow(0 0 14px var(--gold)); }
+  30% { transform: scale(1.05) rotate(2deg); }
+  44% { transform: scale(1.12) rotate(-1deg); }
+  60% { transform: scale(1) rotate(0); color: var(--gold); filter: drop-shadow(0 0 6px rgba(245, 197, 66, .5)); }
   100% { opacity: 1; transform: scale(1); filter: none; } }
-.xb-term.total { font-size: calc(26px + var(--mag, 1) * 22px); color: var(--gold); text-shadow: 0 2px 12px #000c, 0 0 20px rgba(245, 197, 66, .45); }
-.xb-term.total.pop { animation: xbtotal 1.25s cubic-bezier(.16, 1.6, .3, 1) both; }
+.xb-term.total { color: var(--gold); margin-top: 2px; }
+.xb-term.total .xb-val { font-size: calc(30px + var(--mag, 1) * 22px); text-shadow: 0 2px 12px #000c, 0 0 22px rgba(245, 197, 66, .5); }
+.xb-term.total .xb-sub { color: var(--warn); font-size: 12px; }
+.xb-term.total.pop { animation: xbtotal 1.3s cubic-bezier(.16, 1.6, .3, 1) both; }
 @keyframes xbtotal { /* the biggest, longest pop — lands and STAYS large */
   0% { opacity: 0; transform: scale(.4); }
-  14% { opacity: 1; transform: scale(1.7) rotate(-4deg); filter: drop-shadow(0 0 26px var(--gold)); }
-  28% { transform: scale(1.18) rotate(3deg); }
-  42% { transform: scale(1.4) rotate(-1.5deg); }
-  60%, 100% { opacity: 1; transform: scale(1.2); filter: drop-shadow(0 0 12px rgba(245, 197, 66, .5)); } }
+  14% { opacity: 1; transform: scale(1.6) rotate(-3.5deg); filter: drop-shadow(0 0 26px var(--gold)); }
+  28% { transform: scale(1.15) rotate(2.5deg); }
+  42% { transform: scale(1.32) rotate(-1.5deg); }
+  60%, 100% { opacity: 1; transform: scale(1.16); filter: drop-shadow(0 0 12px rgba(245, 197, 66, .5)); } }
 @media (prefers-reduced-motion: reduce) { .xb-term.pop, .xb-term.total.pop { animation: xbfade .18s ease both; } @keyframes xbfade { from { opacity: 0; } to { opacity: 1; } } }
 /* the guard cell flashes as the next telegraph forms — "raise your defense to HERE" */
 .tc-cell.grd.goalflash { animation: tggoal 1s ease; }

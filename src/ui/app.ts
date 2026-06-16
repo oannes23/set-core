@@ -113,6 +113,8 @@ interface View {
   refs: Record<string, HTMLElement>
   /** running combat tallies for the end-of-combat contribution chart (UI-only, replay-safe) */
   stats: { dealt: number; taken: number; blocked: number; healed: number; sets: number; traps: number; xp: number; gearDmg: number; gearBlock: number; gearMana: number }
+  /** per-ROUND activity, accumulated live (gated off during the exchange hold) → the breakdown's Ability/Mana parts; reset each round */
+  roundFx: { casts: string[]; dmg: number; healed: number; transformed: number; locked: number; extended: number; mana: [number, number, number]; riderMana: number }
   /** slot → who pulled it (consumed when the slot's new card renders — the tug-attribution tint) */
   morphSrc: Map<number, 'churn' | 'drift' | 'trap' | 'trick'>
   /** the always-on dev balance instruments (TRAPS §5.5 targets etc.) — display-only, replay-safe */
@@ -740,7 +742,7 @@ function startCombat(root: HTMLElement, char: SavedChar, dungeonId: string, foe:
   const stats: StatBlock = { power: base.power + gb.power, endurance: base.endurance + gb.endurance, speed: base.speed + gb.speed }
   const run = createRun({ foe, gen: GEN, playerMax: char.maxHp, stats, riders: gearRiders(char.equipped), mods: gearMods(char.equipped), procs: gearProcs(char.equipped), passives: pass, consumables, sequence, dungeonId, dreadFloor, coach: !!dg.coach }, rng)
   run.combat.playerHP = Math.max(0, Math.min(char.maxHp, char.hp)) // the hero enters at their persisted HP, not full
-  V = { root, deps: { data: GAMEDATA, rng }, run, state: run.combat, char, actions: [], classId: cls.id, loadout: acts, coach: !!dg.coach, coachCue: null, manaColor: dominantManaColor(acts), paused: true, hitstopUntil: 0, holdHud: false, preview: null, selected: [], raf: 0, lastT: 0, boardSig: '', refs: {}, stats: { dealt: 0, taken: 0, blocked: 0, healed: 0, sets: 0, traps: 0, xp: 0, gearDmg: 0, gearBlock: 0, gearMana: 0 }, morphSrc: new Map(), dev: { reshapeYou: 0, reshapeFoe: 0, matches: 0, springs: 0, k1: 0, wards: 0, churns: 0 } }
+  V = { root, deps: { data: GAMEDATA, rng }, run, state: run.combat, char, actions: [], classId: cls.id, loadout: acts, coach: !!dg.coach, coachCue: null, manaColor: dominantManaColor(acts), paused: true, hitstopUntil: 0, holdHud: false, preview: null, selected: [], raf: 0, lastT: 0, boardSig: '', refs: {}, stats: { dealt: 0, taken: 0, blocked: 0, healed: 0, sets: 0, traps: 0, xp: 0, gearDmg: 0, gearBlock: 0, gearMana: 0 }, roundFx: emptyRoundFx(), morphSrc: new Map(), dev: { reshapeYou: 0, reshapeFoe: 0, matches: 0, springs: 0, k1: 0, wards: 0, churns: 0 } }
   buildPlay()
   renderBoard()
   updateBar()
@@ -754,6 +756,7 @@ function startCombat(root: HTMLElement, char: SavedChar, dungeonId: string, foe:
     // let the player SEE the board for a beat before the guided intro freezes it ("read the board").
     // capture V so a pending timer from a prior combat can't fire into a different one.
     if (dg.guided) sceneTimeout(() => coachStartGuided(), 650)
+    else if (!dg.coach) playPreview() // the abbreviated "here's what's incoming" read before round 1 (skipped in teaching fights)
   })
 }
 
@@ -875,6 +878,14 @@ function buildPlay(): void {
 /** The live castable panel: the Tactics WHEEL (ROUNDS v3 — one control, seven states, one tap),
  *  the charge pips, the class loadout (mana-gated click-to-cast), and the always-on passive chips. */
 const MANA_ICON = ['🔥', '🌿', '❄']
+const MANA_NAMES = ['Fire', 'Nature', 'Frost']
+/** Condense a round's cast list into "Cleave ×2 · Frost Nova" (dedup, keep order, count repeats). */
+function castSummary(casts: string[]): string {
+  const order: string[] = []
+  const n = new Map<string, number>()
+  for (const c of casts) { if (!n.has(c)) order.push(c); n.set(c, (n.get(c) ?? 0) + 1) }
+  return order.map((c) => (n.get(c)! > 1 ? `${c} ×${n.get(c)}` : c)).join(' · ')
+}
 /** Friendly bias names by axis (logs + the stance badge). The mag axis stays for enemy/gear effects
  *  even though the wheel deliberately cut it (heavy boards = gear/Hone only — CRAWL §5.6). */
 const BIAS_NAME: Record<string, string[]> = {
@@ -1595,40 +1606,67 @@ function choreographRollover(events: CombatEvent[]): void {
   if (bm) V.stats.gearBlock += bm.blkRider
 
   // BUILD THE BREAKDOWN — the exchange plays as a centered POPOVER over a fully-dimmed playfield, part by
-  // part; within each formula every term POPS in turn (shake·zoom·dropshadow·colour-dash) and the TOTAL
-  // lands biggest. HP snaps when each total pops; the board settles on the bright field at release.
+  // part; within each formula every term POPS in turn (shake·zoom·dropshadow·colour-dash) with a small line
+  // of detail under it, and the TOTAL lands biggest. HP snaps when each total pops; the board settles at release.
+  const fx = V.roundFx // the round's accrued activity (abilities, mana) — captured before release resets it
+  const wpn = V.char.equipped.weapon ? gearBase(V.char.equipped.weapon.refId) : undefined
+  const casterNames = [V.char.equipped.weapon, V.char.equipped.armor, V.char.equipped.relic]
+    .map((g) => (g ? gearBase(g.refId) : undefined)).filter((b): b is NonNullable<typeof b> => !!b?.rider?.manaPerMatch)
+    .map((b) => `${b.icon} ${b.name}`).join(' & ')
+  const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? '' : 's'}`
   const parts: BPart[] = []
   if (swingDmg > 0) { // ① YOUR SWING
     const terms: BTerm[] = []
-    if (sm && sm.matches > 0) terms.push({ txt: `⚔ Matches ${sm.matches}`, mag: 0.5 })
-    if (sm && sm.weapon > 0) terms.push({ txt: `🗡 Weapon +${sm.weapon}`, mag: 0.5 })
-    if (sm && sm.crit) terms.push({ txt: `✦ CRIT ×${sm.mult.toFixed(1)}`, mag: 0.85 })
-    terms.push({ txt: `${won ? '☠ ' : ''}${swingDmg} damage`, mag: 1, total: true })
-    parts.push({ title: 'Your Swing', cls: 'atk', terms, onTotal: () => { interpretChunk(seg.swing); paintHP('e', postFoeHP); if (won) sceneTimeout(() => interpretChunk(finale), 750) } })
+    const nAtk = sm?.attacks ?? 0
+    if (sm && sm.matches > 0) terms.push({ txt: `⚔ Matches ${sm.matches}`, sub: `${plural(nAtk, 'attack card')} × your Power`, mag: 0.5 })
+    if (sm && sm.weapon > 0) terms.push({ txt: `🗡 Weapon +${sm.weapon}`, sub: `+${nAtk > 0 ? Math.round(sm.weapon / nAtk) : sm.weapon}/card · ${wpn ? wpn.name : 'weapon'}`, mag: 0.5 })
+    if (sm && sm.crit) terms.push({ txt: `✦ CRIT ×${sm.mult.toFixed(1)}`, sub: 'skill-earned — your chains paid off', mag: 0.85 })
+    terms.push({ txt: `${won ? '☠ ' : ''}${swingDmg} damage`, sub: won ? `the ${foeName} falls` : `foe ${postFoeHP + swingDmg} → ${postFoeHP}`, mag: 1, total: true })
+    parts.push({ title: 'Your Swing', cls: 'atk', terms, onTotal: () => { interpretChunk(seg.swing); paintHP('e', postFoeHP); if (won) sceneTimeout(() => interpretChunk(finale), 850) } })
   }
   if (!won) {
     if (raw != null) { // ② THEIR STRIKE — telegraph − soak − block → the net
-      const terms: BTerm[] = [{ txt: `⚔ Telegraph ${raw}`, mag: 0.55 }]
-      if (bm && bm.soaked > 0) terms.push({ txt: `🪨 Soak −${bm.soaked}`, mag: 0.45 })
+      const terms: BTerm[] = [{ txt: `⚔ Telegraph ${raw}`, sub: 'their raw blow', mag: 0.55 }]
+      if (bm && bm.soaked > 0) terms.push({ txt: `🪨 Soak −${bm.soaked}`, sub: 'your armor shrugs it off', mag: 0.45 })
       const blk = bm ? bm.block : absorbed
-      if (blk > 0) terms.push({ txt: `🛡 Block −${blk}${bm && bm.blkRider > 0 ? ` (+${bm.blkRider} armor)` : ''}`, mag: 0.55 })
-      terms.push({ txt: bite > 0 ? `−${bite} to you` : 'Held! 0', mag: bite > 0 ? 1 : 0.8, total: true })
-      parts.push({ title: 'Their Strike', cls: bite > 0 ? 'def' : 'hold', terms, onTotal: () => { interpretChunk(seg.counter); paintHP('p', postYouHP); if (lost) sceneTimeout(() => interpretChunk(finale), 750) } })
+      if (blk > 0) terms.push({ txt: `🛡 Block −${blk}`, sub: bm ? `${plural(bm.defends, 'defend card')} × Endurance${bm.blkRider > 0 ? ` · +${bm.blkRider} armor` : ''}` : 'your guard', mag: 0.55 })
+      terms.push({ txt: bite > 0 ? `−${bite} to you` : 'Held! 0', sub: bite > 0 ? `HP ${postYouHP + bite} → ${postYouHP}` : 'the guard holds — no wound', mag: bite > 0 ? 1 : 0.8, total: true })
+      parts.push({ title: 'Their Strike', cls: bite > 0 ? 'def' : 'hold', terms, onTotal: () => { interpretChunk(seg.counter); paintHP('p', postYouHP); if (lost) sceneTimeout(() => interpretChunk(finale), 850) } })
     } else if (dodgedAll) { // the full whiff — a free round
-      parts.push({ title: 'Their Strike', cls: 'dodge', terms: [{ txt: '💨 DODGED — free round', mag: 1, total: true }], onTotal: () => { spriteReact('you', 'splunge'); interpretChunk(seg.counter) } })
+      parts.push({ title: 'Their Strike', cls: 'dodge', terms: [{ txt: '💨 DODGED', sub: 'every swing slipped — a free round', mag: 1, total: true }], onTotal: () => { spriteReact('you', 'splunge'); interpretChunk(seg.counter) } })
     }
-    if (!lost && wEv && wEv.swings > 0) { // ③ NEXT STRIKE — the windup assembles swing by swing
-      const terms: BTerm[] = []
-      const landed = wEv.swings - wEv.dodged
-      for (let i = 0; i < wEv.swings; i++) terms.push(i < landed ? { txt: '⚔', mag: 0.35 } : { txt: '💨', mag: 0.3, whiff: true })
-      terms.push({ txt: wEv.amount > 0 ? `⚔ ${wEv.amount} incoming` : '💨 all dodged', mag: 0.85, total: true })
-      parts.push({ title: 'Next Strike', cls: 'tele', terms, onTotal: () => { const g = V?.refs.tcgrd; if (g) { g.classList.remove('goalflash'); void g.offsetWidth; g.classList.add('goalflash'); sceneTimeout(() => g.classList.remove('goalflash'), 1000) } } })
+    if (!lost && fx.casts.length > 0) { // ③ ABILITY SUMMARY — what your spells did this round (skipped if none cast)
+      const cast = castSummary(fx.casts)
+      const terms: BTerm[] = [{ txt: `✦ ${cast}`, sub: plural(fx.casts.length, 'cast'), mag: 0.55 }]
+      const fxTerms: BTerm[] = []
+      if (fx.dmg > 0) fxTerms.push({ txt: `${fx.dmg} damage`, sub: 'dealt by your abilities', mag: 0.9 })
+      if (fx.healed > 0) fxTerms.push({ txt: `+${fx.healed} healed`, sub: 'you mend', mag: 0.7 })
+      if (fx.transformed > 0) fxTerms.push({ txt: `${fx.transformed} reforged`, sub: 'cards you transmuted', mag: 0.6 })
+      if (fx.locked > 0) fxTerms.push({ txt: `${fx.locked} locked`, sub: 'cards held fast', mag: 0.55 })
+      if (fx.extended > 0) fxTerms.push({ txt: `+${fx.extended}s`, sub: 'you stalled the clock', mag: 0.55 })
+      if (fxTerms.length) fxTerms[0].total = true; else terms[0].total = true // the headline effect lands biggest
+      parts.push({ title: 'Your Abilities', cls: 'abil', terms: [...terms, ...fxTerms] })
     }
-    if (!lost && rs && (rs.comboPeak >= 2 || rs.primed > 0)) { // ④ ROUND — the offense-quality shine
+    const manaSum = fx.mana[0] + fx.mana[1] + fx.mana[2]
+    if (!lost && manaSum > 0) { // ④ MANA AWARD — what you banked this round, and from where
       const terms: BTerm[] = []
-      if (rs.comboPeak >= 2) terms.push({ txt: `🔥 ${rs.comboPeak}× combo${rs.combos > rs.comboPeak ? ` · ${Math.round(rs.combos)} linked` : ''}`, mag: Math.min(0.95, 0.5 + rs.comboPeak * 0.05), total: rs.primed === 0 })
-      if (rs.primed > 0) terms.push({ txt: `✦ ${rs.primed} primed`, mag: 0.7, total: true })
+      for (let c = 0; c < 3; c++) if (fx.mana[c] > 0) terms.push({ txt: `${MANA_ICON[c]} +${fx.mana[c]} ${MANA_NAMES[c]}`, sub: 'from your sets', mag: 0.5 })
+      terms.push({ txt: `+${manaSum} mana`, sub: fx.riderMana > 0 && casterNames ? `incl +${fx.riderMana} from ${casterNames}` : 'banked for your spells', mag: 0.8, total: true })
+      parts.push({ title: 'Mana', cls: 'mana', terms })
+    }
+    if (!lost && rs && (rs.comboPeak >= 2 || rs.primed > 0)) { // ⑤ ROUND — the offense-quality shine
+      const terms: BTerm[] = []
+      if (rs.comboPeak >= 2) terms.push({ txt: `🔥 ${rs.comboPeak}× combo`, sub: rs.combos > rs.comboPeak ? `${Math.round(rs.combos)} chains linked in time` : 'a clean streak', mag: Math.min(0.95, 0.5 + rs.comboPeak * 0.05), total: rs.primed === 0 })
+      if (rs.primed > 0) terms.push({ txt: `✦ ${rs.primed} primed`, sub: 'Maneuver churn matched in time', mag: 0.7, total: true })
       parts.push({ title: 'Round', cls: 'sum', terms })
+    }
+    if (!lost && wEv && wEv.swings > 0) { // ⑥ NEXT STRIKE — what's incoming; how much guard to raise
+      const landed = wEv.swings - wEv.dodged
+      const per = landed > 0 ? Math.round(wEv.amount / landed) : 0
+      const terms: BTerm[] = [{ txt: `⚔ ${plural(wEv.swings, 'swing')}`, sub: per > 0 ? `~${per} each` : 'winding up', mag: 0.45 }]
+      if (wEv.dodged > 0) terms.push({ txt: `💨 ${wEv.dodged} dodged`, sub: 'your Speed slips them', mag: 0.4, whiff: true })
+      terms.push({ txt: wEv.amount > 0 ? `⚔ ${wEv.amount} incoming` : '💨 all dodged', sub: wEv.amount > 0 ? `raise ${wEv.amount} guard to negate it` : 'a free round ahead', mag: 0.85, total: true })
+      parts.push({ title: 'Next Strike', cls: 'tele', terms, onTotal: () => { const g = V?.refs.tcgrd; if (g) { g.classList.remove('goalflash'); void g.offsetWidth; g.classList.add('goalflash'); sceneTimeout(() => g.classList.remove('goalflash'), 1000) } } })
     }
   }
 
@@ -1646,6 +1684,7 @@ function choreographRollover(events: CombatEvent[]): void {
     if (raw == null && !dodgedAll && !seg.counter.length) log(`<span style="opacity:.7">The ${foeName} doesn't strike.</span>`, 'foe')
     roundStamp(V.state.round)
     pulseTelegraph() // the new telegraph reveals with its flourish
+    V.roundFx = emptyRoundFx() // the new round starts with a clean activity slate (settle events above are flushed)
   }
 
   // FREEZE + LOCKOUT, then play. The hitstop spans the whole breakdown so the new round opens on a full clock.
@@ -1662,21 +1701,24 @@ function choreographRollover(events: CombatEvent[]): void {
 /* THE BREAKDOWN POPOVER — the exchange cutscene as a centered modal over a fully-dimmed playfield. Each
    PART is a formula; its terms POP one at a time (the per-term pop is the shake·zoom·dropshadow·colour
    flash), the TOTAL biggest + longest, then the next part. onTotal fires the HP snap / log for that part. */
-interface BTerm { txt: string; mag: number; total?: boolean; whiff?: boolean }
+interface BTerm { txt: string; sub?: string; mag: number; total?: boolean; whiff?: boolean }
 interface BPart { title: string; cls: string; terms: BTerm[]; onTotal?: () => void }
-const XB = { intro: 420, partIntro: 360, term: 720, total: 1250, gap: 520, outro: 380 }
-const XB_REDUCED: typeof XB = { intro: 160, partIntro: 140, term: 240, total: 360, gap: 200, outro: 160 }
-const xbT = (): typeof XB => (matchMedia('(prefers-reduced-motion: reduce)').matches ? XB_REDUCED : XB)
-function breakdownDuration(parts: BPart[]): number {
-  const X = xbT()
+const XB = { intro: 500, partIntro: 460, term: 920, total: 1550, gap: 640, outro: 460 } // deliberately slow — the Mörk Borg ledger reads beat by beat
+const XB_REDUCED: typeof XB = { intro: 180, partIntro: 160, term: 280, total: 420, gap: 220, outro: 180 }
+const xbT = (pace = 1): typeof XB => {
+  const x = matchMedia('(prefers-reduced-motion: reduce)').matches ? XB_REDUCED : XB
+  return pace === 1 ? x : { intro: x.intro * pace, partIntro: x.partIntro * pace, term: x.term * pace, total: x.total * pace, gap: x.gap * pace, outro: x.outro * pace }
+}
+function breakdownDuration(parts: BPart[], pace = 1): number {
+  const X = xbT(pace)
   let t = X.intro
   for (const p of parts) { t += X.partIntro; for (const term of p.terms) t += term.total ? X.total : X.term; t += X.gap }
   return t + X.outro
 }
-function playBreakdown(parts: BPart[], release: () => void): void {
+function playBreakdown(parts: BPart[], release: () => void, pace = 1): void {
   const view = V
   if (!view) return
-  const X = xbT()
+  const X = xbT(pace)
   document.body.classList.add('xbreak-on')
   const pop = $(`<div id="xbreak"><div class="xb-card"><div class="xb-title"></div><div class="xb-row"></div></div></div>`)
   document.body.appendChild(pop)
@@ -1692,8 +1734,9 @@ function playBreakdown(parts: BPart[], release: () => void): void {
       const isTotal = !!term.total
       sceneTimeout(() => {
         if (view !== V) return
-        const chip = $(`<span class="xb-term${isTotal ? ' total' : ''}${term.whiff ? ' whiff' : ''}"></span>`)
-        chip.textContent = term.txt
+        const chip = $(`<div class="xb-term${isTotal ? ' total' : ''}${term.whiff ? ' whiff' : ''}"><span class="xb-val"></span>${term.sub ? '<span class="xb-sub"></span>' : ''}</div>`)
+        chip.querySelector('.xb-val')!.textContent = term.txt
+        if (term.sub) chip.querySelector('.xb-sub')!.textContent = term.sub
         chip.style.setProperty('--mag', String(term.mag))
         rowEl.appendChild(chip); void chip.offsetWidth; chip.classList.add('pop')
         if (isTotal) part.onTotal?.()
@@ -1703,6 +1746,26 @@ function playBreakdown(parts: BPart[], release: () => void): void {
     t = tt + X.gap
   }
   sceneTimeout(() => { pop.classList.add('out'); window.setTimeout(() => pop.remove(), X.outro); document.body.classList.remove('xbreak-on'); if (view === V) release() }, t)
+}
+
+/** ROUND-1 PREVIEW — a short, abbreviated read at combat start: the incoming swings, the dodges, and how
+ *  much guard to raise. Same popover grammar as the exchange's "Next Strike" part, played snappier. Skipped
+ *  if the foe has no telegraph (a pressure-free dummy). Freezes the clock + locks the board for its run. */
+function playPreview(): void {
+  if (!V) return
+  const inc = V.state.incoming
+  const swings = V.state.foe.swings
+  if (inc == null || swings <= 0) return
+  const dodged = V.state.incomingDodged
+  const landed = swings - dodged
+  const per = landed > 0 ? Math.round(inc / landed) : 0
+  const terms: BTerm[] = [{ txt: `⚔ ${swings} swing${swings === 1 ? '' : 's'}`, sub: per > 0 ? `~${per} each` : 'winding up', mag: 0.5 }]
+  if (dodged > 0) terms.push({ txt: `💨 ${dodged} dodged`, sub: 'your Speed slips them', mag: 0.4, whiff: true })
+  terms.push({ txt: inc > 0 ? `⚔ ${inc} incoming` : '💨 all dodged', sub: inc > 0 ? `raise ${inc} guard to negate it` : 'a free opening', mag: 0.85, total: true })
+  const part: BPart = { title: 'Incoming', cls: 'tele', terms }
+  V.holdHud = true // lock the board + freeze the read while the preview plays
+  hitstop(breakdownDuration([part], 0.65) + 300)
+  playBreakdown([part], () => { if (V) { V.holdHud = false; const g = V.refs.tcgrd; if (g) { g.classList.add('goalflash'); sceneTimeout(() => g.classList.remove('goalflash'), 1000) } } }, 0.65)
 }
 
 /** Read the number the HELD HUD is showing (the pre-exchange paint) — e.g. "🛡 7 ✓" → 7. */
@@ -1825,8 +1888,31 @@ function bamWord(word: string, cls: 'hit' | 'guard' | 'pain' | 'tide' | 'soft' |
   sceneTimeout(() => el.remove(), 1150) // past the 1.05s pop-fade
 }
 
+function emptyRoundFx(): View['roundFx'] {
+  return { casts: [], dmg: 0, healed: 0, transformed: 0, locked: 0, extended: 0, mana: [0, 0, 0], riderMana: 0 }
+}
+/** Accumulate the round's activity live (NOT during the exchange hold) — feeds the breakdown's Ability +
+ *  Mana parts. Reset each round at release. Ability/proc damage, heals, your reforges/locks, stalls, mana. */
+function accrueRoundFx(events: CombatEvent[]): void {
+  if (!V || V.holdHud) return // the exchange replays its own events through interpretChunk — don't double-count
+  const fx = V.roundFx
+  for (const e of events) {
+    switch (e.type) {
+      case 'abilityCast': fx.casts.push(ABILITIES[e.id]?.name ?? e.id); break
+      case 'enemyDamaged': if (!e.immune) fx.dmg += e.amount; break // mid-round damage = an ability/proc (the exchange swing is gated out by holdHud)
+      case 'playerHealed': fx.healed += e.amount; break
+      case 'cardsTransmuted': if (!e.source && !e.hostile) fx.transformed += e.slots.length; break // your own cast (no source tag, not a boom)
+      case 'cardsLocked': fx.locked += e.slots.length; break
+      case 'clockChanged': if (e.deltaSeconds > 0) fx.extended += e.deltaSeconds; break
+      case 'manaGained': for (let i = 0; i < 3; i++) fx.mana[i] += e.mana[i]; break
+      case 'setResolved': fx.riderMana += e.riderMana; break
+    }
+  }
+}
+
 function interpretChunk(events: CombatEvent[]): void {
   if (!V || !events.length) return
+  accrueRoundFx(events)
   const MANA = ['Fire', 'Nature', 'Frost']
   logGroup = $(`<div class="loggroup"></div>`) // collect this batch's log lines into one cascade unit
   bumpTurn() // advance the flavour-variety counter once per batch (verbs rotate, stable across re-renders)
