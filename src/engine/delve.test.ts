@@ -1,13 +1,12 @@
 /* The delve encounter schema (CRAWL §2): the triangular boss law as an inverse-CDF draw, the elite
-   sawtooth, flee semantics (reroll + reset, throne room stays found), the dread bands, and the
-   placeholder loot roll. Deterministic (seeded rng), DOM-free. */
+   sawtooth, flee semantics (reroll + reset, throne room stays found), and the dread bands.
+   Deterministic (seeded rng), DOM-free. */
 
 import { test, expect } from 'vitest'
 import { mulberry32 } from '../core/rng'
 import { GAMEDATA } from '../data/game-data'
-import { CONSUMABLES } from './consumables'
 import {
-  createDelve, nextEncounter, fleeReroll, dreadBand, bossCumulative, rollDelveLoot,
+  createDelve, nextEncounter, fleeReroll, dreadBand, bossCumulative,
   ELITE_STEP, type DelveState,
 } from './delve'
 
@@ -133,16 +132,4 @@ test('the dread meter is monotone and honest against the cumulative', () => {
   expect(dreadBand(d(0)).step).toBe(0) // cum(1)=1 — quiet
   expect(dreadBand(d(13)).step).toBe(3) // cum(14)=100 — he is near
   expect(dreadBand(d(3, true)).step).toBe(4) // the throne room found out-shouts the curve
-})
-
-test('the placeholder loot roll always lands a real consumable, potion-weighted', () => {
-  const rng = mulberry32(5)
-  let potions = 0
-  for (let i = 0; i < 500; i++) {
-    const id = rollDelveLoot(rng)
-    expect(CONSUMABLES[id]).toBeDefined()
-    if (CONSUMABLES[id].kind === 'potion') potions++
-  }
-  expect(potions / 500).toBeGreaterThan(0.6)
-  expect(potions / 500).toBeLessThan(0.9)
 })

@@ -13,13 +13,12 @@
      10% → 20% → 30% …, mean gap ~3–4 rooms.
    • MINION — the dungeon's weighted enemy_table.
 
-   Loot is a PLACEHOLDER (TODO §B2): one random consumable per cleared room, to feel out the
-   between-rooms flow; real loot tables (gold/XP/gear, loot_tier scaling) replace `rollDelveLoot`. */
+   Loot lives in `loot.ts` (the real category-first roller, `rollRoomLoot`); this module only owns
+   the encounter schema. */
 
 import type { Rng } from '../core/rng'
 import type { Dungeon } from '../data/schema'
 import { pickWeightedFoe } from './foe'
-import { CONSUMABLES } from './consumables'
 
 export type EncounterTier = 'minion' | 'elite' | 'boss'
 
@@ -88,14 +87,4 @@ export function dreadBand(d: DelveState): DreadBand {
   if (cum >= 45) return { step: 2, label: 'the throne stirs' }
   if (cum >= 15) return { step: 1, label: 'drums echo in the deep' }
   return { step: 0, label: 'the halls are quiet' }
-}
-
-/** PLACEHOLDER loot — one random consumable per cleared room (¾ potion / ¼ scroll), just to get
- *  the pickup flow going. Real loot tables (CRAWL §3: gold/XP/gear by loot_tier) replace this. */
-export function rollDelveLoot(rng: Rng): string {
-  const ids = Object.keys(CONSUMABLES)
-  const potions = ids.filter((id) => CONSUMABLES[id].kind === 'potion')
-  const scrolls = ids.filter((id) => CONSUMABLES[id].kind === 'scroll')
-  const pool = rng() < 0.75 || !scrolls.length ? potions : scrolls
-  return pool[Math.floor(rng() * pool.length)]
 }

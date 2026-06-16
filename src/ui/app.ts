@@ -2789,12 +2789,13 @@ function combatChart(): HTMLElement {
   return $(`<div class="summary">${bars}${gearLine}<div class="summary-xp"><span class="sx-lab">✦ +${V!.stats.xp} XP</span>${xpLine}</div>${readyLine}</div>`)
 }
 
-/* ---- THE BETWEEN-ROOMS FORK — the delve's heartbeat (CRAWL §2 / §6 first cut) ----
-   Win → loot (PLACEHOLDER: one random consumable into the satchel) + the fork: press on or carry
-   the spoils home. Flee → the same fork at a price: no spoils, the next chamber rerolled, the
-   elite sawtooth reset. Boss win → the dungeon is CLEARED (the run's best exit). Death → the run
-   and the satchel are lost where you fell. Still TODO from the exit ladder: the parting blow on
-   flee, gold/XP on the loot roll, the death tithe — they land with the economy (TODO §B2). */
+/* ---- THE BETWEEN-ROOMS FORK — the delve's heartbeat (CRAWL §2 / §6) ----
+   Win → loot (the real category-first roll: gold/consumables/gear, `loot.rollRoomLoot`) into the
+   satchel + the fork: press on or carry the spoils home. Flee → the same fork at a price: no spoils,
+   the next chamber rerolled, the elite sawtooth reset. Boss win → the dungeon is CLEARED (the run's
+   best exit) + the marquee gear. Death → the run + satchel + carried gold are lost where you fell,
+   plus the ~12% bank tithe (XP always banks). Still TODO from the exit ladder: the parting blow on
+   flee (TODO post-review Stage 3). */
 /** Bank the run's found gear into account Storage (SAFE exit only — lost on death, like the satchel).
  *  Overflow (Storage cap 20 full) is dropped for now; the bag screen + return-triage (deferred B2) will
  *  let you choose what to keep. Equipping from Storage is the NEXT slice — until then drops are stowed. */
