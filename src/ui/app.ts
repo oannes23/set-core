@@ -2789,7 +2789,7 @@ function showBriefing(onEngage: () => void): void {
   const seq = V.run.sequence
   const stats: [string, string][] = [
     ['HP', String(V.state.enemyMax)],
-    ['Damage', `${f.damage}<small> max / swing</small>`],
+    ['Damage', `${Math.round(f.damage)}<small> max / swing</small>`],
     ['Tempo', tempoLabel(f)],
   ]
   if (f.drift) stats.push(['Drift', `${f.drift.icon ?? ''} ${f.drift.name.replace(/ Drift$/, '')}`])

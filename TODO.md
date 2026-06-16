@@ -411,6 +411,12 @@ Combat-only; builds *with* B2 (the dread depth floor reads the delve's dread ban
   scope (shield from the 1st selected card). `protection.test.ts`; 138 green.
 
 ## Open — combat polish (small, optional)
+- `[ ]` ⭐ **SOON: a target play-field dimension + scene-fit refactor.** Pick a design viewport (combat
+  already fits the 3-col layout at ~1440×900 — playerband bottom ~774px — after the 2026-06-15 card
+  trim) and bring the OTHER scenes into the same budget: the **boss loot screen** grows tall with lots
+  of drops (paginate / scroll-in-frame / grid the loot) and the **character-select sheet** is very tall
+  (split into tabs/sections or a scroll region). General pass: every scene should fit the expected
+  window without page-scroll. Break tall scenes into sub-scenes/panels. (Flagged 2026-06-15.)
 - `[ ]` **Explain-mid-play tutorial variant** — fire explain-popovers at trigger points during a
   *normal* fight (first trap spring, first lock) rather than only as the staged intro: same coaching
   primitives, new script + more `coachNotify` hooks. Plus persist "tutorial seen" + per-step copy review.
