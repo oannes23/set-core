@@ -18,9 +18,11 @@ Traffic-light: green = pursue · yellow = consequence · red = wounded.
 
 ## ▶ NEXT SESSION — START HERE (handoff 2026-06-15)
 **⭐ 2026-06-16: POST-REVIEW HARDENING TRACK below** (from `REVIEW-2026-06-16.md` + `DESIGN-GOALS.md`).
-Progress: **Stage 0 ✅ · Stage 1 (app.ts refactor) 1A–1D ✅ · Stage 2 (Rounds v3 UI) ✅ already-built,
-reconciled + polished.** **NEXT = Stage 3: parting-blow on flee + the pause button** (the genuinely
-unbuilt asks). Deferred to future stages: U5 tick-coalescing (→ replay-seam build), 1E cutscene split.
+Progress: **Stage 0 ✅ · Stage 1 (app.ts refactor) 1A–1D ✅ · Stage 2 (Rounds v3 UI) ✅ reconciled+polished ·
+Stage 3 (parting-blow on flee + spacebar pause) ✅.** **NEXT = Stage 4: the U6 narrow edge** (revalidate a
+selected card a deliberate cast rewrites in place), then the post-review track is clear → back to the
+B-phase roadmap (gear chunk ③ smith / B4 progression). Deferred to future stages: U5 tick-coalescing
+(→ replay-seam build), 1E cutscene split, colorblind/relaxed-mode (→ external-playtest gate).
 The balance sim stays **gated** until loot + abilities settle.
 
 **GEAR chunk ① the foundation = BUILT 2026-06-15.** Next = **chunk ② loot + the coupled balance pass.**
@@ -213,14 +215,17 @@ preview; dev **sets/round** readout is live. So Stage 2 became reconcile + polis
 - `[ ]` **Minor deferred (optional):** a `cardsUnlocked` "freed" shimmer when a lock expires (today
   the lock styling just drops on the next re-render) — low-drama, left for a future feel pass.
 
-### Stage 3 — combat-loop features (land after the seams exist)
-- `[ ]` **Parting blow on flee.** The flee button warns "you'll take a swing on the way out"; on flee
-  the foe gets one telegraphed strike, **with the player's Dodge chance to avoid it** (reuse the
-  deal-time dodge from §5.7). Closes the long-open B2 exit-ladder parting-blow. *Test: flee → one
-  strike resolved; dodge roll honored; lethal + non-lethal both handled.*
-- `[ ]` **PAUSE.** A pause affordance — **spacebar** for now (freezes the round clock + all timers;
-  re-press resumes; no actions accepted while paused). Also the seed of the table-stakes
-  "game-speed / relaxed" accessibility entry point. *Test: pause freezes the clock-advance reducer; resume continues.*
+### Stage 3 — combat-loop features — ✅ DONE 2026-06-16
+- `[x]` **Parting blow on flee.** Built (`combat.partingBlow`): the flee confirm warns the foe gets one
+  parting strike; on flee the foe lands a single swing, **Dodge (Speed contest + Evasive) can evade it
+  whole**, Block/Soak mitigate, and a **lethal blow is a death while fleeing** (takes the death path +
+  tithe). UI delays the end card a beat (`PARTING_BEAT_MS`) so the hit/dodge is seen. Closes the
+  long-open B2 exit-ladder parting-blow. 5 engine tests (getaway / land / block / lethal / dodge).
+- `[x]` **PAUSE (spacebar).** Built: toggles a player pause mid-fight, reusing the `paused` freeze gate
+  (stops ticks + blocks all input), marked `userPaused` so it leaves coaching/briefing freezes alone and
+  won't fire mid-rollover; a `#pauseoverlay` scrim shows "PAUSED — press Space to resume". The seed of
+  the table-stakes "game-speed / relaxed" accessibility entry point (the slider rides the deferred
+  colorblind/relaxed-mode item).
 
 ### Stage 4 — narrow edge cleanup
 - `[ ]` **U6 residual.** A deliberate player cast that rewrites a *selected* card in place isn't
