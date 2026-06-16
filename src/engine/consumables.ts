@@ -9,7 +9,7 @@ import type { CombatState } from './state'
 import { ROUND_MS } from './state'
 import type { EventSink } from './events'
 import { transmute } from './triggers'
-import { healPlayer, gainBlock, extendRound, addCharges, grantMana, dealAbilityDamage } from './ops'
+import { healPlayer, gainBlock, extendRound, addCharges, grantMana, dealAbilityDamage, castDamageHook } from './ops'
 import { COLOR_RED, COLOR_GREEN, COLOR_BLUE, BIAS_W, cardColor, cardMag, comboCounts, isLive, liveSlots, gridDims, rowSlots, colSlots } from './select'
 import { ABILITIES } from './abilities'
 
@@ -197,7 +197,9 @@ for (const id in ABILITIES) {
   reg({
     id: `scroll_${id}`, name: `Scroll: ${a.name}`, kind: 'scroll', icon: a.icon, color: scrollColor(a.cost),
     desc: a.desc,
-    use(s, rng, sink) { a.cast(s, rng, sink) }, // free — no mana cost (the scroll IS the cost)
+    // free — no mana cost (the scroll IS the cost). E7: still route through castDamageHook so a scroll
+    // vs the ethereal goblin drains him by the spell's nominal cost (a cast is a cast — no silent zero).
+    use(s, rng, sink) { castDamageHook(s, a.cost, sink); a.cast(s, rng, sink) },
   })
 }
 

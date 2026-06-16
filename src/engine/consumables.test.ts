@@ -22,6 +22,18 @@ function combat(consumables: string[]): CombatState {
   return s
 }
 
+test('E7: a damage scroll vs the ethereal goblin drains by mana spent, not a silent zero', () => {
+  const rng = mulberry32(1)
+  const foe = assembleFoe('unstable_ethereal_goblin', null, GAMEDATA, rng)! // ability_damage:'mana_spent'
+  const s = createCombat({ foe, gen: GEN, consumables: ['scroll_firebolt'] }, rng) // firebolt cost [4,0,0]
+  const hp0 = s.enemyHP
+  const r = reduce(s, { type: 'useConsumable', slot: 0 }, deps())
+  // a cast is a cast: the scroll drains him by the spell's nominal mana (4 × 10/3 ≈ 13), with feedback
+  const drain = r.events.find((e) => e.type === 'enemyDamaged' && e.magic === true)
+  expect(drain).toMatchObject({ amount: 13, magic: true })
+  expect(r.state.enemyHP).toBe(hp0 - 13) // real damage — no longer a silent zero
+})
+
 test('the registry has tiered staples (no combo brews) + a scroll for every ability', () => {
   expect(Object.keys(CONSUMABLES).filter((id) => id.startsWith('brew_'))).toHaveLength(0)
   for (const base of ['hp', 'stoneskin', 'speed', 'mana_red', 'mana_green', 'mana_blue', 'mana_rainbow']) {

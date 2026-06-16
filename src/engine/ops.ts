@@ -98,7 +98,7 @@ export function repairWounds(s: CombatState, count: number, rng: Rng, sink: Even
 /** Intrinsic ability damage to the enemy. The ethereal rule (ability_damage:'mana_spent') replaces
  *  intrinsic spell damage entirely — those foes are hurt only by castDamageHook (mana spent). */
 export function dealAbilityDamage(s: CombatState, dmg: number, sink: EventSink): number {
-  if (s.foe.rules.ability_damage === 'mana_spent') return 0
+  if (s.foe.rules.ability_damage === 'mana_spent') return 0 // ethereal: only castDamageHook (mana spent) bites
   if (dmg <= 0) return 0
   s.enemyHP = Math.max(0, s.enemyHP - dmg)
   sink.emit({ type: 'enemyDamaged', amount: dmg })
