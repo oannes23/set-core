@@ -3,8 +3,8 @@
    No DOM, no Math.random — every randomized helper takes the injected Rng so the engine stays
    deterministic/replayable. Ported from the prototype's TARGETING TOOLKIT. */
 
-import type { Card } from '../core/affine'
-import { findSets } from '../core/sets'
+import { type Card, keyOf } from '../core/affine'
+import { type Board, findSets } from '../core/sets'
 import type { Rng } from '../core/rng'
 import type { CombatState } from './state'
 
@@ -124,6 +124,18 @@ export function protectedSlots(s: CombatState): Set<number> {
     if (t.some((i) => selSet.has(i))) for (const i of t) out.add(i) // every member of a set through a selected card
   }
   return out
+}
+
+/** U6 — revalidate a held selection after a reduction: drop any slot that's no longer the SAME card
+ *  the player picked. Hard-rule #6 shields selected cards from AUTOMATIC turnover, but a DELIBERATE
+ *  player cast is exempt and can rewrite a selected card in place; a slot also drops if it was
+ *  emptied or locked. `was` maps each selected slot → its card key at selection time (null if empty
+ *  then). Pure; returns the surviving selection (the UI clears the glow on dropped slots). */
+export function revalidateSelection(selected: number[], was: ReadonlyMap<number, number | null>, board: Board, locked: { has(slot: number): boolean }): number[] {
+  return selected.filter((i) => {
+    const c = board[i]
+    return c != null && !locked.has(i) && keyOf(c) === was.get(i)
+  })
 }
 
 /** All pool slots tied for the lowest cost(card, i) — the full tie set (the cast picks one). */

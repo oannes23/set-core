@@ -18,12 +18,12 @@ Traffic-light: green = pursue · yellow = consequence · red = wounded.
 
 ## ▶ NEXT SESSION — START HERE (handoff 2026-06-15)
 **⭐ 2026-06-16: POST-REVIEW HARDENING TRACK below** (from `REVIEW-2026-06-16.md` + `DESIGN-GOALS.md`).
-Progress: **Stage 0 ✅ · Stage 1 (app.ts refactor) 1A–1D ✅ · Stage 2 (Rounds v3 UI) ✅ reconciled+polished ·
-Stage 3 (parting-blow on flee + spacebar pause) ✅.** **NEXT = Stage 4: the U6 narrow edge** (revalidate a
-selected card a deliberate cast rewrites in place), then the post-review track is clear → back to the
-B-phase roadmap (gear chunk ③ smith / B4 progression). Deferred to future stages: U5 tick-coalescing
-(→ replay-seam build), 1E cutscene split, colorblind/relaxed-mode (→ external-playtest gate).
-The balance sim stays **gated** until loot + abilities settle.
+Progress: **POST-REVIEW HARDENING TRACK COMPLETE** — Stage 0 ✅ · Stage 1 (app.ts refactor 1A–1D) ✅ ·
+Stage 2 (Rounds v3 UI, reconciled+polished) ✅ · Stage 3 (flee parting-blow + spacebar pause, smoke-tested) ✅ ·
+Stage 4 (U6 selection revalidation) ✅. **NEXT = back to the B-phase roadmap** (the BUILD ORDER tracker below:
+gear chunk ③ smith / Phase 2 inventory loop / B4 deeper progression). Deferred to future stages: U5
+tick-coalescing (→ replay-seam build), 1E cutscene split, colorblind/relaxed-mode (→ external-playtest
+gate). The balance sim stays **gated** until loot + abilities settle.
 
 **GEAR chunk ① the foundation = BUILT 2026-06-15.** Next = **chunk ② loot + the coupled balance pass.**
 - **Chunk ① — DONE (160 tests green, tsc + build clean):** the gear data model (`engine/items.ts`:
@@ -227,11 +227,12 @@ preview; dev **sets/round** readout is live. So Stage 2 became reconcile + polis
   the table-stakes "game-speed / relaxed" accessibility entry point (the slider rides the deferred
   colorblind/relaxed-mode item).
 
-### Stage 4 — narrow edge cleanup
-- `[ ]` **U6 residual.** A deliberate player cast that rewrites a *selected* card in place isn't
-  revalidated (`app.ts:1516` keys on null/locked only, not key-change). Revalidate selection by
-  `data-key` after any dispatch. Narrow; hard-rule #6 covers the automatic case. *Test: a cast that
-  morphs a selected card → selection drops that slot.*
+### Stage 4 — narrow edge cleanup — ✅ DONE 2026-06-16
+- `[x]` **U6 residual.** Fixed: `dispatch` now snapshots each selected slot's CARD KEY before the
+  reduce and drops slots whose card changed via the pure `select.revalidateSelection(selected, was,
+  board, locked)` (emptied / locked / **rewritten in place** — the deliberate-cast case hard-rule #6
+  exempts). Replaces the old null/locked-only filter. 3 unit tests in `protection.test.ts`
+  (unchanged keeps all · in-place rewrite drops the stale slot · emptied/locked drop). 193 green.
 
 ### Deferred (intentionally NOT now)
 - `[ ]` **Colorblind / redundant-encoding mode + game-speed slider.** A genuine pre-public blocker

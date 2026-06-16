@@ -18,6 +18,7 @@ import { CLASSES, classById } from '../data/classes'
 import { ABILITIES, canAfford, ABILITY_PREVIEW } from '../engine/abilities'
 import { SHAPE_MOVE, matchDescriptor } from '../engine/resolve'
 import { condMet } from '../engine/triggers'
+import { revalidateSelection } from '../engine/select'
 import { PASSIVES } from '../engine/passives'
 import { assembleFoe, pickWeightedFoe, computeXP } from '../engine/foe'
 import { colsForN, COMBAT_GEN, playerCritChance, type Deps, type CombatAction } from '../engine/combat'
@@ -1468,6 +1469,10 @@ function setCoachArrow(el: HTMLElement | undefined, on: boolean): void {
 function dispatch(action: CombatAction): void {
   if (!V) return
   V.state.selected = V.selected // hard rule #6: hand the live selection to the engine before it can transmute (tick/trap)
+  // U6: snapshot each selected slot's CARD KEY before the reduce — a deliberate player cast is exempt
+  // from #6 and can rewrite a selected card in place; we drop those (stale-glow) slots afterward.
+  const board0 = V.state.board
+  const wasKeys = new Map<number, number | null>(V.selected.map((i) => [i, board0[i] ? keyOf(board0[i]!) : null]))
   const defeated = V.state.foe // captured BEFORE the reduce — the foe that may die this step (a swap loses it)
   const { run, events } = runReduce(V.run, action, V.deps)
   const state = run.combat
@@ -1477,8 +1482,9 @@ function dispatch(action: CombatAction): void {
   // XP banks the moment a foe falls — `won` (final/lone/delve-room) OR `foeChanged` (mid-gauntlet);
   // XP ALWAYS banks (even the run-ending death already credited its earlier kills). Persist now.
   if (events.some((e) => e.type === 'won' || e.type === 'foeChanged')) awardXP(defeated)
-  // drop any selected slot a board verb just removed (transmute/shatter), so the glow can't dangle
-  V.selected = V.selected.filter((i) => state.board[i] != null && !state.locked.has(i))
+  // drop any selected slot that's emptied, locked, OR rewritten in place — so the glow can't dangle on
+  // a card the player never picked (U6: the deliberate-cast residual of hard rule #6)
+  V.selected = revalidateSelection(V.selected, wasKeys, state.board, state.locked)
   const choreographed = interpret(events) // a rollover batch sequences its own beats + board render
   if (!choreographed && boardSignature(state) !== V.boardSig) renderBoard(verbsFromEvents(events))
   if (events.some((e) => e.type === 'consumableUsed')) renderConsumables() // a slot was spent
