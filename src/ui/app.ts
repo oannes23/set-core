@@ -100,7 +100,8 @@ interface View {
   coach: boolean // affordance arrows on (Training / Tutorial dungeons)
   coachCue: 'moves' | 'mana' | null // the guided stage's card cue (Move glow / mana-colour glow)
   manaColor: number // the colour the loadout needs most (dominant total cost) — glowed in the mana stage
-  paused: boolean // coaching/briefing freeze gate — the clock loop stops dispatching ticks
+  paused: boolean // freeze gate (coaching/briefing/flee-dialog AND the player pause) — stops ticks + input
+  userPaused: boolean // the pause is PLAYER-initiated (spacebar) → toggleable; distinguishes it from a coaching freeze
   hitstopUntil: number // performance.now() until which ticks are frozen (impact freeze)
   holdHud: boolean // rollover choreography: HP/exchange/round HUD holds its pre-exchange read until the deal beat
   preview: number[] | null // board slots currently ringed by an ability hover
@@ -122,6 +123,7 @@ let V: View | null = null
 
 export function mountApp(root: HTMLElement): void {
   initTooltips()
+  initCombatKeys()
   setRoot(root)
   // the router can't see the combat View / coaching layer — register their teardown so a scene swap
   // stops the loop (drop V) and clears coaching, in the load-bearing order, before the DOM goes away.
@@ -672,7 +674,7 @@ function startCombat(root: HTMLElement, char: SavedChar, dungeonId: string, foe:
   const stats: StatBlock = { power: base.power + gb.power, endurance: base.endurance + gb.endurance, speed: base.speed + gb.speed }
   const run = createRun({ foe, gen: GEN, playerMax: char.maxHp, stats, riders: gearRiders(char.equipped), mods: gearMods(char.equipped), procs: gearProcs(char.equipped), passives: pass, consumables, sequence, dungeonId, dreadFloor, coach: !!dg.coach }, rng)
   run.combat.playerHP = Math.max(0, Math.min(char.maxHp, char.hp)) // the hero enters at their persisted HP, not full
-  V = { root, deps: { data: GAMEDATA, rng }, run, state: run.combat, char, actions: [], classId: cls.id, loadout: acts, coach: !!dg.coach, coachCue: null, manaColor: dominantManaColor(acts), paused: true, hitstopUntil: 0, holdHud: false, preview: null, selected: [], raf: 0, lastT: 0, boardSig: '', refs: {}, stats: { dealt: 0, taken: 0, blocked: 0, healed: 0, sets: 0, traps: 0, xp: 0, gearDmg: 0, gearBlock: 0, gearMana: 0 }, roundFx: emptyRoundFx(), morphSrc: new Map(), dev: { reshapeYou: 0, reshapeFoe: 0, matches: 0, springs: 0, k1: 0, wards: 0, churns: 0 } }
+  V = { root, deps: { data: GAMEDATA, rng }, run, state: run.combat, char, actions: [], classId: cls.id, loadout: acts, coach: !!dg.coach, coachCue: null, manaColor: dominantManaColor(acts), paused: true, userPaused: false, hitstopUntil: 0, holdHud: false, preview: null, selected: [], raf: 0, lastT: 0, boardSig: '', refs: {}, stats: { dealt: 0, taken: 0, blocked: 0, healed: 0, sets: 0, traps: 0, xp: 0, gearDmg: 0, gearBlock: 0, gearMana: 0 }, roundFx: emptyRoundFx(), morphSrc: new Map(), dev: { reshapeYou: 0, reshapeFoe: 0, matches: 0, springs: 0, k1: 0, wards: 0, churns: 0 } }
   buildPlay()
   renderBoard()
   updateBar()
@@ -1293,14 +1295,47 @@ function confirmModal(opts: { title: string; body?: string; confirmLabel?: strin
 }
 
 /** Flee — forfeit the encounter. Available any time the fight is live (not gated by the Tactics meter). */
+/** Player PAUSE (spacebar) — reuses the `paused` freeze gate (which already stops ticks + blocks every
+ *  input handler), marked `userPaused` so the toggle knows this freeze is the player's (a coaching /
+ *  briefing pause is left alone). Blocked mid-rollover (holdHud) so it can't strand the choreography. */
+function togglePause(): void {
+  if (!V || !V.state.running || V.holdHud) return
+  if (V.paused && !V.userPaused) return // a coaching/briefing/flee freeze owns the gate — don't fight it
+  if (V.userPaused) { V.paused = false; V.userPaused = false; V.lastT = 0 } // resume (lastT=0 → no dt jump)
+  else { V.paused = true; V.userPaused = true }
+  renderPauseOverlay()
+  updateBar() // refresh the .frozen dim immediately (don't wait a frame)
+}
+/** The PAUSED scrim + message (a body singleton — swept on any scene change). */
+function renderPauseOverlay(): void {
+  document.getElementById('pauseoverlay')?.remove()
+  if (!V?.userPaused) return
+  const ov = $(`<div id="pauseoverlay"><div class="po-card">⏸ <b>PAUSED</b><div class="po-sub">press <kbd>Space</kbd> to resume</div></div></div>`)
+  document.body.appendChild(ov)
+}
+/** One global Space listener (installed once): toggles the player pause during a live fight. Ignored
+ *  when a text field or an interactive control is focused (Space keeps its native activation there). */
+function initCombatKeys(): void {
+  document.addEventListener('keydown', (e) => {
+    if (e.code !== 'Space' && e.key !== ' ') return
+    if (!V || !V.state.running) return
+    if (document.getElementById('confirmmodal') || document.getElementById('briefing')) return // a modal owns the keys
+    const t = e.target as HTMLElement | null
+    if (t?.closest('input, textarea, button, [contenteditable="true"]')) return // let Space do its native job
+    e.preventDefault()
+    togglePause()
+  })
+}
+
 function onFlee(): void {
   if (!V || !V.state.running || V.paused) return
   V.paused = true // freeze the clock while the dialog is open (a custom modal doesn't block like confirm())
   confirmModal({
     title: 'Flee combat?',
-    body: DELVE
+    body: (DELVE
       ? 'You forfeit this room’s spoils and fall back to the junction. The next chamber is rerolled — press on or go home from there.'
-      : 'You forfeit this encounter and retreat to town.',
+      : 'You forfeit this encounter and retreat to town.')
+      + ' <b>⚠ The foe gets one parting strike as you turn to run</b> — your Speed may let you dodge it, and a lethal blow still kills.',
     confirmLabel: '🏃 Flee', danger: true,
     onConfirm: () => { if (V) dispatch({ type: 'flee' }) },
     onCancel: () => { if (V) V.paused = false },
@@ -1496,6 +1531,13 @@ const EXCHANGE_BEATS = {
 const EXCHANGE_BEATS_REDUCED: typeof EXCHANGE_BEATS = { knitHold: 0, releasePad: 250 }
 const exBeats = (): typeof EXCHANGE_BEATS => (matchMedia('(prefers-reduced-motion: reduce)').matches ? EXCHANGE_BEATS_REDUCED : EXCHANGE_BEATS)
 
+/** A beat to let a terminal cue land before the end card takes over — the flee PARTING BLOW and any
+ *  instant mid-round death (a trap killing you) get this pause so the hit/dodge is SEEN, not skipped
+ *  straight to the defeat screen. The rollover's own death is sequenced by the popover instead, so
+ *  `choreoFinale` flags that path to end immediately (no double delay). */
+const PARTING_BEAT_MS = 1000
+let choreoFinale = false
+
 function choreographRollover(events: CombatEvent[]): void {
   if (!V) return
   const B = exBeats()
@@ -1605,7 +1647,7 @@ function choreographRollover(events: CombatEvent[]): void {
   const ending = won || lost
   // RELEASE — the popover closed; re-brighten, settle the board (morphs/knits/wound-cracks), stamp the round
   const release = ending
-    ? (): void => { if (V) interpretChunk(finale) } // → endScreen (win reveal / defeat) takes the stage
+    ? (): void => { if (V) { choreoFinale = true; interpretChunk(finale); choreoFinale = false } } // → endScreen NOW (the popover already sequenced it)
     : (): void => {
       if (!V) return
       V.holdHud = false
@@ -2052,7 +2094,8 @@ function interpretChunk(events: CombatEvent[]): void {
         break
       }
       case 'fled':
-        endScreen('flee')
+        log(`You break off and flee the ${foe}.`, 'you')
+        sceneTimeout(() => endScreen('flee'), PARTING_BEAT_MS) // let the parting-blow cue land first
         break
       case 'manaDrained':
         log(`The ${foe} ${drainWord()} your ${MANA[e.color]} — <b>−${e.amount}</b>.`, 'foe')
@@ -2123,11 +2166,15 @@ function interpretChunk(events: CombatEvent[]): void {
         break
       case 'won':
         log(`The ${foe} collapses. <b>Victory!</b>`, 'win')
-        endScreen('win')
+        // the rollover's win-reveal fires NOW (the popover already sequenced it); a mid-round kill
+        // (passive/trick) gets a beat so the killing cue lands before the reveal.
+        if (choreoFinale) endScreen('win'); else sceneTimeout(() => endScreen('win'), PARTING_BEAT_MS)
         break
       case 'lost':
         log(`You fall in battle. <b>Defeat.</b>`, 'foe')
-        endScreen('lose')
+        // rollover death → end now (popover-sequenced); a flee parting-blow / instant trap death → a
+        // beat so the killing hit is SEEN before the defeat card.
+        if (choreoFinale) endScreen('lose'); else sceneTimeout(() => endScreen('lose'), PARTING_BEAT_MS)
         break
     }
   }

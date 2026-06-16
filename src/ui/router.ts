@@ -14,7 +14,7 @@ let onSceneLeave: (() => void) | null = null
 /* Body-level singleton overlays swept on every scene change (their own cleanup timers die with the
    scene). Anything appended to <body> (not ROOT) belongs here, and any scene-scoped delay must use
    sceneTimeout — then no scene leaks FX, listeners, or timers onto the next. */
-const BODY_SINGLETONS = ['coachscrim', 'coachpop', 'briefing', 'burstlayer', 'bamlayer', 'ptint', 'levelup', 'xbreak']
+const BODY_SINGLETONS = ['coachscrim', 'coachpop', 'briefing', 'burstlayer', 'bamlayer', 'ptint', 'levelup', 'xbreak', 'pauseoverlay']
 
 /** Install the app's DOM root (called once from mountApp). */
 export function setRoot(el: HTMLElement): void {
