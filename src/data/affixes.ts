@@ -80,6 +80,10 @@ export const AFFIXES: AffixDef[] = [
 /** sys → thematic name (dev.ts merges this into its name map; displayName resolves affix labels). */
 export const AFFIX_THEME: Record<string, string> = Object.fromEntries(AFFIXES.map((d) => [d.sys, d.name]))
 
+/** sys → the full AffixDef (for the item tooltip's mechanic note). */
+const AFFIX_BY_SYS: Record<string, AffixDef> = Object.fromEntries(AFFIXES.map((d) => [d.sys, d]))
+export const affixBySys = (sys: string): AffixDef | undefined => AFFIX_BY_SYS[sys]
+
 const fits = (d: AffixDef, slot: EquipSlot): boolean =>
   d.slots === 'any' || d.slots.includes(slot) || (slot === 'trinket2' && d.slots.includes('trinket1'))
 

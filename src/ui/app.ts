@@ -31,6 +31,7 @@ import { GEAR, gearBase, fitsSlot } from '../data/gear'
 import { CONSUMABLES } from '../engine/consumables'
 import { loadBank, saveBank, addToStorage, removeFromStorage, storageFull, storageCount, spendGold, updateStorageItem, addGold, takeConsumablesByRef } from './bank'
 import { sellValue, itemValue, consumableValue, sellValueOfConsumable } from '../engine/value'
+import { gearTipTitle, gearTipBody, consumableTipTitle, consumableTipBody } from './item-desc'
 import { type SmithOp, smithCost, nextRarity, canUpgrade, openSlots, enchantOptions, canEnchant, canReroll, canReceiveAffix, upgradeRarity, enchant, rerollAffixes, transferAffix } from '../engine/smith'
 import { type DelveRun, type DelveLoot, applyRoomLoot, resolveDelveExit, resolveLootKeep } from './delve-run'
 import type { CombatState, FoeRuntime, StatBlock } from '../engine/state'
@@ -164,6 +165,12 @@ function townDevPanel(cells: string[]): HTMLElement {
 // ---- gear / equip screen (CRAWL §7 chunk ①) ----
 const SLOT_ICON: Record<EquipSlot, string> = { weapon: '⚔', armor: '🛡', relic: '🔮', trinket1: '💍', trinket2: '💍' }
 const SLOT_LABEL: Record<EquipSlot, string> = { weapon: 'Weapon', armor: 'Armor', relic: 'Relic', trinket1: 'Trinket', trinket2: 'Trinket' }
+/** Build the data-tip attribute pair for an item (escaping `"`/`&` so the HTML body — <br>/<span> —
+ *  survives inside the attribute value). The shared tooltip renders the body via innerHTML. */
+const tipEsc = (s: string): string => s.replace(/&/g, '&amp;').replace(/"/g, '&quot;')
+const gearTip = (g: GearInstance): string => `data-tip-title="${tipEsc(gearTipTitle(g))}" data-tip="${tipEsc(gearTipBody(g))}"`
+const consTip = (refId: string): string => `data-tip-title="${tipEsc(consumableTipTitle(refId))}" data-tip="${tipEsc(consumableTipBody(refId))}"`
+
 /** A compact affix label: the thematic name (or system name in dev) + its magnitude (stat / rider). */
 function affixShort(a: Affix): string {
   let amt = ''
@@ -333,6 +340,7 @@ function characterSelectScene(root: HTMLElement): void {
       if (g && base) {
         const affixTxt = g.affixes.length ? g.affixes.map(affixShort).join(' · ') : '—'
         slotEl.innerHTML = `<span class="gs-ic r-${g.rarity}">${base.icon}</span><div class="gs-meta"><div class="gs-n r-${g.rarity}">${base.name}</div><div class="gs-a">${affixTxt}</div></div><button class="gs-x" title="Unequip → Storage">✕</button>`
+        slotEl.setAttribute('data-tip-title', gearTipTitle(g)); slotEl.setAttribute('data-tip', gearTipBody(g)) // full breakdown on hover
         slotEl.querySelector('.gs-x')!.addEventListener('click', (e) => {
           e.stopPropagation()
           gearNote = unequipToStorage(c, slot) ? '' : 'Storage full — free a slot first.'
@@ -356,7 +364,7 @@ function characterSelectScene(root: HTMLElement): void {
       for (const it of opts) {
         const b = gearBase(it.refId)!
         const aff = it.affixes.length ? it.affixes.map(affixShort).join(' · ') : '—'
-        const row = $(`<div class="gp-row"><span class="gs-ic r-${it.rarity}">${b.icon}</span><div class="gs-meta"><div class="gs-n r-${it.rarity}">${b.name}</div><div class="gs-a">${aff}</div></div><span class="gp-worth" data-tip="Sell-back value at Storage">🪙${sellValue(it)}</span><button class="gp-eq">equip</button></div>`)
+        const row = $(`<div class="gp-row" ${gearTip(it)}><span class="gs-ic r-${it.rarity}">${b.icon}</span><div class="gs-meta"><div class="gs-n r-${it.rarity}">${b.name}</div><div class="gs-a">${aff}</div></div><span class="gp-worth">🪙${sellValue(it)}</span><button class="gp-eq">equip</button></div>`)
         row.querySelector('.gp-eq')!.addEventListener('click', () => { equipFromStorage(c, pickerSlot!, it.uid); pickerSlot = null; gearNote = ''; roster = loadRoster(); render() })
         pick.appendChild(row)
       }
@@ -374,7 +382,7 @@ function characterSelectScene(root: HTMLElement): void {
     for (const id of loadout) {
       const cc = CONSUMABLES[id]; if (!cc) continue
       const tint = cc.color != null ? `var(--c${cc.color})` : 'var(--line2)'
-      consRow.appendChild($(`<span class="cons-slot${cc.kind === 'scroll' ? ' scroll' : ''}" style="--cc:${tint}" data-tip-title="${cc.name}" data-tip="${cc.desc}"><span class="cons-ic">${cc.icon}</span></span>`))
+      consRow.appendChild($(`<span class="cons-slot${cc.kind === 'scroll' ? ' scroll' : ''}" style="--cc:${tint}" ${consTip(id)}><span class="cons-ic">${cc.icon}</span></span>`))
     }
     host.appendChild(consRow)
     const gb = gearStatBonus(c.equipped)
@@ -511,7 +519,7 @@ function smithScene(root: HTMLElement): void {
   const renderBench = (host: HTMLElement, g: GearInstance): void => {
     const base = gearBase(g.refId)!
     const open = openSlots(g)
-    host.appendChild($(`<div class="sm-hd"><span class="gs-ic r-${g.rarity}">${base.icon}</span><div class="gs-meta"><div class="gs-n r-${g.rarity}">${base.name}</div><div class="gs-a">${RARITY_LABEL[g.rarity]} · ${SLOT_LABEL[base.slot]} · tier ${g.lootTier}</div></div></div>`))
+    host.appendChild($(`<div class="sm-hd" ${gearTip(g)}><span class="gs-ic r-${g.rarity}">${base.icon}</span><div class="gs-meta"><div class="gs-n r-${g.rarity}">${base.name}</div><div class="gs-a">${RARITY_LABEL[g.rarity]} · ${SLOT_LABEL[base.slot]} · tier ${g.lootTier}</div></div></div>`))
     const affixWrap = $(`<div class="sm-affixes"></div>`)
     if (g.affixes.length) for (const a of g.affixes) affixWrap.appendChild($(`<div class="sm-affixrow">${affixLine(a)}</div>`))
     else affixWrap.appendChild($(`<div class="sm-affixrow dim">no affixes${open > 0 ? ` · ${open} open slot${open > 1 ? 's' : ''}` : ''}</div>`))
@@ -587,7 +595,7 @@ function smithScene(root: HTMLElement): void {
     for (const g of list) {
       const base = gearBase(g.refId)!
       const aff = g.affixes.map((a) => displayName(a.label)).join(' · ') || (openSlots(g) > 0 ? `${openSlots(g)} open` : 'no affixes')
-      const card = $(`<div class="charcard${g.uid === selUid ? ' sel' : ''}"><span class="gs-ic r-${g.rarity}">${base.icon}</span><div class="cmeta"><div class="cn r-${g.rarity}">${base.name}</div><div class="cc">${RARITY_LABEL[g.rarity]} · ${aff}</div></div></div>`)
+      const card = $(`<div class="charcard${g.uid === selUid ? ' sel' : ''}" ${gearTip(g)}><span class="gs-ic r-${g.rarity}">${base.icon}</span><div class="cmeta"><div class="cn r-${g.rarity}">${base.name}</div><div class="cc">${RARITY_LABEL[g.rarity]} · ${aff}</div></div></div>`)
       card.addEventListener('click', () => { selUid = g.uid; mode = 'none'; note = ''; render() })
       roster.appendChild(card)
     }
@@ -658,7 +666,7 @@ function storageScene(root: HTMLElement): void {
       for (const g of gear) {
         const base = gearBase(g.refId)!
         const aff = g.affixes.length ? g.affixes.map(affixShort).join(' · ') : '—'
-        const row = $(`<div class="gp-row"><span class="gs-ic r-${g.rarity}">${base.icon}</span><div class="gs-meta"><div class="gs-n r-${g.rarity}">${base.name}</div><div class="gs-a">${RARITY_LABEL[g.rarity]} · ${aff}</div></div><button class="sellbtn" data-tip="Worth ${itemValue(g)}g — sell for 20%">sell 🪙${sellValue(g)}</button></div>`)
+        const row = $(`<div class="gp-row" ${gearTip(g)}><span class="gs-ic r-${g.rarity}">${base.icon}</span><div class="gs-meta"><div class="gs-n r-${g.rarity}">${base.name}</div><div class="gs-a">${RARITY_LABEL[g.rarity]} · ${aff}</div></div><button class="sellbtn">sell 🪙${sellValue(g)}</button></div>`)
         row.querySelector('.sellbtn')!.addEventListener('click', () => sellByUid(g.uid))
         list.appendChild(row)
       }
@@ -671,7 +679,7 @@ function storageScene(root: HTMLElement): void {
         const c = CONSUMABLES[refId]
         const tint = c.color != null ? `var(--c${c.color})` : 'var(--line2)'
         const n = uids.length
-        const row = $(`<div class="gp-row"><span class="cons-slot${c.kind === 'scroll' ? ' scroll' : ''}" style="--cc:${tint}"><span class="cons-ic">${c.icon}</span></span><div class="gs-meta"><div class="gs-n">${c.name}${n > 1 ? ` <span class="bag-x">×${n}</span>` : ''}</div><div class="gs-a">${c.desc}</div></div><button class="sellbtn" data-tip="Worth ${consumableValue(refId)}g — sell for 20%">sell 🪙${sellValueOfConsumable(refId)}</button></div>`)
+        const row = $(`<div class="gp-row" ${consTip(refId)}><span class="cons-slot${c.kind === 'scroll' ? ' scroll' : ''}" style="--cc:${tint}"><span class="cons-ic">${c.icon}</span></span><div class="gs-meta"><div class="gs-n">${c.name}${n > 1 ? ` <span class="bag-x">×${n}</span>` : ''}</div><div class="gs-a">${c.desc}</div></div><button class="sellbtn">sell 🪙${sellValueOfConsumable(refId)}</button></div>`)
         row.querySelector('.sellbtn')!.addEventListener('click', () => sellByUid(uids[0]))
         list.appendChild(row)
       }
@@ -764,7 +772,7 @@ function dungeonSelectScene(root: HTMLElement, char: SavedChar): void {
     for (let i = 0; i < CONSUMABLE_SLOTS; i++) {
       const id = sel[i]; const c = id ? CONSUMABLES[id] : null
       const tint = c?.color != null ? `var(--c${c.color})` : 'var(--line2)'
-      const chip = $(`<span class="cons-slot${c?.kind === 'scroll' ? ' scroll' : ''}${c ? '' : ' empty'}" style="--cc:${tint}"${c ? ` data-tip-title="${c.name}" data-tip="${c.desc} · click to remove"` : ''}>${c ? `<span class="cons-ic">${c.icon}</span>` : ''}</span>`)
+      const chip = $(`<span class="cons-slot${c?.kind === 'scroll' ? ' scroll' : ''}${c ? '' : ' empty'}" style="--cc:${tint}"${c ? ` ${consTip(id)}` : ''}>${c ? `<span class="cons-ic">${c.icon}</span>` : ''}</span>`)
       if (c) chip.addEventListener('click', () => { sel.splice(i, 1); persist() })
       chips.appendChild(chip)
     }
@@ -781,7 +789,7 @@ function dungeonSelectScene(root: HTMLElement, char: SavedChar): void {
     for (const [id, have] of [...owned].sort((a, b) => a[0].localeCompare(b[0]))) {
       const c = CONSUMABLES[id]; const used = sel.filter((x) => x === id).length
       const tint = c.color != null ? `var(--c${c.color})` : 'var(--line2)'
-      const row = $(`<div class="cons-availrow"><span class="cons-slot${c.kind === 'scroll' ? ' scroll' : ''}" style="--cc:${tint}"><span class="cons-ic">${c.icon}</span></span><div class="gs-meta"><div class="gs-n">${c.name} <span class="bag-x">have ${have}</span></div><div class="gs-a">${c.desc}</div></div><span class="gp-worth" data-tip="Sell-back value at Storage">🪙${sellValueOfConsumable(id)}</span><div class="stepper"><button class="st-mns"${used === 0 ? ' disabled' : ''}>−</button><b>${used}</b><button class="st-pls"${used >= have || sel.length >= CONSUMABLE_SLOTS ? ' disabled' : ''}>+</button></div></div>`)
+      const row = $(`<div class="cons-availrow" ${consTip(id)}><span class="cons-slot${c.kind === 'scroll' ? ' scroll' : ''}" style="--cc:${tint}"><span class="cons-ic">${c.icon}</span></span><div class="gs-meta"><div class="gs-n">${c.name} <span class="bag-x">have ${have}</span></div><div class="gs-a">${c.desc}</div></div><span class="gp-worth">🪙${sellValueOfConsumable(id)}</span><div class="stepper"><button class="st-mns"${used === 0 ? ' disabled' : ''}>−</button><b>${used}</b><button class="st-pls"${used >= have || sel.length >= CONSUMABLE_SLOTS ? ' disabled' : ''}>+</button></div></div>`)
       row.querySelector('.st-mns')!.addEventListener('click', () => { const idx = sel.lastIndexOf(id); if (idx >= 0) { sel.splice(idx, 1); persist() } })
       row.querySelector('.st-pls')!.addEventListener('click', () => { if (used < have && sel.length < CONSUMABLE_SLOTS) { sel.push(id); persist() } })
       avail.appendChild(row)
@@ -1185,7 +1193,7 @@ function renderConsumables(): void {
     const c = CONSUMABLES[id]
     if (!c) return
     const tint = c.color != null ? `var(--c${c.color})` : 'var(--line2)'
-    const btn = $(`<button class="cons-slot${c.kind === 'scroll' ? ' scroll' : ''}" data-slot="${slot}" style="--cc:${tint}" data-tip-title="${c.name}" data-tip="${c.desc}"><span class="cons-ic">${c.icon}</span></button>`)
+    const btn = $(`<button class="cons-slot${c.kind === 'scroll' ? ' scroll' : ''}" data-slot="${slot}" style="--cc:${tint}" ${consTip(c.id)}><span class="cons-ic">${c.icon}</span></button>`)
     el.appendChild(btn)
   })
 }
@@ -3065,7 +3073,7 @@ function combatChart(): HTMLElement {
 function marqueeCardEl(g: GearInstance): HTMLElement {
   const b = gearBase(g.refId)
   const aff = g.affixes.length ? g.affixes.map(affixShort).join(' · ') : '—'
-  return $(`<div class="lootcard gearloot marquee"><span class="loot-lab r-${g.rarity}">★ marquee · ${g.rarity}</span><span class="gs-ic r-${g.rarity}">${b?.icon ?? '🎁'}</span><div class="loot-id"><div class="ln r-${g.rarity}">${b?.name ?? g.refId}</div><div class="ld">${aff}</div></div></div>`)
+  return $(`<div class="lootcard gearloot marquee" ${gearTip(g)}><span class="loot-lab r-${g.rarity}">★ marquee · ${g.rarity}</span><span class="gs-ic r-${g.rarity}">${b?.icon ?? '🎁'}</span><div class="loot-id"><div class="ln r-${g.rarity}">${b?.name ?? g.refId}</div><div class="ld">${aff}</div></div></div>`)
 }
 
 /* ============================================================
@@ -3124,7 +3132,7 @@ function lootManageScene(root: HTMLElement, char: SavedChar): void {
         const base = gearBase(g.refId)!
         const aff = g.affixes.length ? g.affixes.map(affixShort).join(' · ') : '—'
         const sell = gearSell.has(g.uid)
-        const row = $(`<div class="gp-row${sell ? ' selling' : ''}"><span class="gs-ic r-${g.rarity}">${base.icon}</span><div class="gs-meta"><div class="gs-n r-${g.rarity}">${base.name}</div><div class="gs-a">${RARITY_LABEL[g.rarity]} · ${aff}</div></div><button class="lm-toggle">${sell ? `sell 🪙${sellValue(g)}` : 'keep'}</button></div>`)
+        const row = $(`<div class="gp-row${sell ? ' selling' : ''}" ${gearTip(g)}><span class="gs-ic r-${g.rarity}">${base.icon}</span><div class="gs-meta"><div class="gs-n r-${g.rarity}">${base.name}</div><div class="gs-a">${RARITY_LABEL[g.rarity]} · ${aff}</div></div><button class="lm-toggle">${sell ? `sell 🪙${sellValue(g)}` : 'keep'}</button></div>`)
         row.querySelector('.lm-toggle')!.addEventListener('click', () => { sell ? gearSell.delete(g.uid) : gearSell.add(g.uid); render() })
         list.appendChild(row)
       }
@@ -3139,7 +3147,7 @@ function lootManageScene(root: HTMLElement, char: SavedChar): void {
         const c = CONSUMABLES[refId]
         const sell = Math.min(n, consSell.get(refId) ?? 0)
         const tint = c.color != null ? `var(--c${c.color})` : 'var(--line2)'
-        const row = $(`<div class="gp-row"><span class="cons-slot${c.kind === 'scroll' ? ' scroll' : ''}" style="--cc:${tint}"><span class="cons-ic">${c.icon}</span></span><div class="gs-meta"><div class="gs-n">${c.name} <span class="bag-x">×${n}</span></div><div class="gs-a">keep ${n - sell} · sell ${sell}${sell ? ` (🪙${sell * sellValueOfConsumable(refId)})` : ''}</div></div><div class="stepper"><button class="st-mns"${sell === 0 ? ' disabled' : ''}>−</button><b>${sell}</b><button class="st-pls"${sell >= n ? ' disabled' : ''}>+</button></div></div>`)
+        const row = $(`<div class="gp-row" ${consTip(refId)}><span class="cons-slot${c.kind === 'scroll' ? ' scroll' : ''}" style="--cc:${tint}"><span class="cons-ic">${c.icon}</span></span><div class="gs-meta"><div class="gs-n">${c.name} <span class="bag-x">×${n}</span></div><div class="gs-a">keep ${n - sell} · sell ${sell}${sell ? ` (🪙${sell * sellValueOfConsumable(refId)})` : ''}</div></div><div class="stepper"><button class="st-mns"${sell === 0 ? ' disabled' : ''}>−</button><b>${sell}</b><button class="st-pls"${sell >= n ? ' disabled' : ''}>+</button></div></div>`)
         row.querySelector('.st-mns')!.addEventListener('click', () => { consSell.set(refId, Math.max(0, sell - 1)); render() })
         row.querySelector('.st-pls')!.addEventListener('click', () => { consSell.set(refId, Math.min(n, sell + 1)); render() })
         list.appendChild(row)
@@ -3267,12 +3275,12 @@ function lootRevealEl(loot: DelveLoot): HTMLElement {
   for (const g of loot.gear) {
     const base = gearBase(g.refId)
     const affixTxt = g.affixes.length ? g.affixes.map(affixShort).join(' · ') : '—'
-    wrap.appendChild($(`<div class="lootcard gearloot"><span class="loot-lab r-${g.rarity}">${g.rarity}</span><span class="gs-ic r-${g.rarity}">${base?.icon ?? '🎁'}</span><div class="loot-id"><div class="ln r-${g.rarity}">${base?.name ?? g.refId}</div><div class="ld">${affixTxt}</div></div></div>`))
+    wrap.appendChild($(`<div class="lootcard gearloot" ${gearTip(g)}><span class="loot-lab r-${g.rarity}">${g.rarity}</span><span class="gs-ic r-${g.rarity}">${base?.icon ?? '🎁'}</span><div class="loot-id"><div class="ln r-${g.rarity}">${base?.name ?? g.refId}</div><div class="ld">${affixTxt}</div></div></div>`))
   }
   for (const id of loot.added) {
     const c = CONSUMABLES[id]; if (!c) continue
     const tint = c.color != null ? `var(--c${c.color})` : 'var(--line2)'
-    wrap.appendChild($(`<div class="lootcard"><span class="loot-lab">loot</span><span class="cons-slot${c.kind === 'scroll' ? ' scroll' : ''}" style="--cc:${tint}"><span class="cons-ic">${c.icon}</span></span><div class="loot-id"><div class="ln">${c.name}</div><div class="ld">${c.desc}</div></div></div>`))
+    wrap.appendChild($(`<div class="lootcard" ${consTip(id)}><span class="loot-lab">loot</span><span class="cons-slot${c.kind === 'scroll' ? ' scroll' : ''}" style="--cc:${tint}"><span class="cons-ic">${c.icon}</span></span><div class="loot-id"><div class="ln">${c.name}</div><div class="ld">${c.desc}</div></div></div>`))
   }
   for (const id of loot.left) { const c = CONSUMABLES[id]; if (c) wrap.appendChild($(`<div class="forksub">Satchel full — the ${c.name} is left behind.</div>`)) }
   if (!wrap.children.length) wrap.appendChild($(`<div class="forksub">The room holds nothing of value.</div>`))
@@ -3304,7 +3312,7 @@ function satchelHTML(bag: string[]): string {
     const c = CONSUMABLES[id]
     if (!c) return ''
     const tint = c.color != null ? `var(--c${c.color})` : 'var(--line2)'
-    return `<span class="cons-slot${c.kind === 'scroll' ? ' scroll' : ''}" style="--cc:${tint}" data-tip-title="${c.name}" data-tip="${c.desc}"><span class="cons-ic">${c.icon}</span></span>`
+    return `<span class="cons-slot${c.kind === 'scroll' ? ' scroll' : ''}" style="--cc:${tint}" ${consTip(id)}><span class="cons-ic">${c.icon}</span></span>`
   }).join('')
   return `<div class="satchel"><span class="satchel-lab">satchel ${bag.length}/${RUN_BAG_CAP}</span>${chips || '<span class="forksub">empty</span>'}</div>`
 }

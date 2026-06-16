@@ -634,14 +634,18 @@ button.cta:disabled { opacity: .4; cursor: not-allowed; }
   border: 1px solid var(--line2); background: var(--panel); color: var(--ink); }
 
 /* ---- hover tooltip (one shared element; replaces native title) ---- */
-#tooltip { position: fixed; z-index: 60; max-width: 250px; pointer-events: none; opacity: 0;
+#tooltip { position: fixed; z-index: 60; max-width: 290px; pointer-events: none; opacity: 0;
   background: var(--panel); border: 1px solid var(--line2); border-radius: 10px; padding: 8px 11px;
   box-shadow: 0 12px 34px -12px #000d, 0 0 0 1px #0004 inset; transition: opacity .09s ease; }
 #tooltip.show { opacity: 1; }
 #tooltip .tt-title { font-weight: 700; font-size: 12px; color: var(--phos); }
 #tooltip .tt-title + .tt-body { margin-top: 4px; }
-#tooltip .tt-body { font-size: 11.5px; color: var(--ink-dim); line-height: 1.5; }
+#tooltip .tt-body { font-size: 11.5px; color: var(--ink-dim); line-height: 1.55; }
 #tooltip .tt-body b { color: var(--ink); }
+/* item tooltips: a dim aside + an affix sub-header */
+#tooltip .tt-body .tt-dim { color: var(--ink-faint); }
+#tooltip .tt-body .tt-sub { display: inline-block; margin-top: 3px; font-size: 10px; letter-spacing: .08em;
+  text-transform: uppercase; color: var(--phos); opacity: .8; }
 
 /* ---- pre-combat briefing modal ---- */
 #briefing { position: fixed; inset: 0; z-index: 50; display: none; align-items: center; justify-content: center;
