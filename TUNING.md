@@ -228,6 +228,18 @@ is the tuning gate).** `data/affixes.ts` procs: amount = `max(1, round(magUnit �
 rainbow) to bound the per-round value — §12 flagged procs run hot (a per-match damage proc ≈ 4× a stat
 affix). Sim them before widening the pool or raising magnitudes.
 
+**Smith pricing — FIRST-CUT (chunk ③, BUILT 2026-06-16; `engine/smith.ts SMITH_PRICES`; ⚠ sim-gated —
+recalibrate WITH `GOLD_K` + the shop sink, against ~150–210g/run).** Gold cost by op (rarity idx grey0…orange5):
+
+| Op | Cost | Meaning |
+|---|---|---|
+| Upgrade rarity | `upgradeBase 80 · 2^(idx(target)−1)` → **80/160/320/640/1280** (white→orange) | the main raw-power sink; escalates hard at the top |
+| Enchant | `enchantBase 100 · idx(rarity)` → **100/200/300/400/500** (white→orange) | targeted + the STEADY sink (random affix count → standing demand) |
+| Reroll affixes | `rerollBase 45 · idx(rarity)` → **90/135/180/225** (green→orange) | cheaper RNG gamble (the whole set re-rolls) |
+| Transfer affix | `transferBase 160 · idx(DST rarity)` → **480/640/800** (blue→orange) | premium two-item op; prices off the destination (the better base) |
+
+Tier-1 bench (all ops ungated); the smithy-AMENITY tiers (cheapen/unlock) ride B4/B5.
+
 **Crit + combos + Primed — the exchange-delight feel layer (CRIT CURVE CALIBRATED 2026-06-15, sim §13).**
 Crit is rolled once on the aggregate swing at rollover ① (player-only; a narrow §5.7 carve-out — the SET
 stays exact). The chance is a **skill-earned S-curve** (REPLACES the old flat 5% base), fed by this round's

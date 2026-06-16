@@ -1828,7 +1828,11 @@ Each **class** declares an `affinity`: preferred **gear types** (e.g. Axe + Heav
   such override source. Thematic loot rewards targeted farming.
 
 ### The smith — an upgradeable crafting bench (lottery + a deterministic backstop)
-Drops are the exciting primary faucet; the smith is the **targeted backstop + gold sink**. Capabilities
+**BUILT 2026-06-16 (gear chunk ③):** `engine/smith.ts` (pure ops + `smithCost` pricer, first-cut numbers
+in `TUNING.md`) + the **🔨 Smithy** town scene. Tier-1 bench — all four ops ungated; operates on Storage
+gear (unequip first to smith equipped pieces); the smithy-AMENITY tiers (cheapen/unlock) ride B4/B5.
+The first real GOLD SINK in the economy. — Drops are the exciting primary faucet; the smith is the
+**targeted backstop + gold sink**. Capabilities
 unlock and cheapen as you **upgrade the smithy** (a base-building amenity — achievement unlocks the
 blueprint, gold tiers it), at escalating prices:
 - **Upgrade rarity** (grey→…→orange) — raises the base rider + raises the affix budget (opens new slots,

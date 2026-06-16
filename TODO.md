@@ -20,8 +20,9 @@ Traffic-light: green = pursue · yellow = consequence · red = wounded.
 **⭐ 2026-06-16: POST-REVIEW HARDENING TRACK below** (from `REVIEW-2026-06-16.md` + `DESIGN-GOALS.md`).
 Progress: **POST-REVIEW HARDENING TRACK COMPLETE** — Stage 0 ✅ · Stage 1 (app.ts refactor 1A–1D) ✅ ·
 Stage 2 (Rounds v3 UI, reconciled+polished) ✅ · Stage 3 (flee parting-blow + spacebar pause, smoke-tested) ✅ ·
-Stage 4 (U6 selection revalidation) ✅. **NEXT = back to the B-phase roadmap** (the BUILD ORDER tracker below:
-gear chunk ③ smith / Phase 2 inventory loop / B4 deeper progression). Deferred to future stages: U5
+Stage 4 (U6 selection revalidation) ✅. **GEAR chunk ③ — the SMITH = BUILT 2026-06-16** (engine + UI +
+tests; see the BUILD ORDER tracker). **NEXT = the town economy's remaining seams** (Phase 2 inventory loop:
+Storage/bag UI + satchel→Item[] + return triage · then B4 shop buy-side). Deferred to future stages: U5
 tick-coalescing (→ replay-seam build), 1E cutscene split, colorblind/relaxed-mode (→ external-playtest
 gate). The balance sim stays **gated** until loot + abilities settle.
 
@@ -123,8 +124,21 @@ Detailed specs live in CRAWL-DESIGN.md + the sections below; this is the master 
   equip slots on `SavedChar` + apply equipped riders/stats in combat + the equip screen) · **② loot +
   balance** (flip `loot.ts` gear category + the gear sub-roller + pity sawtooth · the **foe-difficulty
   raise** re-authored into foe HP/telegraph by expected-rarity · the **ability reprice** contested +
-  throughput-neutral · **Primed**) · **③ the smith** (upgrade/enchant/reroll/transfer bench + UI). ②'s
-  pieces land together so balance stays coherent (gear riders + the foe-raise + the reprice are one).
+  throughput-neutral · **Primed**) · **③ the smith — BUILT 2026-06-16** (`engine/smith.ts` pure ops +
+  pricer + the town **🔨 Smithy** scene). ②'s pieces land together so balance stays coherent (gear riders
+  + the foe-raise + the reprice are one).
+  - **Chunk ③ — DONE (209 tests green, tsc + build clean):** `engine/smith.ts` — the four PURE ops
+    (`upgradeRarity` keeps affixes + opens a slot · `enchant` sets a CHOSEN affix into an open slot at the
+    piece's magnitude · `rerollAffixes` gambles the whole set · `transferAffix` moves a donor's affix onto
+    a better base) + capability predicates + `smithCost` (first-cut, sim-gated: upgrade 80→1280 by target
+    rarity · enchant 100–500 · reroll 90–225 · transfer 480–800 by dst rarity) · `data/affixes` exposed
+    `eligibleAffixes`/`mintAffix`/`affixMagUnit` (DRY with `rollAffixes`) · `bank.updateStorageItem`
+    (write a re-crafted instance back) · the **🔨 Smithy** town scene (Storage-gear list → bench: the four
+    ops with live costs + a targeted Enchant picker + a Transfer donor picker; reroll confirms). 16 smith
+    unit tests (`smith.test.ts`). **Ungated tier-1 bench** — the smithy-AMENITY tiers (cheapen/unlock ops)
+    ride B4/B5. **Operates on STORAGE gear only** (unequip first to smith equipped pieces). ⚠ Not yet
+    browser-smoke-tested (no e2e harness in repo) — the remaining verify step. This is the economy's first
+    real GOLD SINK (Enchant's standing demand fixes the "faucet leads the sink" gap).
 - `[x]` **Affix design surface MAPPED + DEV MODE SHIPPED 2026-06-15.** The full affix hook catalog in
   system-descriptive names + relative-value lens is in CRAWL §7 ("The affix design surface"): ~40 hooks
   across 6 families (stat-patch / scoped riders / on-match procs / reactive procs / gear-exclusive crit-
