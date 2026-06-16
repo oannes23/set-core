@@ -136,6 +136,13 @@ f=3/N=15 grid; only the skin changes.
 
 - **Town** between dungeons: **sell** gear/spellbooks, **buy** from shop loot-table
   inventory (gear, consumables, spellbooks). Healing/restock happens here.
+  - **BUILT 2026-06-16 (Phase 2 — the inventory loop):** the **Storage/bag screen** (Gear|Consumables
+    tabs + per-item sell), the **loadout drawn from Storage stock** (depletes inventory at delve start;
+    survivors return on a safe exit, lost on death), and the **end-of-run loot-triage scene** (every safe
+    exit → keep→Storage / sell→gold per item, full-Storage auto-sell-overflow). Valuation + sell-back in
+    `engine/value.ts` (SELL_RATE 0.2). **The satchel stayed `string[]` refIds** (consumables are fungible;
+    gear is already a separate found-list) — the proposed `Item[]` unification was unnecessary. **Still
+    open: the shop BUY-side + Storage-slot upgrades (B4).**
 
 ### Between-rooms approaches — the exploration verbs *(SETTLED 2026-06-13; build with the B2 run loop)*
 At the between-rooms fork (after a clear, before the next room — alongside press-on / flee /

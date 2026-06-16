@@ -20,9 +20,11 @@ Traffic-light: green = pursue · yellow = consequence · red = wounded.
 **⭐ 2026-06-16: POST-REVIEW HARDENING TRACK below** (from `REVIEW-2026-06-16.md` + `DESIGN-GOALS.md`).
 Progress: **POST-REVIEW HARDENING TRACK COMPLETE** — Stage 0 ✅ · Stage 1 (app.ts refactor 1A–1D) ✅ ·
 Stage 2 (Rounds v3 UI, reconciled+polished) ✅ · Stage 3 (flee parting-blow + spacebar pause, smoke-tested) ✅ ·
-Stage 4 (U6 selection revalidation) ✅. **GEAR chunk ③ — the SMITH = BUILT 2026-06-16** (engine + UI +
-tests; see the BUILD ORDER tracker). **NEXT = the town economy's remaining seams** (Phase 2 inventory loop:
-Storage/bag UI + satchel→Item[] + return triage · then B4 shop buy-side). Deferred to future stages: U5
+Stage 4 (U6 selection revalidation) ✅. **GEAR chunk ③ — the SMITH = BUILT 2026-06-16** · **PHASE 2 — the
+INVENTORY LOOP = DONE 2026-06-16** (Storage/bag screen + tabs + sell · loadout-from-inventory w/ depletion ·
+end-of-run loot triage; the satchel stayed `string[]` — see Phase 2 below). **NEXT = B4 the SHOP buy-side**
+(spend gold on consumables + gear + Storage-slot upgrades — the buy-side to the live sell-side) + then the
+class-hall/amenity layer. Deferred to future stages: U5
 tick-coalescing (→ replay-seam build), 1E cutscene split, colorblind/relaxed-mode (→ external-playtest
 gate). The balance sim stays **gated** until loot + abilities settle.
 
@@ -105,10 +107,26 @@ Detailed specs live in CRAWL-DESIGN.md + the sections below; this is the master 
   depth-floor + the outlevel penalty now have a real stage (outgrow the warren → move to the Emberdeep). STILL OPEN:
   D3–D5 rungs (the haunted_warren is labelled D3 but its foes are L3 — re-level or replace) + the procedural/ability↔trap path.
 
-### Phase 2 — Inventory loop *(DEFERRED — pairs with the shop/B4 so consumables aren't finite-without-a-refill)*
-- `[ ]` Storage UI (the bag screen) · loadout-from-Storage (`takeFromStorage`, survivors auto-return)
-- `[ ]` satchel `string[]` → `Item[]` (delve.ts + app.ts — the heaviest refactor surface)
-- `[ ]` bank kept items home on safe exit · retire `SavedChar.consumables` · return triage (keep→Storage / sell→Gold @20%)
+### Phase 2 — Inventory loop — ✅ DONE 2026-06-16 (220 tests; tsc + build clean; full loop browser-verified)
+- `[x]` **Item valuation + sell** (`engine/value.ts`): `gearValue` (geometric rarity ladder × loot-tier ×
+  affix richness) · `consumableValue` (kind base × tier mult off the id suffix) · `itemValue`/`sellValue`/
+  `sellValueOfConsumable`; **SELL_RATE 0.2** (first-cut, sim-gated with `GOLD_K` — see TUNING). 8 tests.
+- `[x]` **Storage / bag screen** (🎒 in the town footer): **Gear | Consumables tabs**, consumables stacked
+  by refId with a ×count, every row sellable for its sell-back (the worth on hover); live vault + slot usage.
+- `[x]` **Loadout drawn from Storage stock** (the dungeon-select picker): chosen chips (click to drop) + an
+  available-stock list with steppers, capped by ownership + free slots; re-validated against ownership each
+  render. **Committed OUT of Storage into the satchel at delve start** (`takeConsumablesByRef`) — DEPLETES
+  inventory; survivors return via the loot scene, a death loses them.
+- `[x]` **End-of-run loot triage scene**: every SAFE exit (boss clear OR cash-out) routes through it — found
+  gear + surviving satchel consumables, each **keep→Storage / sell→gold** (default keep), live tally, keep-all/
+  sell-all, full-Storage **auto-sell-overflow** (nothing silently lost). `resolveLootKeep` (pure) + a bank-once
+  latch. Death still skips it (all lost + tithe).
+- **DESIGN CALL (settled 2026-06-16):** the satchel **stays `string[]` refIds** (NOT the proposed `Item[]`
+  unification) — consumables are FUNGIBLE so instance-uids buy nothing, and gear is already a separate
+  `gearFound: GearInstance[]` list; the loot scene triages both. Sidestepped the heavy combat-use refactor.
+  `SavedChar.consumables` **kept** (re-roled as the remembered loadout selection, validated vs Storage), not retired.
+- **Still open (next):** single fights don't deplete Storage (practice mode — intentional); the **shop BUY-side**
+  + Storage-slot upgrades are B4 (the sell-side + Smithy are the live sinks; recalibrate `GOLD_K` once buy lands).
 
 ### Phase 4 — Run-loop enrichment
 - `[ ]` Between-rooms approaches (5 verbs at the fork) + voluntary-activation preview + Speed→round-1

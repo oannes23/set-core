@@ -239,7 +239,7 @@ function characterSelectScene(root: HTMLElement): void {
   DELVE = null // any road back to town ends the run
   const wrap = $(`<div class="wrap"></div>`)
   wrap.appendChild($(`<h1>set.core</h1>`))
-  wrap.appendChild($(`<div class="sub">town · choose your hero &nbsp;·&nbsp; <span class="vault" data-tip-title="The vault" data-tip="Your shared account gold — banked on any safe exit from a delve, dented by the death tithe. Spends at the shop (coming soon).">🪙 ${loadBank().gold} vault</span></div>`))
+  wrap.appendChild($(`<div class="sub">town · choose your hero &nbsp;·&nbsp; <span class="vault" data-tip-title="The vault" data-tip="Your shared account gold — banked on any safe exit from a delve, dented by the death tithe. Spends at the Smithy; earned back by selling gear/consumables in Storage.">🪙 ${loadBank().gold} vault</span></div>`))
   const cols = $(`<div class="hub2"></div>`)
   const leftP = $(`<div class="panel"></div>`)
   const rightP = $(`<div class="panel"></div>`)

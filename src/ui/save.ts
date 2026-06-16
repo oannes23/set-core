@@ -25,7 +25,9 @@ export interface SavedChar {
   level: number // 1..LEVEL_CAP (21 = ★)
   xp: number // banked progress toward the NEXT level (always banks, even on death)
   alloc: StatAlloc // points distributed at level-ups; effective stats = BASE_STATS + alloc
-  consumables: string[] // the 3-slot consumable loadout (interim — becomes run-state in B2, see TODO)
+  consumables: string[] // the remembered consumable loadout (refIds, ≤ CONSUMABLE_SLOTS) — picked FROM
+  // Storage stock at the dungeon-select picker + re-validated against ownership each render; committed
+  // OUT of Storage into the run satchel at delve start (Phase 2 economy). Not the live satchel — that's DelveRun.bag.
   equipped: Equipped // §7 gear: the 5 equip slots (chunk ① embeds the instance; B3② may switch to Storage uid-refs)
   // grows later: gold, abilities[], wounds[] (the injury layer)
 }

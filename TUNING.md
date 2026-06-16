@@ -240,6 +240,17 @@ recalibrate WITH `GOLD_K` + the shop sink, against ~150–210g/run).** Gold cost
 
 Tier-1 bench (all ops ungated); the smithy-AMENITY tiers (cheapen/unlock) ride B4/B5.
 
+**Item value + sell-back — FIRST-CUT (Phase 2, BUILT 2026-06-16; `engine/value.ts`; ⚠ sim-gated with
+`GOLD_K` + the shop buy-side).** The Storage sell button + the loot-triage scene both read this.
+**SELL_RATE 0.2** (sell-back = 20% of value; a town amenity raises it later).
+
+| Item | Value | Notes |
+|---|---|---|
+| Gear | `GEAR_BASE[rarity] · (1 + lootTier·0.03) · (1 + affixes·0.15)` | base **8/20/50/120/300/700** (grey→orange) — a geometric ladder lifted by depth + affix richness |
+| Consumable | `(potion 12 / scroll 20) · tierMult` | tierMult **1/2/3** off the `_minor`/`_std`/`_major` suffix (special potions + scrolls = ×2) |
+
+So a std potion ≈ 24g (sells 4), a blue weapon ≈ 170g (sells 34), an orange ≈ 800g+ (sells 160+).
+
 **Crit + combos + Primed — the exchange-delight feel layer (CRIT CURVE CALIBRATED 2026-06-15, sim §13).**
 Crit is rolled once on the aggregate swing at rollover ① (player-only; a narrow §5.7 carve-out — the SET
 stays exact). The chance is a **skill-earned S-curve** (REPLACES the old flat 5% base), fed by this round's
