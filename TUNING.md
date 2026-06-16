@@ -228,13 +228,22 @@ is the tuning gate).** `data/affixes.ts` procs: amount = `max(1, round(magUnit �
 rainbow) to bound the per-round value — §12 flagged procs run hot (a per-match damage proc ≈ 4× a stat
 affix). Sim them before widening the pool or raising magnitudes.
 
-**Crit + chains + Primed — the exchange-delight feel layer (BUILT 2026-06-15; §13 sim to firm).**
-`state.ts`: **`BASE_CRIT_CHANCE` 0.05 · `BASE_CRIT_MULT` 1.5 · `CRIT_CAP` 0.20** (player-only, rolled on the
-aggregate swing at rollover ①; a narrow §5.7 carve-out — the SET stays exact). Gear: Keen `+min(0.10,
-0.02·mag)` chance · Vorpal `+min(1.0, 0.25·mag)` mult. **Chains** (`CHAIN_CRIT_STEP` 0.03/link, colour+shape
-streak) feed the same capped channel. **Primed** (`PRIMED_WINDOW_MS` 6000): a Maneuver-churned card matched
-in time = +1 quality tier (capped at heavy). Crit cap is load-bearing — keeps the whole channel a delight,
-never reliable DPS.
+**Crit + combos + Primed — the exchange-delight feel layer (CRIT CURVE CALIBRATED 2026-06-15, sim §13).**
+Crit is rolled once on the aggregate swing at rollover ① (player-only; a narrow §5.7 carve-out — the SET
+stays exact). The chance is a **skill-earned S-curve** (REPLACES the old flat 5% base), fed by this round's
+play + gear, and **soft-capped** so the diminishing curve IS the practical ceiling (no hard clamp):
+- **metrics:** `highestChain` (longest run of matches each ≤ **3s** apart — UNnormalized, the skill-shine) +
+  `combos` (total in-grace matches — **normalized** by round-extension so glaciate/frostbolt/potion stretch
+  can't farm it). Combo def = **tempo + identity**: any match ≤3s keeps it alive; same colour OR shape
+  escalates it (the style chase).
+- **curve:** `score = highestChain + 0.5·combos + KeenScore`; `crit = 0.25 / (1 + e^(−0.42·(score − 7)))`
+  (`CRIT_SOFT_CAP` 0.25 · `CRIT_A` 0.42 · `CRIT_M` 7). Sim-validated vs the skill tiers: floor 2.6% ·
+  **competent 4.7%** · good 11% · great 17% · excellent 22% · **peak 24.4%** (even +maxed Keen ≤ ~25%).
+  Keen lifts weak players (floor→7%, competent→11%) but barely moves the ceiling — gear = leg-up, skill = cap.
+- **`BASE_CRIT_MULT` 1.5** · Vorpal `+min(1.0, 0.25·mag)` mult. **Primed** (`PRIMED_WINDOW_MS` 6000):
+  a Maneuver-churned card matched in time = +1 quality tier (capped at heavy) — the Speed-OUTPUT payoff,
+  distinct from the crit channel (delight). ⚠ The old flat `BASE_CRIT_CHANCE`/`CRIT_CAP`/`CHAIN_CRIT_STEP`
+  + the colour+shape-only chain are SUPERSEDED by this curve — the build swaps them in.
 
 **Gear-exclusive mods + reactive procs — FIRST-CUT (BUILT 2026-06-15; same §13 gate).** GearMods:
 Sundering `penetration` & Ironhide `soak` = `round(magUnit×1.5)` (flat) · Evasive `dodge` & Sanguine

@@ -656,7 +656,47 @@ function section12() {
   console.log('  → a curse worth ~−2/−3 stat offsets a fatter proc → the cursed item competes, never dominates (§7).')
 }
 
+// ---------- §13 THE COMBO/CRIT CURVE — chains + combos per skill tier → fit crit to the targets ----------
+// Model: a ROUND_S round, `sets` matches; gaps ~ exponential(mean ROUND_S/sets) — captures BURSTY play
+// (many fast matches + the occasional scan pause). A 3s GRACE links matches: a CHAIN = a maximal run of
+// gaps ≤3s (highestChain = the longest run, the skill-shine, UNnormalized); COMBOS = matches landing in
+// grace (= matches − run-starts), NORMALIZED by any round extension so stall-stretching can't farm it.
+const GRACE_S = 3
+const SKILL_TIERS = [['floor', 3], ['competent', 5], ['good', 8], ['great', 10], ['excellent', 12], ['peak', 15]]
+function comboMetrics(sets, rng, roundS = 20) {
+  let t = 0; const times = []
+  for (let i = 0; i < sets * 2 && times.length < sets; i++) { t += -(roundS / sets) * Math.log(1 - rng()); if (t > roundS) break; times.push(t) }
+  let run = 1, highest = times.length ? 1 : 0, combos = 0
+  for (let i = 1; i < times.length; i++) { if (times[i] - times[i - 1] <= GRACE_S) { run++; combos++ } else run = 1; if (run > highest) highest = run }
+  return { highest, combos }
+}
+// the fitted curve (S-shaped: flat-low so floor≈competent, steep mid, diminishing toward the soft cap):
+// score = highestChain + COMBO_W·normalizedCombos; crit = SOFT_CAP / (1 + e^(−A(score−M))). + gear(Keen).
+// Gear (Keen) and Vorpal feed the SAME score, so the diminishing curve caps EVERYTHING (play+gear) at
+// SOFT_CAP — the "practical cap" is the asymptote, no hard clamp needed (KEEN_MAX_SCORE = a maxed Keen).
+const CRIT_SOFT_CAP = 0.25, CRIT_A = 0.42, CRIT_M = 7.0, COMBO_W = 0.5, KEEN_MAX_SCORE = 3
+function critCurve(score) { return CRIT_SOFT_CAP / (1 + Math.exp(-CRIT_A * (score - CRIT_M))) }
+function critFromPlay(highest, combos, keenScore = 0) { return critCurve(highest + COMBO_W * combos + keenScore) }
+function section13() {
+  console.log('\n════ §13 THE COMBO/CRIT CURVE — chains+combos per skill tier → crit chance (CRAWL §7) ════')
+  console.log('  model: ROUND 20s, gaps ~ exp(mean 20/sets), 3s grace. TARGETS: competent ≈ 5% · peak ≈ ~25% ·')
+  console.log('  floor ≈ competent (flat low) · diminishing returns up top. crit = play-curve + gear(Keen).')
+  console.log('  tier         sets · highestChain · combos · → crit% (play only)')
+  for (const [name, sets] of SKILL_TIERS) {
+    let H = 0, C = 0
+    const N = 20000
+    for (let i = 0; i < N; i++) { const m = comboMetrics(sets, mulberry32(i + sets * 131), 20); H += m.highest; C += m.combos }
+    H /= N; C /= N
+    const crit = critFromPlay(H, C)
+    const critKeen = critFromPlay(H, C, KEEN_MAX_SCORE) // + a maxed Keen (gear feeds the SAME score)
+    console.log(`  ${name.padEnd(11)} ${String(sets).padStart(2)}  · chain ${H.toFixed(1)} · combos ${C.toFixed(1)} · → ${(crit * 100).toFixed(1)}% play · ${(critKeen * 100).toFixed(1)}% +maxKeen`)
+  }
+  console.log(`  → soft cap ${(CRIT_SOFT_CAP * 100).toFixed(0)}% is the asymptote: even peak + maxed Keen stays ≤ ~25% (diminishing, never reliable).`)
+  console.log('  NORMALIZE note: combos ÷= (actualRoundMs / ROUND_MS) live (stall-stretch can\'t farm combos); the')
+  console.log('  UNnormalized highestChain still lets a stretched round SHINE via a couple of long chains.')
+}
+
 // ---------- run ----------
 console.log('SET.crawl — the numbers workshop (progression package derivation + conformance)')
-section1(); section2(); section3(); section4(); section5(); section6(); section7(); section8(); section9(); section10(); section11(); section12()
+section1(); section2(); section3(); section4(); section5(); section6(); section7(); section8(); section9(); section10(); section11(); section12(); section13()
 console.log('\nDone. Constants marked PROPOSED are the sim-backed picks for TUNING.md.')
