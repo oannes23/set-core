@@ -1873,14 +1873,9 @@ function interpretChunk(events: CombatEvent[]): void {
         // log quiet — only mark the moment the bank runs dry, so the tide reads as continuous, not spammy.
         if (e.remaining === 0) log('<b>Maneuver</b> — the bank runs dry; the tide settles.', 'you')
         break
-      case 'chained':
-        // §7 combo streak — the visceral skill layer: a colour+shape chain ramps crit chance. Escalating
-        // float (silent at len 1 = most matches); a louder smash at 3+ to seed the "charge-up" feel.
-        if (e.len >= 2) {
-          const tint = e.color >= 0 ? `var(--c${e.color})` : 'var(--phos)'
-          floatBoard(`✦ ${e.len}× combo`, tint, 'you')
-          if (e.len >= 3) bamWord(`${e.len}× COMBO`, 'tide', V.refs.board, 1 + Math.min(0.35, e.len * 0.05))
-        }
+      case 'combo':
+        // §7/§13 combo streak — the visceral skill layer (full floaty escalation in onCombo).
+        onCombo(e.level, e.styled, e.color)
         break
       case 'enemyDamaged': {
         if (e.immune) { log('Swords pass through — only magic bites this foe.', 'foe'); floatBoard('blocked', 'var(--ink-faint)', 'enemy'); break } // fixed rule line — never varied
@@ -2162,6 +2157,15 @@ function floatBoard(text: string, color: string, side?: 'you' | 'enemy', cls?: s
   void el.offsetWidth
   el.classList.add('go')
   setTimeout(() => el.remove(), 1000)
+}
+
+/** §7/§13 combo feedback (BASIC — the full floaty + escalating screen-noise pass enriches this). */
+function onCombo(level: number, _styled: boolean, color: number): void {
+  if (!V || level < 2) return
+  const n = Math.floor(level)
+  const tint = color >= 0 ? `var(--c${color})` : 'var(--phos)'
+  floatBoard(`✦ ${n}× combo`, tint, 'you')
+  if (n >= 3) bamWord(`${n}× COMBO`, 'tide', V.refs.board, 1 + Math.min(0.35, level * 0.05))
 }
 
 /** An infographic burst — icon + label + name + effect line. For sprung traps/tricks + hits.

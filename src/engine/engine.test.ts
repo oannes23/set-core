@@ -34,22 +34,28 @@ test('the foe-difficulty raise: createCombat scales HP + telegraph by gearFactor
   expect(sHi.foe.damage).toBeGreaterThan(0) // telegraph also raised (finalized in createCombat)
 })
 
-test('CRIT channel: chance = base + gear + chain ramp, CAPPED; mult = base + gear', () => {
-  const rng = mulberry32(4)
+test('CRIT curve (§13): a skill-earned S-curve — earned not flat, competent ~5%, peak ~24%, soft-capped', () => {
   const f = { id: 'x', name: 'x', tier: 'minion', hp: 100, stats: { power: 10, endurance: 10, speed: 10 }, strikeEvery: 9, swings: 1, triggers: [], rules: {} } as unknown as ReturnType<typeof foe>
-  const bare = createCombat({ foe: f, gen: GEN }, rng)
-  expect(playerCritChance(bare)).toBeCloseTo(0.05, 5) // the global 5% base
-  expect(playerCritMult(bare)).toBeCloseTo(1.5, 5)
-  const geared = createCombat({ foe: f, gen: GEN, mods: { dodge: 0, penetration: 0, soak: 0, lifesteal: 0, critChance: 0.06, critMult: 0.3 } }, rng)
-  expect(playerCritChance(geared)).toBeCloseTo(0.11, 5) // base 5% + Keen 6%
-  expect(playerCritMult(geared)).toBeCloseTo(1.8, 5) // base 1.5 + Vorpal 0.3
-  geared.chain = { key: '0:0', len: 4 } // a 4-chain → +3 links × 3% = +9% → 0.05+0.06+0.09 = 0.20 (at the cap)
-  expect(playerCritChance(geared)).toBeCloseTo(0.2, 5)
-  geared.chain = { key: '0:0', len: 9 } // a monster chain is still CAPPED — never a reliable strategy
-  expect(playerCritChance(geared)).toBe(0.2)
+  const s = createCombat({ foe: f, gen: GEN }, mulberry32(4))
+  expect(playerCritChance(s)).toBeLessThan(0.03) // no combo activity → crit is EARNED, not a flat base
+  expect(playerCritMult(s)).toBeCloseTo(1.5, 5)
+  s.combo.highest = 2.6; s.combo.combos = 1.8 // competent activity (sim §13) ≈ 5%
+  expect(playerCritChance(s)).toBeCloseTo(0.047, 2)
+  s.combo.highest = 10; s.combo.combos = 11.3 // peak activity ≈ 24%, strictly under the 25% soft cap
+  expect(playerCritChance(s)).toBeGreaterThan(0.23)
+  expect(playerCritChance(s)).toBeLessThan(0.25)
+  s.combo.highest = 100 // a monster streak STILL can't break the soft cap (the asymptote — never reliable)
+  expect(playerCritChance(s)).toBeLessThanOrEqual(0.25)
+  // timer extension NORMALIZES combos (stall-stretch can't farm crit), but NOT the highest chain
+  s.combo.highest = 5; s.combo.combos = 10; s.roundExtendedS = 0
+  const unstretched = playerCritChance(s)
+  s.roundExtendedS = 20 // the round was doubled → combos count for half
+  expect(playerCritChance(s)).toBeLessThan(unstretched)
+  s.mods = { ...s.mods, critMult: 0.3 } // Vorpal raises the multiplier
+  expect(playerCritMult(s)).toBeCloseTo(1.8, 5)
 })
 
-test('CRIT fires at the exchange and multiplies the swing (player-only); base rate ~ the 5% floor', () => {
+test('CRIT fires at the exchange and multiplies the swing (player-only); capped, never reliable', () => {
   const f = { id: 'x', name: 'x', tier: 'minion', hp: 1e9, stats: { power: 10, endurance: 10, speed: 10 }, strikeEvery: 9, swings: 1, triggers: [], rules: {} } as unknown as ReturnType<typeof foe>
   let crits = 0, swings = 0
   for (let i = 0; i < 400; i++) {
@@ -58,6 +64,7 @@ test('CRIT fires at the exchange and multiplies the swing (player-only); base ra
     const r = reduce(s, { type: 'completeSet', slots: findSets(s.board)[0] }, { data: GAMEDATA, rng })
     const banked = r.state.roundAttack
     if (banked <= 0) continue
+    r.state.combo.highest = 12; r.state.combo.combos = 12 // peak-ish activity → ~24% crit chance
     const t = reduce(r.state, { type: 'tick', dtMs: 21000 }, { data: GAMEDATA, rng })
     const hit = t.events.find((e): e is Extract<typeof e, { type: 'enemyDamaged' }> => e.type === 'enemyDamaged')
     if (!hit) continue
@@ -65,28 +72,30 @@ test('CRIT fires at the exchange and multiplies the swing (player-only); base ra
     if (hit.crit) { crits++; expect(hit.amount).toBe(Math.round(banked * 1.5)) } // a crit = ×1.5 the banked swing
     else expect(hit.amount).toBe(banked) // a non-crit = exactly the banked swing
   }
-  expect(crits).toBeGreaterThan(0) // crits DO fire (the 5% base over 400 swings → ~certain)
-  expect(crits / swings).toBeLessThan(0.15) // …but stay near the 5% floor (delight, not DPS)
+  expect(crits).toBeGreaterThan(0) // crits DO fire at peak activity
+  expect(crits / swings).toBeLessThan(0.3) // …but stay under the cap (delight, not DPS)
 })
 
-test('CHAINS: a colour+shape streak ramps the crit-chance bonus; a mismatch breaks it', () => {
+test('COMBOS: tempo keeps the streak alive, identity (colour OR shape) escalates it faster; grace lapse resets', () => {
   const rng = mulberry32(2)
   const f = { id: 'x', name: 'x', tier: 'minion', hp: 100000, stats: { power: 10, endurance: 10, speed: 10 }, strikeEvery: 9, swings: 1, triggers: [], rules: {} } as unknown as ReturnType<typeof foe>
-  let s = createCombat({ foe: f, gen: GEN }, rng)
   const deps = { data: GAMEDATA, rng }
-  // force a known board: two all-red all-Attack sets (same colour+shape sig) then a green-attack set
   const C = card
-  s.board = [C(0, 0, 0), C(0, 0, 1), C(0, 0, 2), C(1, 0, 0), C(1, 0, 1), C(1, 0, 2), ...s.board.slice(6)]
-  let r = reduce(s, { type: 'completeSet', slots: [0, 1, 2] }, deps) // red-attack #1
-  expect(r.state.chain).toEqual({ key: '0:0', len: 1 })
-  // refill happened; force red-attack again into fresh slots [0,1,2]
+  const s = createCombat({ foe: f, gen: GEN }, rng) // now = 0
+  s.board = [C(0, 0, 0), C(0, 0, 1), C(0, 0, 2), ...s.board.slice(3)] // a red-Attack set
+  let r = reduce(s, { type: 'completeSet', slots: [0, 1, 2] }, deps)
+  expect(r.state.combo.level).toBe(1) // first match — no prior, no grace
+  r.state.board = [C(0, 0, 0), C(0, 0, 1), C(0, 0, 2), ...r.state.board.slice(3)] // red-Attack again
+  r = reduce(r.state, { type: 'completeSet', slots: [0, 1, 2] }, deps) // in grace + shares colour+shape → STYLED
+  expect(r.state.combo.level).toBeCloseTo(2, 5) // styled extend (+1.0)
+  expect(r.state.combo.combos).toBe(1)
+  r.state.board = [C(2, 1, 0), C(2, 1, 1), C(2, 1, 2), ...r.state.board.slice(3)] // blue-Defend: diff colour AND shape
+  r = reduce(r.state, { type: 'completeSet', slots: [0, 1, 2] }, deps) // in grace but NOT styled → tempo (+0.6)
+  expect(r.state.combo.level).toBeCloseTo(2.6, 5)
+  r = reduce(r.state, { type: 'tick', dtMs: 4000 }, deps) // let the 3s grace lapse
   r.state.board = [C(0, 0, 0), C(0, 0, 1), C(0, 0, 2), ...r.state.board.slice(3)]
-  r = reduce(r.state, { type: 'completeSet', slots: [0, 1, 2] }, deps) // red-attack #2 → chain extends
-  expect(r.state.chain).toEqual({ key: '0:0', len: 2 })
-  // now a GREEN-attack set (different colour sig) → the chain restarts at len 1 on the new sig
-  r.state.board = [C(1, 0, 0), C(1, 0, 1), C(1, 0, 2), ...r.state.board.slice(3)]
   r = reduce(r.state, { type: 'completeSet', slots: [0, 1, 2] }, deps)
-  expect(r.state.chain).toEqual({ key: '1:0', len: 1 })
+  expect(r.state.combo.level).toBe(1) // grace lapsed → fresh streak
 })
 
 test('the affix-proc engine: an on-match proc fires player-favourably (condMet → ops)', () => {

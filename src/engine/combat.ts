@@ -9,7 +9,7 @@ import { findSets } from '../core/sets'
 import { type GenConfig, genInitial } from '../core/generate'
 import type { Rng } from '../core/rng'
 import type { GameData } from '../data/schema'
-import { type CombatState, type FoeRuntime, type Pending, type TacticKind, type ManeuverBias, type StatBlock, MANA_CAP, DEFAULT_PLAYER_MAX, BASE_STATS, ROUND_MS, DODGE_BASE, DODGE_K, DODGE_MIN, DODGE_MAX, MANEUVER_BURN_MS, BASE_CRIT_CHANCE, BASE_CRIT_MULT, CRIT_CAP, CHAIN_CRIT_STEP, PRIMED_WINDOW_MS, dreadFoeMult, dreadPlayerMult, dreadBleed, driftRateMult } from './state'
+import { type CombatState, type FoeRuntime, type Pending, type TacticKind, type ManeuverBias, type StatBlock, MANA_CAP, DEFAULT_PLAYER_MAX, BASE_STATS, ROUND_MS, DODGE_BASE, DODGE_K, DODGE_MIN, DODGE_MAX, MANEUVER_BURN_MS, BASE_CRIT_MULT, CRIT_SOFT_CAP, CRIT_A, CRIT_M, COMBO_W, CRIT_GRACE_MS, COMBO_STYLE_STEP, COMBO_TEMPO_STEP, PRIMED_WINDOW_MS, dreadFoeMult, dreadPlayerMult, dreadBleed, driftRateMult } from './state'
 import { type CombatEvent, EventSink } from './events'
 import { type Resolution, type MatchDescriptor, resolveSet, weightedRoll, telegraphPerSwing, dodgeChance } from './resolve'
 import { NO_RIDERS, NO_MODS, type Riders, type GearMods, type AffixProc, type ProcEvent } from './items'
@@ -98,7 +98,7 @@ export function createCombat(opts: NewCombatOpts, rng: Rng): CombatState {
     riders: opts.riders ?? NO_RIDERS,
     mods: opts.mods ?? NO_MODS,
     procs: opts.procs ? opts.procs.slice() : [],
-    chain: { key: null, len: 0 },
+    combo: { level: 0, highest: 0, combos: 0, lastAt: -Infinity, lastColor: null, lastShape: null },
     primed: {},
     mana: [0, 0, 0],
     tactic: 'stand', // the defensive default — you OPT INTO Maneuver's greed live (§5.7)
@@ -173,29 +173,33 @@ function applyResolution(s: CombatState, res: Resolution, rng: Rng, sink: EventS
 
 const LOW_HP_FRAC = 0.3 // §7 reactive: an on-lowHP proc (Cornered) fires while HP is below this fraction
 
-/** §7 CHAINS: a match's colour+shape signature, only if it's mono on BOTH axes (the hard streak). */
-function chainSig(desc: MatchDescriptor): string | null {
-  return desc.sameColor != null && desc.sameShape != null ? `${desc.sameColor}:${desc.sameShape}` : null
-}
-/** Update the combo streak on a match: same colour+shape as the streak → extend; else reset/restart;
- *  a not-mono-both match breaks it. The streak ramps crit chance (chainCritBonus) — the visceral layer. */
-function updateChain(s: CombatState, desc: MatchDescriptor, sink: EventSink): void {
-  const sig = chainSig(desc)
-  if (sig == null) {
-    if (s.chain.len > 0) { s.chain = { key: null, len: 0 }; sink.emit({ type: 'chained', len: 0, color: -1, shape: -1 }) }
-    return
+/** §7/§13 update the combo streak on a match. TEMPO (≤ CRIT_GRACE_MS since the last match) keeps it
+ *  alive; IDENTITY (this match shares the LAST match's colour or shape) escalates it faster (STYLE_STEP
+ *  vs the slower TEMPO_STEP). Tracks the round's highest + combos (the crit-score metrics). */
+function updateCombo(s: CombatState, desc: MatchDescriptor, sink: EventSink): void {
+  const inGrace = s.now - s.combo.lastAt <= CRIT_GRACE_MS
+  const styled = (desc.sameColor != null && desc.sameColor === s.combo.lastColor) || (desc.sameShape != null && desc.sameShape === s.combo.lastShape)
+  if (inGrace) {
+    s.combo.level += styled ? COMBO_STYLE_STEP : COMBO_TEMPO_STEP
+    s.combo.combos += 1
+  } else {
+    s.combo.level = 1 // a fresh streak (the grace lapsed)
   }
-  s.chain = sig === s.chain.key ? { key: sig, len: s.chain.len + 1 } : { key: sig, len: 1 }
-  sink.emit({ type: 'chained', len: s.chain.len, color: desc.sameColor as number, shape: desc.sameShape as number })
+  s.combo.highest = Math.max(s.combo.highest, s.combo.level)
+  s.combo.lastAt = s.now
+  s.combo.lastColor = desc.sameColor
+  s.combo.lastShape = desc.sameShape
+  sink.emit({ type: 'combo', level: s.combo.level, styled, color: desc.sameColor ?? -1, shape: desc.sameShape ?? -1 })
 }
-/** The crit-chance the streak contributes (0 below a 2-chain; +CHAIN_CRIT_STEP per link past the first). */
-function chainCritBonus(s: CombatState): number {
-  return s.chain.len >= 2 ? (s.chain.len - 1) * CHAIN_CRIT_STEP : 0
+/** §13 the crit SCORE this round: highestChain (unnormalized — the skill-shine) + COMBO_W·combos
+ *  (NORMALIZED by round-extension so stall-stretch can't farm it) + Keen's gear score. */
+function critScore(s: CombatState): number {
+  const normCombos = s.combo.combos * (ROUND_MS / (ROUND_MS + s.roundExtendedS * 1000))
+  return s.combo.highest + COMBO_W * normCombos + s.mods.critChance
 }
-/** §7 the shared crit channel: total chance = base + gear(Keen) + the chain ramp, CAPPED (highly
- *  restricted so crit stays a delight, never reliable DPS); mult = base + gear(Vorpal). */
+/** §13 the soft-capped crit S-curve (play + gear both feed `critScore`, so the cap bounds everything). */
 export function playerCritChance(s: CombatState): number {
-  return Math.min(CRIT_CAP, BASE_CRIT_CHANCE + s.mods.critChance + chainCritBonus(s))
+  return CRIT_SOFT_CAP / (1 + Math.exp(-CRIT_A * (critScore(s) - CRIT_M)))
 }
 export function playerCritMult(s: CombatState): number {
   return BASE_CRIT_MULT + s.mods.critMult
@@ -247,7 +251,7 @@ function completeSet(s: CombatState, slots: [number, number, number], deps: Deps
   if (primedFlags.some(Boolean)) sink.emit({ type: 'passiveProc', id: 'primed', label: '✦ primed' })
   applyResolution(s, res, deps.rng, sink)
   sink.emit({ type: 'setResolved', damage: res.damage, block: res.block, mana: res.mana, slots })
-  updateChain(s, res.desc, sink) // §7 combo streak (colour+shape) — ramps crit chance for the exchange
+  updateCombo(s, res.desc, sink) // §7/§13 combo streak (tempo + identity) — feeds the crit score at the exchange
   // character-innate passives react to this match's signature (Momentum may steer the refill below)...
   firePassives(s, 'match', res.desc, deps.rng, sink)
   // ...and the gear AFFIX procs fire on the same match (the affix-proc engine — player-favourable)
@@ -416,6 +420,8 @@ function rollover(s: CombatState, deps: Deps, sink: EventSink): void {
   s.roundEndsAt = s.now + ROUND_MS
   s.roundExtendedS = 0
   s.roundAttack = 0
+  s.combo.highest = 0 // §13 the crit score is per-round — reset the metrics (the live streak/level carries via grace)
+  s.combo.combos = 0
   if (s.foe.damage > 0 && s.incoming == null && s.round >= s.nextStrikeRound - (s.foe.strikeEvery - 1)) {
     const strike = rollStrike(s.foe, s.stats.speed, deps.rng, s.mods.dodge)
     s.incoming = Math.round(strike.total * dreadFoeMult(s)) // §5.8: fold dread-at-reveal into the telegraph (honest ⚔)
@@ -469,7 +475,7 @@ export function cloneState(s: CombatState): CombatState {
     passives: s.passives.slice(),
     consumables: s.consumables.slice(),
     tickAccum: { ...s.tickAccum },
-    chain: { ...s.chain },
+    combo: { ...s.combo },
     primed: { ...s.primed },
     foe: s.foe, // immutable per encounter
     gen: s.gen,

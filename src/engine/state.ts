@@ -75,7 +75,10 @@ export interface CombatState {
   riders: Riders // §7 gear riders: flat per-card damage/block/mana added AFTER the contest (resolveSet)
   procs: AffixProc[] // §7 gear affix ON-MATCH procs (fired like passives — the affix-proc engine)
   mods: GearMods // §7 gear-exclusive scalars: dodge / penetration / soak / lifesteal / crit
-  chain: { key: string | null; len: number } // §7 colour+shape combo streak → ramps crit chance (the visceral skill layer)
+  // §7/§13 the combo streak: tempo (≤3s grace) keeps it alive, identity (colour/shape) escalates it.
+  // `level` = the live streak (float); `highest`/`combos` are the THIS-ROUND metrics that feed the crit
+  // score at the rollover (reset each round); lastColor/lastShape compare the next match for "styled".
+  combo: { level: number; highest: number; combos: number; lastAt: number; lastColor: number | null; lastShape: number | null }
   primed: Record<number, number> // §7 Primed: slot → churn timestamp; matched within PRIMED_WINDOW_MS → +1 quality tier
   mana: [number, number, number] // capped at MANA_CAP per color; gains past it are pure loss
   // Tactics v3 (CRAWL §5.6): a charge bank spent by the selected stance
@@ -181,15 +184,22 @@ export const DODGE_BASE = 0.1
 export const DODGE_K = 0.015
 export const DODGE_MIN = 0.03
 export const DODGE_MAX = 0.4
-// CRIT (§7 — the shared exchange-delight channel; player-only, HIGHLY restricted so it never becomes
-// reliable DPS): total chance = BASE + gear(Keen) + the chain ramp, capped at CRIT_CAP; mult = base +
-// gear(Vorpal). Rolled once on the player's banked swing at the rollover (the set stays exact).
-export const BASE_CRIT_CHANCE = 0.05
+// CRIT (§7/§13 — the shared exchange-delight channel; player-only, rolled once on the banked swing at the
+// rollover so the SET stays exact). The chance is a SKILL-EARNED S-curve (sim §13), soft-capped so the
+// diminishing curve IS the practical ceiling: crit = CRIT_SOFT_CAP / (1 + e^(−CRIT_A·(score − CRIT_M))),
+// score = highestChain + COMBO_W·normalizedCombos + KeenScore. Tuned: competent ≈ 5% · peak ≈ 24% ·
+// floor ≈ competent · diminishing up top (even peak + maxed Keen ≤ ~25%). Mult = base + gear(Vorpal).
 export const BASE_CRIT_MULT = 1.5
-export const CRIT_CAP = 0.2 // total chance ceiling (base+gear+chain) — keeps crit a delight, not a strategy
-// CHAINS (§7 — a colour+shape streak ramps crit chance; the visceral skill layer): both axes must match
-// consecutively (hard to sustain), and the per-link bump is small.
-export const CHAIN_CRIT_STEP = 0.03 // +crit chance per chain link past the first (chain 2 → +0.03, …)
+export const CRIT_SOFT_CAP = 0.25
+export const CRIT_A = 0.42
+export const CRIT_M = 7
+export const COMBO_W = 0.5 // the (normalized) combo count's weight in the crit score vs the highest chain
+// COMBOS/CHAINS (§7/§13 — the visceral skill layer): a CHAIN is a run of matches each ≤ CRIT_GRACE_MS
+// apart (tempo keeps it alive; same colour OR shape escalates it faster — the style chase). highestChain
+// (unnormalized = the skill-shine) + combos (in-grace matches, NORMALIZED by round-extension) feed the score.
+export const CRIT_GRACE_MS = 3000
+export const COMBO_STYLE_STEP = 1.0 // a styled (colour/shape-continued) in-grace match advances the chain by this
+export const COMBO_TEMPO_STEP = 0.6 // a tempo-only (in-grace but off-identity) match advances it by this (slower)
 // PRIMED (§7/§11 — the Speed/Maneuver OUTPUT payoff): a Maneuver-churned card matched within this window
 // counts ONE quality tier higher (① glancing → ② solid → ③ heavy, capped). Converts Speed's board-control
 // into measurable output, in-lane (the under-buy fix). Bounded: only churned-then-matched cards, +1 tier.

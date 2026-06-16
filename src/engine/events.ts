@@ -12,7 +12,7 @@ export type CombatEvent =
   | { type: 'roundStarted'; round: number; incoming: number | null } // the deal settled; incoming = this round's telegraph (null = no strike)
   | { type: 'tacticsBurned'; churned: number; remaining: number } // §5.7: a LIVE Maneuver burn (1 charge → 1 card churns toward bias)
   | { type: 'enemyDamaged'; amount: number; immune?: boolean; magic?: boolean; crit?: boolean } // immune = card damage hit an immune foe; magic = ethereal mana-spent drain; crit = the exchange-delight crit (§7)
-  | { type: 'chained'; len: number; color: number; shape: number } // §7 combo streak (colour+shape); len 0 = broken
+  | { type: 'combo'; level: number; styled: boolean; color: number; shape: number } // §7/§13 combo streak; styled = colour/shape continued
   | { type: 'enemyHealed'; amount: number }
   | { type: 'playerDamaged'; amount: number; absorbed: number; source: string }
   | { type: 'playerHealed'; amount: number }
