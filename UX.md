@@ -1,5 +1,13 @@
 # UX.md — the combat play area, re-examined at 1080p
 
+> **⚠ RECONCILED 2026-06-16.** The rollover exchange is now a centered **breakdown-popover ledger**
+> (canonized — see CRAWL §5.6), built across the 2026-06 cutscene commits and playtested. Where this
+> doc says the exchange should drain "into the tri-counter," "one stage," "one ledger, never two
+> places," or "never a modal" — read those as the **MID-ROUND** principle (the tri-counter stays the
+> live mid-round ledger). The **rollover STAGE** is the popover: a different moment in time, not a
+> second simultaneous ledger. The §4c **bite preview** ("take N · M wounds") shipped and remains the
+> single highest-value allocation cue.
+
 A high-level UX analysis of the combat screen (`src/ui/app.ts` `buildPlay`/`buildCastPanel` +
 `styles.css`), written 2026-06-12, just after the **tri-counter** build (the verb accumulators
 ⚔/🛡/⚙ as the primary HUD strip above the board — taken as a **given** throughout). Target

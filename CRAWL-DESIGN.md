@@ -1153,16 +1153,26 @@ exchange. Stats still carry (Model B per-card math, §5.5):
   tilt; `BIAS_W` expresses ONLY through the Maneuver rollover dump). The round
   *degrades* — you cherry-pick the juice, drift drags, traps scar — the deal *redeems*.
 
-**The rollover** (≈ 4.5s, diegetic, choreographed in staged DRAINING transfers — **never a
-modal, no button, ever**; playtest-raised from ≤2.5s: the pause must be FELT, each quantity
-seen moving — banked swing → foe HP, telegraph → guard → HP, then the tide and the deal):
+**The rollover** (≈ 4.5s; the pause must be FELT, each quantity seen moving).
+**Presentation — canonized 2026-06-16 (build wins over the earlier spec):** a centered
+**BREAKDOWN-POPOVER ledger** — a Mörk Borg scoreboard that dims the field and pops each term in
+turn (Your Swing: Matches + Weapon + Crit → total · Their Strike: Telegraph − Soak − Block → bite ·
+Abilities · Mana · Round: combo/primed · Next Strike), surviving multi-panel rounds sliding+scaling
+to corner slots into a scattered tableau, while a kill / death / single-panel round skips the slide
+and just pops. This **SUPERSEDES** the original "diegetic on-axis drain, *never a modal, no button*"
+rule — it was built across the 2026-06 cutscene commits and playtested ("felt pretty good"). The
+**tri-counter stays the live MID-ROUND ledger**; the popover is the rollover STAGE (different time,
+not "two ledgers at once"). UX.md's "single ledger" theorem is reconciled the same way.
+
+The beat order (the engine emit order the popover narrates):
 1. **Player swing** — the Attack total lands. **Lethal cancels the enemy swing** (the
    kill-race: rushing lethal under a big telegraph is valid play, rewarded via passives/
    gear). Symmetric: a player who would die but banked lethal wins the exchange.
 2. **Enemy swing** — telegraph minus the Defend total; damage *suffered* computes wounds.
-3. **Maneuver dump** — all charges burn (stance economy below).
-4. **The deal** — gaps fill, one wound reforms, churned cards settle.
-5. **Next telegraph reveals + the queued stance locks.** The breath; next round's plan forms.
+   *(No "Maneuver dump" beat — §5.7 made Maneuver burn LIVE each tick, not at the rollover.)*
+3. **The deal** — gaps fill, one wound reforms, churned cards settle.
+4. **Next telegraph reveals.** The breath; next round's plan forms. *(Stances are LIVE, §5.7 —
+   no round-lock/queue; the Tactics wheel applies a stance the instant you tap it.)*
 
 **Foe speed = round BEHAVIOR, not round length.** The speed bands (24…9s) retire. Every
 foe gives the same 20s of scan; quickness becomes exchange cadence — and cadence is not
@@ -1193,19 +1203,20 @@ above). The stances differ in their relationship to the bank AND in resolution t
   SG's wound-ward is the deep reserve you build toward. If the dump holds more charges
   than non-matching cards exist, the excess burns unused (the board is already yours —
   the bank still zeroes, per the rule).
-- **The stance locks at the draw phase** (the wheel mid-round queues NEXT round's pick).
-  Load-bearing, not flavor: free swapping enables the obvious cheese — Stand Ground all
-  round, flip to Maneuver at second 19, dump, collect both benefits. The lock kills it.
-  It also enables the legitimate cross-round line: turtle two rounds banking behind
-  wards, then flip and dump a full-bank tide. *Supersedes the swap-spin-up rule entirely.*
+- **⚠ SUPERSEDED by §5.7 (live stances).** This round-lock rule was retired: stances apply the
+  instant you tap the wheel, and Maneuver burns LIVE each tick (no rollover dump). The "flip at
+  second 19 and dump" cheese it guarded against no longer exists *because there is no dump to game* —
+  the tide rolls in continuously while Maneuver is held, so a last-second flip buys almost nothing.
+  *(Original rule, kept for the rationale: the stance locked at the draw phase; free swapping would
+  have let you Stand Ground all round, flip to Maneuver at second 19, and collect both benefits.)*
 
 **The Tactics wheel (the widget).** One control, seven states, one tap:
 - **Center: Stand Ground** — a braced stick-figure icon, classic bracing-for-battle.
 - **Top arc (shape biases):** Attack · Defend (top-middle) · Move — "steer what I can DO."
 - **Bottom arc (color biases):** Red · Blue (bottom-middle) · Green — "steer what I can CAST."
 - Selecting a spoke = selecting Maneuver with that bias (the v2 verb-then-parameter
-  two-step collapses into one gesture). Lit spoke = the locked current stance; ghost
-  spoke = queued for the deal.
+  two-step collapses into one gesture). **Lit spoke = the active stance** (applied LIVE — §5.7;
+  the "ghost = queued for the deal" state is retired, since stances no longer round-lock).
 - **Magnitude bias is CUT — deliberately**, not by wheel geometry: heavy boards come
   only from gear/Hone (B3). `grasping`/`covetous` now tax drift-luck and gear greed only.
 
@@ -1220,6 +1231,12 @@ above). The stances differ in their relationship to the bank AND in resolution t
   is a constant change, never a data audit.
 - **Recovery:** one wound reforms per draw phase; ALL reform at combat end.
   (`DMG_REGEN_MS` retires — another seconds-constant rebased to rounds.)
+- **Rendering — settled 2026-06-16 (build wins): wounds are DIEGETIC board scars, not a separate
+  track.** A wound IS a shattered board rune (`.card.wound`, with the CRACK! shatter + knit FX) you
+  must reform — the gameplay effect lives on the board, so a card-scar shows it where it bites. The
+  *legibility-before-it-lands* ask (UX.md) is the **bite preview** in the tri-counter
+  (`⚔ − 🛡 → take N · M wounds`), built. (The earlier "wound-row / pip-track" deliverable is retired
+  as redundant with the scars + the HP bar.)
 - ⚠ Invariant: wounds (≤5) + locks combined must still leave ≥ FLOOR makeable sets —
   assert the worst case in the headless sim; a combined concurrent cap may need a number.
 - **Coach hook:** a player under a match-count threshold who takes ≥4 wounds in one

@@ -17,10 +17,11 @@ Traffic-light: green = pursue · yellow = consequence · red = wounded.
 ---
 
 ## ▶ NEXT SESSION — START HERE (handoff 2026-06-15)
-**⭐ 2026-06-16: see the new POST-REVIEW HARDENING TRACK below** (from `REVIEW-2026-06-16.md` +
-`DESIGN-GOALS.md`). Recommended implementation order: Stage 0 cleanups → the `app.ts` refactor
-(the blocker) → Rounds v3 UI → parting-blow + pause. The balance sim is **gated** until loot +
-abilities settle.
+**⭐ 2026-06-16: POST-REVIEW HARDENING TRACK below** (from `REVIEW-2026-06-16.md` + `DESIGN-GOALS.md`).
+Progress: **Stage 0 ✅ · Stage 1 (app.ts refactor) 1A–1D ✅ · Stage 2 (Rounds v3 UI) ✅ already-built,
+reconciled + polished.** **NEXT = Stage 3: parting-blow on flee + the pause button** (the genuinely
+unbuilt asks). Deferred to future stages: U5 tick-coalescing (→ replay-seam build), 1E cutscene split.
+The balance sim stays **gated** until loot + abilities settle.
 
 **GEAR chunk ① the foundation = BUILT 2026-06-15.** Next = **chunk ② loot + the coupled balance pass.**
 - **Chunk ① — DONE (160 tests green, tsc + build clean):** the gear data model (`engine/items.ts`:
@@ -193,12 +194,24 @@ testable seams. Behavior-preserving — extract, don't redesign. (app.ts now 3,1
   later, not now). Fold in if the refactor touches the emit sites, else defer. *Test: engine events
   assert on data; the UI layer formats.*
 
-### Stage 2 — ⭐ ROUNDS v3 UI (big priority — engine ready since 2026-06-11)
-The engine shipped the round grammar; players can't *feel* it yet. Lands on the Stage-1 seams.
-- `[ ]` Tactics wheel control · round bar/clock · rollover choreography (player swing → telegraphed
-  enemy strike → deal) · the computed wound-row · the "sated" over-Defend cue. *Test: the cutscene-event
-  contract is already locked (`engine.test.ts` round-summary/windup) — drive the UI off those events;
-  add a unit-testable render-state reducer (no DOM).*
+### Stage 2 — ⭐ ROUNDS v3 UI — ✅ ALREADY BUILT; RECONCILED + POLISHED 2026-06-16
+**Audit finding (2026-06-16):** the Rounds-v3 UI was ~90% built + playtested already (the docs were
+stale). The Tactics **wheel** (7 states, one-tap, live stances), the **round bar** (draining 20s
+timer), the **rollover choreography** (the breakdown-popover ledger — recent commits, *expanded*
+beyond spec), and the **"sated guard" cue** are all done; wounds render as board scars + the bite
+preview; dev **sets/round** readout is live. So Stage 2 became reconcile + polish, not a build.
+- `[x]` **Two design decisions made (build vs spec):** ① the **modal breakdown-popover is CANON**
+  (supersedes §5.6 "never a modal" + UX.md "single ledger / one stage" — reconciled in both docs;
+  the tri-counter stays the live mid-round ledger, the popover is the rollover stage). ② **wounds =
+  diegetic board scars + bite preview** (the separate "wound-row / pip-track" deliverable retired as
+  redundant). Both written into CRAWL §5.6 + UX.md.
+- `[x]` **Doc reconcile:** §5.6 rollover block rewritten (popover canon; the "Maneuver dump" beat
+  removed — Maneuver burns LIVE per §5.7; stances are live, no round-lock/queue/ghost); UX.md banner.
+- `[x]` **Polish:** `enemyStrikes` (instant out-of-exchange trap strike) now recoils the round bar
+  (`kickClock`) so it reads as an interrupt, distinct from the rollover (the paired trap chip + −HP
+  already carry the rest). 185 green, tsc + build clean.
+- `[ ]` **Minor deferred (optional):** a `cardsUnlocked` "freed" shimmer when a lock expires (today
+  the lock styling just drops on the next re-render) — low-drama, left for a future feel pass.
 
 ### Stage 3 — combat-loop features (land after the seams exist)
 - `[ ]` **Parting blow on flee.** The flee button warns "you'll take a swing on the way out"; on flee
@@ -407,10 +420,11 @@ Build scope (before B3 gear; doesn't collide with B2's run shell — combat-only
   warren — under-leveled until the levels build lands (next). STILL OPEN: stall-kit FINAL ruling
   (round extension is the flagged interim) · the live warren re-tune + instrument re-targets
   (re-measure after levels + the amendments land).
-- `[ ]` **UI:** the Tactics wheel (7 states; lit = locked, ghost = queued), round bar (the bar
-  IS the round), rollover choreography (swing→swing→dump→deal→telegraph), wound-row rendering,
-  the **"sated guard" cue** (block badge dims once it meets the telegraph — over-matching must
-  be learnable), dev instruments grow a **sets/round** readout (~3 baseline / 4–6 competent).
+- `[x]` **UI — BUILT (see Stage 2, reconciled 2026-06-16):** the Tactics wheel (7 states, one-tap,
+  LIVE stances — the ghost/queued state was retired with the round-lock per §5.7), the round bar (the
+  bar IS the round), rollover choreography (now the **breakdown-popover ledger**, canon — no separate
+  "dump" beat, Maneuver burns live), the **"sated guard" cue**, and the dev **sets/round** readout.
+  Wounds render as board scars + the bite preview (the "wound-row" was retired as redundant).
 - **First v3 playtest (2026-06-11, vs Goblin Warlord):** reshape 70% (ON target) · spring 19%
   (low vs ~30) · sets/min 16.0 · gimme 100% (⚠ watch) · wards 7 · **churns 0** (⚠ never
   dumped — likely a queue-discoverability symptom: the old toggle+chips UI hides the
