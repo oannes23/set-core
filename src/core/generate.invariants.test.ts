@@ -155,3 +155,24 @@ test('patch with excluded (locked) slots keeps ≥ floor sets that avoid every l
   }
   expect(viol.slice(0, 10)).toEqual([])
 }, 30_000)
+
+// ---- I4: the below-floor canary fires when a fallback returns sub-floor (silent break → visible) ----
+import { resetBelowFloorCount, belowFloorCount } from './generate'
+test('I4: genInitial/patch increment the below-floor canary on an unreachable floor', () => {
+  // a floor no 15-card board can hit (max sets = C(15,3) = 455) forces the `?? …` last resort
+  const cfg: GenConfig = { n: 15, active: [0, 1, 3], pin: PIN, camoDepth: 1, escapeRoutes: 6, floor: 100000 }
+  const rng = mulberry32(42)
+  resetBelowFloorCount()
+  expect(belowFloorCount).toBe(0)
+  genInitial(cfg, rng)
+  expect(belowFloorCount).toBe(1) // the opening board couldn't reach floor → counted
+  const slots = [0, 1, 2]
+  const board: Board = genInitial(cfg, rng) // +1
+  for (const s of slots) board[s] = null
+  patch(board, slots, cfg, rng)
+  expect(belowFloorCount).toBe(3) // +1 from the 2nd genInitial, +1 from patch
+  // a REACHABLE floor never trips the canary
+  resetBelowFloorCount()
+  genInitial({ ...cfg, floor: 1 }, rng)
+  expect(belowFloorCount).toBe(0)
+})

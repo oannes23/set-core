@@ -127,6 +127,24 @@ function anyUnusedCard(cfg: GenConfig, seen: Set<number>): Card | null {
   return null // card space saturated — caller leaves the slot as-is
 }
 
+/* I4 — below-floor canary. genInitial / patch / patchFavor each return their BEST candidate even
+   when no candidate reached the floor (the `?? …` last resort). That's a deliberate "never hang"
+   escape hatch, but in production a sub-floor board would be invisible. The canary counts every
+   such return + (in dev) warns, so a real floor break surfaces instead of failing silently. It
+   never changes the returned board — pure to the caller; the counter is a dev instrument. */
+export let belowFloorCount = 0
+export function resetBelowFloorCount(): void {
+  belowFloorCount = 0
+}
+function floorCanary<T extends Board>(board: T, cfg: GenConfig, where: string, excluded?: ReadonlySet<number>): T {
+  const sets = countSetsExcluding(board, excluded)
+  if (sets < cfg.floor) {
+    belowFloorCount++
+    if (import.meta.env?.DEV) console.warn(`[generate] ${where} returned below floor: ${sets} < ${cfg.floor}`)
+  }
+  return board
+}
+
 /** The opening board: sample many candidates, keep the one closest to the findability target. */
 export function genInitial(cfg: GenConfig, rng: Rng): Card[] {
   const samples = 140
@@ -141,7 +159,7 @@ export function genInitial(cfg: GenConfig, rng: Rng): Card[] {
     }
     if (bestDist === 0) break
   }
-  return best ?? genOnce(cfg, rng)
+  return floorCanary(best ?? genOnce(cfg, rng), cfg, 'genInitial')
 }
 
 /** Refill the given empty `slots` with distinct cards keeping ≥ floor sets (one attempt).
@@ -224,7 +242,7 @@ export function patch(board: Board, slots: number[], cfg: GenConfig, rng: Rng, w
     }
     if (bestDist === 0) break
   }
-  return best ?? patchOnce(board, slots, cfg, rng, weights, excluded)
+  return floorCanary(best ?? patchOnce(board, slots, cfg, rng, weights, excluded), cfg, 'patch', excluded)
 }
 
 /** Bias-objective refill (for ability-driven transmutes): MAXIMIZE how many freed slots land on
@@ -255,5 +273,5 @@ export function patchFavor(board: Board, slots: number[], cfg: GenConfig, rng: R
     }
     if (bestScore >= want && bestDist === 0) break
   }
-  return best ?? patchOnce(board, slots, cfg, rng, weights, excluded)
+  return floorCanary(best ?? patchOnce(board, slots, cfg, rng, weights, excluded), cfg, 'patchFavor', excluded)
 }

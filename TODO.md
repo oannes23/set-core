@@ -146,18 +146,20 @@ logical sequence.** Cross-cutting rule: **every item ships with quick, determini
 logic → vitest unit/integration; UI glue → extract to a pure module and test *that*, never the DOM.
 Guiding principles behind this work live in `DESIGN-GOALS.md` (not a backlog — judgment steering).
 
-### Stage 0 — quick safe cleanups (isolated, no deps — do first as warm-ups)
-- `[ ]` **Kill dead delve-loot code.** Delete `engine/delve.ts:rollDelveLoot` (the placeholder,
-  superseded by `loot.rollRoomLoot`) + its test in `delve.test.ts`; fix the stale "PLACEHOLDER: one
-  random consumable" comments in the `delve.ts` header + `app.ts (~2793)`. Also resolves the name
-  collision with the real `rollDelveLoot` in `app.ts`. *Test: suite stays green after removal.*
-- `[ ]` **E7 — ethereal-foe scroll silent-zero.** `consumables.ts:200` calls `a.cast` directly,
-  bypassing `castDamageHook`; vs the ethereal goblin a damage scroll does nothing, with no feedback.
-  Fix: route scroll casts through `castDamageHook`, OR emit an `immune` event the UI can surface.
-  *Test: scroll vs an `ability_damage:'mana_spent'` foe → real damage or an asserted `immune` event.*
-- `[ ]` **I4 — below-floor canary.** `genInitial`/`patch`/`patchFavor` (`generate.ts:144/227/258`)
-  `return best ?? …` with no signal on a sub-floor fallback. Add a dev-only assert/counter so a silent
-  floor break is visible. *Test: force the fallback path → counter increments (dev-only; no prod cost).*
+### Stage 0 — quick safe cleanups (isolated, no deps — do first as warm-ups) — ✅ DONE 2026-06-16
+- `[x]` **Kill dead delve-loot code.** Deleted `engine/delve.ts:rollDelveLoot` (the placeholder,
+  superseded by `loot.rollRoomLoot`) + its test in `delve.test.ts`; fixed the stale "PLACEHOLDER: one
+  random consumable" comments in the `delve.ts` header + `app.ts (~2793)`. Resolved the name collision
+  with the real `rollDelveLoot` in `app.ts`. Suite green after removal.
+- `[x]` **E7 — ethereal-foe scroll silent-zero.** Scroll `use` now routes through `castDamageHook`
+  before `a.cast` (`consumables.ts`) — a cast is a cast, so a scroll vs the ethereal goblin drains him
+  by the spell's nominal mana (no silent zero). Chose the route-through-hook option over the immune
+  event (the paid-cast path already emits `magic` feedback; adding immune there double-fired). *Test:
+  `consumables.test.ts` "E7" — scroll_firebolt vs the ethereal goblin → magic drain 13, HP drops.*
+- `[x]` **I4 — below-floor canary.** `generate.ts` `floorCanary` wraps all three `?? …` last-resort
+  returns (`genInitial`/`patch`/`patchFavor`); `belowFloorCount` counter + dev-only `console.warn`
+  (gated on `import.meta.env.DEV`). Core stays pure to the caller (board unchanged). *Test:
+  `generate.invariants.test.ts` "I4" — unreachable floor trips the counter; a reachable floor never does.*
 
 ### Stage 1 — ⭐ THE BLOCKER: refactor `ui/app.ts` (enables everything below + its own tests)
 `app.ts` is 3,203 lines (~31% of the codebase) and holds **untested** load-bearing run-economy glue.
