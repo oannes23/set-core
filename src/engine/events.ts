@@ -14,6 +14,7 @@ export type CombatEvent =
   | { type: 'enemyDamaged'; amount: number; immune?: boolean; magic?: boolean; crit?: boolean } // immune = card damage hit an immune foe; magic = ethereal mana-spent drain; crit = the exchange-delight crit (§7)
   | { type: 'combo'; level: number; styled: boolean; color: number; shape: number } // §7/§13 combo streak; styled = colour/shape continued
   | { type: 'swingMath'; matches: number; weapon: number; attacks: number; crit: boolean; mult: number; total: number } // the exchange-cutscene swing breakdown (matches + weapon + crit → total)
+  | { type: 'blockMath'; block: number; blkRider: number; defends: number; telegraph: number; soaked: number; bite: number; dodgedAll: boolean } // the exchange-cutscene block→net breakdown
   | { type: 'enemyHealed'; amount: number }
   | { type: 'playerDamaged'; amount: number; absorbed: number; source: string }
   | { type: 'playerHealed'; amount: number }

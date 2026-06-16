@@ -112,7 +112,7 @@ interface View {
   boardSig: string
   refs: Record<string, HTMLElement>
   /** running combat tallies for the end-of-combat contribution chart (UI-only, replay-safe) */
-  stats: { dealt: number; taken: number; blocked: number; healed: number; sets: number; traps: number; xp: number }
+  stats: { dealt: number; taken: number; blocked: number; healed: number; sets: number; traps: number; xp: number; gearDmg: number; gearBlock: number }
   /** slot → who pulled it (consumed when the slot's new card renders — the tug-attribution tint) */
   morphSrc: Map<number, 'churn' | 'drift' | 'trap' | 'trick'>
   /** the always-on dev balance instruments (TRAPS §5.5 targets etc.) — display-only, replay-safe */
@@ -739,7 +739,7 @@ function startCombat(root: HTMLElement, char: SavedChar, dungeonId: string, foe:
   const stats: StatBlock = { power: base.power + gb.power, endurance: base.endurance + gb.endurance, speed: base.speed + gb.speed }
   const run = createRun({ foe, gen: GEN, playerMax: char.maxHp, stats, riders: gearRiders(char.equipped), mods: gearMods(char.equipped), procs: gearProcs(char.equipped), passives: pass, consumables, sequence, dungeonId, dreadFloor, coach: !!dg.coach }, rng)
   run.combat.playerHP = Math.max(0, Math.min(char.maxHp, char.hp)) // the hero enters at their persisted HP, not full
-  V = { root, deps: { data: GAMEDATA, rng }, run, state: run.combat, char, actions: [], classId: cls.id, loadout: acts, coach: !!dg.coach, coachCue: null, manaColor: dominantManaColor(acts), paused: true, hitstopUntil: 0, holdHud: false, preview: null, selected: [], raf: 0, lastT: 0, boardSig: '', refs: {}, stats: { dealt: 0, taken: 0, blocked: 0, healed: 0, sets: 0, traps: 0, xp: 0 }, morphSrc: new Map(), dev: { reshapeYou: 0, reshapeFoe: 0, matches: 0, springs: 0, k1: 0, wards: 0, churns: 0 } }
+  V = { root, deps: { data: GAMEDATA, rng }, run, state: run.combat, char, actions: [], classId: cls.id, loadout: acts, coach: !!dg.coach, coachCue: null, manaColor: dominantManaColor(acts), paused: true, hitstopUntil: 0, holdHud: false, preview: null, selected: [], raf: 0, lastT: 0, boardSig: '', refs: {}, stats: { dealt: 0, taken: 0, blocked: 0, healed: 0, sets: 0, traps: 0, xp: 0, gearDmg: 0, gearBlock: 0 }, morphSrc: new Map(), dev: { reshapeYou: 0, reshapeFoe: 0, matches: 0, springs: 0, k1: 0, wards: 0, churns: 0 } }
   buildPlay()
   renderBoard()
   updateBar()
@@ -1577,7 +1577,7 @@ function choreographRollover(events: CombatEvent[]): void {
       case 'roundEnded': break // the beat itself (the mode-shift below)
       case 'won': case 'lost': finale.push(e); break
       case 'enemyDamaged': seg.swing.push(e); break
-      case 'swingMath': break // the cutscene swing-math beat — played from the extracted `sm` below, not the tide
+      case 'swingMath': case 'blockMath': break // the cutscene math beats — played from the extracted sm/bm below, not the tide
       case 'playerDamaged': case 'playerBlocked': case 'cardsShattered': case 'warded': case 'strikeDodged': seg.counter.push(e); break
       case 'windup': case 'roundStarted': seg.deal.push(e); break
       default: seg.tide.push(e) // dump/deal/stance-lock + anything unforeseen rides the tide beat
@@ -1611,14 +1611,25 @@ function choreographRollover(events: CombatEvent[]): void {
   exchangeEnter() // ① the field shifts mode (+ .exlocked: the board reads out-of-reach)
   log(`<span style="opacity:.8">— the exchange —</span>`, 'you')
 
-  // §cutscene the SWING MATH — narrate your damage build beat-by-beat over the play area (each element
-  // sizes up ~0.33s; the final TOTAL sticks biggest). The existing swing-transfer below lands the total.
+  // §cutscene the EXCHANGE MATH — narrate the round's math beat-by-beat over the play area: YOUR swing
+  // (matches + weapon + crit), then the BLOCK→NET (defends → block → soak → what lands). The existing
+  // swing/strike transfers below land the totals. (Full clean retiming is the next slice.)
   const sm = events.find((e): e is Extract<CombatEvent, { type: 'swingMath' }> => e.type === 'swingMath')
+  const bm = events.find((e): e is Extract<CombatEvent, { type: 'blockMath' }> => e.type === 'blockMath')
+  if (sm) V.stats.gearDmg += sm.weapon // fight-cumulative gear contribution (the end-screen "your weapon helped" line)
+  if (bm) V.stats.gearBlock += bm.blkRider
+  let mt = 0; const STEP = 330
   if (sm && (sm.matches > 0 || sm.weapon > 0)) {
-    let t = 0; const STEP = 330
-    centerMath(`⚔ Matches +${sm.matches}`, 0.5, t); t += STEP
-    if (sm.weapon > 0) { centerMath(`🗡 Weapon +${sm.weapon}`, 0.55, t); t += STEP }
-    if (sm.crit) { centerMath(`✦ CRIT ×${sm.mult.toFixed(1)}`, 0.85, t); t += STEP }
+    centerMath(`⚔ Matches +${sm.matches}`, 0.5, mt); mt += STEP
+    if (sm.weapon > 0) { centerMath(`🗡 Weapon +${sm.weapon}`, 0.55, mt); mt += STEP }
+    if (sm.crit) { centerMath(`✦ CRIT ×${sm.mult.toFixed(1)}`, 0.85, mt); mt += STEP }
+  }
+  if (bm && !bm.dodgedAll && bm.telegraph > 0) { // their strike lands → narrate your defense math → the net
+    mt = Math.max(mt, STEP) // the defense beat follows your swing
+    centerMath(`🛡 Block ${bm.block}${bm.blkRider > 0 ? ` (+${bm.blkRider} armor)` : ''}`, 0.5, mt); mt += STEP
+    if (bm.soaked > 0) { centerMath(`🪨 Soak −${bm.soaked}`, 0.5, mt); mt += STEP }
+    centerMath(`⚔ Their swing ${bm.telegraph}`, 0.55, mt); mt += STEP
+    centerMath(bm.bite > 0 ? `Net −${bm.bite}` : 'Net 0 — held!', bm.bite > 0 ? 0.8 : 0.7, mt)
   }
 
   // ② YOUR SWING — the banked ⚔ counts down to 0 as the foe's HP drains with it (one visible transfer)
@@ -2647,7 +2658,15 @@ function combatChart(): HTMLElement {
     ? `<span class="sx-lvl">${lvl}</span>`
     : `<span class="sx-lvl">${lvl}</span> <span class="sx-bar"><span style="width:${Math.min(100, (ch.xp / xpForLevel(ch.level)) * 100)}%"></span></span> <span class="sx-num">${ch.xp}/${xpForLevel(ch.level)}</span>`
   const readyLine = ready > 0 ? `<div class="sx-ready">⬆ ${ready} level-up${ready > 1 ? 's' : ''} ready — allocate in town</div>` : ''
-  return $(`<div class="summary">${bars}<div class="summary-xp"><span class="sx-lab">✦ +${V!.stats.xp} XP</span>${xpLine}</div>${readyLine}</div>`)
+  // how much your GEAR CHOICES paid off this fight — names the weapon/armor type so the player sees the impact
+  const eq = ch.equipped
+  const wpn = eq.weapon ? gearBase(eq.weapon.refId) : undefined
+  const arm = eq.armor ? gearBase(eq.armor.refId) : undefined
+  const gearBits: string[] = []
+  if (st.gearDmg > 0) gearBits.push(`${wpn ? `${wpn.icon} ${wpn.name}` : 'Weapon'} added <b>+${st.gearDmg}</b> damage`)
+  if (st.gearBlock > 0) gearBits.push(`${arm ? `${arm.icon} ${arm.name}` : 'Armor'} added <b>+${st.gearBlock}</b> block`)
+  const gearLine = gearBits.length ? `<div class="sx-gear">your gear: ${gearBits.join(' · ')}</div>` : ''
+  return $(`<div class="summary">${bars}${gearLine}<div class="summary-xp"><span class="sx-lab">✦ +${V!.stats.xp} XP</span>${xpLine}</div>${readyLine}</div>`)
 }
 
 /* ---- THE BETWEEN-ROOMS FORK — the delve's heartbeat (CRAWL §2 / §6 first cut) ----

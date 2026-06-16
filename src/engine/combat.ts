@@ -393,11 +393,13 @@ function rollover(s: CombatState, deps: Deps, sink: EventSink): void {
     const raw0 = s.incoming as number
     const raw = raw0 > 0 ? Math.max(0, raw0 - s.mods.soak) : 0 // §7 Soak (Ironhide): flat, permanent (pre-Block) mitigation
     const dodgedAll = raw0 === 0 && s.incomingDodged > 0 // every swing evaded at the deal
+    const bite = Math.max(0, raw - s.block)
+    // the exchange-cutscene block→net beat: narrate your defense math (defends → block → soak → net)
+    sink.emit({ type: 'blockMath', block: s.block, blkRider: Math.round(s.roundLog.blkRider), defends: s.roundLog.defends, telegraph: raw0, soaked: raw0 - raw, bite, dodgedAll })
     s.incoming = null
     s.incomingDodged = 0
     s.nextStrikeRound = finished + s.foe.strikeEvery
     if (raw > 0) {
-      const bite = Math.max(0, raw - s.block)
       hurtPlayer(s, raw, s.foe.name, sink)
       if (!s.running) return // the symmetric kill-race already gave the player their swing in ①
       if (bite > 0) { inflictWounds(s, bite, deps.rng, sink); fireProcs(s, 'wound', null, deps.rng, sink) } // §7 on-wound (Barbed/Guardian's)
