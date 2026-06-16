@@ -593,6 +593,7 @@ button.cta:disabled { opacity: .4; cursor: not-allowed; }
   opacity: 0; transform: translateY(0) scale(.7); transition: transform .95s cubic-bezier(.2,.8,.3,1), opacity .95s ease-out; white-space: nowrap; }
 .floater.go { opacity: 1; transform: translateY(calc(-40px - var(--mag) * 34px)) scale(1); }
 .floater.combo { letter-spacing: .02em; }
+.floater.mathbeat { font-weight: 800; letter-spacing: .04em; text-shadow: 0 1px 8px #000c, 0 0 calc(var(--mag) * 16px) var(--gold); }
 /* §13 the ambient combo-glow — behind the board, pointer-events:none, intensifies with --combo */
 #comboglow { position: absolute; inset: -8% -6%; z-index: 0; pointer-events: none; border-radius: 22px; opacity: 0;
   background: radial-gradient(120% 90% at 50% 100%, color-mix(in srgb, var(--phos) calc(var(--combo, 0) * 60%), transparent), transparent 70%);

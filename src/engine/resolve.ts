@@ -113,6 +113,8 @@ export interface Resolution {
   dmgMed: number
   dmgHeavy: number
   block: number
+  riderDmg: number // the GEAR-rider part of `damage` (weapon bonus) — for the exchange-cutscene breakdown
+  riderBlock: number // the gear-rider part of `block` (armor bonus)
   charges: number // Move lane: charge POINTS (fractional; the bank floors into pips)
   mana: [number, number, number]
   allSameColor: boolean
@@ -156,8 +158,10 @@ export function resolveSet(cards: [Card, Card, Card], stats: StatBlock, foeStats
     }
   }
   // gear riders: flat per-card additions, post-contest. Damage lumps into the "solid" bucket for FX.
-  if (riders.atkDamagePerCard > 0 && nAtk > 0) dmgMed += riders.atkDamagePerCard * nAtk
-  if (riders.blockPerDefendCard > 0 && nDef > 0) block += riders.blockPerDefendCard * nDef
+  const riderDmg = riders.atkDamagePerCard > 0 && nAtk > 0 ? riders.atkDamagePerCard * nAtk : 0
+  const riderBlock = riders.blockPerDefendCard > 0 && nDef > 0 ? riders.blockPerDefendCard * nDef : 0
+  dmgMed += riderDmg
+  block += riderBlock
   const damage = dmgLight + dmgMed + dmgHeavy
   const cv: [number, number, number] = [cards[0][0], cards[1][0], cards[2][0]]
   const allSameColor = cv[0] === cv[1] && cv[1] === cv[2]
@@ -170,5 +174,5 @@ export function resolveSet(cards: [Card, Card, Card], stats: StatBlock, foeStats
   }
   // caster mana rider: a mono-colour set is the caster's payoff (the school = mono-colour, §7)
   if (riders.manaPerMatch > 0 && allSameColor) mana[cv[0]] += riders.manaPerMatch
-  return { damage, dmgLight, dmgMed, dmgHeavy, block, charges, mana, allSameColor, desc: matchDescriptor(cards) }
+  return { damage, dmgLight, dmgMed, dmgHeavy, block, riderDmg, riderBlock, charges, mana, allSameColor, desc: matchDescriptor(cards) }
 }

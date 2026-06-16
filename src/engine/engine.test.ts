@@ -98,6 +98,24 @@ test('COMBOS: tempo keeps the streak alive, identity (colour OR shape) escalates
   expect(r.state.combo.level).toBe(1) // grace lapsed → fresh streak
 })
 
+test('the exchange cutscene: swingMath narrates matches + weapon = the banked swing', () => {
+  const rng = mulberry32(3)
+  const f = { id: 'x', name: 'x', tier: 'minion', hp: 1e9, stats: { power: 10, endurance: 10, speed: 10 }, strikeEvery: 9, swings: 1, triggers: [], rules: {} } as unknown as ReturnType<typeof foe>
+  const s = createCombat({ foe: f, gen: GEN, riders: { atkDamagePerCard: 2, blockPerDefendCard: 0, manaPerMatch: 0 } }, rng)
+  s.board = [card(0, 0, 0), card(0, 0, 1), card(0, 0, 2), ...s.board.slice(3)] // a red-Attack set (3 attack cards)
+  const r = reduce(s, { type: 'completeSet', slots: [0, 1, 2] }, { data: GAMEDATA, rng })
+  const banked = r.state.roundAttack
+  const t = reduce(r.state, { type: 'tick', dtMs: 21000 }, { data: GAMEDATA, rng })
+  const sm = t.events.find((e): e is Extract<typeof e, { type: 'swingMath' }> => e.type === 'swingMath')
+  expect(sm).toBeTruthy()
+  if (sm) {
+    expect(sm.weapon).toBe(6) // +2/card × 3 attack cards (the gear rider)
+    expect(sm.attacks).toBe(1)
+    expect(sm.matches + sm.weapon).toBe(banked) // base contest + rider = the banked swing (dmult 1, no dread early)
+    if (!sm.crit) expect(sm.total).toBe(banked) // no crit → the total IS the breakdown sum
+  }
+})
+
 test('the affix-proc engine: an on-match proc fires player-favourably (condMet → ops)', () => {
   const rng = mulberry32(7)
   // a trigger-free foe so the only thing touching enemyHP on a match is the proc itself

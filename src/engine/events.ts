@@ -13,6 +13,7 @@ export type CombatEvent =
   | { type: 'tacticsBurned'; churned: number; remaining: number } // §5.7: a LIVE Maneuver burn (1 charge → 1 card churns toward bias)
   | { type: 'enemyDamaged'; amount: number; immune?: boolean; magic?: boolean; crit?: boolean } // immune = card damage hit an immune foe; magic = ethereal mana-spent drain; crit = the exchange-delight crit (§7)
   | { type: 'combo'; level: number; styled: boolean; color: number; shape: number } // §7/§13 combo streak; styled = colour/shape continued
+  | { type: 'swingMath'; matches: number; weapon: number; attacks: number; crit: boolean; mult: number; total: number } // the exchange-cutscene swing breakdown (matches + weapon + crit → total)
   | { type: 'enemyHealed'; amount: number }
   | { type: 'playerDamaged'; amount: number; absorbed: number; source: string }
   | { type: 'playerHealed'; amount: number }

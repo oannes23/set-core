@@ -80,6 +80,9 @@ export interface CombatState {
   // score at the rollover (reset each round); lastColor/lastShape compare the next match for "styled".
   combo: { level: number; highest: number; combos: number; lastAt: number; lastColor: number | null; lastShape: number | null }
   primed: Record<number, number> // §7 Primed: slot → churn timestamp; matched within PRIMED_WINDOW_MS → +1 quality tier
+  // the EXCHANGE-CUTSCENE breakdown: this round's damage/block decomposed (base contest vs gear rider) +
+  // match/primed tallies, so the rollover can narrate the math beat-by-beat. Reset each rollover.
+  roundLog: { atkBase: number; atkRider: number; blkBase: number; blkRider: number; attacks: number; defends: number; primed: number }
   mana: [number, number, number] // capped at MANA_CAP per color; gains past it are pure loss
   // Tactics v3 (CRAWL §5.6): a charge bank spent by the selected stance
   tactic: TacticKind

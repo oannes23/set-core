@@ -1577,6 +1577,7 @@ function choreographRollover(events: CombatEvent[]): void {
       case 'roundEnded': break // the beat itself (the mode-shift below)
       case 'won': case 'lost': finale.push(e); break
       case 'enemyDamaged': seg.swing.push(e); break
+      case 'swingMath': break // the cutscene swing-math beat — played from the extracted `sm` below, not the tide
       case 'playerDamaged': case 'playerBlocked': case 'cardsShattered': case 'warded': case 'strikeDodged': seg.counter.push(e); break
       case 'windup': case 'roundStarted': seg.deal.push(e); break
       default: seg.tide.push(e) // dump/deal/stance-lock + anything unforeseen rides the tide beat
@@ -1609,6 +1610,16 @@ function choreographRollover(events: CombatEvent[]): void {
   V.refs.board?.querySelectorAll('.card.sel, .card.badpair, .card.bad').forEach((el) => el.classList.remove('sel', 'badpair', 'bad'))
   exchangeEnter() // ① the field shifts mode (+ .exlocked: the board reads out-of-reach)
   log(`<span style="opacity:.8">— the exchange —</span>`, 'you')
+
+  // §cutscene the SWING MATH — narrate your damage build beat-by-beat over the play area (each element
+  // sizes up ~0.33s; the final TOTAL sticks biggest). The existing swing-transfer below lands the total.
+  const sm = events.find((e): e is Extract<CombatEvent, { type: 'swingMath' }> => e.type === 'swingMath')
+  if (sm && (sm.matches > 0 || sm.weapon > 0)) {
+    let t = 0; const STEP = 330
+    centerMath(`⚔ Matches +${sm.matches}`, 0.5, t); t += STEP
+    if (sm.weapon > 0) { centerMath(`🗡 Weapon +${sm.weapon}`, 0.55, t); t += STEP }
+    if (sm.crit) { centerMath(`✦ CRIT ×${sm.mult.toFixed(1)}`, 0.85, t); t += STEP }
+  }
 
   // ② YOUR SWING — the banked ⚔ counts down to 0 as the foe's HP drains with it (one visible transfer)
   sceneTimeout(() => {
@@ -2182,6 +2193,10 @@ function floatText(text: string, opts: { mag?: number; color?: string; side?: 'y
 /** Back-compat shim: the old small board float, now routed through the unified floaty system. */
 function floatBoard(text: string, color: string, side?: 'you' | 'enemy', cls?: string): void {
   floatText(text, { color, side, cls, mag: 0.4 })
+}
+/** A delayed, centered "math beat" float over the play area (the exchange-cutscene breakdown narration). */
+function centerMath(text: string, mag: number, delay: number): void {
+  sceneTimeout(() => floatText(text, { mag, color: 'var(--gold)', cls: 'mathbeat' }), delay)
 }
 
 /** §7/§13 the COMBO escalation — the visceral skill layer made loud: each match in the streak fires a

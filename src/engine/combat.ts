@@ -100,6 +100,7 @@ export function createCombat(opts: NewCombatOpts, rng: Rng): CombatState {
     procs: opts.procs ? opts.procs.slice() : [],
     combo: { level: 0, highest: 0, combos: 0, lastAt: -Infinity, lastColor: null, lastShape: null },
     primed: {},
+    roundLog: { atkBase: 0, atkRider: 0, blkBase: 0, blkRider: 0, attacks: 0, defends: 0, primed: 0 },
     mana: [0, 0, 0],
     tactic: 'stand', // the defensive default — you OPT INTO Maneuver's greed live (§5.7)
     maneuverBias: null,
@@ -149,10 +150,19 @@ function applyResolution(s: CombatState, res: Resolution, rng: Rng, sink: EventS
       sink.emit({ type: 'enemyDamaged', amount: 0, immune: true })
     } else {
       s.roundAttack += dmg
+      // exchange-cutscene breakdown: split this set's damage into the base contest vs the gear rider (× the Strength buff)
+      s.roundLog.atkBase += (res.damage - res.riderDmg) * mult
+      s.roundLog.atkRider += res.riderDmg * mult
+      s.roundLog.attacks++
       sink.emit({ type: 'attackBanked', amount: dmg, total: s.roundAttack })
     }
   }
-  if (res.block > 0) gainBlock(s, res.block, rng, sink)
+  if (res.block > 0) {
+    s.roundLog.blkBase += res.block - res.riderBlock
+    s.roundLog.blkRider += res.riderBlock
+    s.roundLog.defends++
+    gainBlock(s, res.block, rng, sink)
+  }
   // Charge income (CRAWL §5.6, contested): the Move lane's rate × quality, in charge POINTS
   // (the Speed contest — a fast foe suppresses your board game). Combined Arms (Warlord) adds
   // +1 on any shape-rainbow set.
@@ -248,7 +258,7 @@ function completeSet(s: CombatState, slots: [number, number, number], deps: Deps
   const primedFlags: [boolean, boolean, boolean] = [a, b, c].map((i) => s.primed[i] != null && s.now - s.primed[i] <= PRIMED_WINDOW_MS) as [boolean, boolean, boolean]
   for (const i of slots) delete s.primed[i] // consumed (or refilled fresh) — clear the marks
   const res = resolveSet(cards, s.stats, s.foe.stats, deps.rng, s.riders, s.mods.penetration, primedFlags)
-  if (primedFlags.some(Boolean)) sink.emit({ type: 'passiveProc', id: 'primed', label: '✦ primed' })
+  if (primedFlags.some(Boolean)) { s.roundLog.primed++; sink.emit({ type: 'passiveProc', id: 'primed', label: '✦ primed' }) }
   applyResolution(s, res, deps.rng, sink)
   sink.emit({ type: 'setResolved', damage: res.damage, block: res.block, mana: res.mana, slots })
   updateCombo(s, res.desc, sink) // §7/§13 combo streak (tempo + identity) — feeds the crit score at the exchange
@@ -358,12 +368,15 @@ function rollover(s: CombatState, deps: Deps, sink: EventSink): void {
   sink.emit({ type: 'roundEnded', round: finished })
   // ① player swing — banked Attack lands; lethal cancels the enemy's swing entirely
   if (s.roundAttack > 0) {
-    const swing = Math.round(s.roundAttack * dreadPlayerMult(s)) // §5.8: the player-side ramp (the swing-moment)
+    const dmult = dreadPlayerMult(s) // §5.8 the player-side ramp (the swing-moment)
+    const swing = Math.round(s.roundAttack * dmult)
     s.roundAttack = 0
     // §7 CRIT — the exchange-delight roll on the AGGREGATE swing (player-only; the set stayed exact). Chance
     // = base + gear(Keen) + the chain ramp, capped; mult = base + gear(Vorpal). A rare upward surprise.
     const crit = deps.rng() < playerCritChance(s)
     const dmg = crit ? Math.round(swing * playerCritMult(s)) : swing
+    // the exchange-cutscene breakdown: narrate the swing math (matches + weapon + crit) at the rollover
+    sink.emit({ type: 'swingMath', matches: Math.round(s.roundLog.atkBase * dmult), weapon: Math.round(s.roundLog.atkRider * dmult), attacks: s.roundLog.attacks, crit, mult: crit ? playerCritMult(s) : 1, total: dmg })
     s.enemyHP = Math.max(0, s.enemyHP - dmg)
     sink.emit({ type: 'enemyDamaged', amount: dmg, crit })
     // §7 Lifesteal (Sanguine): heal a fraction of the (possibly crit) damage dealt (deterministic)
@@ -421,6 +434,7 @@ function rollover(s: CombatState, deps: Deps, sink: EventSink): void {
   s.roundExtendedS = 0
   s.roundAttack = 0
   s.combo.highest = 0 // §13 the crit score is per-round — reset the metrics (the live streak/level carries via grace)
+  s.roundLog = { atkBase: 0, atkRider: 0, blkBase: 0, blkRider: 0, attacks: 0, defends: 0, primed: 0 } // fresh round breakdown
   s.combo.combos = 0
   if (s.foe.damage > 0 && s.incoming == null && s.round >= s.nextStrikeRound - (s.foe.strikeEvery - 1)) {
     const strike = rollStrike(s.foe, s.stats.speed, deps.rng, s.mods.dodge)
@@ -477,6 +491,7 @@ export function cloneState(s: CombatState): CombatState {
     tickAccum: { ...s.tickAccum },
     combo: { ...s.combo },
     primed: { ...s.primed },
+    roundLog: { ...s.roundLog },
     foe: s.foe, // immutable per encounter
     gen: s.gen,
   }
