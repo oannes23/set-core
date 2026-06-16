@@ -20,7 +20,7 @@ import { SHAPE_MOVE, matchDescriptor } from '../engine/resolve'
 import { condMet } from '../engine/triggers'
 import { PASSIVES } from '../engine/passives'
 import { assembleFoe, pickWeightedFoe, computeXP } from '../engine/foe'
-import { colsForN, COMBAT_GEN, type Deps, type CombatAction } from '../engine/combat'
+import { colsForN, COMBAT_GEN, playerCritChance, type Deps, type CombatAction } from '../engine/combat'
 import { createRun, runReduce, type RunState } from '../engine/run'
 import { createDelve, nextEncounter, fleeReroll, dreadBand, RUN_BAG_CAP, type DelveState, type EncounterTier } from '../engine/delve'
 import { rollRoomLoot, rollMarqueeGear } from '../engine/loot'
@@ -826,12 +826,14 @@ function buildPlay(): void {
     <div class="panel playerband">
       <span class="spritebox" data-tip-title="You" data-tip="The badge on your shoulder is the locked stance (Maneuver shows its bias). You pace with the board's lean — you advance as your bias takes hold, give ground as the dungeon's theme floods it."><span class="sprite you" id="spyou">🧙<span class="stb" id="stancebadge">🛡</span></span></span>
       <div class="gauge you"><div class="lab"><span class="youname">You <span class="buffbadge" id="buffind"></span></span><span id="phpv"></span></div><div class="track"><span class="fill php" id="php"></span></div></div>
+      <div class="critdisp" id="critdisp" data-tip-title="✦ Crit chance" data-tip="Your chance for the exchange swing to land a CRIT (×1.5+ damage). EARNED by combos this round — keep matching within 3s, especially the same colour or shape, to ramp it. Soft-capped, so it's a delight, never a reliable strategy."><span class="cd-val" id="critval">5</span><span class="cd-unit">%</span><span class="cd-lab">✦ crit</span></div>
       <div class="tricounter" id="tricounter">
         <div class="tc-cell atk" id="tcatk" data-tip-title="⚔ Banked Attack" data-tip="Attack matches BANK damage here all round and land as ONE swing at the exchange. Reach the foe's remaining HP and it reads LETHAL — a lethal swing lands first and cancels their strike entirely.">
           <span class="tc-lab">attack</span><span class="tc-ico">⚔</span><span class="tc-val" id="exatk">0</span><span class="tc-tag lethal" id="exlethal">LETHAL</span>
         </div>
         <div class="tc-cell grd" id="tcgrd" data-tip-title="🛡 Guard" data-tip="Defend matches raise your guard against the telegraphed strike — it absorbs that much at the exchange. Once the guard meets the telegraph (✓ sated) further Defend is pure waste: spend the round elsewhere.">
           <span class="tc-lab">guard</span><span class="tc-ico">🛡</span><span class="tc-val" id="exguard">0</span><span class="tc-tag ok">✓</span><span class="tc-tag bite" id="tcbite" data-tip-title="The bite" data-tip="What lands if the exchange came now: their telegraph minus your guard — and the wounds it would scar (one per tenth of your max HP)."></span>
+          <span class="grdmeter"><span class="grdfill" id="exguardfill"></span></span>
         </div>
         <div class="tc-cell tac" id="tctac" data-tip-title="⚙ Tactics" data-tip="Move matches bank Tactics charges — a Speed contest, yours vs theirs. Your stance spends them: <b>Stand Ground</b> wards enemy meddling live (board verbs 1 · wounds ${WOUND_WARD_COST}); <b>Maneuver</b> burns the WHOLE bank at the rollover, redrawing the deadest cards toward your bias.">
           <span class="tc-lab">tactics</span><span class="tc-ico">⚙</span><span class="tc-val" id="tcch">0</span><span class="tc-cap">/${CHARGE_CAP}</span>
@@ -849,7 +851,7 @@ function buildPlay(): void {
   if (!document.getElementById('ptint')) document.body.appendChild($(`<div id="ptint"></div>`)) // low-HP vignette (body-level)
 
   V.refs = {}
-  for (const id of ['foename', 'foedesc', 'fleebtn', 'enemylab', 'phpv', 'ehpv', 'php', 'ehp', 'clock', 'roundlab', 'roundfill', 'exatk', 'exinc', 'exguard', 'exfoe', 'tricounter', 'tcatk', 'tcgrd', 'tctac', 'tcch', 'tcbite', 'tacpips', 'm0', 'm1', 'm2', 'mp0', 'mp1', 'mp2', 'buffind', 'strip', 'dreadbar', 'dreadfill', 'dreadfloor', 'dreadlab', 'boardwrap', 'board', 'tugbar', 'tugmarker', 'tugfoe', 'tugyou', 'devstats', 'spyou', 'spfoe', 'stancebadge', 'log', 'abilities', 'tactics', 'passives', 'consumables', 'floatlayer', 'comboglow']) {
+  for (const id of ['foename', 'foedesc', 'fleebtn', 'enemylab', 'phpv', 'ehpv', 'php', 'ehp', 'clock', 'roundlab', 'roundfill', 'exatk', 'exinc', 'exguard', 'exguardfill', 'critdisp', 'critval', 'exfoe', 'tricounter', 'tcatk', 'tcgrd', 'tctac', 'tcch', 'tcbite', 'tacpips', 'm0', 'm1', 'm2', 'mp0', 'mp1', 'mp2', 'buffind', 'strip', 'dreadbar', 'dreadfill', 'dreadfloor', 'dreadlab', 'boardwrap', 'board', 'tugbar', 'tugmarker', 'tugfoe', 'tugyou', 'devstats', 'spyou', 'spfoe', 'stancebadge', 'log', 'abilities', 'tactics', 'passives', 'consumables', 'floatlayer', 'comboglow']) {
     const el = wrap.querySelector('#' + id)
     if (el) V.refs[id] = el as HTMLElement
   }
@@ -995,6 +997,9 @@ function boardSignature(s: CombatState): string {
 }
 // the ghost class for a card LEAVING its slot, by the verb that emptied it (default = plain fade)
 const LEAVE_CLASS: Record<CardVerb, string> = { resolve: 'card pop', transmute: 'card morph', boom: 'card boom', reform: 'card leave' }
+// §7 Primed: a scatter of ✦ across a primed card (positions + staggered twinkle baked in)
+const PRIMED_SPARKLES = ([[16, 20], [74, 14], [38, 52], [84, 66], [26, 80], [58, 38], [50, 8]] as const)
+  .map(([x, y], k) => `<span class="prs" style="left:${x}%;top:${y}%;animation-delay:${(k * 0.19).toFixed(2)}s">✦</span>`).join('')
 function renderBoard(verbs?: Map<number, CardVerb>): void {
   if (!V) return
   const s = V.state
@@ -1086,7 +1091,9 @@ function renderBoard(verbs?: Map<number, CardVerb>): void {
     const gimmeVar = gimme >= 0 ? `;--gimme:${(gimme / 2).toFixed(2)}` : ''
     // selected cards sit at a slight deterministic rotation (±1.5°) — the physical-pile feel
     const selRot = V!.selected.includes(i) ? `;--selrot:${((((i * 53) % 7) - 3) * 0.5).toFixed(1)}deg` : ''
-    const el = $(`<div class="${cls.join(' ')}" data-i="${i}" data-key="${key}" data-shape="${c[1]}" style="--cc:var(--c${c[0]});--heat:${heat}${gimmeVar}${selRot}${stagger}">${cardSVG(c)}${locked ? '<span class="lock">🔒</span><span class="lockcd"></span>' : ''}</div>`)
+    // §7 Primed: scatter a handful of twinkling ✦ across the card (the "churned & ready" tell)
+    const sparkles = cls.includes('primed') ? PRIMED_SPARKLES : ''
+    const el = $(`<div class="${cls.join(' ')}" data-i="${i}" data-key="${key}" data-shape="${c[1]}" style="--cc:var(--c${c[0]});--heat:${heat}${gimmeVar}${selRot}${stagger}">${cardSVG(c)}${sparkles}${locked ? '<span class="lock">🔒</span><span class="lockcd"></span>' : ''}</div>`)
     board.appendChild(el)
   })
   // FLIP pass (card feel #5): any surviving card whose key changed position glides from its old
@@ -2394,6 +2401,18 @@ function updateBar(): void {
     V.refs.exguard.textContent = String(s.block)
     V.refs.tcgrd.classList.toggle('sated', sated)
     V.refs.tcgrd.classList.toggle('freeround', dodgedAll) // the "no need to Defend" cue
+    // the GUARD METER — a bar that FILLS with Block vs the telegraph, so you SEE the guard build and
+    // stop stacking once it's met (full + gold = sated; empty when there's no strike to guard)
+    if (V.refs.exguardfill) {
+      const need = s.incoming != null && s.incoming > 0 ? s.incoming : 0
+      V.refs.exguardfill.style.width = need > 0 ? `${Math.min(100, (s.block / need) * 100)}%` : '0%'
+    }
+    // the CRIT% display — the live, combo-earned chance for this exchange's swing (ramps as you combo)
+    if (V.refs.critval) {
+      const cc = Math.round(playerCritChance(s) * 100)
+      V.refs.critval.textContent = String(cc)
+      V.refs.critdisp.classList.toggle('hot', cc >= 15) // emphasize when a hot streak has it ramping
+    }
     // the BITE PREVIEW (UX §4c#4, the Into the Breach lesson): never raw inputs when the resolved
     // consequence fits in one glyph — what bites past the guard, and the wounds it would scar
     const bite = s.running && s.incoming != null && s.incoming > s.block ? s.incoming - s.block : 0
