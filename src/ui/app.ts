@@ -22,13 +22,14 @@ import { PASSIVES } from '../engine/passives'
 import { assembleFoe, pickWeightedFoe, computeXP } from '../engine/foe'
 import { colsForN, COMBAT_GEN, playerCritChance, type Deps, type CombatAction } from '../engine/combat'
 import { createRun, runReduce, type RunState } from '../engine/run'
-import { createDelve, nextEncounter, fleeReroll, dreadBand, RUN_BAG_CAP, type DelveState, type EncounterTier } from '../engine/delve'
-import { rollRoomLoot, rollMarqueeGear } from '../engine/loot'
+import { createDelve, nextEncounter, fleeReroll, dreadBand, RUN_BAG_CAP } from '../engine/delve'
+import { rollMarqueeGear } from '../engine/loot'
 import { gearStatBonus, gearRiders, gearProcs, gearMods, rollGear } from '../engine/gear'
 import { EQUIP_SLOTS, type EquipSlot, type Rarity, type Affix, type AffixComponent, type GearInstance } from '../engine/items'
 import { GEAR, gearBase, fitsSlot } from '../data/gear'
 import { CONSUMABLES } from '../engine/consumables'
-import { loadBank, bankGold, bankTithe, saveBank, addManyToStorage, addToStorage, removeFromStorage, storageFull, storageCount } from './bank'
+import { loadBank, saveBank, addToStorage, removeFromStorage, storageFull, storageCount } from './bank'
+import { type DelveRun, type DelveLoot, applyRoomLoot, resolveDelveExit } from './delve-run'
 import type { CombatState, FoeRuntime, StatBlock } from '../engine/state'
 import { CHARGE_CAP, MANA_CAP, START_GRACE_MS, ROUND_MS, WOUND_WARD_COST, WOUND_CAP_PER_EXCHANGE, woundQuantum, dreadLevel, DREAD_ONSET, DREAD_MAX, PRIMED_WINDOW_MS } from '../engine/state'
 import type { CombatEvent } from '../engine/events'
@@ -298,7 +299,7 @@ let selectedCharId: string | null = null // persists the chosen hero across scen
 /** The LIVE DELVE (null = a lone practice fight). Survives scene transitions room → fork → room:
  *  the encounter schema state (engine/delve) + the run's consumable SATCHEL (what you carried in,
  *  minus what you drank, plus what you looted — HP-only attrition's sibling) + the current tier. */
-let DELVE: { d: DelveState; bag: string[]; tier: EncounterTier; gold: number; gearFound: GearInstance[]; gearPity: number } | null = null
+let DELVE: DelveRun | null = null
 
 function characterSelectScene(root: HTMLElement): void {
   DELVE = null // any road back to town ends the run
@@ -2796,16 +2797,6 @@ function combatChart(): HTMLElement {
    best exit) + the marquee gear. Death → the run + satchel + carried gold are lost where you fell,
    plus the ~12% bank tithe (XP always banks). Still TODO from the exit ladder: the parting blow on
    flee (TODO post-review Stage 3). */
-/** Bank the run's found gear into account Storage (SAFE exit only — lost on death, like the satchel).
- *  Overflow (Storage cap 20 full) is dropped for now; the bag screen + return-triage (deferred B2) will
- *  let you choose what to keep. Equipping from Storage is the NEXT slice — until then drops are stowed. */
-function bankGearFound(): { banked: number; overflow: number } {
-  if (!DELVE || !DELVE.gearFound.length) return { banked: 0, overflow: 0 }
-  const before = DELVE.gearFound.length
-  const { account, overflow } = addManyToStorage(loadBank(), DELVE.gearFound)
-  saveBank(account)
-  return { banked: before - overflow.length, overflow: overflow.length }
-}
 function gearLine(g: { banked: number; overflow: number }): string {
   if (!g.banked && !g.overflow) return ''
   const stow = g.banked ? ` Stowed <b>${g.banked}</b> gear in your vault.` : ''
@@ -2828,8 +2819,10 @@ function delveFork(result: 'win' | 'lose' | 'flee'): void {
 
   // DEATH — the run ends: the satchel + the run's carried gold are lost, and a tithe bites the bank
   if (result === 'lose') {
-    const lost = DELVE.gold
-    const tithe = bankTithe() // forfeit 12% of BANKED gold (the exit ladder, §6)
+    const { account, outcome } = resolveDelveExit(loadBank(), DELVE, 'death')
+    saveBank(account)
+    const lost = outcome.goldLost
+    const tithe = outcome.tithe // 12% of BANKED gold forfeit (the exit ladder, §6)
     DELVE = null
     const home = $<HTMLButtonElement>(`<button class="cta" style="display:block;margin:0 auto">🏠 Back to town</button>`)
     home.addEventListener('click', () => goScene(characterSelectScene))
@@ -2844,7 +2837,7 @@ function delveFork(result: 'win' | 'lose' | 'flee'): void {
 
   // a WIN rolls its loot ONCE now (gold/gear/satchel banked into the run); flee forfeits the room.
   const isBoss = result === 'win' && DELVE.tier === 'boss'
-  const loot = result === 'win' ? rollDelveLoot() : null
+  const loot = result === 'win' ? applyRoomLoot(DELVE, V.state.foe, systemRng) : null
   const marquee = isBoss ? rollMarqueeGear(V.state.foe, DELVE.d.room, systemRng) : undefined // §3 dungeon-clear MARQUEE
   if (marquee) DELVE.gearFound.push(marquee)
 
@@ -2857,8 +2850,10 @@ function delveFork(result: 'win' | 'lose' | 'flee'): void {
       const lootEl = lootRevealEl(loot!)
       const carried = DELVE.gold
       const bag = DELVE.bag
-      const total = bankGold(carried)
-      const gear = bankGearFound() // …incl. the marquee, into Storage (before DELVE clears)
+      const { account, outcome } = resolveDelveExit(loadBank(), DELVE, 'safe') // banks gold + gear (incl. the marquee)
+      saveBank(account)
+      const total = outcome.goldTotal
+      const gear = { banked: outcome.gearBanked, overflow: outcome.gearOverflow }
       DELVE = null
       const home = $<HTMLButtonElement>(`<button class="cta bob" style="display:block;margin:0 auto">🏆 Carry the spoils home</button>`)
       home.addEventListener('click', () => goScene(characterSelectScene))
@@ -2888,7 +2883,7 @@ function delveFork(result: 'win' | 'lose' | 'flee'): void {
     const btns = $(`<div class="forkbtns"></div>`)
     const gearN = DELVE.gearFound.length
     const home = $<HTMLButtonElement>(`<button class="cta ghost">🏠 Cash out (bank ${DELVE.gold}🪙${gearN ? ` + ${gearN} gear` : ''})</button>`)
-    home.addEventListener('click', () => { if (DELVE) { bankGold(DELVE.gold); bankGearFound() } goScene(characterSelectScene) })
+    home.addEventListener('click', () => { if (DELVE) { const { account } = resolveDelveExit(loadBank(), DELVE, 'safe'); saveBank(account) } goScene(characterSelectScene) })
     const deeper = $<HTMLButtonElement>(`<button class="cta bob">▶ Delve deeper</button>`)
     deeper.addEventListener('click', () => goScene((r) => delveRoom(r, char)))
     btns.append(home, deeper)
@@ -2901,25 +2896,7 @@ function delveFork(result: 'win' | 'lose' | 'flee'): void {
   else render() // flee — no spoils, no reveal
 }
 
-/** What a cleared room dropped, captured so the roll happens ONCE — the ledger reveal and the fork's
- *  static list both read this (no double-roll). `added`/`left` = consumables that fit / overflowed. */
-interface DelveLoot { gold: number; gear: GearInstance[]; added: string[]; left: string[]; trace: string[] }
-/** Roll a cleared room's loot (CRAWL §3) + bank it into the run state (gold → purse, gear → gearFound,
- *  consumables → satchel cap RUN_BAG_CAP). Pure of DOM — returns the drop for the reveal + the list. */
-function rollDelveLoot(): DelveLoot {
-  const loot = rollRoomLoot(V!.state.foe, DELVE!.d.room, systemRng, DELVE!.gearPity)
-  DELVE!.gold += loot.gold
-  DELVE!.gearPity = loot.gearPity // carry the sawtooth into the next room
-  for (const g of loot.gear) DELVE!.gearFound.push(g) // accrues; banks on a safe exit (lost on death)
-  const added: string[] = [], left: string[] = []
-  for (const id of loot.items) {
-    if (!CONSUMABLES[id]) continue
-    if (DELVE!.bag.length >= RUN_BAG_CAP) { left.push(id); continue }
-    DELVE!.bag.push(id); added.push(id)
-  }
-  return { gold: loot.gold, gear: loot.gear, added, left, trace: loot.trace }
-}
-/** The fork's static loot list, built from an already-rolled DelveLoot (no re-roll). */
+/** The fork's static loot list, built from an already-rolled DelveLoot (no re-roll; see delve-run.ts). */
 function lootRevealEl(loot: DelveLoot): HTMLElement {
   const wrap = $(`<div class="lootreveal"></div>`)
   if (loot.gold > 0) wrap.appendChild($(`<div class="lootgold">🪙 <b>+${loot.gold}</b> gold</div>`))
