@@ -809,6 +809,7 @@ function buildPlay(): void {
   const boardWrap = $(`<div class="boardwrap" id="boardwrap"></div>`)
   const board = $(`<div class="board" id="board"></div>`)
   board.style.gridTemplateColumns = `repeat(${V.state.cols}, 1fr)`
+  boardWrap.appendChild($(`<div id="comboglow"></div>`)) // §13 ambient combo-glow (behind the board, pointer-events:none)
   boardWrap.appendChild(board)
   boardWrap.appendChild($(`<div id="floatlayer"></div>`))
   center.appendChild(boardWrap)
@@ -848,7 +849,7 @@ function buildPlay(): void {
   if (!document.getElementById('ptint')) document.body.appendChild($(`<div id="ptint"></div>`)) // low-HP vignette (body-level)
 
   V.refs = {}
-  for (const id of ['foename', 'foedesc', 'fleebtn', 'enemylab', 'phpv', 'ehpv', 'php', 'ehp', 'clock', 'roundlab', 'roundfill', 'exatk', 'exinc', 'exguard', 'exfoe', 'tricounter', 'tcatk', 'tcgrd', 'tctac', 'tcch', 'tcbite', 'tacpips', 'm0', 'm1', 'm2', 'mp0', 'mp1', 'mp2', 'buffind', 'strip', 'dreadbar', 'dreadfill', 'dreadfloor', 'dreadlab', 'boardwrap', 'board', 'tugbar', 'tugmarker', 'tugfoe', 'tugyou', 'devstats', 'spyou', 'spfoe', 'stancebadge', 'log', 'abilities', 'tactics', 'passives', 'consumables', 'floatlayer']) {
+  for (const id of ['foename', 'foedesc', 'fleebtn', 'enemylab', 'phpv', 'ehpv', 'php', 'ehp', 'clock', 'roundlab', 'roundfill', 'exatk', 'exinc', 'exguard', 'exfoe', 'tricounter', 'tcatk', 'tcgrd', 'tctac', 'tcch', 'tcbite', 'tacpips', 'm0', 'm1', 'm2', 'mp0', 'mp1', 'mp2', 'buffind', 'strip', 'dreadbar', 'dreadfill', 'dreadfloor', 'dreadlab', 'boardwrap', 'board', 'tugbar', 'tugmarker', 'tugfoe', 'tugyou', 'devstats', 'spyou', 'spfoe', 'stancebadge', 'log', 'abilities', 'tactics', 'passives', 'consumables', 'floatlayer', 'comboglow']) {
     const el = wrap.querySelector('#' + id)
     if (el) V.refs[id] = el as HTMLElement
   }
@@ -1879,8 +1880,10 @@ function interpretChunk(events: CombatEvent[]): void {
         break
       case 'enemyDamaged': {
         if (e.immune) { log('Swords pass through — only magic bites this foe.', 'foe'); floatBoard('blocked', 'var(--ink-faint)', 'enemy'); break } // fixed rule line — never varied
-        // §7 CRIT — the exchange-delight: a louder float + a screen flash; "more than you expected"
-        if (e.crit) { floatBoard(`✦ CRIT −${e.amount}`, 'var(--gold)', 'enemy'); bamWord('CRITICAL!', 'hit', V.refs.ehpv, 1.15) } else floatBoard(`-${e.amount}`, e.magic ? 'var(--gold)' : 'var(--red)', 'enemy')
+        // §7/§13 the floaty system, sized by magnitude: a normal hit scales with damage; a CRIT shouts
+        // big and folds the BAM in through floatText's top tier ("more than you expected")
+        if (e.crit) floatText(`✦ CRIT −${e.amount}`, { mag: 1.05, color: 'var(--gold)', side: 'enemy', bam: 'hit' })
+        else floatText(`−${e.amount}`, { mag: Math.min(0.85, 0.3 + e.amount / 90), color: e.magic ? 'var(--gold)' : 'var(--red)', side: 'enemy' })
         flashStat('ehpv')
         spriteReact('foe', 'sphit'); spriteReact('you', 'splunge')
         V.stats.dealt += e.amount
@@ -1913,9 +1916,13 @@ function interpretChunk(events: CombatEvent[]): void {
         floatBoard(`${e.amount} block wasted`, 'var(--ink-faint)', 'you', 'wasted')
         log(`<span style="opacity:.7">Your guard can hold no more — <b>${e.amount}</b> Block wasted.</span>`, 'foe')
         break
-      case 'manaGained':
-        if (actor) for (let i = 0; i < 3; i++) actor.mana[i] += e.mana[i] // fold potion/ability mana into its line
+      case 'manaGained': {
+        if (actor) { for (let i = 0; i < 3; i++) actor.mana[i] += e.mana[i]; break } // fold potion/ability mana into its line
+        // set income: float only a SIZEABLE mono-colour bank (≥3) so it reads "you charged up" without spamming every set
+        const top = e.mana.indexOf(Math.max(...e.mana))
+        if (e.mana[top] >= 3) floatText(`+${e.mana[top]}${MANA_ICON[top]}`, { mag: 0.34, color: `var(--c${top})`, side: 'you' })
         break
+      }
       case 'cardsTransmuted': {
         // tug attribution: remember who pulled each slot (tints the reform) + a loud glyph now
         const src = e.source
@@ -2144,28 +2151,45 @@ function floatAtSlot(slot: number, text: string, color: string): void {
   sceneTimeout(() => el.remove(), 1000)
 }
 
-function floatBoard(text: string, color: string, side?: 'you' | 'enemy', cls?: string): void {
+/** THE FLOATY-TEXT SYSTEM — one non-clickable rising-fading popover for everything the player wants to
+ *  know, SIZED BY MAGNITUDE (`mag` 0..1+): a whisper (+2 mana) → a shout (−60 CRIT). At the top end it
+ *  also fires a bamWord stamp (the BAM tier folds in here). Never blocks the board (the floatlayer is
+ *  pointer-events:none). All over-board feedback routes through this. */
+function floatText(text: string, opts: { mag?: number; color?: string; side?: 'you' | 'enemy'; cls?: string; bam?: 'hit' | 'guard' | 'pain' | 'tide' | 'soft' | 'dodge' } = {}): void {
   const layer = V?.refs.floatlayer
   if (!layer) return
-  const el = $(`<div class="floater${cls ? ` ${cls}` : ''}">${text}</div>`)
-  el.style.color = color
-  // the duel axis is vertical now (foe band above, player band below): enemy-side floats rise
-  // high on the board, yours low — position carries the owner before the colour does
-  el.style.left = side === 'you' ? `${14 + Math.random() * 16}%` : side === 'enemy' ? `${64 + Math.random() * 18}%` : `${34 + Math.random() * 32}%`
-  el.style.top = side === 'you' ? `${56 + Math.random() * 22}%` : side === 'enemy' ? `${10 + Math.random() * 22}%` : `${30 + Math.random() * 26}%`
+  const mag = Math.max(0, Math.min(1.4, opts.mag ?? 0.4))
+  const el = $(`<div class="floater${opts.cls ? ` ${opts.cls}` : ''}">${text}</div>`)
+  el.style.color = opts.color ?? 'var(--ink)'
+  el.style.setProperty('--mag', mag.toFixed(2)) // CSS scales font-size + rise + weight off this
+  const side = opts.side
+  el.style.left = side === 'you' ? `${14 + Math.random() * 16}%` : side === 'enemy' ? `${64 + Math.random() * 18}%` : `${32 + Math.random() * 34}%`
+  el.style.top = side === 'you' ? `${56 + Math.random() * 22}%` : side === 'enemy' ? `${10 + Math.random() * 22}%` : `${28 + Math.random() * 26}%`
   layer.appendChild(el)
   void el.offsetWidth
   el.classList.add('go')
-  setTimeout(() => el.remove(), 1000)
+  setTimeout(() => el.remove(), 1100)
+  // the BAM tier — a high-magnitude float also stamps (the "fold BAM in" continuum: whisper→shout→BAM)
+  if (opts.bam && mag >= 0.8) bamWord(text, opts.bam, V?.refs.board, 1 + (mag - 0.8) * 1.6)
+}
+/** Back-compat shim: the old small board float, now routed through the unified floaty system. */
+function floatBoard(text: string, color: string, side?: 'you' | 'enemy', cls?: string): void {
+  floatText(text, { color, side, cls, mag: 0.4 })
 }
 
-/** §7/§13 combo feedback (BASIC — the full floaty + escalating screen-noise pass enriches this). */
-function onCombo(level: number, _styled: boolean, color: number): void {
-  if (!V || level < 2) return
+/** §7/§13 the COMBO escalation — the visceral skill layer made loud: each match in the streak fires a
+ *  floaty SIZED BY the live combo level, ramps the ambient combo-glow (overlay-only, never the board),
+ *  and stamps a milestone BAM at the breakpoints. The crit at the exchange is the crescendo. */
+function onCombo(level: number, styled: boolean, color: number): void {
+  if (!V) return
+  const glow = V.refs.comboglow
+  if (level < 2) { if (glow) { glow.style.setProperty('--combo', '0'); glow.classList.remove('on') } return } // streak reset → glow off
   const n = Math.floor(level)
   const tint = color >= 0 ? `var(--c${color})` : 'var(--phos)'
-  floatBoard(`✦ ${n}× combo`, tint, 'you')
-  if (n >= 3) bamWord(`${n}× COMBO`, 'tide', V.refs.board, 1 + Math.min(0.35, level * 0.05))
+  const mag = Math.min(1.1, 0.35 + level * 0.08) // the floaty GROWS with the streak
+  floatText(`${styled ? '✦ ' : ''}${n}× combo`, { mag, color: tint, side: 'you', cls: 'combo' })
+  if (glow) { glow.style.setProperty('--combo', String(Math.min(1, level / 8))); glow.classList.add('on'); glow.classList.remove('pulse'); void glow.offsetWidth; glow.classList.add('pulse') }
+  if (n === 3 || n === 5 || n === 8 || n >= 12) bamWord(`${n}× COMBO`, 'tide', V.refs.board, 1 + Math.min(0.5, level * 0.05))
 }
 
 /** An infographic burst — icon + label + name + effect line. For sprung traps/tricks + hits.

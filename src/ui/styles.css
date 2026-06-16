@@ -566,10 +566,21 @@ button.cta:disabled { opacity: .4; cursor: not-allowed; }
 #briefing .cta { margin-top: 18px; width: 100%; }
 
 /* ---- floaters + bursts ---- */
-#floatlayer { position: absolute; inset: 0; pointer-events: none; z-index: 6; overflow: hidden; }
-.floater { position: absolute; font-size: 17px; font-weight: 700; font-variant-numeric: tabular-nums;
-  text-shadow: 0 1px 6px #000a; opacity: 0; transform: translateY(0); transition: transform .95s ease-out, opacity .95s ease-out; white-space: nowrap; }
-.floater.go { opacity: 1; transform: translateY(-46px); }
+#floatlayer { position: absolute; inset: 0; pointer-events: none; z-index: 6; overflow: visible; }
+/* the floaty-text system — font-size + rise + weight scale with --mag (whisper 0.4 → shout 1.1+) */
+.floater { position: absolute; --mag: 0.4; font-size: calc(15px + var(--mag) * 30px); font-weight: calc(700 + var(--mag) * 200);
+  font-variant-numeric: tabular-nums; text-shadow: 0 1px 6px #000a, 0 0 calc(var(--mag) * 14px) currentColor;
+  opacity: 0; transform: translateY(0) scale(.7); transition: transform .95s cubic-bezier(.2,.8,.3,1), opacity .95s ease-out; white-space: nowrap; }
+.floater.go { opacity: 1; transform: translateY(calc(-40px - var(--mag) * 34px)) scale(1); }
+.floater.combo { letter-spacing: .02em; }
+/* §13 the ambient combo-glow — behind the board, pointer-events:none, intensifies with --combo */
+#comboglow { position: absolute; inset: -8% -6%; z-index: 0; pointer-events: none; border-radius: 22px; opacity: 0;
+  background: radial-gradient(120% 90% at 50% 100%, color-mix(in srgb, var(--phos) calc(var(--combo, 0) * 60%), transparent), transparent 70%);
+  transition: opacity .5s ease; }
+#comboglow.on { opacity: calc(.25 + var(--combo, 0) * .75); }
+#comboglow.pulse { animation: comboPulse .45s ease-out; }
+@keyframes comboPulse { 0% { filter: brightness(1.8); } 100% { filter: brightness(1); } }
+@media (prefers-reduced-motion: reduce) { #comboglow.pulse { animation: none; } .floater { transition-duration: .5s; } }
 /* low-HP vignette — ambient dread; transitions (not animations) so it survives the coaching pause */
 #ptint { position: fixed; inset: 0; pointer-events: none; z-index: 4; opacity: 0; background: transparent;
   transition: opacity .6s ease, background .6s ease; }
