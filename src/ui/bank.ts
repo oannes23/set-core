@@ -96,6 +96,11 @@ export function addManyToStorage(a: Account, items: Item[]): { account: Account;
 export function removeFromStorage(a: Account, uid: string): Account {
   return { ...a, storage: a.storage.filter((i) => i.uid !== uid) }
 }
+/** Replace a Storage item in place (matched by uid) — the smith writes a re-crafted gear instance back.
+ *  No-op if the uid isn't present (slot count unchanged either way). Pure. */
+export function updateStorageItem(a: Account, item: Item): Account {
+  return { ...a, storage: a.storage.map((i) => (i.uid === item.uid ? item : i)) }
+}
 /** Pull items OUT of Storage by uid (e.g. loading a delve loadout — the survivors return on exit).
  *  Returns the taken items (in request order, skipping unknown uids) + the depleted account. */
 export function takeFromStorage(a: Account, uids: string[]): { taken: Item[]; account: Account } {

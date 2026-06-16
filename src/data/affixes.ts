@@ -90,16 +90,30 @@ function weightedPick(pool: AffixDef[], rng: Rng): AffixDef {
   return pool[pool.length - 1]
 }
 
+/** The per-affix magnitude unit at a given rarity + loot-tier (inverse budget × loot-tier scalar —
+ *  sim §12). Shared by the loot roller and the smith's Enchant so a crafted affix matches a dropped one. */
+export const affixMagUnit = (rarity: Rarity, lootTier: number): number =>
+  RARITY[rarity].perAffixPower * (1 + lootTier * LOOTTIER_K)
+
+/** The LIVE, buildable affixes that fit a slot + are unlocked at a rarity tier — the rollable/enchantable
+ *  pool. STAGED (non-live) affixes are catalogued but excluded, so every minted affix functions. */
+export const eligibleAffixes = (slot: EquipSlot, rarity: Rarity): AffixDef[] =>
+  AFFIXES.filter((d) => d.live && d.build && fits(d, slot) && RARITIES.indexOf(rarity) >= RARITIES.indexOf(d.minRarity))
+
+/** Mint ONE affix instance from a def at a rarity + loot-tier (the smith Enchant unit; also the loot
+ *  roller's per-draw step). Deterministic in magnitude — the only randomness is the fresh instance id. */
+export const mintAffix = (def: AffixDef, rarity: Rarity, lootTier: number): Affix =>
+  ({ id: `${def.sys}_${freshUid()}`, label: def.sys, components: def.build!(affixMagUnit(rarity, lootTier)) })
+
 /** Roll a gear instance's affixes (CRAWL §7 inverse budget + sim §12): a random 1..maxAffixes distinct
  *  LIVE affixes that fit the slot + are unlocked at the rarity tier, each scaled by perAffixPower ×
  *  loot-tier. STAGED (non-live) affixes are catalogued but never rolled, so every drop functions. */
 export function rollAffixes(slot: EquipSlot, rarity: Rarity, lootTier: number, rng: Rng): Affix[] {
   const budget = RARITY[rarity]
   if (budget.maxAffixes === 0) return []
-  const eligible = AFFIXES.filter((d) => d.live && d.build && fits(d, slot) && RARITIES.indexOf(rarity) >= RARITIES.indexOf(d.minRarity))
+  const eligible = eligibleAffixes(slot, rarity)
   if (!eligible.length) return []
   const count = 1 + Math.floor(rng() * budget.maxAffixes) // random 1..max — the per-drop variance
-  const magUnit = budget.perAffixPower * (1 + lootTier * LOOTTIER_K)
   const out: Affix[] = []
   const used = new Set<string>()
   for (let i = 0; i < count; i++) {
@@ -107,7 +121,7 @@ export function rollAffixes(slot: EquipSlot, rarity: Rarity, lootTier: number, r
     if (!pool.length) break
     const def = weightedPick(pool, rng)
     used.add(def.sys)
-    out.push({ id: `${def.sys}_${freshUid()}`, label: def.sys, components: def.build!(magUnit) })
+    out.push(mintAffix(def, rarity, lootTier))
   }
   return out
 }
