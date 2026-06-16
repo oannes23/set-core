@@ -19,6 +19,11 @@ orientation.
   instead of inlining numbers in docs.
 - `FABLE.md` — the 2026-06-09 full-repo review: bug ledger, invariant risks,
   architecture notes, prioritized action list (§14).
+- `REVIEW-2026-06-16.md` — the 4-agent state-of-project deep dive: code-reality map,
+  roadmap status, FABLE re-verification, market/genre analysis. Seeds the
+  **POST-REVIEW HARDENING TRACK** in `TODO.md` + `DESIGN-GOALS.md`.
+- `DESIGN-GOALS.md` — **guiding principles & go-to-market north star** (from the market
+  review). Principles, not a backlog — steer judgment calls + the killer-feature watch-list.
 - `WRAPPERS.md` — shipping decision: web client + PWA (Tauri/Capacitor documented);
   Godot rejected.
 
@@ -79,6 +84,20 @@ foundation migration is complete (TODO §A); next is **set.crawl on the modules*
 - **Lock-layer invariant (built, keep asserting):** ≥ FLOOR sets must be completable from
   *unlocked* cards (the makeable-set floor, `TRAPS.md` §6). Locked cards still form
   sets on paper but not in reach.
+- **Keep everything testable, and keep tests quick.** Engine/core logic → vitest
+  unit/integration. For UI work, push logic into a pure module and test *that* — never
+  the DOM. The `ui/app.ts` monolith is being broken up precisely so the run-economy glue
+  becomes coverable; new glue should land already-extracted + tested.
+- **Watch for killer-feature hook-ins.** `DESIGN-GOALS.md` carries a watch-list of
+  not-yet-built features that tend to drive success in this niche (daily seed + leaderboards,
+  relaxed/no-timer mode, clock-on-first-action, graceful miss-degradation). Don't force them —
+  but when a feature you're already building gives a clean, cheap hook-in point, flag it to
+  the user rather than letting the opportunity pass.
+- **Don't run the real balance sim yet — it's gated.** Combat numbers are deliberately
+  skeleton/"vibes" until gear loot + the ability reprice/content land (so the sim has real
+  weight to bear). Only then run the §11/§13 coupled pass for "combat too easy for skilled
+  play." Do not hand-edit `CRAWL-DESIGN.md` §5.6 before the sim. (The generation-invariant
+  headless sweep above is separate and always runs before generation changes.)
 
 ## Repo / workflow
 - **Personal repo** — committing and **pushing directly to the default branch

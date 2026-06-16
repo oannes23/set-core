@@ -17,6 +17,11 @@ Traffic-light: green = pursue · yellow = consequence · red = wounded.
 ---
 
 ## ▶ NEXT SESSION — START HERE (handoff 2026-06-15)
+**⭐ 2026-06-16: see the new POST-REVIEW HARDENING TRACK below** (from `REVIEW-2026-06-16.md` +
+`DESIGN-GOALS.md`). Recommended implementation order: Stage 0 cleanups → the `app.ts` refactor
+(the blocker) → Rounds v3 UI → parting-blow + pause. The balance sim is **gated** until loot +
+abilities settle.
+
 **GEAR chunk ① the foundation = BUILT 2026-06-15.** Next = **chunk ② loot + the coupled balance pass.**
 - **Chunk ① — DONE (160 tests green, tsc + build clean):** the gear data model (`engine/items.ts`:
   `Rarity`/`RARITY` inverse-budget table/`Affix`/`AffixComponent`/`GearInstance`/`Riders` + gear-aware
@@ -130,6 +135,82 @@ Detailed specs live in CRAWL-DESIGN.md + the sections below; this is the master 
   under-the-hood **loot-roll trace** (`loot.ts` RoomLoot.trace). 6 new tests (`dev.test.ts`); 151 green;
   tsc + build clean. The name toggle has few live consumers until gear renders affixes (chunk ①).
 - `[ ]` Achievement meta-layer → guild halls + bounties → town amenities
+
+---
+
+## ⭐ POST-REVIEW HARDENING TRACK — (from `REVIEW-2026-06-16.md`; assembled 2026-06-16)
+The 4-agent state-of-project review confirmed the engine is healthy (178 green, all 6 invariants
+upheld, every concrete FABLE bug closed). The work below is the agreed follow-up. **Items are
+listed in review-doc order, but IMPLEMENT in the staged order below — blockers first, then the most
+logical sequence.** Cross-cutting rule: **every item ships with quick, deterministic tests** — engine
+logic → vitest unit/integration; UI glue → extract to a pure module and test *that*, never the DOM.
+Guiding principles behind this work live in `DESIGN-GOALS.md` (not a backlog — judgment steering).
+
+### Stage 0 — quick safe cleanups (isolated, no deps — do first as warm-ups)
+- `[ ]` **Kill dead delve-loot code.** Delete `engine/delve.ts:rollDelveLoot` (the placeholder,
+  superseded by `loot.rollRoomLoot`) + its test in `delve.test.ts`; fix the stale "PLACEHOLDER: one
+  random consumable" comments in the `delve.ts` header + `app.ts (~2793)`. Also resolves the name
+  collision with the real `rollDelveLoot` in `app.ts`. *Test: suite stays green after removal.*
+- `[ ]` **E7 — ethereal-foe scroll silent-zero.** `consumables.ts:200` calls `a.cast` directly,
+  bypassing `castDamageHook`; vs the ethereal goblin a damage scroll does nothing, with no feedback.
+  Fix: route scroll casts through `castDamageHook`, OR emit an `immune` event the UI can surface.
+  *Test: scroll vs an `ability_damage:'mana_spent'` foe → real damage or an asserted `immune` event.*
+- `[ ]` **I4 — below-floor canary.** `genInitial`/`patch`/`patchFavor` (`generate.ts:144/227/258`)
+  `return best ?? …` with no signal on a sub-floor fallback. Add a dev-only assert/counter so a silent
+  floor break is visible. *Test: force the fallback path → counter increments (dev-only; no prod cost).*
+
+### Stage 1 — ⭐ THE BLOCKER: refactor `ui/app.ts` (enables everything below + its own tests)
+`app.ts` is 3,203 lines (~31% of the codebase) and holds **untested** load-bearing run-economy glue.
+Breaking it up is the prerequisite that makes Rounds-v3 UI, parting-blow, pause, and U5 land on clean,
+testable seams. Behavior-preserving — extract, don't redesign.
+- `[ ]` **Extract the run-economy glue into pure, testable modules** (keep DOM out of the logic):
+  the delve fork, loot banking, the death tithe, XP award, persistence writes. Each extracted unit
+  gets a unit test (the conspicuous current gap — none of this is covered today). *Test: per-module
+  unit tests for fork outcomes / banking / tithe / XP.*
+- `[ ]` **Split the scene router + the breakdown-cutscene choreographer** into their own files so
+  `app.ts` becomes thin wiring. Behavior-preserving.
+- `[ ]` **U5 (do it here) — coalesce tick actions.** `app.ts:1511` pushes every dispatch incl.
+  per-frame ticks to `V.actions`; coalesce/drop ticks so the replay log doesn't bloat (prerequisite
+  for the `session.ts` replay seam / daily-seeded runs). *Test: a run of N ticks records O(events), not O(ticks).*
+- `[ ]` **A1 (opportunistic, lower priority) — lift presentation strings out of engine events.**
+  Engine events carry English+emoji `label`s (`triggers.ts:277`, `ops.ts:30`, …). Move formatting to
+  a UI presentation layer (pairs naturally with this boundary cleanup; bites i18n/server-authority
+  later, not now). Fold in if the refactor touches the emit sites, else defer. *Test: engine events
+  assert on data; the UI layer formats.*
+
+### Stage 2 — ⭐ ROUNDS v3 UI (big priority — engine ready since 2026-06-11)
+The engine shipped the round grammar; players can't *feel* it yet. Lands on the Stage-1 seams.
+- `[ ]` Tactics wheel control · round bar/clock · rollover choreography (player swing → telegraphed
+  enemy strike → deal) · the computed wound-row · the "sated" over-Defend cue. *Test: the cutscene-event
+  contract is already locked (`engine.test.ts` round-summary/windup) — drive the UI off those events;
+  add a unit-testable render-state reducer (no DOM).*
+
+### Stage 3 — combat-loop features (land after the seams exist)
+- `[ ]` **Parting blow on flee.** The flee button warns "you'll take a swing on the way out"; on flee
+  the foe gets one telegraphed strike, **with the player's Dodge chance to avoid it** (reuse the
+  deal-time dodge from §5.7). Closes the long-open B2 exit-ladder parting-blow. *Test: flee → one
+  strike resolved; dodge roll honored; lethal + non-lethal both handled.*
+- `[ ]` **PAUSE.** A pause affordance — **spacebar** for now (freezes the round clock + all timers;
+  re-press resumes; no actions accepted while paused). Also the seed of the table-stakes
+  "game-speed / relaxed" accessibility entry point. *Test: pause freezes the clock-advance reducer; resume continues.*
+
+### Stage 4 — narrow edge cleanup
+- `[ ]` **U6 residual.** A deliberate player cast that rewrites a *selected* card in place isn't
+  revalidated (`app.ts:1516` keys on null/locked only, not key-change). Revalidate selection by
+  `data-key` after any dispatch. Narrow; hard-rule #6 covers the automatic case. *Test: a cast that
+  morphs a selected card → selection drops that slot.*
+
+### Deferred (intentionally NOT now)
+- `[ ]` **Colorblind / redundant-encoding mode + game-speed slider.** A genuine pre-public blocker
+  (color is a match axis), BUT deferred until an external human needs to play — which won't happen
+  before the full town buildout. Park here; do not start early. (Market review §4 / FABLE #12.)
+
+### Gated — the real balance sim (NOT yet)
+- `[ ]` **Hold the coupled balance sim until loot + class abilities are settled.** The numbers are
+  skeleton/"vibes" by design right now — we're getting the frame standing. Once gear loot and the
+  ability reprice/content are in (so the sim has real weight to bear), *then* run the §11/§13 coupled
+  pass to resolve "combat too easy for skilled play" (Heat dial / the `X/(X+K)` base-curve question /
+  the built foe-difficulty raise). **Do not hand-edit CRAWL §5.6 before the sim.**
 
 ---
 

@@ -12,3 +12,6 @@ node_modules/
 dist/
 coverage/
 *.tsbuildinfo
+
+# scratch / external scaffolds
+tmp/
