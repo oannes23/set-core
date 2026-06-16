@@ -1773,18 +1773,24 @@ loot roller (`rollAffixes`) mints a random `1..maxAffixes` distinct, slot/tier-g
   — +flat dodge).
 - **CRIT** (LIVE — the shared **exchange-delight channel**, BUILT 2026-06-15; a deliberate, narrow §5.7
   carve-out — the SET stays exact, the crit is a rare upward roll on the aggregate SWING at the rollover,
-  player-only): a global **base 5% / ×1.5**, **capped at 20%** (highly restricted → delight, never DPS),
-  fed by gear (**Keen** +chance · **Vorpal** +mult — both always useful thanks to the base) AND by chains.
+  player-only): a **skill-earned S-curve** (sim §13, REPLACES a flat base) `crit = 0.25/(1+e^(−0.42·(score−7)))`,
+  `score = highestChain + 0.5·normalizedCombos + KeenScore`. **Soft-capped at 25%** (the asymptote IS the
+  ceiling — diminishing, never reliable DPS). Tuned: competent ≈ 5% · peak ≈ 24% · floor ≈ competent. Gear:
+  **Keen** feeds the score · **Vorpal** the mult — both run through the one capped curve (peak + maxed Keen ≤ ~25%).
 - **The dungeon-clear MARQUEE** (BUILT 2026-06-15 — `rollMarqueeGear`): a guaranteed **rare+** gear piece on
   a boss kill (blue 50 / purple 35 / orange 15), the headline reward.
 
-### The combo CHAINS + PRIMED (the feel layer, BUILT 2026-06-15)
-- **Chains** (`combat.updateChain`): a **colour+SHAPE** streak (both axes must match consecutively — *hard*
-  to sustain, so it stays visceral not powerful) ramps crit chance **+3%/link** (into the same capped
-  channel). The visceral skill chase — a combo counter escalates toward the crit payoff at the exchange.
+### The combo system + PRIMED (the feel layer, BUILT 2026-06-15; combo def settled, sim §13)
+- **Combos** (`combat.updateCombo`): a streak kept alive by **TEMPO** (matches ≤ **3s** apart) and escalated
+  by **IDENTITY** (same colour OR shape as the last match → the faster `STYLE_STEP`; off-identity in-grace →
+  the slower `TEMPO_STEP`). Per-round `highestChain` (unnormalized — the skill-shine) + `combos`
+  (NORMALIZED by round-extension so glaciate/frostbolt/potion stretch can't farm it) feed the crit score.
+- **The floaty system** (`floatText`): magnitude-sized rising popovers; the combo escalates the floaty +
+  an ambient `#comboglow` (overlay-only, never blocks the board) toward the crit crescendo. BAM folds in
+  at the top magnitude tier.
 - **Primed** (§11 Speed payoff): a **Maneuver-churned** card matched within **6s** counts one quality tier
-  higher (capped). Converts Speed's board-control into measurable OUTPUT in-lane; a gold ✦ twinkle marks
-  primed cards. Distinct from chains (Primed = build-specific *power*; chains = universal *delight*).
+  higher (capped). Speed's board-control → measurable OUTPUT in-lane; a gold ✦ twinkle marks primed cards.
+  Distinct from combos (Primed = build-specific *power*; combos = universal *delight* feeding crit).
 
 **STAGED** (`live: false` — authored, not yet rolled; each needs its engine):
 - **Trickster's** (`OnMatchChurn`) — needs proc-churn plumbing (deadest + bias).

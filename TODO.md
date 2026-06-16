@@ -54,11 +54,14 @@ Traffic-light: green = pursue · yellow = consequence · red = wounded.
   penetration / Ironhide soak / Sanguine lifesteal / Evasive dodge — deterministic, applied in resolveSet
   + rollover + rollStrike). · ✅ **the MARQUEE** (boss clear → a guaranteed rare+ piece, `rollMarqueeGear`).
   The themed affix catalog is almost entirely LIVE.**
-  · ✅ **the EXCHANGE-DELIGHT feel layer** (2026-06-15): **CRIT** (global base 5%/×1.5, `CRIT_CAP` 20%,
-  player-only on the aggregate swing — a narrow §5.7 carve-out; decision: crits live in the gear layer where
-  the exception is acceptable + a 5% global base so Keen/Vorpal are both always useful) · **CHAINS** (a
-  colour+shape streak ramps crit +3%/link — the visceral skill chase) · **PRIMED** (Maneuver-churned card
-  matched ≤6s → +1 quality tier, the Speed-output payoff). **176 tests; tsc + build clean.** STILL OPEN for
+  · ✅ **the EXCHANGE-DELIGHT feel layer** (2026-06-15; sim §13 calibrated): **CRIT** = a skill-earned
+  S-curve `0.25/(1+e^(−0.42·(score−7)))`, score = highestChain + 0.5·normalizedCombos + KeenScore;
+  soft-capped 25% (diminishing IS the ceiling), tuned competent ≈5% / peak ≈24% / floor ≈competent;
+  player-only on the aggregate swing (narrow §5.7 carve-out — crits live in the gear layer; Keen feeds
+  score, Vorpal the mult) · **COMBOS** = TEMPO (≤3s) keeps alive + IDENTITY (colour OR shape) escalates;
+  combos normalized by round-extension, highestChain unnormalized · **the FLOATY SYSTEM** (`floatText`,
+  magnitude-sized; combo glow; BAM folded in) · **PRIMED** (Maneuver-churned card matched ≤6s → +1 quality
+  tier, the Speed-output payoff). **176 tests; tsc + build clean.** STILL OPEN for
   chunk ②: Trickster's churn · the **ability reprice** (its own combat thread) · the **§13 proc/crit-value
   sim** (firm the first-cut magnitudes). (Was "affix content pool".)
 - **Spec:** `CRAWL-DESIGN.md` §7 (gear + the affix design surface + thematic overlay) · numbers:
