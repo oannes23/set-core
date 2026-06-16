@@ -8,8 +8,10 @@ import { assembleFoe } from '../engine/foe'
 import { rollGear } from '../engine/gear'
 import { RUN_BAG_CAP, createDelve } from '../engine/delve'
 import { GEAR } from '../data/gear'
-import { DEFAULT_STORAGE_CAP, DEATH_TITHE, type Account } from './bank'
-import { applyRoomLoot, bankRunGear, resolveDelveExit, type DelveRun } from './delve-run'
+import { makeItem } from '../engine/items'
+import { sellValue } from '../engine/value'
+import { DEFAULT_STORAGE_CAP, DEATH_TITHE, takeConsumablesByRef, type Account } from './bank'
+import { applyRoomLoot, bankRunGear, resolveDelveExit, resolveLootKeep, type DelveRun } from './delve-run'
 
 const W = GAMEDATA.dungeons.goblin_warren
 const foe = (id: string) => assembleFoe(id, W, GAMEDATA, mulberry32(1))!
@@ -66,4 +68,32 @@ test('resolveDelveExit("death") forfeits carried gold + gear and bites a 12% vau
   expect(after.gold).toBe(200 - 24)
   expect(outcome.gearBanked).toBe(0) // nothing banks on death
   expect(after.storage).toHaveLength(0)
+})
+
+test('takeConsumablesByRef pulls one instance per refId, skipping what is not in stock', () => {
+  const account = acct({ storage: [makeItem('consumable', 'hp_std'), makeItem('consumable', 'hp_std'), makeItem('consumable', 'speed_std')] })
+  const { taken, account: after } = takeConsumablesByRef(account, ['hp_std', 'hp_std', 'speed_std', 'hp_std'])
+  expect(taken).toEqual(['hp_std', 'hp_std', 'speed_std']) // only 2 hp_std + 1 speed in stock; the 4th hp_std is skipped
+  expect(after.storage).toHaveLength(0) // all matched instances removed
+})
+
+test('resolveLootKeep banks run gold + sale gold, keeps chosen gear/consumables', () => {
+  const account = acct({ gold: 100, storageCap: 20 })
+  const keepGear = gear(2)
+  const res = resolveLootKeep(account, 40, 17, keepGear, ['hp_std', 'hp_std'])
+  expect(res.vault).toBe(100 + 40 + 17) // run gold + sale proceeds
+  expect(res.gearKept).toBe(2)
+  expect(res.consKept).toBe(2)
+  expect(res.account.storage).toHaveLength(4) // 2 gear + 2 consumables minted
+  expect(res.overflow).toBe(0)
+})
+
+test('resolveLootKeep auto-sells kept items that overflow a full Storage (never silently lost)', () => {
+  const account = acct({ gold: 0, storageCap: 1 }) // only one free slot
+  const keepGear = gear(3) // 3 kept, only 1 fits → 2 auto-sold
+  const res = resolveLootKeep(account, 0, 0, keepGear, [])
+  expect(res.gearKept).toBe(1)
+  expect(res.overflow).toBe(2)
+  expect(res.overflowGold).toBe(keepGear.slice(1).reduce((s, g) => s + sellValue(g), 0))
+  expect(res.vault).toBe(res.overflowGold) // the overflow's sell-back is the only gold
 })

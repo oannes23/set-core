@@ -29,10 +29,10 @@ import { gearStatBonus, gearRiders, gearProcs, gearMods, rollGear } from '../eng
 import { EQUIP_SLOTS, type EquipSlot, type Rarity, type Affix, type AffixComponent, type GearInstance } from '../engine/items'
 import { GEAR, gearBase, fitsSlot } from '../data/gear'
 import { CONSUMABLES } from '../engine/consumables'
-import { loadBank, saveBank, addToStorage, removeFromStorage, storageFull, storageCount, spendGold, updateStorageItem, addGold } from './bank'
+import { loadBank, saveBank, addToStorage, removeFromStorage, storageFull, storageCount, spendGold, updateStorageItem, addGold, takeConsumablesByRef } from './bank'
 import { sellValue, itemValue, consumableValue, sellValueOfConsumable } from '../engine/value'
 import { type SmithOp, smithCost, nextRarity, canUpgrade, openSlots, enchantOptions, canEnchant, canReroll, canReceiveAffix, upgradeRarity, enchant, rerollAffixes, transferAffix } from '../engine/smith'
-import { type DelveRun, type DelveLoot, applyRoomLoot, resolveDelveExit } from './delve-run'
+import { type DelveRun, type DelveLoot, applyRoomLoot, resolveDelveExit, resolveLootKeep } from './delve-run'
 import type { CombatState, FoeRuntime, StatBlock } from '../engine/state'
 import { CHARGE_CAP, MANA_CAP, START_GRACE_MS, ROUND_MS, WOUND_WARD_COST, WOUND_CAP_PER_EXCHANGE, woundQuantum, dreadLevel, DREAD_ONSET, DREAD_MAX, PRIMED_WINDOW_MS } from '../engine/state'
 import type { CombatEvent } from '../engine/events'
@@ -886,11 +886,16 @@ function begin(root: HTMLElement, char: SavedChar, dungeonId: string, foeVal: st
   startCombat(root, char, dungeonId, foe, sequence, char.consumables)
 }
 
-/** The DELVE path (TODO §B2 first cut): start a run — the encounter schema rolls every room. */
+/** The DELVE path (TODO §B2 first cut): start a run — the encounter schema rolls every room. The chosen
+ *  consumables are COMMITTED out of Storage into the run satchel (depletes inventory; survivors return via
+ *  the loot scene on a safe exit, lost on death). */
 function beginDelve(char: SavedChar, dungeonId: string): void {
+  const sel = char.consumables.filter((id) => !!id && !!CONSUMABLES[id])
+  const { taken, account } = takeConsumablesByRef(loadBank(), sel) // pull the loadout out of the vault
+  saveBank(account)
   DELVE = {
     d: createDelve(dungeonId, systemRng),
-    bag: char.consumables.filter((id) => !!id && !!CONSUMABLES[id]), // the loadout becomes the run satchel
+    bag: taken, // exactly what was pulled from Storage (the run satchel; drunk = gone, survivors return on a safe exit)
     tier: 'minion',
     gold: 0, // run-gold: carried, banks on any safe exit, lost on death (a weightless counter, not a slot)
     gearFound: [], // gear drops accrue here; banked to Storage on a SAFE exit, lost on death (like the satchel)
@@ -3037,16 +3042,121 @@ function combatChart(): HTMLElement {
    best exit) + the marquee gear. Death → the run + satchel + carried gold are lost where you fell,
    plus the ~12% bank tithe (XP always banks). Still TODO from the exit ladder: the parting blow on
    flee (TODO post-review Stage 3). */
-function gearLine(g: { banked: number; overflow: number }): string {
-  if (!g.banked && !g.overflow) return ''
-  const stow = g.banked ? ` Stowed <b>${g.banked}</b> gear in your vault.` : ''
-  return stow + (g.overflow ? ` (${g.overflow} lost — Storage full.)` : '')
-}
 /** The dungeon-clear MARQUEE reveal — the headline rare+ piece (§3). */
 function marqueeCardEl(g: GearInstance): HTMLElement {
   const b = gearBase(g.refId)
   const aff = g.affixes.length ? g.affixes.map(affixShort).join(' · ') : '—'
   return $(`<div class="lootcard gearloot marquee"><span class="loot-lab r-${g.rarity}">★ marquee · ${g.rarity}</span><span class="gs-ic r-${g.rarity}">${b?.icon ?? '🎁'}</span><div class="loot-id"><div class="ln r-${g.rarity}">${b?.name ?? g.refId}</div><div class="ld">${aff}</div></div></div>`)
+}
+
+/* ============================================================
+   THE LOOT-MANAGEMENT scene (CRAWL §3) — the short triage at the end of every safe run: keep each
+   piece (→ Storage) or sell it (→ gold @ sell-back). Lists the found gear + every surviving satchel
+   consumable (carried-in AND looted). Reads the live DELVE; banks the run gold + the sale proceeds +
+   the kept items, then ends the run (DELVE = null) back to town. Death skips this — all is lost there.
+   ============================================================ */
+function lootManageScene(root: HTMLElement, char: SavedChar): void {
+  if (!DELVE) { goScene(characterSelectScene); return }
+  const runGold = DELVE.gold
+  const foundGear = DELVE.gearFound.slice()
+  const consCount = new Map<string, number>() // refId → how many in the satchel
+  for (const id of DELVE.bag) if (CONSUMABLES[id]) consCount.set(id, (consCount.get(id) ?? 0) + 1)
+
+  const gearSell = new Set<string>() // gear uids marked sell
+  const consSell = new Map<string, number>() // refId → how many of the stack to sell
+  let banked = false // latch — the confirm banks exactly once (guards a double-click before goScene tears down)
+
+  const wrap = $(`<div class="wrap"></div>`)
+  wrap.appendChild($(`<h1>set.core</h1>`))
+  wrap.appendChild($(`<div class="sub">spoils · triage — keep or sell</div>`))
+  const panel = $(`<div class="panel"></div>`)
+  wrap.appendChild(panel)
+  const footer = $(`<div class="hubfoot"></div>`)
+  wrap.appendChild(footer)
+  root.appendChild(wrap)
+
+  const acct = loadBank()
+  const nothing = !foundGear.length && !consCount.size
+
+  const render = (): void => {
+    panel.innerHTML = ''; footer.innerHTML = ''
+    // compute the split
+    const keepGear = foundGear.filter((g) => !gearSell.has(g.uid))
+    const keepCons: string[] = []
+    let saleGold = 0
+    for (const g of foundGear) if (gearSell.has(g.uid)) saleGold += sellValue(g)
+    for (const [refId, n] of consCount) {
+      const sell = Math.min(n, consSell.get(refId) ?? 0)
+      for (let i = 0; i < n - sell; i++) keepCons.push(refId)
+      saleGold += sell * sellValueOfConsumable(refId)
+    }
+    const keptCount = keepGear.length + keepCons.length
+    const free = acct.storageCap - storageCount(acct)
+    const overflow = Math.max(0, keptCount - free)
+
+    panel.appendChild($(`<div class="sub" style="margin:0 0 10px">Carrying <b>${runGold}🪙</b> from the run · vault <b>${acct.gold}🪙</b></div>`))
+    if (nothing) panel.appendChild($(`<div class="sheet-soon">No spoils to triage — just the gold you carried.</div>`))
+
+    // GEAR
+    if (foundGear.length) {
+      panel.appendChild($(`<div class="lm-hd">Gear (${foundGear.length})</div>`))
+      const list = $(`<div class="baglist"></div>`)
+      for (const g of foundGear) {
+        const base = gearBase(g.refId)!
+        const aff = g.affixes.length ? g.affixes.map(affixShort).join(' · ') : '—'
+        const sell = gearSell.has(g.uid)
+        const row = $(`<div class="gp-row${sell ? ' selling' : ''}"><span class="gs-ic r-${g.rarity}">${base.icon}</span><div class="gs-meta"><div class="gs-n r-${g.rarity}">${base.name}</div><div class="gs-a">${RARITY_LABEL[g.rarity]} · ${aff}</div></div><button class="lm-toggle">${sell ? `sell 🪙${sellValue(g)}` : 'keep'}</button></div>`)
+        row.querySelector('.lm-toggle')!.addEventListener('click', () => { sell ? gearSell.delete(g.uid) : gearSell.add(g.uid); render() })
+        list.appendChild(row)
+      }
+      panel.appendChild(list)
+    }
+
+    // CONSUMABLES (stacked; a sell-count stepper per type)
+    if (consCount.size) {
+      panel.appendChild($(`<div class="lm-hd">Consumables (${DELVE!.bag.filter((id) => CONSUMABLES[id]).length})</div>`))
+      const list = $(`<div class="baglist"></div>`)
+      for (const [refId, n] of consCount) {
+        const c = CONSUMABLES[refId]
+        const sell = Math.min(n, consSell.get(refId) ?? 0)
+        const tint = c.color != null ? `var(--c${c.color})` : 'var(--line2)'
+        const row = $(`<div class="gp-row"><span class="cons-slot${c.kind === 'scroll' ? ' scroll' : ''}" style="--cc:${tint}"><span class="cons-ic">${c.icon}</span></span><div class="gs-meta"><div class="gs-n">${c.name} <span class="bag-x">×${n}</span></div><div class="gs-a">keep ${n - sell} · sell ${sell}${sell ? ` (🪙${sell * sellValueOfConsumable(refId)})` : ''}</div></div><div class="stepper"><button class="st-mns"${sell === 0 ? ' disabled' : ''}>−</button><b>${sell}</b><button class="st-pls"${sell >= n ? ' disabled' : ''}>+</button></div></div>`)
+        row.querySelector('.st-mns')!.addEventListener('click', () => { consSell.set(refId, Math.max(0, sell - 1)); render() })
+        row.querySelector('.st-pls')!.addEventListener('click', () => { consSell.set(refId, Math.min(n, sell + 1)); render() })
+        list.appendChild(row)
+      }
+      panel.appendChild(list)
+    }
+
+    // tally
+    const tally = $(`<div class="lm-tally"></div>`)
+    tally.appendChild($(`<div>Sell proceeds <b>+${saleGold}🪙</b> · keeping <b>${keptCount}</b> item${keptCount === 1 ? '' : 's'} · vault after <b>${acct.gold + runGold + saleGold}🪙</b></div>`))
+    if (overflow > 0) tally.appendChild($(`<div class="lm-warn">⚠ Storage has ${free} free — ${overflow} kept item${overflow === 1 ? '' : 's'} won’t fit and will be auto-sold.</div>`))
+    panel.appendChild(tally)
+
+    // quick toggles + confirm
+    if (!nothing) {
+      const quick = $(`<div class="lm-quick"></div>`)
+      const keepAll = $<HTMLButtonElement>(`<button class="cta ghost">Keep all</button>`)
+      keepAll.addEventListener('click', () => { gearSell.clear(); consSell.clear(); render() })
+      const sellAll = $<HTMLButtonElement>(`<button class="cta ghost">Sell all</button>`)
+      sellAll.addEventListener('click', () => { for (const g of foundGear) gearSell.add(g.uid); for (const [refId, n] of consCount) consSell.set(refId, n); render() })
+      quick.append(keepAll, sellAll)
+      panel.appendChild(quick)
+    }
+
+    const confirm = $<HTMLButtonElement>(`<button class="cta bob">🏠 Bank & return to town</button>`)
+    confirm.addEventListener('click', () => {
+      if (banked) return
+      banked = true
+      const res = resolveLootKeep(loadBank(), runGold, saleGold, keepGear, keepCons)
+      saveBank(res.account)
+      DELVE = null
+      goScene(characterSelectScene)
+    })
+    footer.appendChild(confirm)
+  }
+  render()
 }
 
 function delveFork(result: 'win' | 'lose' | 'flee'): void {
@@ -3089,18 +3199,13 @@ function delveFork(result: 'win' | 'lose' | 'flee'): void {
       const mqEl = marqueeCardEl(marquee!)
       const lootEl = lootRevealEl(loot!)
       const carried = DELVE.gold
-      const bag = DELVE.bag
-      const { account, outcome } = resolveDelveExit(loadBank(), DELVE, 'safe') // banks gold + gear (incl. the marquee)
-      saveBank(account)
-      const total = outcome.goldTotal
-      const gear = { banked: outcome.gearBanked, overflow: outcome.gearOverflow }
-      DELVE = null
+      const gearN = DELVE.gearFound.length
       const home = $<HTMLButtonElement>(`<button class="cta bob" style="display:block;margin:0 auto">🏆 Carry the spoils home</button>`)
-      home.addEventListener('click', () => goScene(characterSelectScene))
+      home.addEventListener('click', () => goScene((r) => lootManageScene(r, char))) // triage, then bank
       host.replaceChildren(
         $(`<div class="banner win">🏆 ${dgName} — CLEARED in ${room} rooms</div>`),
-        mqEl, lootEl, $(satchelHTML(bag)),
-        $(`<div class="forksub">Banked <b>${carried}🪙</b> — vault now <b>${total}🪙</b>.${gearLine(gear)}</div>`),
+        mqEl, lootEl, $(satchelHTML(DELVE.bag)),
+        $(`<div class="forksub">Carrying <b>${carried}🪙</b>${gearN ? ` + <b>${gearN}</b> gear` : ''} — triage your spoils next.</div>`),
         combatChart(), home,
       )
       return
@@ -3122,8 +3227,8 @@ function delveFork(result: 'win' | 'lose' | 'flee'): void {
     fork.appendChild($(`<div class="dread" data-tip-title="Dread" data-tip="The deeper you press, the surer the throne room. Each room entered walks the curve — cleared or fled."><span class="pips">${pips}</span>${band.label}</div>`))
     const btns = $(`<div class="forkbtns"></div>`)
     const gearN = DELVE.gearFound.length
-    const home = $<HTMLButtonElement>(`<button class="cta ghost">🏠 Cash out (bank ${DELVE.gold}🪙${gearN ? ` + ${gearN} gear` : ''})</button>`)
-    home.addEventListener('click', () => { if (DELVE) { const { account } = resolveDelveExit(loadBank(), DELVE, 'safe'); saveBank(account) } goScene(characterSelectScene) })
+    const home = $<HTMLButtonElement>(`<button class="cta ghost">🏠 Cash out (${DELVE.gold}🪙${gearN ? ` + ${gearN} gear` : ''})</button>`)
+    home.addEventListener('click', () => goScene((r) => lootManageScene(r, char))) // triage spoils → bank
     const deeper = $<HTMLButtonElement>(`<button class="cta bob">▶ Delve deeper</button>`)
     deeper.addEventListener('click', () => goScene((r) => delveRoom(r, char)))
     btns.append(home, deeper)

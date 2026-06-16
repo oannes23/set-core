@@ -101,6 +101,18 @@ export function removeFromStorage(a: Account, uid: string): Account {
 export function updateStorageItem(a: Account, item: Item): Account {
   return { ...a, storage: a.storage.map((i) => (i.uid === item.uid ? item : i)) }
 }
+/** Pull consumable instances OUT of Storage by refId (the delve loadout commit — consumables are
+ *  fungible, so we match by refId, not uid; one instance removed per requested refId). Returns the
+ *  refIds actually taken (skipping any no longer in stock) + the depleted account. Pure. */
+export function takeConsumablesByRef(a: Account, refIds: string[]): { taken: string[]; account: Account } {
+  const remaining = [...a.storage]
+  const taken: string[] = []
+  for (const refId of refIds) {
+    const idx = remaining.findIndex((i) => i.kind === 'consumable' && i.refId === refId)
+    if (idx >= 0) { taken.push(refId); remaining.splice(idx, 1) }
+  }
+  return { taken, account: { ...a, storage: remaining } }
+}
 /** Pull items OUT of Storage by uid (e.g. loading a delve loadout — the survivors return on exit).
  *  Returns the taken items (in request order, skipping unknown uids) + the depleted account. */
 export function takeFromStorage(a: Account, uids: string[]): { taken: Item[]; account: Account } {

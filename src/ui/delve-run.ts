@@ -7,12 +7,13 @@
 
 import type { Rng } from '../core/rng'
 import type { FoeRuntime } from '../engine/state'
-import type { GearInstance } from '../engine/items'
+import { makeItem, type GearInstance } from '../engine/items'
 import type { DelveState, EncounterTier } from '../engine/delve'
 import { RUN_BAG_CAP } from '../engine/delve'
 import { rollRoomLoot } from '../engine/loot'
 import { CONSUMABLES } from '../engine/consumables'
-import { type Account, applyTithe, addManyToStorage, addGold } from './bank'
+import { sellValue, sellValueOfConsumable } from '../engine/value'
+import { type Account, applyTithe, addManyToStorage, addGold, addToStorage } from './bank'
 
 /** The live delve run-state (UI-held, but a plain serialisable object: the run satchel + the spoils). */
 export interface DelveRun {
@@ -57,6 +58,28 @@ export function bankRunGear(account: Account, run: DelveRun): { account: Account
   const before = run.gearFound.length
   const { account: acc, overflow } = addManyToStorage(account, run.gearFound)
   return { account: acc, banked: before - overflow.length, overflow: overflow.length }
+}
+
+/** Bank the end-of-run LOOT-SCENE decision (CRAWL §3): the run's carried gold + the sale proceeds →
+ *  the vault, and the KEPT gear + KEPT consumables → Storage (consumables minted fresh). Storage is
+ *  capped: anything kept that doesn't fit is AUTO-SOLD (its sell-back added to gold) so nothing is ever
+ *  silently lost. Pure — the UI computes the keep/sell split + sale gold and calls this. */
+export interface LootBankResult { account: Account; vault: number; gearKept: number; consKept: number; overflow: number; overflowGold: number }
+export function resolveLootKeep(account: Account, runGold: number, saleGold: number, keepGear: GearInstance[], keepCons: string[]): LootBankResult {
+  let acc = addGold(account, Math.max(0, runGold) + Math.max(0, saleGold))
+  let gearKept = 0, consKept = 0, overflow = 0, overflowGold = 0
+  for (const g of keepGear) {
+    const r = addToStorage(acc, g)
+    if (r.ok) { acc = r.account; gearKept++ }
+    else { const s = sellValue(g); acc = addGold(acc, s); overflow++; overflowGold += s }
+  }
+  for (const refId of keepCons) {
+    if (!CONSUMABLES[refId]) continue
+    const r = addToStorage(acc, makeItem('consumable', refId))
+    if (r.ok) { acc = r.account; consKept++ }
+    else { const s = sellValueOfConsumable(refId); acc = addGold(acc, s); overflow++; overflowGold += s }
+  }
+  return { account: acc, vault: acc.gold, gearKept, consKept, overflow, overflowGold }
 }
 
 export type DelveExit = 'death' | 'safe'
