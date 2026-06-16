@@ -36,15 +36,12 @@ import type { CombatEvent } from '../engine/events'
 import { bumpTurn, pick, strikeWord, healWord, drainWord, magicLead, tierOf, joinClauses, voiceOf, ABILITY_FLAVOR } from './flavor'
 import { type SavedChar, type StatAlloc, loadRoster, upsertChar, deleteChar, makeChar, freshId, CONSUMABLE_SLOTS, effectiveStats, xpForLevel, pendingLevels, applyLevelUp, addXP, LEVEL_CAP, activeSlotsAt, passiveSlotsAt, activeUnlockLevel } from './save'
 import { isDev, toggleDev, onDevChange, displayName } from './dev'
+import { $ } from './dom'
+import { setRoot, setSceneTeardown, goScene, sceneTimeout, remountScene, initTooltips } from './router'
 
 const GEN: GenConfig = COMBAT_GEN
 /** one shared reduced-motion query — card feel (tilt/flights/staggers) falls back to fades */
 const REDUCED = matchMedia('(prefers-reduced-motion: reduce)')
-const $ = <T extends HTMLElement>(html: string): T => {
-  const t = document.createElement('template')
-  t.innerHTML = html.trim()
-  return t.content.firstChild as T
-}
 
 // ---- card glyphs: Lucide line icons (MIT) — Attack=swords, Defend=shield, Move=footprints ----
 const CARD_HEX = ['#f0565b', '#46c46a', '#5b94f5'] // red / green / blue (matches --c0/c1/c2)
@@ -125,14 +122,20 @@ let V: View | null = null
 
 export function mountApp(root: HTMLElement): void {
   initTooltips()
-  ROOT = root
+  setRoot(root)
+  // the router can't see the combat View / coaching layer — register their teardown so a scene swap
+  // stops the loop (drop V) and clears coaching, in the load-bearing order, before the DOM goes away.
+  setSceneTeardown(() => {
+    if (V) { cancelAnimationFrame(V.raf); V = null }
+    coachTeardown()
+  })
   mountDevToggle()
   document.body.classList.toggle('dev', isDev())
   onDevChange((on) => {
     document.body.classList.toggle('dev', on)
     // Static scenes re-mount so their dev panels / names re-resolve; combat repaints live every frame
     // (its dev row is CSS-gated), so re-mounting it — which would reset the live fight — is skipped.
-    if (!V && lastSceneMount) goScene(lastSceneMount)
+    if (!V) remountScene()
   })
   goScene(characterSelectScene)
 }
@@ -207,82 +210,8 @@ function grantTestGear(): boolean {
   return r.ok
 }
 
-/* ============================================================
-   SCENE ROUTER — every scene transition goes through goScene(): unmount the previous scene
-   (cancel its rAF, flush every scene-scoped timer, sweep body-level singletons), clear the
-   root, then mount. THE CONTRACT: anything a scene appends to document.body (not root) must
-   be in BODY_SINGLETONS, and any scene-scoped delay must use sceneTimeout — then no scene
-   can paint, tick, or burst over the next one.
-   ============================================================ */
-let ROOT: HTMLElement | null = null
-let lastSceneMount: ((root: HTMLElement) => void) | null = null // re-mount target on a dev-mode flip
-// the briefing/coach/FX/vignette layers live on <body>; #tooltip is app-global (hidden, not swept)
-const BODY_SINGLETONS = ['coachscrim', 'coachpop', 'briefing', 'burstlayer', 'bamlayer', 'ptint', 'levelup', 'xbreak']
-let sceneTimers: number[] = []
-/** A setTimeout whose callback dies with the scene — use for ALL scene-scoped delays/FX. */
-function sceneTimeout(fn: () => void, ms: number): number {
-  const id = window.setTimeout(fn, ms)
-  sceneTimers.push(id)
-  return id
-}
-function goScene(mount: (root: HTMLElement) => void): void {
-  if (!ROOT) return
-  lastSceneMount = mount
-  if (V) { cancelAnimationFrame(V.raf); V = null } // stop the combat loop before its DOM goes away
-  for (const id of sceneTimers) clearTimeout(id)
-  sceneTimers = []
-  clearTimeout(tipTimer)
-  hideTip()
-  ;(document.getElementById('confirmmodal') as (HTMLElement & { _cancel?: () => void }) | null)?._cancel?.() // full cleanup (keydown listener)
-  coachTeardown()
-  for (const id of BODY_SINGLETONS) document.getElementById(id)?.remove()
-  document.body.classList.remove('xbreak-on') // the breakdown-popover dim never survives a scene change
-  document.querySelectorAll('.mspark, .flycard').forEach((e) => e.remove()) // body-level FX strays (their cleanup timers died above)
-  ROOT.innerHTML = ''
-  mount(ROOT)
-}
-
-/* ============================================================
-   TOOLTIPS — one shared, styled, fast hover tooltip (replaces native `title`, which is slow + ugly).
-   Any element with `data-tip` (body) and/or `data-tip-title` (header) gets it, via one delegated
-   listener. Anchored above the element (flips below if no room), pointer-events-none, snappy delay.
-   ============================================================ */
-let tipEl: HTMLElement | null = null
-let tipTimer = 0
-const TIP_SEL = '[data-tip],[data-tip-title]'
-function initTooltips(): void {
-  if (tipEl) return // once
-  tipEl = $(`<div id="tooltip"></div>`)
-  document.body.appendChild(tipEl)
-  document.addEventListener('mouseover', (e) => {
-    const el = (e.target as HTMLElement).closest?.(TIP_SEL) as HTMLElement | null
-    if (!el) return
-    clearTimeout(tipTimer)
-    tipTimer = window.setTimeout(() => showTip(el), 80) // pops far quicker than native title
-  })
-  document.addEventListener('mouseout', (e) => {
-    const el = (e.target as HTMLElement).closest?.(TIP_SEL) as HTMLElement | null
-    if (el && !el.contains((e as MouseEvent).relatedTarget as Node)) { clearTimeout(tipTimer); hideTip() }
-  })
-  document.addEventListener('mousedown', () => { clearTimeout(tipTimer); hideTip() }) // never let a tip (or a pending one) linger over a click
-}
-function showTip(el: HTMLElement): void {
-  if (!tipEl || !el.isConnected) return
-  const title = el.dataset.tipTitle ?? ''
-  const body = el.dataset.tip ?? ''
-  if (!title && !body) return
-  tipEl.innerHTML = `${title ? `<div class="tt-title">${title}</div>` : ''}${body ? `<div class="tt-body">${body}</div>` : ''}`
-  tipEl.classList.add('show') // measurable now
-  const r = el.getBoundingClientRect()
-  const tr = tipEl.getBoundingClientRect()
-  const left = Math.max(8, Math.min(r.left + r.width / 2 - tr.width / 2, window.innerWidth - tr.width - 8))
-  const above = r.top - tr.height - 8
-  const below = above < 8
-  tipEl.style.left = `${left}px`
-  tipEl.style.top = `${below ? r.bottom + 8 : above}px`
-  tipEl.classList.toggle('below', below)
-}
-function hideTip(): void { tipEl?.classList.remove('show') }
+/* The scene router + the shared tooltip live in ./router (goScene / sceneTimeout / initTooltips).
+   app.ts registers the per-scene teardown (drop V + coachTeardown) in mountApp via setSceneTeardown. */
 
 /* ============================================================
    TOWN SCENES — split into two pages (TODO §B1):
