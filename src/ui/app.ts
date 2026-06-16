@@ -29,7 +29,8 @@ import { gearStatBonus, gearRiders, gearProcs, gearMods, rollGear } from '../eng
 import { EQUIP_SLOTS, type EquipSlot, type Rarity, type Affix, type AffixComponent, type GearInstance } from '../engine/items'
 import { GEAR, gearBase, fitsSlot } from '../data/gear'
 import { CONSUMABLES } from '../engine/consumables'
-import { loadBank, saveBank, addToStorage, removeFromStorage, storageFull, storageCount } from './bank'
+import { loadBank, saveBank, addToStorage, removeFromStorage, storageFull, storageCount, spendGold, updateStorageItem } from './bank'
+import { type SmithOp, smithCost, nextRarity, canUpgrade, openSlots, enchantOptions, canEnchant, canReroll, canReceiveAffix, upgradeRarity, enchant, rerollAffixes, transferAffix } from '../engine/smith'
 import { type DelveRun, type DelveLoot, applyRoomLoot, resolveDelveExit } from './delve-run'
 import type { CombatState, FoeRuntime, StatBlock } from '../engine/state'
 import { CHARGE_CAP, MANA_CAP, START_GRACE_MS, ROUND_MS, WOUND_WARD_COST, WOUND_CAP_PER_EXCHANGE, woundQuantum, dreadLevel, DREAD_ONSET, DREAD_MAX, PRIMED_WINDOW_MS } from '../engine/state'
@@ -421,10 +422,163 @@ function characterSelectScene(root: HTMLElement): void {
       })
       footer.appendChild(createBtn)
     } else if (selectedCharId) {
+      const smith = $<HTMLButtonElement>(`<button class="cta ghost" data-tip-title="The smithy" data-tip="Upgrade rarity, enchant open slots, reroll or transfer affixes on gear in your Storage. Spends vault gold.">🔨 Smithy</button>`)
+      smith.addEventListener('click', () => goScene(smithScene))
+      footer.appendChild(smith)
       const go = $<HTMLButtonElement>(`<button class="cta bob">Choose a dungeon ▶</button>`)
       go.addEventListener('click', () => { const sel = roster.find((c) => c.id === selectedCharId); if (sel) goScene((r) => dungeonSelectScene(r, sel)) })
       footer.appendChild(go)
     }
+  }
+  render()
+}
+
+/* ============================================================
+   THE SMITHY (CRAWL §7 "The smith") — the crafting bench: upgrade rarity / enchant an open slot /
+   reroll affixes / transfer an affix from a donor piece. Account-level (operates on the shared
+   Storage gear); the engine math + pricing live in engine/smith (pure + tested). Ungated tier-1
+   bench — every op available; the smithy-amenity tiers (cheapen/unlock) ride B4/B5.
+   ============================================================ */
+const RARITY_LABEL: Record<Rarity, string> = { grey: 'Grey', white: 'White', green: 'Green', blue: 'Blue', purple: 'Purple', orange: 'Orange' }
+
+function smithScene(root: HTMLElement): void {
+  const wrap = $(`<div class="wrap"></div>`)
+  wrap.appendChild($(`<h1>set.core</h1>`))
+  const sub = $(`<div class="sub">town · the smithy &nbsp;·&nbsp; <span class="vault">🪙 0 vault</span></div>`)
+  wrap.appendChild(sub)
+  const goldEl = sub.querySelector('.vault')! // updated each render — the bench spends gold in-scene
+  const cols = $(`<div class="hub2"></div>`)
+  const leftP = $(`<div class="panel"></div>`)
+  const rightP = $(`<div class="panel"></div>`)
+  cols.appendChild(leftP); cols.appendChild(rightP)
+  wrap.appendChild(cols)
+  const footer = $(`<div class="hubfoot"></div>`)
+  wrap.appendChild(footer)
+  root.appendChild(wrap)
+
+  let selUid: string | null = null // the piece on the bench
+  let mode: 'none' | 'enchant' | 'transfer' = 'none' // an open sub-picker
+  let note = '' // a transient message (cost / done / blocked)
+
+  /** The gear in Storage (the bench only works on stowed pieces — unequip first to smith equipped gear). */
+  const gearList = (): GearInstance[] => loadBank().storage.filter((i): i is GearInstance => i.kind === 'gear' && !!gearBase(i.refId))
+  const selected = (): GearInstance | undefined => gearList().find((g) => g.uid === selUid)
+
+  /** Apply a single-piece transform, charging its cost; writes the new instance back to Storage. */
+  const applySingle = (op: SmithOp, transform: (g: GearInstance) => GearInstance): void => {
+    const g = selected(); if (!g) return
+    const { bank, ok } = spendGold(loadBank(), smithCost(op, g))
+    if (!ok) { note = '✗ Not enough gold.'; render(); return }
+    saveBank(updateStorageItem(bank, transform(g)))
+    mode = 'none'; note = '✓ Done.'; render()
+  }
+
+  const doTransfer = (src: GearInstance, dst: GearInstance, affixId: string): void => {
+    const res = transferAffix(src, dst, affixId)
+    if (!res) { note = '✗ That affix can’t go there.'; render(); return }
+    const { bank, ok } = spendGold(loadBank(), smithCost('transfer', dst, dst))
+    if (!ok) { note = '✗ Not enough gold.'; render(); return }
+    saveBank(updateStorageItem(updateStorageItem(bank, res.src), res.dst))
+    mode = 'none'; note = '✓ Affix transferred.'; render()
+  }
+
+  /** One affix as a removable/transferable chip (icon-less; reuses the gp-row look in the bench). */
+  const affixLine = (a: Affix): string => `<span class="sm-affix">✦ ${affixShort(a)}</span>`
+
+  const renderBench = (host: HTMLElement, g: GearInstance): void => {
+    const base = gearBase(g.refId)!
+    const open = openSlots(g)
+    host.appendChild($(`<div class="sm-hd"><span class="gs-ic r-${g.rarity}">${base.icon}</span><div class="gs-meta"><div class="gs-n r-${g.rarity}">${base.name}</div><div class="gs-a">${RARITY_LABEL[g.rarity]} · ${SLOT_LABEL[base.slot]} · tier ${g.lootTier}</div></div></div>`))
+    const affixWrap = $(`<div class="sm-affixes"></div>`)
+    if (g.affixes.length) for (const a of g.affixes) affixWrap.appendChild($(`<div class="sm-affixrow">${affixLine(a)}</div>`))
+    else affixWrap.appendChild($(`<div class="sm-affixrow dim">no affixes${open > 0 ? ` · ${open} open slot${open > 1 ? 's' : ''}` : ''}</div>`))
+    if (g.affixes.length && open > 0) affixWrap.appendChild($(`<div class="sm-affixrow dim">${open} open slot${open > 1 ? 's' : ''}</div>`))
+    host.appendChild(affixWrap)
+
+    // --- the four ops ---
+    const ops = $(`<div class="sm-ops"></div>`)
+    const mkOp = (label: string, cost: number, enabled: boolean, tip: string, onClick: () => void): void => {
+      const b = $<HTMLButtonElement>(`<button class="sm-op" data-tip="${tip}" ${enabled ? '' : 'disabled'}><span class="sm-opl">${label}</span><span class="sm-opc">🪙 ${cost}</span></button>`)
+      if (enabled) b.addEventListener('click', onClick)
+      ops.appendChild(b)
+    }
+    const nr = nextRarity(g.rarity)
+    mkOp(`⬆ Upgrade${nr ? ` → ${RARITY_LABEL[nr]}` : ' (max)'}`, smithCost('upgrade', g), canUpgrade(g), 'Raise rarity one step: bigger base rider + a new affix slot. Affixes are kept.',
+      () => applySingle('upgrade', upgradeRarity))
+    mkOp(`✦ Enchant`, smithCost('enchant', g), canEnchant(g), 'Set one chosen affix into an open slot.',
+      () => { mode = mode === 'enchant' ? 'none' : 'enchant'; note = ''; render() })
+    mkOp(`🎲 Reroll affixes`, smithCost('reroll', g), canReroll(g), 'Gamble the whole affix set — count and affixes re-roll.',
+      () => confirmModal({ title: 'Reroll affixes?', body: 'This discards the current affixes for a fresh random set.', confirmLabel: 'Reroll',
+        onConfirm: () => applySingle('reroll', (x) => rerollAffixes(x, systemRng)) }))
+    mkOp(`⇄ Transfer in`, smithCost('transfer', g, g), open > 0, 'Pull an affix from another Storage piece into an open slot (premium).',
+      () => { mode = mode === 'transfer' ? 'none' : 'transfer'; note = ''; render() })
+    host.appendChild(ops)
+
+    // --- the Enchant sub-picker: the slot/rarity-eligible affixes not already on the piece ---
+    if (mode === 'enchant') {
+      const pick = $(`<div class="sm-picker"></div>`)
+      pick.appendChild($(`<div class="sm-pickhd">Choose an affix to set:</div>`))
+      const opts = enchantOptions(g)
+      if (!opts.length) pick.appendChild($(`<div class="sm-affixrow dim">no eligible affixes (full or none fit)</div>`))
+      for (const d of opts) {
+        const row = $(`<div class="gp-row"><div class="gs-meta"><div class="gs-n">${displayName(d.sys)}</div><div class="gs-a">${d.note}</div></div><button class="gp-eq">set</button></div>`)
+        row.querySelector('.gp-eq')!.addEventListener('click', () => applySingle('enchant', (x) => enchant(x, d.sys)))
+        pick.appendChild(row)
+      }
+      host.appendChild(pick)
+    }
+
+    // --- the Transfer sub-picker: donor pieces whose affixes can land on this (dst) open slot ---
+    if (mode === 'transfer') {
+      const pick = $(`<div class="sm-picker"></div>`)
+      pick.appendChild($(`<div class="sm-pickhd">Transfer an affix from:</div>`))
+      let any = false
+      for (const donor of gearList()) {
+        if (donor.uid === g.uid) continue
+        const movable = donor.affixes.filter((a) => canReceiveAffix(g, a))
+        if (!movable.length) continue
+        any = true
+        const db = gearBase(donor.refId)!
+        pick.appendChild($(`<div class="sm-donorhd"><span class="gs-ic r-${donor.rarity}">${db.icon}</span> <span class="r-${donor.rarity}">${db.name}</span> <span class="dim">${RARITY_LABEL[donor.rarity]}</span></div>`))
+        for (const a of movable) {
+          const row = $(`<div class="gp-row"><div class="gs-meta"><div class="gs-n">${affixShort(a)}</div></div><button class="gp-eq">take</button></div>`)
+          row.querySelector('.gp-eq')!.addEventListener('click', () => doTransfer(donor, g, a.id))
+          pick.appendChild(row)
+        }
+      }
+      if (!any) pick.appendChild($(`<div class="sm-affixrow dim">no donor piece has an affix that fits an open slot here</div>`))
+      host.appendChild(pick)
+    }
+  }
+
+  const render = (): void => {
+    leftP.innerHTML = ''; rightP.innerHTML = ''; footer.innerHTML = ''
+    goldEl.textContent = `🪙 ${loadBank().gold} vault` // live — the bench just spent some
+    const list = gearList()
+    if (selUid && !list.some((g) => g.uid === selUid)) selUid = null
+
+    // --- left: the Storage gear list ---
+    leftP.appendChild($(`<label>Storage gear (${list.length})</label>`))
+    if (!list.length) leftP.appendChild($(`<div class="sheet-soon">No gear in Storage. Loot some in a delve, or grant test gear from a hero sheet.</div>`))
+    const roster = $(`<div class="roster"></div>`)
+    for (const g of list) {
+      const base = gearBase(g.refId)!
+      const aff = g.affixes.map((a) => displayName(a.label)).join(' · ') || (openSlots(g) > 0 ? `${openSlots(g)} open` : 'no affixes')
+      const card = $(`<div class="charcard${g.uid === selUid ? ' sel' : ''}"><span class="gs-ic r-${g.rarity}">${base.icon}</span><div class="cmeta"><div class="cn r-${g.rarity}">${base.name}</div><div class="cc">${RARITY_LABEL[g.rarity]} · ${aff}</div></div></div>`)
+      card.addEventListener('click', () => { selUid = g.uid; mode = 'none'; note = ''; render() })
+      roster.appendChild(card)
+    }
+    leftP.appendChild(roster)
+
+    // --- right: the bench ---
+    const g = selected()
+    if (g) renderBench(rightP, g)
+    else rightP.appendChild($(`<div class="sheet-soon">Select a piece of gear to work it at the bench.</div>`))
+    if (note) rightP.appendChild($(`<div class="sm-note">${note}</div>`))
+
+    const back = $<HTMLButtonElement>(`<button class="cta ghost">◂ Back to town</button>`)
+    back.addEventListener('click', () => goScene(characterSelectScene))
+    footer.appendChild(back)
   }
   render()
 }
