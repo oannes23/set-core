@@ -441,6 +441,9 @@ button.cta.bob { animation: ctabob 1.6s ease-in-out infinite; }
 .gp-row .gs-a { font-size: 10.5px; color: var(--ink-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .gp-eq { background: var(--phos); color: #0b0d12; border: 0; border-radius: 5px; padding: 4px 10px; font: 600 11px/1 'Spline Sans Mono', monospace; cursor: pointer; }
 .gp-eq:hover { filter: brightness(1.1); }
+/* a dim sell-back worth reference on inventory rows (equip picker, loadout stock) — informs keep/drop */
+.gp-worth { font: 600 10.5px/1 'Spline Sans Mono', monospace; color: color-mix(in srgb, var(--gold) 70%, var(--ink-faint)); white-space: nowrap; opacity: .8; }
+.cons-availrow .gp-worth { margin-left: 2px; }
 /* rarity ink (grey→orange) — shared by gear name + icon */
 .r-grey { color: #8a8f98; } .r-white { color: #e8e8ea; } .r-green { color: #5fbf5f; }
 .r-blue { color: #5a9bff; } .r-purple { color: #b06bff; } .r-orange { color: #ff9b3d; }
@@ -491,6 +494,10 @@ button.cta.bob { animation: ctabob 1.6s ease-in-out infinite; }
 .lm-warn { color: var(--warn); margin-top: 5px; }
 .lm-quick { display: flex; gap: 8px; margin-top: 10px; }
 .lm-quick .cta { flex: 1; margin-top: 0; }
+/* the Data Wipe testing affordance — deliberately small + muted; the danger lives in the confirm */
+.wipebtn { font: 600 11px/1 'Spline Sans Mono', monospace; color: var(--ink-faint); background: transparent;
+  border: 1px solid var(--line2); border-radius: 6px; padding: 5px 10px; cursor: pointer; opacity: .65; transition: opacity .12s ease, color .12s ease, border-color .12s ease; }
+.wipebtn:hover { opacity: 1; color: var(--red); border-color: color-mix(in srgb, var(--red) 50%, transparent); }
 /* §7 PRIMED — a churned card matched in time hits a tier higher; a subtle gold twinkle marks it */
 .card.primed { box-shadow: inset 0 0 16px -6px var(--gold), 0 0 0 1px color-mix(in srgb, var(--gold) 65%, transparent), 0 0 12px -5px var(--gold); }
 /* §7 Primed: a scatter of twinkling ✦ across the card (injected as .prs spans when primed) */

@@ -215,6 +215,16 @@ function grantTestGear(): boolean {
   return r.ok
 }
 
+/** Erase ALL persisted app data (roster / vault / dev flag / anything keyed `setcore.*`) → a pristine
+ *  first-launch state. A testing affordance (fresh starts, beginner-balance retests). The caller reloads
+ *  so no stale in-memory state survives (V, the live DELVE, dev cache). Prefix-scoped so it never touches
+ *  unrelated origin storage. */
+function wipeAllData(): void {
+  const keys: string[] = []
+  for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k && k.startsWith('setcore')) keys.push(k) }
+  for (const k of keys) localStorage.removeItem(k)
+}
+
 /* The scene router + the shared tooltip live in ./router (goScene / sceneTimeout / initTooltips).
    app.ts registers the per-scene teardown (drop V + coachTeardown) in mountApp via setSceneTeardown. */
 
@@ -249,6 +259,15 @@ function characterSelectScene(root: HTMLElement): void {
   wrap.appendChild(footer)
   wrap.appendChild($(`<div class="sub" style="margin-top:18px">Click cards to build a set (same-or-all-different on every trait). Set-mates flutter — the easier the set, the harder they flap; a rattling card completes one.</div>`))
   wrap.appendChild($(`<div class="sub" style="margin-top:10px;text-transform:none;letter-spacing:0;color:var(--ink-faint)">Archived single-file prototypes (the migration oracle): <a href="${import.meta.env.BASE_URL}prototype/" style="color:var(--phos);text-decoration:none">▸ /prototype/</a></div>`))
+  const wipeRow = $(`<div class="sub" style="margin-top:8px;text-transform:none;letter-spacing:0"></div>`)
+  const wipeBtn = $<HTMLButtonElement>(`<button class="wipebtn" data-tip-title="Data Wipe" data-tip="Erase ALL saved data — every hero, the vault, gear, consumables, and settings — back to a pristine first-launch state. For testing fresh starts / beginner balance.">⟲ Data Wipe (reset everything)</button>`)
+  wipeBtn.addEventListener('click', () => confirmModal({
+    title: 'Wipe ALL data?', danger: true, confirmLabel: 'Wipe everything',
+    body: 'This permanently erases <b>every hero</b>, your <b>vault gold</b>, all <b>gear &amp; consumables</b>, and settings — a clean first-launch state. This cannot be undone.',
+    onConfirm: () => { wipeAllData(); location.reload() },
+  }))
+  wipeRow.appendChild(wipeBtn)
+  wrap.appendChild(wipeRow)
   root.appendChild(wrap)
 
   let roster = loadRoster()
@@ -337,7 +356,7 @@ function characterSelectScene(root: HTMLElement): void {
       for (const it of opts) {
         const b = gearBase(it.refId)!
         const aff = it.affixes.length ? it.affixes.map(affixShort).join(' · ') : '—'
-        const row = $(`<div class="gp-row"><span class="gs-ic r-${it.rarity}">${b.icon}</span><div class="gs-meta"><div class="gs-n r-${it.rarity}">${b.name}</div><div class="gs-a">${aff}</div></div><button class="gp-eq">equip</button></div>`)
+        const row = $(`<div class="gp-row"><span class="gs-ic r-${it.rarity}">${b.icon}</span><div class="gs-meta"><div class="gs-n r-${it.rarity}">${b.name}</div><div class="gs-a">${aff}</div></div><span class="gp-worth" data-tip="Sell-back value at Storage">🪙${sellValue(it)}</span><button class="gp-eq">equip</button></div>`)
         row.querySelector('.gp-eq')!.addEventListener('click', () => { equipFromStorage(c, pickerSlot!, it.uid); pickerSlot = null; gearNote = ''; roster = loadRoster(); render() })
         pick.appendChild(row)
       }
@@ -762,7 +781,7 @@ function dungeonSelectScene(root: HTMLElement, char: SavedChar): void {
     for (const [id, have] of [...owned].sort((a, b) => a[0].localeCompare(b[0]))) {
       const c = CONSUMABLES[id]; const used = sel.filter((x) => x === id).length
       const tint = c.color != null ? `var(--c${c.color})` : 'var(--line2)'
-      const row = $(`<div class="cons-availrow"><span class="cons-slot${c.kind === 'scroll' ? ' scroll' : ''}" style="--cc:${tint}"><span class="cons-ic">${c.icon}</span></span><div class="gs-meta"><div class="gs-n">${c.name} <span class="bag-x">have ${have}</span></div><div class="gs-a">${c.desc}</div></div><div class="stepper"><button class="st-mns"${used === 0 ? ' disabled' : ''}>−</button><b>${used}</b><button class="st-pls"${used >= have || sel.length >= CONSUMABLE_SLOTS ? ' disabled' : ''}>+</button></div></div>`)
+      const row = $(`<div class="cons-availrow"><span class="cons-slot${c.kind === 'scroll' ? ' scroll' : ''}" style="--cc:${tint}"><span class="cons-ic">${c.icon}</span></span><div class="gs-meta"><div class="gs-n">${c.name} <span class="bag-x">have ${have}</span></div><div class="gs-a">${c.desc}</div></div><span class="gp-worth" data-tip="Sell-back value at Storage">🪙${sellValueOfConsumable(id)}</span><div class="stepper"><button class="st-mns"${used === 0 ? ' disabled' : ''}>−</button><b>${used}</b><button class="st-pls"${used >= have || sel.length >= CONSUMABLE_SLOTS ? ' disabled' : ''}>+</button></div></div>`)
       row.querySelector('.st-mns')!.addEventListener('click', () => { const idx = sel.lastIndexOf(id); if (idx >= 0) { sel.splice(idx, 1); persist() } })
       row.querySelector('.st-pls')!.addEventListener('click', () => { if (used < have && sel.length < CONSUMABLE_SLOTS) { sel.push(id); persist() } })
       avail.appendChild(row)
