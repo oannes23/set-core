@@ -2681,11 +2681,15 @@ function endScreen(result: 'win' | 'lose' | 'flee'): void {
   V.char.hp = Math.max(0, Math.min(V.char.maxHp, V.state.playerHP))
   upsertChar(V.char)
   if (DELVE) { delveFork(result); return } // the delve owns its own end beat (the between-rooms fork)
-  const text = result === 'win' ? '★ Victory' : result === 'flee' ? '🏃 Fled' : '✖ Defeat'
-  const banner = $(`<div class="banner ${result === 'win' ? 'win' : 'lose'}">${text}</div>`)
   const again = $<HTMLButtonElement>(`<button class="cta" style="display:block;margin:0 auto">▶ Back to town</button>`)
-  V.refs.boardwrap.replaceChildren(banner, combatChart(), again)
   again.addEventListener('click', () => goScene(characterSelectScene))
+  if (result === 'win') {
+    // the WIN REVEAL — the spoils pop part-by-part in the breakdown ledger, then the back-to-town card lands
+    playBreakdown(buildWinParts(), () => { if (V) V.refs.boardwrap.replaceChildren($(`<div class="banner win">★ Victory</div>`), again) }, 0.9)
+  } else {
+    const text = result === 'flee' ? '🏃 Fled' : '✖ Defeat'
+    V.refs.boardwrap.replaceChildren($(`<div class="banner lose">${text}</div>`), combatChart(), again)
+  }
 }
 
 /** Bank the kill's XP onto the live character (always banks; persisted immediately) + tally it for
@@ -2698,6 +2702,37 @@ function awardXP(foe: CombatState['foe']): void {
   if (V.char.level < LEVEL_CAP) V.char.xp += x // at the cap, XP stops accruing (nothing left to buy)
   upsertChar(V.char)
   floatBoard(`+${x} XP`, 'var(--gold)', 'enemy')
+}
+
+/** The end-of-fight WIN reveal — the same Mörk Borg ledger as the exchange breakdown, played over the
+ *  spoils: Victory → Tally → Your Gear → Experience, each part popping then sliding to a corner. */
+function buildWinParts(): BPart[] {
+  const st = V!.stats, ch = V!.char
+  const parts: BPart[] = []
+  parts.push({ title: 'Victory', cls: 'sum', terms: [{ txt: `★ ${V!.state.foe.name} falls`, sub: 'the kill is yours', mag: 1, total: true }] })
+  const tally: BTerm[] = []
+  if (st.sets > 0) tally.push({ txt: `${st.sets} sets`, sub: 'patterns you found', mag: 0.5 })
+  if (st.blocked > 0) tally.push({ txt: `${st.blocked} blocked`, sub: 'damage turned aside', mag: 0.5 })
+  if (st.taken > 0) tally.push({ txt: `${st.taken} taken`, sub: 'the cost of the fight', mag: 0.5 })
+  tally.push({ txt: `${st.dealt} dealt`, sub: 'total damage you did', mag: 0.9, total: true })
+  parts.push({ title: 'Tally', cls: 'atk', terms: tally })
+  const eq = ch.equipped
+  const wpn = eq.weapon ? gearBase(eq.weapon.refId) : undefined
+  const arm = eq.armor ? gearBase(eq.armor.refId) : undefined
+  const casterNames = [eq.weapon, eq.armor, eq.relic, eq.trinket1, eq.trinket2]
+    .map((g) => (g ? gearBase(g.refId) : undefined)).filter((b): b is NonNullable<typeof b> => !!b?.rider?.manaPerMatch)
+    .map((b) => `${b.icon} ${b.name}`).join(' & ')
+  const gear: BTerm[] = []
+  if (st.gearDmg > 0) gear.push({ txt: `+${st.gearDmg} damage`, sub: wpn ? `${wpn.icon} ${wpn.name}` : 'your weapon', mag: 0.6 })
+  if (st.gearBlock > 0) gear.push({ txt: `+${st.gearBlock} block`, sub: arm ? `${arm.icon} ${arm.name}` : 'your armor', mag: 0.6 })
+  if (st.gearMana > 0) gear.push({ txt: `+${st.gearMana} mana`, sub: casterNames || 'caster gear', mag: 0.55 })
+  if (gear.length) { gear[gear.length - 1].total = true; parts.push({ title: 'Your Gear', cls: 'abil', terms: gear }) }
+  const ready = pendingLevels(ch)
+  const xpTerms: BTerm[] = []
+  if (ready > 0) xpTerms.push({ txt: `⬆ ${ready} level-up${ready > 1 ? 's' : ''}`, sub: 'allocate in town', mag: 0.6 })
+  xpTerms.push({ txt: `✦ +${st.xp} XP`, sub: ch.level >= LEVEL_CAP ? '★ max level' : `Lv ${ch.level} · ${ch.xp}/${xpForLevel(ch.level)}`, mag: 0.9, total: true })
+  parts.push({ title: 'Experience', cls: 'sum', terms: xpTerms })
+  return parts
 }
 
 /** The end-of-combat contribution chart (shared by the lone-fight end card and the delve's enders). */
