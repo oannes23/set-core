@@ -595,7 +595,6 @@ button.cta:disabled { opacity: .4; cursor: not-allowed; }
   opacity: 0; transform: translateY(0) scale(.7); transition: transform .95s cubic-bezier(.2,.8,.3,1), opacity .95s ease-out; white-space: nowrap; }
 .floater.go { opacity: 1; transform: translateY(calc(-40px - var(--mag) * 34px)) scale(1); }
 .floater.combo { letter-spacing: .02em; }
-.floater.mathbeat { font-weight: 800; letter-spacing: .04em; text-shadow: 0 1px 8px #000c, 0 0 calc(var(--mag) * 16px) var(--gold); }
 /* §13 the ambient combo-glow — behind the board, pointer-events:none, intensifies with --combo */
 #comboglow { position: absolute; inset: -8% -6%; z-index: 0; pointer-events: none; border-radius: 22px; opacity: 0;
   background: radial-gradient(120% 90% at 50% 100%, color-mix(in srgb, var(--phos) calc(var(--combo, 0) * 60%), transparent), transparent 70%);
@@ -960,24 +959,45 @@ body.dev #devtoggle { opacity: .9; color: var(--phos); border-color: var(--phos)
   72% { opacity: 1; }
   100% { opacity: 0; transform: translate(-50%, -50%) scale(1); }
 }
-/* TELEGRAPH CONSTRUCTION (beat ④.5) — the next strike assembles over the play area, then flies up */
-.boardwrap.tgdim .board { filter: brightness(.32) saturate(.6); } /* guided-eye dim: the cards recede (floatlayer stays bright) */
-.tgbuild { position: absolute; left: 50%; top: 40%; transform: translate(-50%, -50%) translateY(8px); pointer-events: none; z-index: 8;
-  display: flex; flex-direction: column; align-items: center; gap: 8px; opacity: 0; transition: opacity .25s ease, transform .25s ease; }
-.tgbuild.go { opacity: 1; transform: translate(-50%, -50%); }
-.tgbuild.send { opacity: 0; transform: translate(-50%, -50%) translateY(-120px) scale(.7); transition: opacity .42s ease, transform .42s cubic-bezier(.4, 0, .7, .2); }
-.tg-cap { font-family: "Syne", sans-serif; font-weight: 700; font-size: 13px; letter-spacing: .18em; text-transform: uppercase; color: var(--warn); text-shadow: 0 0 12px rgba(245, 165, 36, .5); }
-.tg-chips { display: flex; gap: 7px; }
-.tg-chip { font-size: 24px; opacity: 0; transform: scale(.4) translateY(6px); transition: opacity .18s ease, transform .18s cubic-bezier(.18, 1.4, .4, 1); }
-.tg-chip.in { opacity: 1; transform: scale(1) translateY(0); }
-.tg-chip.land { filter: drop-shadow(0 0 6px rgba(245, 86, 91, .7)); }
-.tg-chip.whiff { opacity: .55; filter: grayscale(.5); animation: tgwhiff 1s ease forwards; }
-@keyframes tgwhiff { 0% { opacity: .9; } 60% { opacity: .5; } 100% { opacity: .25; transform: scale(.9) translateX(8px); } }
-.tg-sum { font-weight: 800; font-size: 26px; font-variant-numeric: tabular-nums; color: var(--warn); text-shadow: 0 1px 8px #000c, 0 0 14px rgba(245, 165, 36, .5); transition: transform .12s ease; }
-.tg-sum.bump { animation: tgbump .18s ease; }
-.tg-sum.whiffall { color: var(--phos); font-size: 18px; }
-@keyframes tgbump { 50% { transform: scale(1.28); } }
-/* the guard cell flashes as the stack arrives — "raise your defense to HERE" */
+/* THE EXCHANGE BREAKDOWN POPOVER — a centered modal over a fully-dimmed playfield; each formula's terms
+   POP in turn (shake·zoom·dropshadow·colour-dash), the TOTAL biggest, then the next part. */
+#xbreak { position: fixed; inset: 0; z-index: 60; display: flex; align-items: center; justify-content: center;
+  background: rgba(4, 6, 10, .8); backdrop-filter: blur(3px); opacity: 0; transition: opacity .35s ease; pointer-events: none; }
+#xbreak.in { opacity: 1; }
+#xbreak.out { opacity: 0; }
+.xb-card { min-width: 300px; max-width: min(80vw, 560px); padding: 26px 36px 30px; border-radius: 18px; text-align: center;
+  display: flex; flex-direction: column; align-items: center; gap: 16px;
+  background: linear-gradient(180deg, rgba(28, 33, 44, .96), rgba(16, 19, 27, .96)); border: 1px solid var(--line);
+  box-shadow: 0 24px 70px -12px #000e, inset 0 1px 0 rgba(255, 255, 255, .05); }
+.xb-card.atk { border-color: rgba(240, 86, 91, .5); } /* your swing — red */
+.xb-card.def { border-color: rgba(245, 165, 36, .5); } /* their strike that bites — amber */
+.xb-card.hold { border-color: rgba(91, 148, 245, .5); } /* fully held — blue */
+.xb-card.dodge, .xb-card.tele { border-color: rgba(94, 234, 212, .5); } /* whiff / next telegraph — phosphor */
+.xb-card.sum { border-color: rgba(245, 197, 66, .5); } /* round shine — gold */
+.xb-title { font-family: "Syne", sans-serif; font-weight: 800; font-size: 14px; letter-spacing: .22em; text-transform: uppercase; color: var(--ink-dim); opacity: 0; }
+.xb-title.in { animation: xbtitle .4s ease forwards; }
+@keyframes xbtitle { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+.xb-row { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; justify-content: center; min-height: 54px; }
+.xb-term { font-weight: 700; font-variant-numeric: tabular-nums; font-size: calc(17px + var(--mag, .5) * 24px); color: var(--ink); opacity: 0; white-space: nowrap; }
+.xb-term.whiff { color: var(--ink-faint); }
+.xb-term.pop { animation: xbpop .8s cubic-bezier(.2, 1.4, .4, 1) both; }
+@keyframes xbpop { /* zoom-in + a quick shake, a 1s gold dropshadow/colour dash, settle */
+  0% { opacity: 0; transform: scale(.4); }
+  16% { opacity: 1; transform: scale(1.32) rotate(-3deg); color: var(--gold); filter: drop-shadow(0 0 14px var(--gold)); }
+  30% { transform: scale(1.06) rotate(2deg); }
+  44% { transform: scale(1.14) rotate(-1.5deg); }
+  60% { transform: scale(1) rotate(0); color: var(--gold); filter: drop-shadow(0 0 7px rgba(245, 197, 66, .5)); }
+  100% { opacity: 1; transform: scale(1); filter: none; } }
+.xb-term.total { font-size: calc(26px + var(--mag, 1) * 22px); color: var(--gold); text-shadow: 0 2px 12px #000c, 0 0 20px rgba(245, 197, 66, .45); }
+.xb-term.total.pop { animation: xbtotal 1.25s cubic-bezier(.16, 1.6, .3, 1) both; }
+@keyframes xbtotal { /* the biggest, longest pop — lands and STAYS large */
+  0% { opacity: 0; transform: scale(.4); }
+  14% { opacity: 1; transform: scale(1.7) rotate(-4deg); filter: drop-shadow(0 0 26px var(--gold)); }
+  28% { transform: scale(1.18) rotate(3deg); }
+  42% { transform: scale(1.4) rotate(-1.5deg); }
+  60%, 100% { opacity: 1; transform: scale(1.2); filter: drop-shadow(0 0 12px rgba(245, 197, 66, .5)); } }
+@media (prefers-reduced-motion: reduce) { .xb-term.pop, .xb-term.total.pop { animation: xbfade .18s ease both; } @keyframes xbfade { from { opacity: 0; } to { opacity: 1; } } }
+/* the guard cell flashes as the next telegraph forms — "raise your defense to HERE" */
 .tc-cell.grd.goalflash { animation: tggoal 1s ease; }
 @keyframes tggoal { 0%, 100% { box-shadow: none; } 30% { box-shadow: 0 0 0 2px var(--blue), 0 0 16px var(--blue); } }
 

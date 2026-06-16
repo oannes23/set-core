@@ -214,7 +214,7 @@ function grantTestGear(): boolean {
 let ROOT: HTMLElement | null = null
 let lastSceneMount: ((root: HTMLElement) => void) | null = null // re-mount target on a dev-mode flip
 // the briefing/coach/FX/vignette layers live on <body>; #tooltip is app-global (hidden, not swept)
-const BODY_SINGLETONS = ['coachscrim', 'coachpop', 'briefing', 'burstlayer', 'bamlayer', 'ptint', 'levelup']
+const BODY_SINGLETONS = ['coachscrim', 'coachpop', 'briefing', 'burstlayer', 'bamlayer', 'ptint', 'levelup', 'xbreak']
 let sceneTimers: number[] = []
 /** A setTimeout whose callback dies with the scene — use for ALL scene-scoped delays/FX. */
 function sceneTimeout(fn: () => void, ms: number): number {
@@ -233,6 +233,7 @@ function goScene(mount: (root: HTMLElement) => void): void {
   ;(document.getElementById('confirmmodal') as (HTMLElement & { _cancel?: () => void }) | null)?._cancel?.() // full cleanup (keydown listener)
   coachTeardown()
   for (const id of BODY_SINGLETONS) document.getElementById(id)?.remove()
+  document.body.classList.remove('xbreak-on') // the breakdown-popover dim never survives a scene change
   document.querySelectorAll('.mspark, .flycard').forEach((e) => e.remove()) // body-level FX strays (their cleanup timers died above)
   ROOT.innerHTML = ''
   mount(ROOT)
@@ -1537,34 +1538,21 @@ function interpret(events: CombatEvent[]): boolean {
   return true
 }
 
-/* THE ROLLOVER CHOREOGRAPHY — the engine resolves the exchange atomically; the UI plays it back as
-   a ~6s cinematic beat (playtest 2026-06-11: "even a little slower and more telegraphed out" —
-   each quantity must visibly TRANSFER, each landing stamped with a comic BAM/POW impact card):
-   ① the field shifts mode (board dims under a vignette, the flag stamps big, the scoreboard
-   lights) → ② YOUR SWING: the banked ⚔ counts down to 0 while the foe's HP drains with it
-   ("BAM!"/"CRUNCH!"/"LETHAL!" over the foe) → ③ THEIR STRIKE: the telegraph ⚔ drains into your
-   guard 🛡 ("CLANG!" when it holds outright); the bite past it drains your HP ("OOMF!"/"POW!",
-   wound shatters popping with a "CRACK!") → ④ THE TIDE & THE DEAL: the board takes the stage
-   (churn morphs first — "SWOOSH!" on a Maneuver dump — the wound-knit flare after) → ⑤ RELEASE:
-   the field re-brightens, "Round N" stamps, the fresh telegraph reveals. CARD INPUT LOCKS for the
-   whole beat (selection cleared at entry, board inert + dimmed until ⑤ — playtest 2026-06-11);
-   abilities/consumables/flee stay live. Ticks freeze (the hitstop spans the WHOLE beat, so the new
-   round still opens with a full clock). The HUD holds its pre-exchange read until ⑤ — every number
-   lands on its beat, never all at once at dispatch. */
+/* THE ROLLOVER CHOREOGRAPHY — the engine resolves the exchange atomically; the UI plays it back as a
+   cinematic. The NUMBERS run in a centered BREAKDOWN POPOVER over a fully-dimmed playfield (playBreakdown):
+   part by part — YOUR SWING → THEIR STRIKE → NEXT STRIKE → ROUND — each formula's terms POP one at a time,
+   the TOTAL biggest, HP snapping as each total lands. Then RELEASE: the popover closes, the field
+   re-brightens, the board settles (churn morphs / wound-knit / shatter cracks), "Round N" stamps, the new
+   telegraph reveals. CARD INPUT LOCKS for the whole beat (selection cleared, board inert + dimmed behind
+   the popover); abilities/consumables/flee stay live. Ticks freeze (the hitstop spans the whole breakdown,
+   so the new round opens on a full clock). Only knitHold + releasePad survive from the old beat table; the
+   per-term pacing lives in XB. */
 const EXCHANGE_BEATS = {
-  swing: 1100, // ② your swing begins (the ① mode-shift owns 0–1100ms)
-  swingDrain: 880, // …the banked-⚔ → foe-HP count-down tween
-  counter: 2700, // ③ their strike begins
-  guardDrain: 600, // …the telegraph → guard absorb tween
-  hpDrain: 750, // …the remaining bite → your-HP tween (runs after the absorb)
-  tide: 4300, // ④ the tide + the deal (the board's own unhurried window)
-  tideDrain: 650, // …the Maneuver dump's ⚙ counter + pips burn down with the churn
-  knitHold: 750, // …the wound-knit flare fires this long after the churn morphs start
-  deal: 5600, // ⑤ release — the HUD snaps to the new round
-  releasePad: 400, // hitstop runs to deal+pad (~6s): the freeze covers every beat with margin
+  knitHold: 750, // the wound-knit flare fires this long after the board re-renders at release
+  releasePad: 400, // the hitstop runs to breakdownDuration+pad — the freeze covers the whole popover with margin
 }
-/** prefers-reduced-motion: the old compact ~2.25s pacing; the numbers snap instead of tweening. */
-const EXCHANGE_BEATS_REDUCED: typeof EXCHANGE_BEATS = { swing: 350, swingDrain: 0, counter: 900, guardDrain: 0, hpDrain: 0, tide: 1450, tideDrain: 0, knitHold: 0, deal: 2000, releasePad: 250 }
+/** prefers-reduced-motion: the wound-knit fires immediately; the pad shrinks (the popover itself snaps via XB_REDUCED). */
+const EXCHANGE_BEATS_REDUCED: typeof EXCHANGE_BEATS = { knitHold: 0, releasePad: 250 }
 const exBeats = (): typeof EXCHANGE_BEATS => (matchMedia('(prefers-reduced-motion: reduce)').matches ? EXCHANGE_BEATS_REDUCED : EXCHANGE_BEATS)
 
 function choreographRollover(events: CombatEvent[]): void {
@@ -1585,173 +1573,136 @@ function choreographRollover(events: CombatEvent[]): void {
   }
   const won = finale.some((e) => e.type === 'won')
   const s = V.state // POST-exchange (the engine already resolved); the pre-reads are reconstructed below
-  // ② the swing transfer: events carry the amount; the held HUD still shows the pre-exchange read
   const swingDmg = seg.swing.reduce((a, e) => a + (e.type === 'enemyDamaged' ? e.amount : 0), 0)
   const postFoeHP = s.enemyHP
-  const preFoeHP = won ? domNum(V.refs.ehpv, swingDmg) : postFoeHP + swingDmg // on a kill the bank overkills — the held HUD has the true pre-read
-  // ③ the strike transfer: telegraph → guard → your HP
   const pd = seg.counter.find((e): e is Extract<CombatEvent, { type: 'playerDamaged' }> => e.type === 'playerDamaged')
   const blockedAll = seg.counter.some((e) => e.type === 'playerBlocked')
   const raw = pd ? pd.amount + pd.absorbed : blockedAll ? domNum(V.refs.exinc, 0) : null // null = no strike this round
   const absorbed = pd ? pd.absorbed : raw ?? 0
   const bite = pd ? pd.amount : 0
-  const preBlock = domNum(V.refs.exguard, absorbed) // the guard number the player watched all round
   const postYouHP = s.playerHP
+  const dodgedAll = raw == null && seg.counter.some((e) => e.type === 'strikeDodged')
+  const lost = finale.some((e) => e.type === 'lost')
   const shatters = seg.counter.flatMap((e) => (e.type === 'cardsShattered' ? e.slots : []))
   const knits = events.flatMap((e) => (e.type === 'cardsReformed' ? e.slots : [])) // at the rollover, reforms = the knit
   const verbs = verbsFromEvents(events) // booms (wounds) + morphs (tide) + reforms (knit/deal)
   const foeName = s.foe.name
-  // the next strike's WINDUP (if any reveals this rollover) — drives the telegraph-construction beat at ⑤
-  const wEv = seg.deal.find((e): e is Extract<CombatEvent, { type: 'windup' }> => e.type === 'windup')
-  const tgDur = wEv && wEv.swings > 0 ? tgDuration(wEv.swings) : 0
-
-  V.holdHud = true
-  hitstop(B.deal + tgDur + B.releasePad) // the freeze covers the WHOLE beat (incl. the telegraph construction) — the new round opens with a full clock
-  // BOARD LOCKOUT — clear any half-made pick NOW (it can't survive the deal anyway) and strip its
-  // glow from the still-dimming board; onBoardClick ignores the field until ⑤ (holdHud is the lock)
-  V.selected = []
-  V.refs.board?.querySelectorAll('.card.sel, .card.badpair, .card.bad').forEach((el) => el.classList.remove('sel', 'badpair', 'bad'))
-  exchangeEnter() // ① the field shifts mode (+ .exlocked: the board reads out-of-reach)
-  log(`<span style="opacity:.8">— the exchange —</span>`, 'you')
-
-  // §cutscene the EXCHANGE MATH — narrate the round's math beat-by-beat over the play area: YOUR swing
-  // (matches + weapon + crit), then the BLOCK→NET (defends → block → soak → what lands). The existing
-  // swing/strike transfers below land the totals. (Full clean retiming is the next slice.)
   const sm = events.find((e): e is Extract<CombatEvent, { type: 'swingMath' }> => e.type === 'swingMath')
   const bm = events.find((e): e is Extract<CombatEvent, { type: 'blockMath' }> => e.type === 'blockMath')
   const rs = events.find((e): e is Extract<CombatEvent, { type: 'roundSummary' }> => e.type === 'roundSummary')
-  if (sm) V.stats.gearDmg += sm.weapon // fight-cumulative gear contribution (the end-screen "your weapon helped" line)
+  const wEv = seg.deal.find((e): e is Extract<CombatEvent, { type: 'windup' }> => e.type === 'windup')
+  if (sm) V.stats.gearDmg += sm.weapon // fight-cumulative gear contribution (the end-screen "your gear" lines)
   if (bm) V.stats.gearBlock += bm.blkRider
-  let mt = 0; const STEP = 330
-  if (sm && (sm.matches > 0 || sm.weapon > 0)) {
-    centerMath(`⚔ Matches +${sm.matches}`, 0.5, mt); mt += STEP
-    if (sm.weapon > 0) { centerMath(`🗡 Weapon +${sm.weapon}`, 0.55, mt); mt += STEP }
-    if (sm.crit) { centerMath(`✦ CRIT ×${sm.mult.toFixed(1)}`, 0.85, mt); mt += STEP }
+
+  // BUILD THE BREAKDOWN — the exchange plays as a centered POPOVER over a fully-dimmed playfield, part by
+  // part; within each formula every term POPS in turn (shake·zoom·dropshadow·colour-dash) and the TOTAL
+  // lands biggest. HP snaps when each total pops; the board settles on the bright field at release.
+  const parts: BPart[] = []
+  if (swingDmg > 0) { // ① YOUR SWING
+    const terms: BTerm[] = []
+    if (sm && sm.matches > 0) terms.push({ txt: `⚔ Matches ${sm.matches}`, mag: 0.5 })
+    if (sm && sm.weapon > 0) terms.push({ txt: `🗡 Weapon +${sm.weapon}`, mag: 0.5 })
+    if (sm && sm.crit) terms.push({ txt: `✦ CRIT ×${sm.mult.toFixed(1)}`, mag: 0.85 })
+    terms.push({ txt: `${won ? '☠ ' : ''}${swingDmg} damage`, mag: 1, total: true })
+    parts.push({ title: 'Your Swing', cls: 'atk', terms, onTotal: () => { interpretChunk(seg.swing); paintHP('e', postFoeHP); if (won) sceneTimeout(() => interpretChunk(finale), 750) } })
   }
-  // the round's OFFENSE QUALITY — the skill shine: primed sets + the combo peak, sized by how big it got
-  if (rs && rs.comboPeak >= 2) { centerMath(`🔥 ${rs.comboPeak}× combo${rs.combos > rs.comboPeak ? ` · ${Math.round(rs.combos)} linked` : ''}`, Math.min(0.9, 0.5 + rs.comboPeak * 0.05), mt); mt += STEP }
-  if (rs && rs.primed > 0) { centerMath(`✦ ${rs.primed} primed`, 0.6, mt); mt += STEP }
-  if (bm && !bm.dodgedAll && bm.telegraph > 0) { // their strike lands → narrate your defense math → the net
-    mt = Math.max(mt, STEP) // the defense beat follows your swing
-    centerMath(`🛡 Block ${bm.block}${bm.blkRider > 0 ? ` (+${bm.blkRider} armor)` : ''}`, 0.5, mt); mt += STEP
-    if (bm.soaked > 0) { centerMath(`🪨 Soak −${bm.soaked}`, 0.5, mt); mt += STEP }
-    centerMath(`⚔ Their swing ${bm.telegraph}`, 0.55, mt); mt += STEP
-    centerMath(bm.bite > 0 ? `Net −${bm.bite}` : 'Net 0 — held!', bm.bite > 0 ? 0.8 : 0.7, mt)
+  if (!won) {
+    if (raw != null) { // ② THEIR STRIKE — telegraph − soak − block → the net
+      const terms: BTerm[] = [{ txt: `⚔ Telegraph ${raw}`, mag: 0.55 }]
+      if (bm && bm.soaked > 0) terms.push({ txt: `🪨 Soak −${bm.soaked}`, mag: 0.45 })
+      const blk = bm ? bm.block : absorbed
+      if (blk > 0) terms.push({ txt: `🛡 Block −${blk}${bm && bm.blkRider > 0 ? ` (+${bm.blkRider} armor)` : ''}`, mag: 0.55 })
+      terms.push({ txt: bite > 0 ? `−${bite} to you` : 'Held! 0', mag: bite > 0 ? 1 : 0.8, total: true })
+      parts.push({ title: 'Their Strike', cls: bite > 0 ? 'def' : 'hold', terms, onTotal: () => { interpretChunk(seg.counter); paintHP('p', postYouHP); if (lost) sceneTimeout(() => interpretChunk(finale), 750) } })
+    } else if (dodgedAll) { // the full whiff — a free round
+      parts.push({ title: 'Their Strike', cls: 'dodge', terms: [{ txt: '💨 DODGED — free round', mag: 1, total: true }], onTotal: () => { spriteReact('you', 'splunge'); interpretChunk(seg.counter) } })
+    }
+    if (!lost && wEv && wEv.swings > 0) { // ③ NEXT STRIKE — the windup assembles swing by swing
+      const terms: BTerm[] = []
+      const landed = wEv.swings - wEv.dodged
+      for (let i = 0; i < wEv.swings; i++) terms.push(i < landed ? { txt: '⚔', mag: 0.35 } : { txt: '💨', mag: 0.3, whiff: true })
+      terms.push({ txt: wEv.amount > 0 ? `⚔ ${wEv.amount} incoming` : '💨 all dodged', mag: 0.85, total: true })
+      parts.push({ title: 'Next Strike', cls: 'tele', terms, onTotal: () => { const g = V?.refs.tcgrd; if (g) { g.classList.remove('goalflash'); void g.offsetWidth; g.classList.add('goalflash'); sceneTimeout(() => g.classList.remove('goalflash'), 1000) } } })
+    }
+    if (!lost && rs && (rs.comboPeak >= 2 || rs.primed > 0)) { // ④ ROUND — the offense-quality shine
+      const terms: BTerm[] = []
+      if (rs.comboPeak >= 2) terms.push({ txt: `🔥 ${rs.comboPeak}× combo${rs.combos > rs.comboPeak ? ` · ${Math.round(rs.combos)} linked` : ''}`, mag: Math.min(0.95, 0.5 + rs.comboPeak * 0.05), total: rs.primed === 0 })
+      if (rs.primed > 0) terms.push({ txt: `✦ ${rs.primed} primed`, mag: 0.7, total: true })
+      parts.push({ title: 'Round', cls: 'sum', terms })
+    }
   }
 
-  // ② YOUR SWING — the banked ⚔ counts down to 0 as the foe's HP drains with it (one visible transfer)
-  sceneTimeout(() => {
-    if (!V || !V.holdHud) return
-    if (swingDmg <= 0) { floatBoard('no swing banked', 'var(--ink-faint)', 'enemy'); return } // brief + grey
-    drainCls(true, V.refs.exatk, V.refs.ehpv)
-    sceneTimeout(() => { // the lunge/float/flash land mid-tween — the impact card stamps with them
-      if (!V?.holdHud) return
-      interpretChunk(seg.swing)
-      bamWord(won ? 'LETHAL!' : tierOf(swingDmg, 12) === 'heavy' ? 'CRUNCH!' : 'BAM!', 'hit', V.refs.spfoe, won ? 1.3 : tierOf(swingDmg, 12) === 'heavy' ? 1.15 : 1)
-    }, Math.round(B.swingDrain * 0.35))
-    exTween(B.swingDrain, (k) => {
-      if (!V) return
-      V.refs.exatk.textContent = String(Math.round(swingDmg * (1 - k)))
-      paintHP('e', Math.round(preFoeHP - (preFoeHP - postFoeHP) * k))
-    }, () => {
-      drainCls(false, V?.refs.exatk, V?.refs.ehpv)
-      if (won) interpretChunk(finale) // the win banner fires the moment the count crosses 0 HP
-    })
-  }, B.swing)
-  if (won) return // lethal cancels their strike — no counter/tide/deal beats on a kill
-
-  // ③ THEIR STRIKE — the telegraph ⚔ drains into your guard 🛡; what bites past it drains your HP
-  sceneTimeout(() => {
-    if (!V || !V.holdHud) return
-    if (raw == null) { // no HP/guard transfer this round
-      if (seg.counter.some((e) => e.type === 'strikeDodged')) { // §5.7 the FULL WHIFF — the smash card
-        spriteReact('you', 'splunge') // a quick sidestep
-        bamWord('DODGED!', 'dodge', V.refs.spyou, 1.25)
-        floatBoard('💨 dodged — free round', 'var(--phos)', 'you')
-        interpretChunk(seg.counter) // narrates the dodge line
-      } else if (seg.counter.length) interpretChunk(seg.counter) // stray wards etc. still narrate
-      else { floatBoard('no strike', 'var(--ink-faint)', 'enemy'); log(`<span style="opacity:.7">The ${foeName} doesn't strike.</span>`, 'foe') }
-      return
-    }
-    const land = (): void => { // the hit lands: flash/burst/log/sprites + wound shatters pop on their slots
-      if (!V || !V.holdHud) return
-      interpretChunk(seg.counter)
-      for (const sl of shatters) boomSlot(sl, verbs)
-      // the impact card: a held guard goes "CLANG!", a bite lands "OOMF!"/"POW!" (bigger when wounds
-      // shatter, with a "CRACK!" stamped over the board as they pop)
-      if (bite > 0) bamWord(tierOf(bite, V.state.foe.damage) === 'light' ? 'OOMF!' : 'POW!', 'pain', V.refs.spyou, shatters.length ? 1.3 : 1.05)
-      else if (raw > 0) bamWord('CLANG!', 'guard', V.refs.tcgrd, 1)
-      if (shatters.length) sceneTimeout(() => { if (V?.holdHud) bamWord('CRACK!', 'pain', V.refs.boardwrap, 1.1) }, 140)
-      if (bite > 0) {
-        drainCls(true, V.refs.phpv)
-        const preYouHP = postYouHP + bite
-        exTween(B.hpDrain, (k) => {
-          if (!V) return
-          V.refs.exinc.textContent = `⚔ ${Math.round(bite * (1 - k))}`
-          paintHP('p', Math.round(preYouHP - bite * k))
-        }, () => {
-          drainCls(false, V?.refs.phpv, V?.refs.exinc)
-          if (finale.length) interpretChunk(finale) // defeat fires the moment your count crosses 0
-        })
-      } else if (finale.length) interpretChunk(finale)
-    }
-    drainCls(true, V.refs.exinc, V.refs.exguard)
-    if (absorbed > 0) {
-      exTween(B.guardDrain, (k) => { // the guard ABSORBS: both numbers drain together
-        if (!V) return
-        V.refs.exinc.textContent = `⚔ ${Math.round(raw - absorbed * k)}`
-        V.refs.exguard.textContent = String(Math.round(Math.max(0, preBlock - absorbed * k)))
-      }, () => { drainCls(false, V?.refs.exguard); land() })
-    } else land()
-  }, B.counter)
-
-  // ④ THE TIDE & THE DEAL — the board takes the stage: the dim half-lifts, churn morphs play,
-  //    then the wound-knit flares on its own moment (never compressed into the same instant)
-  sceneTimeout(() => {
-    if (!V || !V.holdHud) return
-    V.refs.boardwrap?.classList.add('extide') // the eye moves to the board
-    interpretChunk(seg.tide)
-    const changed = boardSignature(V.state) !== V.boardSig
-    if (changed) renderBoard(verbs)
-    // the tide's own impact card: the Maneuver dump goes "SWOOSH!"; a plain reshuffle gets a soft "SHFF"
-    // §5.7: Maneuver burns LIVE during the round now (no rollover dump), so the tide beat just
-    // settles whatever drift/knit landed — a soft cue when the board shifted.
-    if (changed) bamWord('SHFF', 'soft', V.refs.boardwrap, 0.85)
-    holdKnits(knits, B.knitHold)
-  }, B.tide)
-
-  // ④.5 TELEGRAPH CONSTRUCTION — the next strike ASSEMBLES in view (guided-eye dim, board recedes):
-  //     each swing is dodge-checked, the survivors stack and fly up into the foe's telegraph + your
-  //     guard goal. Plays during the hold; the release waits for it. (Only on a windup-reveal round.)
-  if (tgDur > 0) sceneTimeout(() => { if (V && V.holdHud && wEv) telegraphConstruct(wEv) }, B.deal)
-
-  // ⑤ RELEASE — the field re-brightens, the HUD snaps to the new round, "Round N" stamps, the telegraph reveals
-  sceneTimeout(() => {
-    if (!V || !V.holdHud) return
-    V.holdHud = false // the HUD snaps to the new round: fresh bar, fresh accumulators…
+  // RELEASE — the popover closed; re-brighten, settle the board (morphs/knits/wound-cracks), stamp the round
+  const release = (): void => {
+    if (!V) return // combat ended during the breakdown (win/lose already transitioned) — nothing to re-open
+    V.holdHud = false
     exchangeExit()
-    V.refs.boardwrap?.classList.remove('tgdim')
+    for (const sl of shatters) boomSlot(sl, verbs)
+    if (shatters.length) bamWord('CRACK!', 'pain', V.refs.boardwrap, 1.1)
+    interpretChunk(seg.tide)
+    if (boardSignature(V.state) !== V.boardSig) renderBoard(verbs)
+    holdKnits(knits, B.knitHold)
     interpretChunk(seg.deal)
+    if (raw == null && !dodgedAll && !seg.counter.length) log(`<span style="opacity:.7">The ${foeName} doesn't strike.</span>`, 'foe')
     roundStamp(V.state.round)
-    pulseTelegraph() // …and the new telegraph reveals with its flourish
-  }, B.deal + tgDur)
+    pulseTelegraph() // the new telegraph reveals with its flourish
+  }
+
+  // FREEZE + LOCKOUT, then play. The hitstop spans the whole breakdown so the new round opens on a full clock.
+  V.holdHud = true
+  hitstop(breakdownDuration(parts) + B.releasePad)
+  V.selected = []
+  V.refs.board?.querySelectorAll('.card.sel, .card.badpair, .card.bad').forEach((el) => el.classList.remove('sel', 'badpair', 'bad'))
+  exchangeEnter() // the board locks + dims (the popover backdrop dims the rest)
+  log(`<span style="opacity:.8">— the exchange —</span>`, 'you')
+  if (parts.length === 0) { sceneTimeout(release, 220); return } // a quiet round — no formula to show
+  playBreakdown(parts, release)
 }
 
-/** A scene-safe rAF tween for the exchange drains (eased 0→1). Dies silently if the combat view
- *  changes or the HUD hold releases early (flee/endScreen mid-beat). ms<=0 snaps (reduced motion). */
-function exTween(ms: number, step: (k: number) => void, done?: () => void): void {
+/* THE BREAKDOWN POPOVER — the exchange cutscene as a centered modal over a fully-dimmed playfield. Each
+   PART is a formula; its terms POP one at a time (the per-term pop is the shake·zoom·dropshadow·colour
+   flash), the TOTAL biggest + longest, then the next part. onTotal fires the HP snap / log for that part. */
+interface BTerm { txt: string; mag: number; total?: boolean; whiff?: boolean }
+interface BPart { title: string; cls: string; terms: BTerm[]; onTotal?: () => void }
+const XB = { intro: 420, partIntro: 360, term: 720, total: 1250, gap: 520, outro: 380 }
+const XB_REDUCED: typeof XB = { intro: 160, partIntro: 140, term: 240, total: 360, gap: 200, outro: 160 }
+const xbT = (): typeof XB => (matchMedia('(prefers-reduced-motion: reduce)').matches ? XB_REDUCED : XB)
+function breakdownDuration(parts: BPart[]): number {
+  const X = xbT()
+  let t = X.intro
+  for (const p of parts) { t += X.partIntro; for (const term of p.terms) t += term.total ? X.total : X.term; t += X.gap }
+  return t + X.outro
+}
+function playBreakdown(parts: BPart[], release: () => void): void {
   const view = V
   if (!view) return
-  if (ms <= 0) { step(1); done?.(); return }
-  const t0 = performance.now()
-  const frame = (t: number): void => {
-    if (V !== view || !view.holdHud) return
-    const raw = Math.min(1, (t - t0) / ms)
-    step(1 - (1 - raw) ** 3) // ease-out: the number flies, then settles
-    if (raw < 1) requestAnimationFrame(frame)
-    else done?.()
+  const X = xbT()
+  document.body.classList.add('xbreak-on')
+  const pop = $(`<div id="xbreak"><div class="xb-card"><div class="xb-title"></div><div class="xb-row"></div></div></div>`)
+  document.body.appendChild(pop)
+  const card = pop.querySelector('.xb-card') as HTMLElement
+  const titleEl = pop.querySelector('.xb-title') as HTMLElement
+  const rowEl = pop.querySelector('.xb-row') as HTMLElement
+  void pop.offsetWidth; pop.classList.add('in')
+  let t = X.intro
+  for (const part of parts) {
+    sceneTimeout(() => { if (view !== V) return; card.className = `xb-card ${part.cls}`; titleEl.textContent = part.title; rowEl.innerHTML = ''; titleEl.classList.remove('in'); void titleEl.offsetWidth; titleEl.classList.add('in') }, t)
+    let tt = t + X.partIntro
+    for (const term of part.terms) {
+      const isTotal = !!term.total
+      sceneTimeout(() => {
+        if (view !== V) return
+        const chip = $(`<span class="xb-term${isTotal ? ' total' : ''}${term.whiff ? ' whiff' : ''}"></span>`)
+        chip.textContent = term.txt
+        chip.style.setProperty('--mag', String(term.mag))
+        rowEl.appendChild(chip); void chip.offsetWidth; chip.classList.add('pop')
+        if (isTotal) part.onTotal?.()
+      }, tt)
+      tt += isTotal ? X.total : X.term
+    }
+    t = tt + X.gap
   }
-  requestAnimationFrame(frame)
+  sceneTimeout(() => { pop.classList.add('out'); window.setTimeout(() => pop.remove(), X.outro); document.body.classList.remove('xbreak-on'); if (view === V) release() }, t)
 }
 
 /** Read the number the HELD HUD is showing (the pre-exchange paint) — e.g. "🛡 7 ✓" → 7. */
@@ -1834,51 +1785,6 @@ function roundStamp(round: number): void {
   void el.offsetWidth
   el.classList.add('go')
   sceneTimeout(() => el.remove(), 1300)
-}
-
-/* TELEGRAPH CONSTRUCTION (beat ④.5) — the next strike assembles in view so the player SEES where the
-   number comes from: a "winding up" caption, one chip per swing (each dodge-checked → ⚔ lands & ticks
-   the running total, or 💨 whiffs), then the stack flies UP into the foe telegraph + the guard goal,
-   both flashing, while the board recedes under a guided-eye dim. Timings are first-cut (tune in play). */
-const TG = { cap: 200, chip: 165, settle: 240, send: 440 }
-function tgDuration(swings: number): number { return TG.cap + swings * TG.chip + TG.settle + TG.send }
-function telegraphConstruct(w: { amount: number; swings: number; dodged: number }): void {
-  const view = V
-  if (!view || !view.refs.floatlayer || w.swings <= 0) return
-  view.refs.boardwrap?.classList.add('tgdim') // the eye goes UP to the telegraph + guard; the cards recede
-  const wrap = $(`<div class="tgbuild"><div class="tg-cap">⚡ winding up</div><div class="tg-chips"></div><div class="tg-sum">⚔ 0</div></div>`)
-  view.refs.floatlayer.appendChild(wrap)
-  void wrap.offsetWidth; wrap.classList.add('go')
-  const chipRow = wrap.querySelector('.tg-chips') as HTMLElement
-  const sumEl = wrap.querySelector('.tg-sum') as HTMLElement
-  const landed = w.swings - w.dodged
-  const per = landed > 0 ? Math.floor(w.amount / landed) : 0
-  const lastExtra = w.amount - per * landed // remainder rides the last landing swing → the sum lands EXACTLY on amount
-  let running = 0, landSeen = 0
-  for (let i = 0; i < w.swings; i++) {
-    const isLand = i < landed // lands first (the stack builds), whiffs trail (reads as "two land, one slips")
-    sceneTimeout(() => {
-      if (view !== V || !V.holdHud) return
-      const chip = $(`<span class="tg-chip ${isLand ? 'land' : 'whiff'}">${isLand ? '⚔' : '💨'}</span>`)
-      chipRow.appendChild(chip); void chip.offsetWidth; chip.classList.add('in')
-      if (isLand) {
-        landSeen++
-        running += per + (landSeen === landed ? lastExtra : 0)
-        sumEl.textContent = `⚔ ${running}`
-        sumEl.classList.remove('bump'); void sumEl.offsetWidth; sumEl.classList.add('bump')
-      }
-    }, TG.cap + i * TG.chip)
-  }
-  // SEND — the assembled stack flies up; the foe telegraph reveals + the guard goal flashes (where to defend)
-  sceneTimeout(() => {
-    if (view !== V || !V.holdHud) return
-    if (w.amount === 0) { sumEl.textContent = '💨 free round'; sumEl.classList.add('whiffall') }
-    wrap.classList.add('send')
-    pulseTelegraph()
-    const grd = V.refs.tcgrd
-    if (grd) { grd.classList.remove('goalflash'); void grd.offsetWidth; grd.classList.add('goalflash'); sceneTimeout(() => grd.classList.remove('goalflash'), TG.send + 200) }
-    sceneTimeout(() => wrap.remove(), TG.send + 220)
-  }, TG.cap + w.swings * TG.chip + TG.settle)
 }
 
 /** Beat ⑤: the scoreboard's foe side flares as the fresh telegraph lands. */
@@ -2263,10 +2169,6 @@ function floatText(text: string, opts: { mag?: number; color?: string; side?: 'y
 /** Back-compat shim: the old small board float, now routed through the unified floaty system. */
 function floatBoard(text: string, color: string, side?: 'you' | 'enemy', cls?: string): void {
   floatText(text, { color, side, cls, mag: 0.4 })
-}
-/** A delayed, centered "math beat" float over the play area (the exchange-cutscene breakdown narration). */
-function centerMath(text: string, mag: number, delay: number): void {
-  sceneTimeout(() => floatText(text, { mag, color: 'var(--gold)', cls: 'mathbeat' }), delay)
 }
 
 /** §7/§13 the COMBO escalation — the visceral skill layer made loud: each match in the streak fires a
