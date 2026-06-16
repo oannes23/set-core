@@ -161,19 +161,32 @@ Guiding principles behind this work live in `DESIGN-GOALS.md` (not a backlog —
   (gated on `import.meta.env.DEV`). Core stays pure to the caller (board unchanged). *Test:
   `generate.invariants.test.ts` "I4" — unreachable floor trips the counter; a reachable floor never does.*
 
-### Stage 1 — ⭐ THE BLOCKER: refactor `ui/app.ts` (enables everything below + its own tests)
-`app.ts` is 3,203 lines (~31% of the codebase) and holds **untested** load-bearing run-economy glue.
-Breaking it up is the prerequisite that makes Rounds-v3 UI, parting-blow, pause, and U5 land on clean,
-testable seams. Behavior-preserving — extract, don't redesign.
-- `[ ]` **Extract the run-economy glue into pure, testable modules** (keep DOM out of the logic):
-  the delve fork, loot banking, the death tithe, XP award, persistence writes. Each extracted unit
-  gets a unit test (the conspicuous current gap — none of this is covered today). *Test: per-module
-  unit tests for fork outcomes / banking / tithe / XP.*
-- `[ ]` **Split the scene router + the breakdown-cutscene choreographer** into their own files so
-  `app.ts` becomes thin wiring. Behavior-preserving.
-- `[ ]` **U5 (do it here) — coalesce tick actions.** `app.ts:1511` pushes every dispatch incl.
-  per-frame ticks to `V.actions`; coalesce/drop ticks so the replay log doesn't bloat (prerequisite
-  for the `session.ts` replay seam / daily-seeded runs). *Test: a run of N ticks records O(events), not O(ticks).*
+### Stage 1 — ⭐ THE BLOCKER: refactor `ui/app.ts` (enables everything below + its own tests) — ✅ 1A–1D DONE 2026-06-16 (scope 1A–1D; 1E deferred)
+`app.ts` was 3,204 lines (~31% of the codebase) holding **untested** load-bearing run-economy glue.
+Breaking it up is the prerequisite that makes Rounds-v3 UI, parting-blow, pause land on clean,
+testable seams. Behavior-preserving — extract, don't redesign. (app.ts now 3,110 lines + new pure modules.)
+- `[x]` **1A — Extract the delve run-economy into a pure, tested module** (`src/ui/delve-run.ts`):
+  `DelveRun`/`DelveLoot` types + `applyRoomLoot` (satchel/purse/gear accrual + bag cap) + `bankRunGear`
+  + `resolveDelveExit` (death tithe vs safe-exit banking; takes+returns an `Account`, never touches
+  localStorage). app.ts's `delveFork`/`rollDelveLoot`/`bankGearFound` now load→call→save→render.
+  6 unit tests (`delve-run.test.ts`): accrual, cap, banking, overflow, both exit paths.
+- `[x]` **1B — Extract XP banking** → pure `save.addXP(char, amount)` (caps at LEVEL_CAP); `awardXP`
+  computes via engine `computeXP`, banks via `addXP`, persists, tallies. Test in `save.test.ts`.
+- `[x]` **1D — Split the scene router + tooltip** → `src/ui/router.ts` (goScene/sceneTimeout/tooltip,
+  teardown via `setSceneTeardown`) + the `$` builder → `src/ui/dom.ts`. Behavior-preserving DOM reorg.
+- `[ ]` **1E — Cutscene/FX choreographer split → DEFERRED (user scope 1A–1D).** ~660 lines, deep `V`
+  coupling, no test gain, and Rounds-v3 UI (Stage 2) rewrites much of that region — extract it as part
+  of Stage 2 if at all, not as a standalone churn.
+- `[~]` **U5 — coalesce tick actions → DEFERRED to the replay-seam build (2026-06-16 finding).**
+  `app.ts` pushes every dispatch incl. per-frame ticks to `V.actions`. **Naive coalesce-by-sum is
+  UNSAFE:** the engine `tick` is non-additive — the rollover is a single `if (now >= roundEndsAt)`
+  (`combat.ts:356`, one merged tick spanning two rounds fires ONE rollover) and the drift/DoT loop is
+  capped `guard++ < 4` per call (`combat.ts:309`, a big tick drops fires many small ticks would land).
+  A lossless coalesce needs an ENGINE change (loop the rollover + sub-step large ticks, with a
+  "big tick == N small ticks" equivalence test) — combat-correctness risk, and its only beneficiary
+  is the unused `session.ts` replay seam. So it belongs WITH that seam build, not here. Live play is
+  fine today (the rAF dt is capped `< 500ms`, so a live tick never spans a rollover and the guard
+  never binds). Memory is a non-issue in practice (~3.6k tiny entries for a 60s fight). Park it.
 - `[ ]` **A1 (opportunistic, lower priority) — lift presentation strings out of engine events.**
   Engine events carry English+emoji `label`s (`triggers.ts:277`, `ops.ts:30`, …). Move formatting to
   a UI presentation layer (pairs naturally with this boundary cleanup; bites i18n/server-authority
