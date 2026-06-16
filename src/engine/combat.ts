@@ -260,7 +260,7 @@ function completeSet(s: CombatState, slots: [number, number, number], deps: Deps
   const res = resolveSet(cards, s.stats, s.foe.stats, deps.rng, s.riders, s.mods.penetration, primedFlags)
   if (primedFlags.some(Boolean)) { s.roundLog.primed++; sink.emit({ type: 'passiveProc', id: 'primed', label: '✦ primed' }) }
   applyResolution(s, res, deps.rng, sink)
-  sink.emit({ type: 'setResolved', damage: res.damage, block: res.block, mana: res.mana, slots })
+  sink.emit({ type: 'setResolved', damage: res.damage, block: res.block, mana: res.mana, riderMana: res.riderMana, slots })
   updateCombo(s, res.desc, sink) // §7/§13 combo streak (tempo + identity) — feeds the crit score at the exchange
   // character-innate passives react to this match's signature (Momentum may steer the refill below)...
   firePassives(s, 'match', res.desc, deps.rng, sink)

@@ -6,7 +6,7 @@ import type { Trigger, FoeRules } from '../data/schema'
 import type { TacticKind, ManeuverBias } from './state'
 
 export type CombatEvent =
-  | { type: 'setResolved'; damage: number; block: number; mana: [number, number, number]; slots: number[] }
+  | { type: 'setResolved'; damage: number; block: number; mana: [number, number, number]; riderMana: number; slots: number[] }
   | { type: 'attackBanked'; amount: number; total: number } // v3: an Attack set banked toward the exchange swing
   | { type: 'roundEnded'; round: number } // the rollover exchange begins (events between this and roundStarted ARE the exchange)
   | { type: 'roundStarted'; round: number; incoming: number | null } // the deal settled; incoming = this round's telegraph (null = no strike)

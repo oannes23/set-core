@@ -112,7 +112,7 @@ interface View {
   boardSig: string
   refs: Record<string, HTMLElement>
   /** running combat tallies for the end-of-combat contribution chart (UI-only, replay-safe) */
-  stats: { dealt: number; taken: number; blocked: number; healed: number; sets: number; traps: number; xp: number; gearDmg: number; gearBlock: number }
+  stats: { dealt: number; taken: number; blocked: number; healed: number; sets: number; traps: number; xp: number; gearDmg: number; gearBlock: number; gearMana: number }
   /** slot → who pulled it (consumed when the slot's new card renders — the tug-attribution tint) */
   morphSrc: Map<number, 'churn' | 'drift' | 'trap' | 'trick'>
   /** the always-on dev balance instruments (TRAPS §5.5 targets etc.) — display-only, replay-safe */
@@ -739,7 +739,7 @@ function startCombat(root: HTMLElement, char: SavedChar, dungeonId: string, foe:
   const stats: StatBlock = { power: base.power + gb.power, endurance: base.endurance + gb.endurance, speed: base.speed + gb.speed }
   const run = createRun({ foe, gen: GEN, playerMax: char.maxHp, stats, riders: gearRiders(char.equipped), mods: gearMods(char.equipped), procs: gearProcs(char.equipped), passives: pass, consumables, sequence, dungeonId, dreadFloor, coach: !!dg.coach }, rng)
   run.combat.playerHP = Math.max(0, Math.min(char.maxHp, char.hp)) // the hero enters at their persisted HP, not full
-  V = { root, deps: { data: GAMEDATA, rng }, run, state: run.combat, char, actions: [], classId: cls.id, loadout: acts, coach: !!dg.coach, coachCue: null, manaColor: dominantManaColor(acts), paused: true, hitstopUntil: 0, holdHud: false, preview: null, selected: [], raf: 0, lastT: 0, boardSig: '', refs: {}, stats: { dealt: 0, taken: 0, blocked: 0, healed: 0, sets: 0, traps: 0, xp: 0, gearDmg: 0, gearBlock: 0 }, morphSrc: new Map(), dev: { reshapeYou: 0, reshapeFoe: 0, matches: 0, springs: 0, k1: 0, wards: 0, churns: 0 } }
+  V = { root, deps: { data: GAMEDATA, rng }, run, state: run.combat, char, actions: [], classId: cls.id, loadout: acts, coach: !!dg.coach, coachCue: null, manaColor: dominantManaColor(acts), paused: true, hitstopUntil: 0, holdHud: false, preview: null, selected: [], raf: 0, lastT: 0, boardSig: '', refs: {}, stats: { dealt: 0, taken: 0, blocked: 0, healed: 0, sets: 0, traps: 0, xp: 0, gearDmg: 0, gearBlock: 0, gearMana: 0 }, morphSrc: new Map(), dev: { reshapeYou: 0, reshapeFoe: 0, matches: 0, springs: 0, k1: 0, wards: 0, churns: 0 } }
   buildPlay()
   renderBoard()
   updateBar()
@@ -2057,6 +2057,7 @@ function interpretChunk(events: CombatEvent[]): void {
       case 'setResolved': {
         V.dev.matches++
         V.stats.sets++
+        V.stats.gearMana += e.riderMana // caster weapon/armor contribution — the end-screen "your gear" mana line
         matchSlots = e.slots
         manaSparks(e.mana, e.slots) // fly colour sparks to the mana pips — makes match→mana visible
         coachNotify('match') // guided intro: "make your first set" step
@@ -2662,9 +2663,15 @@ function combatChart(): HTMLElement {
   const eq = ch.equipped
   const wpn = eq.weapon ? gearBase(eq.weapon.refId) : undefined
   const arm = eq.armor ? gearBase(eq.armor.refId) : undefined
+  // mana comes from whichever CASTER pieces are equipped (wand/staff · robe · focus) — name them
+  const casters = [eq.weapon, eq.armor, eq.relic, eq.trinket1, eq.trinket2]
+    .map((g) => (g ? gearBase(g.refId) : undefined))
+    .filter((b): b is NonNullable<typeof b> => !!b && !!b.rider?.manaPerMatch)
+  const casterNames = casters.map((b) => `${b.icon} ${b.name}`).join(' & ')
   const gearBits: string[] = []
   if (st.gearDmg > 0) gearBits.push(`${wpn ? `${wpn.icon} ${wpn.name}` : 'Weapon'} added <b>+${st.gearDmg}</b> damage`)
   if (st.gearBlock > 0) gearBits.push(`${arm ? `${arm.icon} ${arm.name}` : 'Armor'} added <b>+${st.gearBlock}</b> block`)
+  if (st.gearMana > 0) gearBits.push(`${casterNames || 'Caster gear'} channeled <b>+${st.gearMana}</b> mana`)
   const gearLine = gearBits.length ? `<div class="sx-gear">your gear: ${gearBits.join(' · ')}</div>` : ''
   return $(`<div class="summary">${bars}${gearLine}<div class="summary-xp"><span class="sx-lab">✦ +${V!.stats.xp} XP</span>${xpLine}</div>${readyLine}</div>`)
 }

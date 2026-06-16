@@ -115,6 +115,7 @@ export interface Resolution {
   block: number
   riderDmg: number // the GEAR-rider part of `damage` (weapon bonus) — for the exchange-cutscene breakdown
   riderBlock: number // the gear-rider part of `block` (armor bonus)
+  riderMana: number // the gear-rider part of `mana` (caster weapon/armor) — for the gear-contribution readout
   charges: number // Move lane: charge POINTS (fractional; the bank floors into pips)
   mana: [number, number, number]
   allSameColor: boolean
@@ -173,6 +174,7 @@ export function resolveSet(cards: [Card, Card, Card], stats: StatBlock, foeStats
     mana[2] = 1
   }
   // caster mana rider: a mono-colour set is the caster's payoff (the school = mono-colour, §7)
-  if (riders.manaPerMatch > 0 && allSameColor) mana[cv[0]] += riders.manaPerMatch
-  return { damage, dmgLight, dmgMed, dmgHeavy, block, riderDmg, riderBlock, charges, mana, allSameColor, desc: matchDescriptor(cards) }
+  const riderMana = riders.manaPerMatch > 0 && allSameColor ? riders.manaPerMatch : 0
+  if (riderMana > 0) mana[cv[0]] += riderMana
+  return { damage, dmgLight, dmgMed, dmgHeavy, block, riderDmg, riderBlock, riderMana, charges, mana, allSameColor, desc: matchDescriptor(cards) }
 }
