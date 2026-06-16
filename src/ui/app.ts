@@ -691,7 +691,7 @@ function dungeonSelectScene(root: HTMLElement, char: SavedChar): void {
   leftP.appendChild($(`<label style="margin-top:12px">Foe</label>`))
   const fSel = $<HTMLSelectElement>(`<select id="foe"></select>`)
   leftP.appendChild(fSel)
-  leftP.appendChild($(`<label style="margin-top:14px">Consumables · ${CONSUMABLE_SLOTS} slots</label>`))
+  leftP.appendChild($(`<label style="margin-top:14px">Consumables · ${CONSUMABLE_SLOTS} slots · from Storage</label>`))
   const consWrap = $(`<div class="cons-loadout"></div>`)
   leftP.appendChild(consWrap)
 
@@ -720,36 +720,54 @@ function dungeonSelectScene(root: HTMLElement, char: SavedChar): void {
     if (dg.boss) { const b = GAMEDATA.creatures[dg.boss]; parts.push(`<div class="dgn-boss"><div class="dgn-k">☠ Boss</div><div class="cn">${b?.name ?? dg.boss}</div>${b?.desc ? `<div class="cc">${b.desc}</div>` : ''}</div>`) }
     summary.innerHTML = `<label>Expedition</label>` + parts.join('')
   }
+  /** The consumable loadout: chosen FROM your Storage stock (fungible, so picked by refId with a count;
+   *  CONSUMABLE_SLOTS total). The selection is validated against what you still own each render, and
+   *  committed OUT of Storage at delve start (survivors return via the loot scene; a death loses them). */
   const renderLoadout = (): void => {
     consWrap.innerHTML = ''
-    const allIds = Object.keys(CONSUMABLES)
-    const potions = allIds.filter((id) => CONSUMABLES[id].kind === 'potion')
-    const scrolls = allIds.filter((id) => CONSUMABLES[id].kind === 'scroll')
-    for (let slot = 0; slot < CONSUMABLE_SLOTS; slot++) {
-      const cur = char.consumables[slot] ?? ''
-      const cc = CONSUMABLES[cur]
-      const tint = cc?.color != null ? `var(--c${cc.color})` : 'var(--line2)'
-      const row = $(`<div class="cons-edit"></div>`)
-      row.appendChild($(`<span class="cons-slot${cc?.kind === 'scroll' ? ' scroll' : ''}" style="--cc:${tint}">${cc ? `<span class="cons-ic">${cc.icon}</span>` : ''}</span>`))
-      const seln = $<HTMLSelectElement>(`<select></select>`)
-      seln.appendChild($(`<option value="">(empty)</option>`))
-      const pg = $(`<optgroup label="Potions"></optgroup>`)
-      for (const id of potions) pg.appendChild($(`<option value="${id}">${CONSUMABLES[id].name}</option>`))
-      seln.appendChild(pg)
-      const sg = $(`<optgroup label="Scrolls"></optgroup>`)
-      for (const id of scrolls) sg.appendChild($(`<option value="${id}">${CONSUMABLES[id].name}</option>`))
-      seln.appendChild(sg)
-      seln.value = cur
-      seln.addEventListener('change', () => {
-        const arr = char.consumables.slice()
-        while (arr.length < CONSUMABLE_SLOTS) arr.push('')
-        arr[slot] = seln.value
-        char.consumables = arr
-        upsertChar(char); renderLoadout()
-      })
-      row.appendChild(seln)
-      consWrap.appendChild(row)
+    const owned = new Map<string, number>() // refId → how many in Storage
+    for (const it of loadBank().storage) if (it.kind === 'consumable' && CONSUMABLES[it.refId]) owned.set(it.refId, (owned.get(it.refId) ?? 0) + 1)
+
+    // clean the persisted selection against current ownership (sold/used pieces drop out)
+    const sel: string[] = []
+    const usedPer = new Map<string, number>()
+    for (const id of char.consumables) {
+      if (!CONSUMABLES[id] || sel.length >= CONSUMABLE_SLOTS) continue
+      const used = usedPer.get(id) ?? 0
+      if (used >= (owned.get(id) ?? 0)) continue
+      sel.push(id); usedPer.set(id, used + 1)
     }
+    if (sel.join('|') !== char.consumables.filter(Boolean).join('|')) { char.consumables = sel.slice(); upsertChar(char) }
+    const persist = (): void => { char.consumables = sel.slice(); upsertChar(char); renderLoadout() }
+
+    // the chosen slots (click a filled chip to drop it)
+    const chips = $(`<div class="cons-chips"></div>`)
+    for (let i = 0; i < CONSUMABLE_SLOTS; i++) {
+      const id = sel[i]; const c = id ? CONSUMABLES[id] : null
+      const tint = c?.color != null ? `var(--c${c.color})` : 'var(--line2)'
+      const chip = $(`<span class="cons-slot${c?.kind === 'scroll' ? ' scroll' : ''}${c ? '' : ' empty'}" style="--cc:${tint}"${c ? ` data-tip-title="${c.name}" data-tip="${c.desc} · click to remove"` : ''}>${c ? `<span class="cons-ic">${c.icon}</span>` : ''}</span>`)
+      if (c) chip.addEventListener('click', () => { sel.splice(i, 1); persist() })
+      chips.appendChild(chip)
+    }
+    consWrap.appendChild(chips)
+    consWrap.appendChild($(`<div class="cons-count">${sel.length} / ${CONSUMABLE_SLOTS} chosen</div>`))
+
+    // the available stock (steppers; + capped by ownership and free slots)
+    if (!owned.size) {
+      const none = $(`<div class="cons-none">No consumables in Storage — <a href="#">stock up</a> (loot a delve or sell-free from the bag).</div>`)
+      none.querySelector('a')!.addEventListener('click', (e) => { e.preventDefault(); goScene(storageScene) })
+      consWrap.appendChild(none); return
+    }
+    const avail = $(`<div class="cons-avail"></div>`)
+    for (const [id, have] of [...owned].sort((a, b) => a[0].localeCompare(b[0]))) {
+      const c = CONSUMABLES[id]; const used = sel.filter((x) => x === id).length
+      const tint = c.color != null ? `var(--c${c.color})` : 'var(--line2)'
+      const row = $(`<div class="cons-availrow"><span class="cons-slot${c.kind === 'scroll' ? ' scroll' : ''}" style="--cc:${tint}"><span class="cons-ic">${c.icon}</span></span><div class="gs-meta"><div class="gs-n">${c.name} <span class="bag-x">have ${have}</span></div><div class="gs-a">${c.desc}</div></div><div class="stepper"><button class="st-mns"${used === 0 ? ' disabled' : ''}>−</button><b>${used}</b><button class="st-pls"${used >= have || sel.length >= CONSUMABLE_SLOTS ? ' disabled' : ''}>+</button></div></div>`)
+      row.querySelector('.st-mns')!.addEventListener('click', () => { const idx = sel.lastIndexOf(id); if (idx >= 0) { sel.splice(idx, 1); persist() } })
+      row.querySelector('.st-pls')!.addEventListener('click', () => { if (used < have && sel.length < CONSUMABLE_SLOTS) { sel.push(id); persist() } })
+      avail.appendChild(row)
+    }
+    consWrap.appendChild(avail)
   }
 
   fSel.addEventListener('change', () => { foeVal = fSel.value })
