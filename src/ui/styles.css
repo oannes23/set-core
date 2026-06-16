@@ -962,14 +962,20 @@ body.dev #devtoggle { opacity: .9; color: var(--phos); border-color: var(--phos)
 /* THE EXCHANGE BREAKDOWN POPOVER — a centered ledger over a fully-dimmed playfield, Mörk Borg lean:
    stark black, acid-yellow, heavy stamped type. Each formula's terms POP top-to-bottom (zoom·shake·
    dropshadow·colour-dash) with a line of detail under each, the TOTAL biggest + longest, then the next part. */
-#xbreak { position: fixed; inset: 0; z-index: 60; display: flex; align-items: center; justify-content: center;
+#xbreak { position: fixed; inset: 0; z-index: 60;
   background: rgba(2, 3, 5, .86); backdrop-filter: blur(3px); opacity: 0; transition: opacity .35s ease; pointer-events: none; }
 #xbreak.in { opacity: 1; }
 #xbreak.out { opacity: 0; }
-.xb-card { min-width: 320px; max-width: min(82vw, 480px); max-height: 86vh; overflow: hidden; padding: 22px 34px 26px;
-  display: flex; flex-direction: column; align-items: center; gap: 14px; text-align: center; transform: rotate(-.5deg); /* a stamped tilt */
+/* each part is its own card: born centred + large, then SLIDES + scales to a corner slot (XB_PARK) as the
+   next part appears — by the end the whole round's ledger sits scattered across the field for a beat. */
+.xb-card { position: absolute; left: 50%; top: 50%; z-index: 2; transform: translate(-50%, -50%) rotate(-.5deg);
+  min-width: 320px; max-width: min(82vw, 480px); max-height: 86vh; overflow: hidden; padding: 22px 34px 26px;
+  display: flex; flex-direction: column; align-items: center; gap: 14px; text-align: center; opacity: 0;
+  transition: transform .5s cubic-bezier(.3, .9, .3, 1), opacity .45s ease; /* the ~0.5s slide-to-corner */
   background: #07080b; border: 2px solid var(--gold); border-radius: 3px;
   box-shadow: 9px 9px 0 0 #000, 0 0 0 1px #000, 0 0 44px -6px rgba(245, 197, 66, .25); } /* hard xerox drop-shadow */
+.xb-card.show { opacity: 1; }
+.xb-card.parked { opacity: .82; z-index: 1; } /* the inline XB_PARK transform drives the slide */
 .xb-card.atk { border-color: var(--red); box-shadow: 9px 9px 0 0 #000, 0 0 0 1px #000, 0 0 44px -6px rgba(240, 86, 91, .3); }
 .xb-card.def { border-color: var(--warn); box-shadow: 9px 9px 0 0 #000, 0 0 0 1px #000, 0 0 44px -6px rgba(245, 165, 36, .3); }
 .xb-card.hold { border-color: var(--blue); box-shadow: 9px 9px 0 0 #000, 0 0 0 1px #000, 0 0 44px -6px rgba(91, 148, 245, .3); }

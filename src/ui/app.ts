@@ -1703,49 +1703,67 @@ function choreographRollover(events: CombatEvent[]): void {
    flash), the TOTAL biggest + longest, then the next part. onTotal fires the HP snap / log for that part. */
 interface BTerm { txt: string; sub?: string; mag: number; total?: boolean; whiff?: boolean }
 interface BPart { title: string; cls: string; terms: BTerm[]; onTotal?: () => void }
-const XB = { intro: 500, partIntro: 460, term: 920, total: 1550, gap: 640, outro: 460 } // deliberately slow — the Mörk Borg ledger reads beat by beat
-const XB_REDUCED: typeof XB = { intro: 180, partIntro: 160, term: 280, total: 420, gap: 220, outro: 180 }
+const XB = { intro: 500, partIntro: 460, term: 920, total: 1550, gap: 640, hold: 3000, outro: 520 } // deliberately slow — the Mörk Borg ledger reads beat by beat; `hold` = the parked-tableau dwell
+const XB_REDUCED: typeof XB = { intro: 180, partIntro: 160, term: 280, total: 420, gap: 220, hold: 800, outro: 200 }
 const xbT = (pace = 1): typeof XB => {
   const x = matchMedia('(prefers-reduced-motion: reduce)').matches ? XB_REDUCED : XB
-  return pace === 1 ? x : { intro: x.intro * pace, partIntro: x.partIntro * pace, term: x.term * pace, total: x.total * pace, gap: x.gap * pace, outro: x.outro * pace }
+  return pace === 1 ? x : { intro: x.intro * pace, partIntro: x.partIntro * pace, term: x.term * pace, total: x.total * pace, gap: x.gap * pace, hold: x.hold, outro: x.outro * pace }
 }
+/** Parked-panel slots (CSS transforms from screen-centre): the corners, then the mid-sides — each panel
+ *  slides + scales down to its slot as the NEXT part appears, scattering the round's ledger across the field. */
+const XB_PARK = [
+  'translate(calc(-50% - 30vw), calc(-50% - 27vh)) scale(.5) rotate(-2.5deg)', // top-left
+  'translate(calc(-50% + 30vw), calc(-50% - 27vh)) scale(.5) rotate(2deg)', // top-right
+  'translate(calc(-50% - 30vw), calc(-50% + 27vh)) scale(.5) rotate(1.5deg)', // bottom-left
+  'translate(calc(-50% + 30vw), calc(-50% + 27vh)) scale(.5) rotate(-2deg)', // bottom-right
+  'translate(calc(-50% - 36vw), -50%) scale(.46) rotate(2deg)', // mid-left
+  'translate(calc(-50% + 36vw), -50%) scale(.46) rotate(-1.5deg)', // mid-right
+]
 function breakdownDuration(parts: BPart[], pace = 1): number {
   const X = xbT(pace)
   let t = X.intro
   for (const p of parts) { t += X.partIntro; for (const term of p.terms) t += term.total ? X.total : X.term; t += X.gap }
-  return t + X.outro
+  return t + X.hold + X.outro
 }
 function playBreakdown(parts: BPart[], release: () => void, pace = 1): void {
   const view = V
   if (!view) return
   const X = xbT(pace)
   document.body.classList.add('xbreak-on')
-  const pop = $(`<div id="xbreak"><div class="xb-card"><div class="xb-title"></div><div class="xb-row"></div></div></div>`)
-  document.body.appendChild(pop)
-  const card = pop.querySelector('.xb-card') as HTMLElement
-  const titleEl = pop.querySelector('.xb-title') as HTMLElement
-  const rowEl = pop.querySelector('.xb-row') as HTMLElement
-  void pop.offsetWidth; pop.classList.add('in')
+  const stage = $(`<div id="xbreak"></div>`)
+  document.body.appendChild(stage)
+  void stage.offsetWidth; stage.classList.add('in')
+  const park = (i: number): void => { const c = cards[i]; if (c) { c.classList.add('parked'); c.style.transform = XB_PARK[i % XB_PARK.length] } } // slide+scale to its corner
+  const cards: HTMLElement[] = []
   let t = X.intro
-  for (const part of parts) {
-    sceneTimeout(() => { if (view !== V) return; card.className = `xb-card ${part.cls}`; titleEl.textContent = part.title; rowEl.innerHTML = ''; titleEl.classList.remove('in'); void titleEl.offsetWidth; titleEl.classList.add('in') }, t)
+  parts.forEach((part, idx) => {
+    sceneTimeout(() => {
+      if (view !== V) return
+      if (idx > 0) park(idx - 1) // the previous part slides to its slot as this one takes centre
+      const card = $(`<div class="xb-card ${part.cls}"><div class="xb-title in"></div><div class="xb-row"></div></div>`)
+      card.querySelector('.xb-title')!.textContent = part.title
+      stage.appendChild(card); cards[idx] = card
+      void card.offsetWidth; card.classList.add('show')
+    }, t)
     let tt = t + X.partIntro
     for (const term of part.terms) {
       const isTotal = !!term.total
       sceneTimeout(() => {
-        if (view !== V) return
+        if (view !== V || !cards[idx]) return
         const chip = $(`<div class="xb-term${isTotal ? ' total' : ''}${term.whiff ? ' whiff' : ''}"><span class="xb-val"></span>${term.sub ? '<span class="xb-sub"></span>' : ''}</div>`)
         chip.querySelector('.xb-val')!.textContent = term.txt
         if (term.sub) chip.querySelector('.xb-sub')!.textContent = term.sub
         chip.style.setProperty('--mag', String(term.mag))
-        rowEl.appendChild(chip); void chip.offsetWidth; chip.classList.add('pop')
+        cards[idx].querySelector('.xb-row')!.appendChild(chip); void chip.offsetWidth; chip.classList.add('pop')
         if (isTotal) part.onTotal?.()
       }, tt)
       tt += isTotal ? X.total : X.term
     }
     t = tt + X.gap
-  }
-  sceneTimeout(() => { pop.classList.add('out'); window.setTimeout(() => pop.remove(), X.outro); document.body.classList.remove('xbreak-on'); if (view === V) release() }, t)
+  })
+  sceneTimeout(() => { if (view === V) park(parts.length - 1) }, t) // the last part parks too → the full ledger sits scattered
+  t += X.hold
+  sceneTimeout(() => { stage.classList.add('out'); window.setTimeout(() => stage.remove(), X.outro); document.body.classList.remove('xbreak-on'); if (view === V) release() }, t)
 }
 
 /** ROUND-1 PREVIEW — a short, abbreviated read at combat start: the incoming swings, the dodges, and how
