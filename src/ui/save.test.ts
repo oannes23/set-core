@@ -85,7 +85,7 @@ test('sanitizeChar truncates an oversized loadout to the slot cap', () => {
 })
 
 // ---- progression (CRAWL §3): the XP curve, level-up application, effective stats ----
-import { xpForLevel, maxHpForLevel, effectiveStats, pendingLevels, applyLevelUp, LEVEL_CAP, activeSlotsAt, passiveSlotsAt, activeUnlockLevel } from './save'
+import { xpForLevel, maxHpForLevel, effectiveStats, pendingLevels, applyLevelUp, addXP, LEVEL_CAP, activeSlotsAt, passiveSlotsAt, activeUnlockLevel } from './save'
 
 test('the loadout slot cadence: active 2→6 (L3/6/10/14), passive 1→3 (L8/16)', () => {
   expect([1, 2, 3, 5, 6, 9, 10, 13, 14, 21].map(activeSlotsAt)).toEqual([2, 2, 3, 3, 4, 4, 5, 5, 6, 6])
@@ -113,6 +113,18 @@ test('pendingLevels counts only what the banked XP affords, capped at the cap', 
   expect(pendingLevels({ ...base, xp: 110 })).toBe(1) // exactly L2
   expect(pendingLevels({ ...base, xp: 110 + 355 })).toBe(2) // L2 then L3
   expect(pendingLevels({ ...base, level: LEVEL_CAP, xp: 99999 })).toBe(0) // capped — no more
+})
+
+test('addXP banks XP (pure), ignores non-positive, and stops accruing at the cap', () => {
+  const base = makeChar('A', 'rogue', 'id')
+  expect(addXP({ ...base, xp: 50 }, 60).xp).toBe(110) // accrues
+  expect(addXP(base, 0)).toBe(base) // no-op → same ref
+  expect(addXP(base, -5)).toBe(base) // negative ignored
+  const capped = { ...base, level: LEVEL_CAP, xp: 500 }
+  expect(addXP(capped, 999)).toBe(capped) // at the cap XP stops — nothing to buy
+  const before = { ...base, xp: 10 }
+  addXP(before, 5)
+  expect(before.xp).toBe(10) // pure — the input is untouched
 })
 
 test('applyLevelUp spends one level of XP, bumps level + maxHp, banks the allocation', () => {

@@ -83,6 +83,13 @@ export function pendingLevels(c: SavedChar): number {
   while (lvl < LEVEL_CAP && xp >= xpForLevel(lvl)) { xp -= xpForLevel(lvl); lvl++; gained++ }
   return gained
 }
+/** Bank kill-XP onto a hero (pure, non-mutating): adds `amount` to banked XP — EXCEPT at the level
+ *  cap, where XP stops accruing (nothing left to buy). Returns a NEW char; the caller persists +
+ *  tallies the run total. (The kill's XP is COMPUTED upstream by engine `computeXP`.) */
+export function addXP(c: SavedChar, amount: number): SavedChar {
+  if (amount <= 0 || c.level >= LEVEL_CAP) return c
+  return { ...c, xp: c.xp + amount }
+}
 /** Apply ONE level-up with the player's chosen allocation (deltas summing to 6, **each ≤3** —
  *  freely distributed: 3/3/0 · 2/2/2 · 3/2/1, per CRAWL §3, revised 2026-06-14; the rigid
  *  +3/+2/+1 permutation is retired). The allocation rule is enforced UI-side (the level-up modal);

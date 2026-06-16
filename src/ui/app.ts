@@ -34,7 +34,7 @@ import type { CombatState, FoeRuntime, StatBlock } from '../engine/state'
 import { CHARGE_CAP, MANA_CAP, START_GRACE_MS, ROUND_MS, WOUND_WARD_COST, WOUND_CAP_PER_EXCHANGE, woundQuantum, dreadLevel, DREAD_ONSET, DREAD_MAX, PRIMED_WINDOW_MS } from '../engine/state'
 import type { CombatEvent } from '../engine/events'
 import { bumpTurn, pick, strikeWord, healWord, drainWord, magicLead, tierOf, joinClauses, voiceOf, ABILITY_FLAVOR } from './flavor'
-import { type SavedChar, type StatAlloc, loadRoster, upsertChar, deleteChar, makeChar, freshId, CONSUMABLE_SLOTS, effectiveStats, xpForLevel, pendingLevels, applyLevelUp, LEVEL_CAP, activeSlotsAt, passiveSlotsAt, activeUnlockLevel } from './save'
+import { type SavedChar, type StatAlloc, loadRoster, upsertChar, deleteChar, makeChar, freshId, CONSUMABLE_SLOTS, effectiveStats, xpForLevel, pendingLevels, applyLevelUp, addXP, LEVEL_CAP, activeSlotsAt, passiveSlotsAt, activeUnlockLevel } from './save'
 import { isDev, toggleDev, onDevChange, displayName } from './dev'
 
 const GEN: GenConfig = COMBAT_GEN
@@ -2714,7 +2714,7 @@ function awardXP(foe: CombatState['foe']): void {
   const x = computeXP(foe, V.char.level) // the outlevel penalty applies (sim §8 — farming trivial content doesn't pay)
   if (x <= 0) return
   V.stats.xp += x
-  if (V.char.level < LEVEL_CAP) V.char.xp += x // at the cap, XP stops accruing (nothing left to buy)
+  V.char = addXP(V.char, x) // pure: banks XP, capped at LEVEL_CAP
   upsertChar(V.char)
   floatBoard(`+${x} XP`, 'var(--gold)', 'enemy')
 }
