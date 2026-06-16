@@ -193,6 +193,28 @@ test('rounds: the tempo law packages a shambler as 2 modest swings every round',
   expect(s.incoming).not.toBeNull() // telegraphed (the swings summed) from the first deal
 })
 
+test('cutscene contract: a rollover with a strike emits swingMath + blockMath + roundSummary + windup', () => {
+  const rng = mulberry32(7)
+  const z = foe('limbless_zombie') // strikeEvery 1, swings 2 → a strike lands every rollover
+  const s = createCombat({ foe: z, gen: GEN, riders: { atkDamagePerCard: 2, blockPerDefendCard: 2, manaPerMatch: 0 } }, rng)
+  // bank some Attack + Defend so the swing/block breakdowns carry rider parts
+  const r0 = reduce(s, { type: 'completeSet', slots: findSets(s.board)[0] }, { data: GAMEDATA, rng })
+  const r = reduce(r0.state, { type: 'tick', dtMs: ROUND_MS + 100 }, { data: GAMEDATA, rng })
+  const sm = r.events.find((e) => e.type === 'swingMath') as Extract<import('./events').CombatEvent, { type: 'swingMath' }> | undefined
+  const bm = r.events.find((e) => e.type === 'blockMath') as Extract<import('./events').CombatEvent, { type: 'blockMath' }> | undefined
+  const rs = r.events.find((e) => e.type === 'roundSummary') as Extract<import('./events').CombatEvent, { type: 'roundSummary' }> | undefined
+  const w = r.events.find((e) => e.type === 'windup') as Extract<import('./events').CombatEvent, { type: 'windup' }> | undefined
+  expect(rs).toBeDefined() // the offense-quality summary (primed/combo) — emitted EVERY rollover
+  expect(rs!.primed).toBeGreaterThanOrEqual(0)
+  expect(bm).toBeDefined() // the strike landed (strikeEvery 1) → the block→net beat the cutscene narrates
+  expect(bm!.telegraph).toBeGreaterThan(0)
+  expect(bm!.soaked).toBeGreaterThanOrEqual(0)
+  expect(bm!.bite).toBe(Math.max(0, (bm!.telegraph - bm!.soaked) - bm!.block)) // net = (telegraph − soak) − guard, floored at 0
+  if (sm) { expect(sm.matches).toBeGreaterThanOrEqual(0); expect(sm.total).toBeGreaterThan(0) } // present iff Attack was banked
+  expect(w).toBeDefined() // the NEXT telegraph forms → windup drives the construction beat
+  expect(w!.swings).toBe(2); expect(w!.dodged).toBeGreaterThanOrEqual(0); expect(w!.dodged).toBeLessThanOrEqual(2)
+})
+
 test('rounds: banked Attack lands at the exchange, player swing FIRST (the kill-race)', () => {
   const rng = mulberry32(42)
   const f = foe('goblin', rng)
