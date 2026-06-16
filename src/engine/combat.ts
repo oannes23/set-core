@@ -435,6 +435,9 @@ function rollover(s: CombatState, deps: Deps, sink: EventSink): void {
   s.roundEndsAt = s.now + ROUND_MS
   s.roundExtendedS = 0
   s.roundAttack = 0
+  // round-summary for the cutscene: the offense quality this round (primed sets + combo peak) — read
+  // BEFORE the reset wipes the metrics; the UI celebrates it alongside the swing breakdown
+  sink.emit({ type: 'roundSummary', primed: s.roundLog.primed, comboPeak: Math.floor(s.combo.highest), combos: s.combo.combos })
   s.combo.highest = 0 // §13 the crit score is per-round — reset the metrics (the live streak/level carries via grace)
   s.roundLog = { atkBase: 0, atkRider: 0, blkBase: 0, blkRider: 0, attacks: 0, defends: 0, primed: 0 } // fresh round breakdown
   s.combo.combos = 0

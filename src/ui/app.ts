@@ -1577,7 +1577,7 @@ function choreographRollover(events: CombatEvent[]): void {
       case 'roundEnded': break // the beat itself (the mode-shift below)
       case 'won': case 'lost': finale.push(e); break
       case 'enemyDamaged': seg.swing.push(e); break
-      case 'swingMath': case 'blockMath': break // the cutscene math beats — played from the extracted sm/bm below, not the tide
+      case 'swingMath': case 'blockMath': case 'roundSummary': break // the cutscene math beats — played from the extracted sm/bm/rs below, not the tide
       case 'playerDamaged': case 'playerBlocked': case 'cardsShattered': case 'warded': case 'strikeDodged': seg.counter.push(e); break
       case 'windup': case 'roundStarted': seg.deal.push(e); break
       default: seg.tide.push(e) // dump/deal/stance-lock + anything unforeseen rides the tide beat
@@ -1619,6 +1619,7 @@ function choreographRollover(events: CombatEvent[]): void {
   // swing/strike transfers below land the totals. (Full clean retiming is the next slice.)
   const sm = events.find((e): e is Extract<CombatEvent, { type: 'swingMath' }> => e.type === 'swingMath')
   const bm = events.find((e): e is Extract<CombatEvent, { type: 'blockMath' }> => e.type === 'blockMath')
+  const rs = events.find((e): e is Extract<CombatEvent, { type: 'roundSummary' }> => e.type === 'roundSummary')
   if (sm) V.stats.gearDmg += sm.weapon // fight-cumulative gear contribution (the end-screen "your weapon helped" line)
   if (bm) V.stats.gearBlock += bm.blkRider
   let mt = 0; const STEP = 330
@@ -1627,6 +1628,9 @@ function choreographRollover(events: CombatEvent[]): void {
     if (sm.weapon > 0) { centerMath(`🗡 Weapon +${sm.weapon}`, 0.55, mt); mt += STEP }
     if (sm.crit) { centerMath(`✦ CRIT ×${sm.mult.toFixed(1)}`, 0.85, mt); mt += STEP }
   }
+  // the round's OFFENSE QUALITY — the skill shine: primed sets + the combo peak, sized by how big it got
+  if (rs && rs.comboPeak >= 2) { centerMath(`🔥 ${rs.comboPeak}× combo${rs.combos > rs.comboPeak ? ` · ${Math.round(rs.combos)} linked` : ''}`, Math.min(0.9, 0.5 + rs.comboPeak * 0.05), mt); mt += STEP }
+  if (rs && rs.primed > 0) { centerMath(`✦ ${rs.primed} primed`, 0.6, mt); mt += STEP }
   if (bm && !bm.dodgedAll && bm.telegraph > 0) { // their strike lands → narrate your defense math → the net
     mt = Math.max(mt, STEP) // the defense beat follows your swing
     centerMath(`🛡 Block ${bm.block}${bm.blkRider > 0 ? ` (+${bm.blkRider} armor)` : ''}`, 0.5, mt); mt += STEP
