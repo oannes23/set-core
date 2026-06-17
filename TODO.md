@@ -18,12 +18,13 @@ Traffic-light: green = pursue · yellow = consequence · red = wounded.
 
 ## ▶ NEXT SESSION — START HERE (handoff 2026-06-16)
 **⭐ ACTIVE: YAML CONTENT-CONVERSION TRACK** (see the dedicated section below + `MODDING.md`). Converting
-all content to external YAML for moddability **before** the balancing phase. **Phase 0 ✅ + Phase 1 ✅
+all content to external YAML for moddability **before** the balancing phase. **Phases 0 ✅ + 1 ✅ + 2 ✅
 DONE 2026-06-17** — the YAML pipeline + derived validator + registry are live; ALL pure-data content
-(monsters/traps/dungeons, classes, gear, loot tuning, economy constants) is now YAML-sourced with
-editor autocomplete. **NEXT = Phase 2** (affix magnitude DSL, progression coefficients, delve
-tunables, simple passives) then **Phase 3** (the effect-DSL for ability/passive/consumable behavior).
-The gated balance sim comes after the track — and is now much easier (tuning lives in YAML).
+(monsters/traps/dungeons, classes, gear, loot, economy) PLUS the affix magnitude DSL, progression
+coefficients, and delve tunables are now YAML-sourced with editor autocomplete. **NEXT = Phase 3**
+(the effect-DSL for ability/passive/consumable behavior — the moddability ceiling; also lands the
+deferred simple-passives port). The gated balance sim comes after — and is now much easier
+(abilities/affixes/progression/economy all tune in YAML).
 
 **⭐ 2026-06-16: POST-REVIEW HARDENING TRACK below** (from `REVIEW-2026-06-16.md` + `DESIGN-GOALS.md`).
 Progress: **POST-REVIEW HARDENING TRACK COMPLETE** — Stage 0 ✅ · Stage 1 (app.ts refactor 1A–1D) ✅ ·
@@ -358,11 +359,14 @@ validated by `ajv` — build/test-only, tree-shaken out of the bundle). Approved
 - `[x]` Closed the `blast`/`cross`/`plus` schema-vs-impl gap (dropped from the `Geometry` union).
 - **REACHED the ship/stop point:** fully moddable except authoring NEW ability/passive/consumable behavior.
 
-### Phase 2 — Moderate (~3–5d)
-- `[ ]` Affix magnitude DSL — retire `build()` closures (`data/affixes.ts:27`); `AffixComponent` folds unchanged.
-- `[ ]` Progression coefficients → `progression.yaml` (`ui/save.ts`; expose `xpForLevel` as `{base,exponent}`).
-- `[ ]` Delve tunables → `delve.yaml` (`engine/delve.ts`; boss triangular law stays code).
-- `[ ]` Simple passives port (after the DSL); flag the 2 woven ones (`overflow`/`combined_arms`).
+### Phase 2 — Moderate — ✅ DONE 2026-06-17 (267 tests; tsc + build clean)
+- `[x]` Affix magnitude DSL — `build()` closures → declarative `make: AffixSpec` + `buildAffixComponents`
+  interpreter; folds unchanged; catalog → `content/affixes.yaml`.
+- `[x]` Progression coefficients → `content/progression.yaml` via new `engine/progression.ts` (PROG;
+  `xpForLevel` as `{base,exponent,roundTo}`); `ui/save.ts` re-exports from PROG.
+- `[x]` Delve tunables → `content/delve.yaml` (`engine/delve.ts` DelveConfig; boss triangular law stays code).
+- `[ ]` Simple passives port → DEFERRED to Phase 3 (gated on the effect-DSL); the 2 woven ones
+  (`overflow`/`combined_arms`) stay native or get hook points.
 
 ### Phase 3 — The effect-DSL (the moddability ceiling, ~2–4wk)
 - `[ ]` Grow `EffectName` + `runEffect` to cover ability/consumable verbs; add a `scale`/expression facility.

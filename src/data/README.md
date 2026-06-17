@@ -9,8 +9,9 @@ loaded through a typed registry. See `../../MODDING.md` for the full conversion 
   **The single source of truth for the content vocabulary.** Pure authoring-time checking; nothing
   at runtime. JSON Schemas are generated *from* this file.
 - `content/*.yaml` — the actual content, one file per domain: `creatures`, `traps`, `drifts`,
-  `variants`, `templates`, `dungeons`, `encounter` (the `GAMEDATA` registry), plus `classes`, `gear`
-  (catalogs), and `loot`, `economy` (balance tuning). **Edit these to add/change content.**
+  `variants`, `templates`, `dungeons`, `encounter` (the `GAMEDATA` registry); the `classes`, `gear`,
+  `affixes` catalogs; and `loot`, `economy`, `progression`, `delve` (balance tuning). **Edit these to
+  add/change content.** Affixes use a declarative `make` spec (the magnitude DSL) — no code.
 - `content/schema.json` — the whole-`GameData` JSON Schema (validation gate, used by `validate.ts`).
 - `content/schemas/*.schema.json` — per-file JSON Schemas; each YAML file's `# yaml-language-server`
   header points at its one, giving **live autocomplete + inline validation** in editors (VS Code via
@@ -21,10 +22,10 @@ loaded through a typed registry. See `../../MODDING.md` for the full conversion 
   deps, runtime-safe** — the seam runtime user-mods will slot into.
 - `validate.ts` — ajv schema validation. **Build/test-only** (imports ajv; never on the runtime path,
   so it's tree-shaken out and runtime deps stay empty).
-- `classes.ts` / `gear.ts` — loaders for the class roster + gear base-type catalog (types + helpers
-  stay; data is in `content/classes.yaml` / `content/gear.yaml`). Loot + economy tuning load via
-  `engine/loot.ts` (`LootConfig`) and `engine/economy.ts` (`ECON`) from `content/loot.yaml` /
-  `content/economy.yaml`.
+- `classes.ts` / `gear.ts` / `affixes.ts` — loaders for the class roster, gear base-type catalog, and
+  affix catalog (types + helpers + the affix magnitude interpreter stay; data is in the matching
+  `content/*.yaml`). Tuning configs load via `engine/loot.ts` (`LootConfig`), `engine/economy.ts`
+  (`ECON`), `engine/progression.ts` (`PROG`), and `engine/delve.ts` (`DelveConfig`).
 
 ## Authoring workflow (no code needed)
 

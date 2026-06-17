@@ -135,27 +135,22 @@ Runtime `dependencies` still `{}`; ajv absent from the bundle.
 
 ---
 
-## 4. Phase 2 — Moderate (declarative magnitude + tunable formulas) · ~3–5 days
+## 4. Phase 2 — Moderate (declarative magnitude + tunable formulas) · ✅ DONE 2026-06-17 (267 tests; tsc + build clean)
 
-- [ ] **Affix magnitude DSL.** Retire the `build:(mag)=>AffixComponent[]` closures
-      (`data/affixes.ts:27,32-67`). The output (`AffixComponent` tagged unions,
-      `engine/items.ts:65-71`) is already data and the engine folds (`engine/gear.ts`)
-      need **zero change**. Only the catalog→instance math is a closure, and the
-      observed vocabulary is small & closed: `base*mag` + `round/min(1)`, `min(cap,k*m)`,
-      a `k` coefficient. Add a declarative `mag` spec + a `buildAffixComponents(spec,mag)`
-      interpreter (~40 LOC), migrate all ~18 affixes. `affixes.test.ts` is the oracle.
-- [ ] **Progression coefficients** → `progression.yaml` (`ui/save.ts`). `LEVEL_CAP`,
-      `HP_PER_LEVEL`, the slot-unlock ladders are pure data; expose `xpForLevel`'s
-      `110·L^1.7` as `{base,exponent}` coefficients. Extract these out of `ui/save.ts`
-      into a progression data module first.
-- [ ] **Delve tunables** → `delve.yaml` (`engine/delve.ts`). `ELITE_STEP`, `RUN_BAG_CAP`,
-      dread-band thresholds/labels are data; the boss triangular law stays code.
-- [ ] **Simple passives.** The 6 single-op passives (`engine/passives.ts:31-65`) port
-      once the effect-DSL (Phase 3) exists — their `test` is exactly the `Condition`
-      vocabulary already in `schema.ts:29-37`. The 2 *woven* passives (`overflow`,
-      `combined_arms`, `passives.ts:52-55,68-72`) have empty `fire()` bodies; their logic
-      lives in `ops.gainBlock` / `combat.applyResolution`. Either keep them as native
-      ids or add explicit hook points — flag, don't force.
+- [x] **Affix magnitude DSL.** Retired the `build:(mag)=>AffixComponent[]` closures → a declarative
+      `AffixDef.make: AffixSpec` + a `buildAffixComponents(spec, m)` interpreter (`data/affixes.ts`).
+      Two magnitude ops cover every live affix: integer `scaled(m,k)=max(1,round(m·k))` + fraction
+      `min(cap,perUnit·m)`; proc damage/heal/block/mana scale by `k`, charges/delay literal, label `{a}`
+      filled. The `engine/gear.ts` folds were untouched. Catalog then moved to `content/affixes.yaml`.
+- [x] **Progression coefficients** → `content/progression.yaml` via new **`engine/progression.ts`** (`PROG`).
+      Level cap, hp/level, the `110·L^1.7` curve as `{base,exponent,roundTo}`, slot-unlock ladders + caps,
+      starter consumables. `ui/save.ts` reads `PROG` + re-exports its names (the extraction, done).
+- [x] **Delve tunables** → `content/delve.yaml` (`engine/delve.ts` `DelveConfig`). `eliteStep`,
+      `runBagCap`, dread bands + throne label. The boss triangular law stayed code.
+- [ ] **Simple passives** — DEFERRED to Phase 3 (gated on the effect-DSL). The 6 single-op passives
+      (`engine/passives.ts`) port once the effect vocabulary exists; the 2 *woven* passives (`overflow`,
+      `combined_arms` — empty `fire()`, logic in `ops.gainBlock`/`combat.applyResolution`) stay native
+      ids or get explicit hook points. Tracked under Phase 3.
 
 ---
 
