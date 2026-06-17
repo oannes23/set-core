@@ -27,9 +27,16 @@ scoped to their match-type colour — engine/resolve + gearRiders; ⚠ cuts weap
 the gear-factor sim assumed, fold into the next combat re-sim). · **B4 MARKET buy-side BUILT 2026-06-16**
 (🏪 one Market scene: gear vendor — randomized stock via the loot roller, banded by highest char level,
 ~10/slot, regenerates on reload + after a delve — plus the consumables catalog; buy = 150% of value).
-Item TOOLTIPS + a Data Wipe testing affordance also shipped. **NEXT = remaining B4** (Storage-slot upgrades
-`N²`; markup-lowering base upgrades; smarter restock) + the class-hall/amenity layer; then the combat re-sim
-(now that loot + the type layer have settled) + `GOLD_K` faucet recalibration. Deferred to future stages: U5
+Item TOOLTIPS + a Data Wipe testing affordance also shipped. · **THE TOWN HUB + B4 BUILDOUT = DONE 2026-06-16:**
+a card-grid **town hub** (home screen; reusable `hubGrid`; Barracks/Gates/Training/Vault/Market/Smithy/
+Enchanter/Merchant House/Guild District) · **Vault** (Storage renamed) + the **+10-slot upgrade** ((cap+10)²,
+→100) · the **Enchanter** (bench split by operation: Smith forges upgrade/transfer, Enchanter does enchant/
+reroll + Potions/Scrolls vendor tabs) · the **Merchant House** (two persisted upgrade tracks — Merchant
+standing 150→100% buy markup · Town loot quality +rarity band for town vendors only — plus a 10-slot **rare
+vendor** of epic/legendary gear at 2×) · the **Guild District** sub-hub (per-class HALL placeholders, prove
+the multi-layer pattern). **NEXT = the class-hall CONTENT** (spellbook shops/trainers/bounties — needs the
+ability system, Phase 5) + smarter vendor restock; then the **combat re-sim** (now that loot + the type layer
+have settled) + `GOLD_K` faucet recalibration. Deferred to future stages: U5
 tick-coalescing (→ replay-seam build), 1E cutscene split, colorblind/relaxed-mode (→ external-playtest
 gate). The balance sim stays **gated** until loot + abilities settle.
 

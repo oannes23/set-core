@@ -145,8 +145,17 @@ f=3/N=15 grid; only the skin changes.
   - **BUILT 2026-06-16 (B4 — the Market buy-side):** the **🏪 Market** scene — a **gear vendor**
     (`loot.rollMarketStock`: the loot roller, rarity-banded by the player's HIGHEST character level,
     ~10/slot group, sorted by value, regenerating on reload + after each delve) + the **consumables
-    catalog**; **buy = 150% of value** (`value.buyPrice`/`BUY_MARKUP`). **Still open: Storage-slot
-    upgrades (`N²`); markup-lowering base upgrades; smarter restock; the class-hall spellbook shops (B4/B5).**
+    catalog**; **buy = 150% of value** (`value.buyPrice`/`BUY_MARKUP`).
+  - **BUILT 2026-06-16 (the TOWN HUB + the rest of B4):** a card-grid **town hub** (the home screen; a
+    reusable `hubGrid` shared with sub-districts) — **Barracks** (the roster/sheet) · **Gates of Town** /
+    **Training Ground** (real vs coach dungeons) · **Vault** (Storage renamed; the **+10-slot upgrade**,
+    cost `(cap+10)²` to 100) · **Market** · **Smithy** (forge: upgrade rarity / transfer affix) ·
+    **Enchanter** (magic: enchant / reroll + Potions & Scrolls vendor tabs — the bench split by OPERATION) ·
+    **Merchant House** (two persisted upgrade tracks — *Merchant standing* lowers the buy markup 150→100%
+    across all town vendors; *Town loot quality* raises the TOWN-vendor rarity band only — plus a 10-slot
+    **rare vendor** of **epic (purple) / legendary (orange)** gear at **2× value**; `loot.rollRareStock`) ·
+    **Guild District** (a sub-hub of per-class HALL placeholders). **Still open: class-hall CONTENT**
+    (spellbook shops / trainers / bounties — needs the ability system, Phase 5) + smarter vendor restock.
   - **BUILT 2026-06-16 (the §7 TYPE layer):** weapon base riders now fire only on their **match-type
     colour** (engine/resolve + gearRiders) — martial/caster/armor type effects all live. ⚠ This cuts
     weapon uptime → the foe-difficulty `gearFactor` over-credits gear now; **fold into the next combat re-sim.**

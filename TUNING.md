@@ -252,10 +252,18 @@ Tier-1 bench (all ops ungated); the smithy-AMENITY tiers (cheapen/unlock) ride B
 So a std potion ≈ 24g (sells 4), a blue weapon ≈ 170g (sells 34), an orange ≈ 800g+ (sells 160+).
 
 **Market BUY price — FIRST-CUT (B4, BUILT 2026-06-16; `value.BUY_MARKUP`).** Buy = **150% of value**
-(`BUY_MARKUP 1.5`); the spread to the 20% sell-back kills flip-arbitrage. Base upgrades pull the markup
-toward 100% later. The gear vendor stocks ~10/slot, rarity-banded by the player's highest character level
-(`loot.rollMarketStock` → minion <L5 · elite L5–11 · boss L12+ rarity weights), regenerating on reload +
-after each delve. ⚠ Recalibrate WITH `GOLD_K` once play settles.
+(`BUY_MARKUP 1.5`); the spread to the 20% sell-back kills flip-arbitrage. The gear vendor stocks ~10/slot,
+rarity-banded by the player's highest character level (`loot.rollMarketStock` → minion <L5 · elite L5–11 ·
+boss L12+ rarity weights), regenerating on reload + after each delve. ⚠ Recalibrate WITH `GOLD_K`.
+
+**Vault + Merchant House — FIRST-CUT (B4, BUILT 2026-06-16; `bank` + `value`; ⚠ sim-gated with `GOLD_K`):**
+
+| Sink | Numbers | Meaning |
+|---|---|---|
+| Vault slot upgrade | `(cap+10)²` per +10 slots, cap 100 | 20→30 = 900g … 90→100 = 10,000g (~38k all-in) — the steady inventory sink |
+| Merchant standing | markup **1.5/1.4/1.3/1.2/1.1/1.0** · cost-to-tier **0/1.5k/3.5k/6.5k/11k/18k** | lowers buy markup across ALL town vendors (≈40k all-in) |
+| Town loot quality | **+4 eff levels / tier** · cost-to-tier **0/2k/5k/10k/18k** | raises the TOWN-vendor (Market + rare) rarity band — vendors only, not delve drops |
+| Rare vendor | **2× value** (`RARE_MARKUP`) · epic(purple)/legendary(orange) · 10 slots | high-quality high-price; quality tiers skew the purple→orange split |
 
 **Crit + combos + Primed — the exchange-delight feel layer (CRIT CURVE CALIBRATED 2026-06-15, sim §13).**
 Crit is rolled once on the aggregate swing at rollover ① (player-only; a narrow §5.7 carve-out — the SET
