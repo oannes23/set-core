@@ -18,6 +18,7 @@ import { foeValue, foeLevelEquiv } from './foe'
 import { CONSUMABLES } from './consumables'
 import { GEAR } from '../data/gear'
 import { rollGear } from './gear'
+import { gearValue } from './value'
 import type { GearInstance, Rarity } from './items'
 
 export type LootKind = 'gold' | 'consumable' | 'gear' | 'spellbook'
@@ -69,6 +70,34 @@ export function rollGearDrop(foe: FoeRuntime, depth: number, rng: Rng): GearInst
 }
 /** Gear pity: each gear-LESS category drop adds this to the gear weight; a gear hit resets it (sawtooth). */
 export const GEAR_PITY_STEP = 8
+
+// --- the town MARKET vendor (B4 buy-side): a randomized gear stock, grouped by slot, generated with the
+//     same roller as loot. Rarity tier rides the player's HIGHEST character level; loot-tier = that level. ---
+export const MARKET_PER_SLOT = 10
+/** Slot groups the vendor stocks (offhand = relic; trinket1 covers both trinket slots). */
+const MARKET_GROUPS: Array<{ label: string; slot: string }> = [
+  { label: 'Weapons', slot: 'weapon' },
+  { label: 'Armor', slot: 'armor' },
+  { label: 'Offhand', slot: 'relic' },
+  { label: 'Trinkets', slot: 'trinket1' },
+]
+/** Level → the rarity weight band (deeper characters unlock better vendor stock). */
+const marketTier = (level: number): Tier => (level >= 12 ? 'boss' : level >= 5 ? 'elite' : 'minion')
+
+/** Roll the vendor's stock for a character level: MARKET_PER_SLOT pieces per slot group, each a
+ *  random base type of that slot × level-banded rarity × loot-tier = level, sorted by value (high→low). */
+export function rollMarketStock(level: number, rng: Rng): Array<{ label: string; items: GearInstance[] }> {
+  const tier = marketTier(Math.max(1, level))
+  const lootTier = Math.max(1, level)
+  return MARKET_GROUPS.map((grp) => {
+    const bases = Object.values(GEAR).filter((b) => b.slot === grp.slot)
+    const items = Array.from({ length: MARKET_PER_SLOT }, () => {
+      const base = bases[Math.floor(rng() * bases.length)]
+      return rollGear(base.id, rollGearRarity(tier, rng), lootTier, rng)
+    }).sort((a, b) => gearValue(b) - gearValue(a))
+    return { label: grp.label, items }
+  })
+}
 
 /** The dungeon-clear MARQUEE roll (CRAWL §3): one GUARANTEED rare+ gear piece on a boss kill — the
  *  dungeon's headline reward. (Spellbook-marquee lands at B4; for now the marquee is always gear.) */

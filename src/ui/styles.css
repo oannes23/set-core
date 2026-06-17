@@ -482,6 +482,11 @@ button.cta.bob { animation: ctabob 1.6s ease-in-out infinite; }
 .sellbtn { font: 600 11px/1 'Spline Sans Mono', monospace; color: var(--gold); background: transparent; border: 1px solid color-mix(in srgb, var(--gold) 45%, transparent);
   border-radius: 6px; padding: 5px 9px; cursor: pointer; white-space: nowrap; transition: background .12s ease; }
 .sellbtn:hover { background: color-mix(in srgb, var(--gold) 14%, transparent); }
+.buybtn { font: 600 11px/1 'Spline Sans Mono', monospace; color: var(--phos); background: transparent; border: 1px solid color-mix(in srgb, var(--phos) 45%, transparent);
+  border-radius: 6px; padding: 5px 9px; cursor: pointer; white-space: nowrap; transition: background .12s ease; }
+.buybtn:hover { background: color-mix(in srgb, var(--phos) 14%, transparent); }
+.buybtn.cant { color: var(--ink-faint); border-color: var(--line2); cursor: default; }
+.buybtn.cant:hover { background: transparent; }
 /* the end-of-run LOOT TRIAGE scene */
 .lm-hd { font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-dim); margin: 12px 0 6px; }
 .gp-row.selling { opacity: .6; border-style: dashed; }

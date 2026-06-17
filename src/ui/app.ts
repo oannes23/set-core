@@ -24,13 +24,13 @@ import { assembleFoe, pickWeightedFoe, computeXP } from '../engine/foe'
 import { colsForN, COMBAT_GEN, playerCritChance, type Deps, type CombatAction } from '../engine/combat'
 import { createRun, runReduce, type RunState } from '../engine/run'
 import { createDelve, nextEncounter, fleeReroll, dreadBand, RUN_BAG_CAP } from '../engine/delve'
-import { rollMarqueeGear } from '../engine/loot'
+import { rollMarqueeGear, rollMarketStock } from '../engine/loot'
 import { gearStatBonus, gearRiders, gearProcs, gearMods, rollGear } from '../engine/gear'
-import { EQUIP_SLOTS, type EquipSlot, type Rarity, type Affix, type AffixComponent, type GearInstance } from '../engine/items'
+import { EQUIP_SLOTS, makeItem, type EquipSlot, type Rarity, type Affix, type AffixComponent, type GearInstance } from '../engine/items'
 import { GEAR, gearBase, fitsSlot } from '../data/gear'
 import { CONSUMABLES } from '../engine/consumables'
-import { loadBank, saveBank, addToStorage, removeFromStorage, storageFull, storageCount, spendGold, updateStorageItem, addGold, takeConsumablesByRef } from './bank'
-import { sellValue, itemValue, consumableValue, sellValueOfConsumable } from '../engine/value'
+import { loadBank, saveBank, addToStorage, removeFromStorage, storageFull, storageCount, storageRoom, spendGold, updateStorageItem, addGold, takeConsumablesByRef } from './bank'
+import { sellValue, itemValue, consumableValue, sellValueOfConsumable, buyPrice, buyPriceOfConsumable } from '../engine/value'
 import { gearTipTitle, gearTipBody, consumableTipTitle, consumableTipBody } from './item-desc'
 import { type SmithOp, smithCost, nextRarity, canUpgrade, openSlots, enchantOptions, canEnchant, canReroll, canReceiveAffix, upgradeRarity, enchant, rerollAffixes, transferAffix } from '../engine/smith'
 import { type DelveRun, type DelveLoot, applyRoomLoot, resolveDelveExit, resolveLootKeep } from './delve-run'
@@ -252,6 +252,10 @@ let selectedCharId: string | null = null // persists the chosen hero across scen
  *  minus what you drank, plus what you looted — HP-only attrition's sibling) + the current tier. */
 let DELVE: DelveRun | null = null
 
+/** The town MARKET vendor stock (B4 buy-side). Module-held (NOT persisted) → regenerates on a fresh
+ *  reload; explicitly cleared at delve start so it regenerates after a run. null = needs (re)generation. */
+let MARKET: Array<{ label: string; items: GearInstance[] }> | null = null
+
 function characterSelectScene(root: HTMLElement): void {
   DELVE = null // any road back to town ends the run
   const wrap = $(`<div class="wrap"></div>`)
@@ -453,6 +457,9 @@ function characterSelectScene(root: HTMLElement): void {
       const bag = $<HTMLButtonElement>(`<button class="cta ghost" data-tip-title="Storage" data-tip="Your shared account vault: browse gear and consumables, and sell anything for gold.">🎒 Storage</button>`)
       bag.addEventListener('click', () => goScene(storageScene))
       footer.appendChild(bag)
+      const mkt = $<HTMLButtonElement>(`<button class="cta ghost" data-tip-title="Market" data-tip="Buy gear (a randomized vendor stock scaled to your best hero) and consumables. Restocks after each delve.">🏪 Market</button>`)
+      mkt.addEventListener('click', () => goScene(marketScene))
+      footer.appendChild(mkt)
       const smith = $<HTMLButtonElement>(`<button class="cta ghost" data-tip-title="The smithy" data-tip="Upgrade rarity, enchant open slots, reroll or transfer affixes on gear in your Storage. Spends vault gold.">🔨 Smithy</button>`)
       smith.addEventListener('click', () => goScene(smithScene))
       footer.appendChild(smith)
@@ -693,6 +700,103 @@ function storageScene(root: HTMLElement): void {
   render()
 }
 
+/* ============================================================
+   THE MARKET (B4 buy-side) — one Market scene, two tabs. GEAR: a randomized vendor stock (the loot
+   roller, rarity-banded by the player's highest character level), ~10 per slot group, sorted by value;
+   regenerates on reload + after each delve. CONSUMABLES: the full catalog. Buy = 150% of value
+   (engine/value). The sell-side lives in Storage; this is its mirror.
+   ============================================================ */
+function highestCharLevel(): number {
+  return Math.max(1, ...loadRoster().map((c) => c.level), 1)
+}
+function marketStock(): Array<{ label: string; items: GearInstance[] }> {
+  if (!MARKET) MARKET = rollMarketStock(highestCharLevel(), systemRng)
+  return MARKET
+}
+
+function marketScene(root: HTMLElement): void {
+  const wrap = $(`<div class="wrap"></div>`)
+  wrap.appendChild($(`<h1>set.core</h1>`))
+  const sub = $(`<div class="sub">town · market &nbsp;·&nbsp; <span class="vault">🪙 0 vault</span></div>`)
+  wrap.appendChild(sub)
+  const goldEl = sub.querySelector('.vault')!
+  const panel = $(`<div class="panel"></div>`)
+  wrap.appendChild(panel)
+  const footer = $(`<div class="hubfoot"></div>`)
+  wrap.appendChild(footer)
+  root.appendChild(wrap)
+
+  let tab: 'gear' | 'cons' = 'gear'
+  let note = ''
+
+  /** Buy a gear piece: charge the markup, stow it, remove it from the vendor stock. */
+  const buyGear = (g: GearInstance): void => {
+    if (storageFull(loadBank())) { note = '✗ Storage full — sell or stow something first.'; render(); return }
+    const { bank, ok } = spendGold(loadBank(), buyPrice(g))
+    if (!ok) { note = '✗ Not enough gold.'; render(); return }
+    saveBank(addToStorage(bank, g).account)
+    for (const grp of MARKET ?? []) { const i = grp.items.findIndex((x) => x.uid === g.uid); if (i >= 0) grp.items.splice(i, 1) }
+    note = `✓ Bought ${gearBase(g.refId)?.name ?? 'gear'}.`; render()
+  }
+  const buyCons = (refId: string): void => {
+    if (storageFull(loadBank())) { note = '✗ Storage full — sell or stow something first.'; render(); return }
+    const { bank, ok } = spendGold(loadBank(), buyPriceOfConsumable(refId))
+    if (!ok) { note = '✗ Not enough gold.'; render(); return }
+    saveBank(addToStorage(bank, makeItem('consumable', refId)).account)
+    note = `✓ Bought ${CONSUMABLES[refId]?.name ?? 'item'}.`; render()
+  }
+
+  const render = (): void => {
+    const acc = loadBank()
+    goldEl.textContent = `🪙 ${acc.gold} vault`
+    panel.innerHTML = ''; footer.innerHTML = ''
+    panel.appendChild($(`<div class="sub" style="margin:0 0 10px">Buy at 150% of value · stock for a level-${highestCharLevel()} hero · vault has ${storageRoom(acc)} free slot(s)</div>`))
+    const tabs = $(`<div class="tabs"></div>`)
+    const mkTab = (id: 'gear' | 'cons', label: string): void => {
+      const t = $<HTMLButtonElement>(`<button class="tab${tab === id ? ' on' : ''}">${label}</button>`)
+      t.addEventListener('click', () => { tab = id; note = ''; render() })
+      tabs.appendChild(t)
+    }
+    mkTab('gear', 'Gear'); mkTab('cons', 'Consumables')
+    panel.appendChild(tabs)
+
+    if (tab === 'gear') {
+      for (const grp of marketStock()) {
+        if (!grp.items.length) continue
+        panel.appendChild($(`<div class="lm-hd">${grp.label}</div>`))
+        const list = $(`<div class="baglist"></div>`)
+        for (const g of grp.items) {
+          const base = gearBase(g.refId)!
+          const aff = g.affixes.length ? g.affixes.map((a) => displayName(a.label)).join(' · ') : '—'
+          const price = buyPrice(g)
+          const row = $(`<div class="gp-row" ${gearTip(g)}><span class="gs-ic r-${g.rarity}">${base.icon}</span><div class="gs-meta"><div class="gs-n r-${g.rarity}">${base.name}</div><div class="gs-a">${RARITY_LABEL[g.rarity]} · ${aff}</div></div><button class="buybtn${acc.gold < price ? ' cant' : ''}">buy 🪙${price}</button></div>`)
+          row.querySelector('.buybtn')!.addEventListener('click', () => buyGear(g))
+          list.appendChild(row)
+        }
+        panel.appendChild(list)
+      }
+    } else {
+      const ids = Object.keys(CONSUMABLES).sort((a, b) => consumableValue(b) - consumableValue(a))
+      const list = $(`<div class="baglist"></div>`)
+      for (const refId of ids) {
+        const c = CONSUMABLES[refId]
+        const tint = c.color != null ? `var(--c${c.color})` : 'var(--line2)'
+        const price = buyPriceOfConsumable(refId)
+        const row = $(`<div class="gp-row" ${consTip(refId)}><span class="cons-slot${c.kind === 'scroll' ? ' scroll' : ''}" style="--cc:${tint}"><span class="cons-ic">${c.icon}</span></span><div class="gs-meta"><div class="gs-n">${c.name}</div><div class="gs-a">${c.desc}</div></div><button class="buybtn${acc.gold < price ? ' cant' : ''}">buy 🪙${price}</button></div>`)
+        row.querySelector('.buybtn')!.addEventListener('click', () => buyCons(refId))
+        list.appendChild(row)
+      }
+      panel.appendChild(list)
+    }
+    if (note) panel.appendChild($(`<div class="sm-note">${note}</div>`))
+
+    const back = $<HTMLButtonElement>(`<button class="cta ghost">◂ Back to town</button>`)
+    back.addEventListener('click', () => goScene(characterSelectScene))
+    footer.appendChild(back)
+  }
+  render()
+}
+
 function dungeonSelectScene(root: HTMLElement, char: SavedChar): void {
   const wrap = $(`<div class="wrap"></div>`)
   wrap.appendChild($(`<h1>set.core</h1>`))
@@ -920,6 +1024,7 @@ function beginDelve(char: SavedChar, dungeonId: string): void {
   const sel = char.consumables.filter((id) => !!id && !!CONSUMABLES[id])
   const { taken, account } = takeConsumablesByRef(loadBank(), sel) // pull the loadout out of the vault
   saveBank(account)
+  MARKET = null // the vendor restocks after a run
   DELVE = {
     d: createDelve(dungeonId, systemRng),
     bag: taken, // exactly what was pulled from Storage (the run satchel; drunk = gone, survivors return on a safe exit)

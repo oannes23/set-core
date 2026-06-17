@@ -45,3 +45,10 @@ const toSell = (value: number): number => (value <= 0 ? 0 : Math.max(1, Math.flo
 export const sellValue = (item: Item): number => toSell(itemValue(item))
 /** The sell-back price of a bare consumable refId (the satchel holds refIds, not Items). */
 export const sellValueOfConsumable = (refId: string): number => toSell(consumableValue(refId))
+
+export const BUY_MARKUP = 1.5 // shop buy = 150% of value (B4 first-cut; base upgrades pull it toward 100% later)
+const toBuy = (value: number): number => (value <= 0 ? 0 : Math.max(1, Math.round(value * BUY_MARKUP)))
+/** The shop BUY price of an inventory item (value × BUY_MARKUP). */
+export const buyPrice = (item: Item): number => toBuy(itemValue(item))
+/** The shop BUY price of a bare consumable refId. */
+export const buyPriceOfConsumable = (refId: string): number => toBuy(consumableValue(refId))

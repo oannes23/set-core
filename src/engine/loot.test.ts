@@ -7,7 +7,8 @@ import { mulberry32 } from '../core/rng'
 import { GAMEDATA } from '../data/game-data'
 import { assembleFoe, foeValue } from './foe'
 import { CONSUMABLES } from './consumables'
-import { rollGold, rollRoomLoot, rollConsumable, rollMarqueeGear, GOLD_K, ENABLED } from './loot'
+import { rollGold, rollRoomLoot, rollConsumable, rollMarqueeGear, GOLD_K, ENABLED, rollMarketStock, MARKET_PER_SLOT } from './loot'
+import { gearValue, itemValue, sellValue, buyPrice } from './value'
 import { GEAR } from '../data/gear'
 import { RARITY, RARITIES } from './items'
 
@@ -108,4 +109,22 @@ test('a full warren clear banks ~100–150g (the design band)', () => {
 
 test('rollConsumable always returns a real consumable id', () => {
   for (let i = 0; i < 300; i++) expect(CONSUMABLES[rollConsumable(i % 12, i % 2 === 0, mulberry32(i + 1))]).toBeDefined()
+})
+
+// --- the town MARKET vendor (B4) ---
+test('rollMarketStock: 4 slot groups, MARKET_PER_SLOT each, sorted by value, correct slots', () => {
+  const stock = rollMarketStock(8, mulberry32(3))
+  expect(stock.map((g) => g.label)).toEqual(['Weapons', 'Armor', 'Offhand', 'Trinkets'])
+  const SLOT_OF: Record<string, string> = { Weapons: 'weapon', Armor: 'armor', Offhand: 'relic', Trinkets: 'trinket1' }
+  for (const grp of stock) {
+    expect(grp.items).toHaveLength(MARKET_PER_SLOT)
+    for (const it of grp.items) expect(GEAR[it.refId].slot).toBe(SLOT_OF[grp.label])
+    const vals = grp.items.map(gearValue)
+    expect([...vals].sort((a, b) => b - a)).toEqual(vals) // sorted high→low
+  }
+})
+test('buyPrice is 150% of value (≥ sellValue)', () => {
+  const g = rollMarketStock(10, mulberry32(1))[0].items[0]
+  expect(buyPrice(g)).toBe(Math.round(itemValue(g) * 1.5))
+  expect(buyPrice(g)).toBeGreaterThan(sellValue(g))
 })
