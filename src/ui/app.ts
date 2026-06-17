@@ -143,7 +143,7 @@ export function mountApp(root: HTMLElement): void {
     // (its dev row is CSS-gated), so re-mounting it — which would reset the live fight — is skipped.
     if (!V) remountScene()
   })
-  goScene(characterSelectScene)
+  goScene(townScene)
 }
 
 /** The always-present, subtle dev-mode switch (a tiny corner chip on <body>, survives scene swaps). */
@@ -255,6 +255,54 @@ let DELVE: DelveRun | null = null
 /** The town MARKET vendor stock (B4 buy-side). Module-held (NOT persisted) → regenerates on a fresh
  *  reload; explicitly cleared at delve start so it regenerates after a run. null = needs (re)generation. */
 let MARKET: Array<{ label: string; items: GearInstance[] }> | null = null
+
+/* ============================================================
+   THE TOWN HUB — the home screen: a card grid of the town's locations (extendible + multi-layered;
+   a sub-district like the Guild reuses `hubGrid` with its own entries). Each card = icon · name · blurb.
+   Account-level stores need no hero; Gates of Town / Training Ground use the ACTIVE hero (set in the
+   Barracks). Reaching the hub ends any run (DELVE = null).
+   ============================================================ */
+interface HubEntry { icon: string; name: string; desc: string; onClick: () => void; badge?: string; dim?: boolean }
+/** Render a grid of location cards into a host element (the main town + any sub-district share this). */
+function hubGrid(host: HTMLElement, entries: HubEntry[]): void {
+  const grid = $(`<div class="hubgrid"></div>`)
+  for (const e of entries) {
+    const card = $(`<div class="hubcard${e.dim ? ' dim' : ''}"><div class="hc-ic">${e.icon}</div><div class="hc-n">${e.name}${e.badge ? ` <span class="hc-badge">${e.badge}</span>` : ''}</div><div class="hc-d">${e.desc}</div></div>`)
+    card.addEventListener('click', e.onClick)
+    grid.appendChild(card)
+  }
+  host.appendChild(grid)
+}
+
+function townScene(root: HTMLElement): void {
+  DELVE = null // any road back to town ends the run
+  const roster = loadRoster()
+  if (selectedCharId && !roster.some((c) => c.id === selectedCharId)) selectedCharId = null
+  if (!selectedCharId) selectedCharId = roster[0]?.id ?? null
+  const active = roster.find((c) => c.id === selectedCharId) ?? null
+  const pending = roster.reduce((s, c) => s + pendingLevels(c), 0)
+
+  const wrap = $(`<div class="wrap"></div>`)
+  wrap.appendChild($(`<h1>set.core</h1>`))
+  const heroLine = active
+    ? `${classById(active.classId).icon} <b>${active.name}</b> · ${active.level >= LEVEL_CAP ? '★' : `Lv ${active.level}`} · ${active.hp}/${active.maxHp} HP`
+    : '<span style="color:var(--ink-faint)">no active hero — visit the Barracks</span>'
+  wrap.appendChild($(`<div class="sub" style="text-transform:none;letter-spacing:0">🏘 <b>Town</b> &nbsp;·&nbsp; <span class="vault">🪙 ${loadBank().gold} vault</span> &nbsp;·&nbsp; ${heroLine}</div>`))
+  root.appendChild(wrap)
+
+  // a card whose target needs an active hero → bounce to the Barracks if none is chosen
+  const withHero = (go: (c: SavedChar) => void): (() => void) => () => { if (active) go(active); else goScene(characterSelectScene) }
+
+  hubGrid(wrap, [
+    { icon: '🛡️', name: 'Barracks', desc: 'Your heroes — recruit, equip, rest, level up', onClick: () => goScene(characterSelectScene), badge: pending > 0 ? `⬆${pending}` : undefined },
+    { icon: '🏰', name: 'Gates of Town', desc: 'Descend into the dungeons proper', onClick: withHero((c) => goScene((r) => dungeonSelectScene(r, c, 'real'))) },
+    { icon: '🎯', name: 'Training Ground', desc: 'The practice dummy and guided lessons', onClick: withHero((c) => goScene((r) => dungeonSelectScene(r, c, 'teaching'))) },
+    { icon: '🏦', name: 'Vault', desc: 'Your storage, gold, and slot upgrades', onClick: () => goScene(storageScene) },
+    { icon: '🏪', name: 'Market', desc: 'Buy gear and potions', onClick: () => goScene(marketScene) },
+    { icon: '🔨', name: 'Smithy', desc: 'Forge: upgrade rarity · transfer affixes', onClick: () => goScene(smithScene) },
+  ])
+  root.appendChild($(`<div class="sub" style="margin-top:14px;text-transform:none;letter-spacing:0;color:var(--ink-faint)">More of the town opens as we build it — the Enchanter, Merchant House, and Guild District are on the way.</div>`))
+}
 
 function characterSelectScene(root: HTMLElement): void {
   DELVE = null // any road back to town ends the run
@@ -453,19 +501,10 @@ function characterSelectScene(root: HTMLElement): void {
         upsertChar(ch); roster = loadRoster(); selectedCharId = ch.id; creating = false; render()
       })
       footer.appendChild(createBtn)
-    } else if (selectedCharId) {
-      const bag = $<HTMLButtonElement>(`<button class="cta ghost" data-tip-title="Storage" data-tip="Your shared account vault: browse gear and consumables, and sell anything for gold.">🎒 Storage</button>`)
-      bag.addEventListener('click', () => goScene(storageScene))
-      footer.appendChild(bag)
-      const mkt = $<HTMLButtonElement>(`<button class="cta ghost" data-tip-title="Market" data-tip="Buy gear (a randomized vendor stock scaled to your best hero) and consumables. Restocks after each delve.">🏪 Market</button>`)
-      mkt.addEventListener('click', () => goScene(marketScene))
-      footer.appendChild(mkt)
-      const smith = $<HTMLButtonElement>(`<button class="cta ghost" data-tip-title="The smithy" data-tip="Upgrade rarity, enchant open slots, reroll or transfer affixes on gear in your Storage. Spends vault gold.">🔨 Smithy</button>`)
-      smith.addEventListener('click', () => goScene(smithScene))
-      footer.appendChild(smith)
-      const go = $<HTMLButtonElement>(`<button class="cta bob">Choose a dungeon ▶</button>`)
-      go.addEventListener('click', () => { const sel = roster.find((c) => c.id === selectedCharId); if (sel) goScene((r) => dungeonSelectScene(r, sel)) })
-      footer.appendChild(go)
+    } else {
+      const back = $<HTMLButtonElement>(`<button class="cta bob">◂ Back to town</button>`)
+      back.addEventListener('click', () => goScene(townScene))
+      footer.appendChild(back)
     }
   }
   render()
@@ -615,7 +654,7 @@ function smithScene(root: HTMLElement): void {
     if (note) rightP.appendChild($(`<div class="sm-note">${note}</div>`))
 
     const back = $<HTMLButtonElement>(`<button class="cta ghost">◂ Back to town</button>`)
-    back.addEventListener('click', () => goScene(characterSelectScene))
+    back.addEventListener('click', () => goScene(townScene))
     footer.appendChild(back)
   }
   render()
@@ -630,7 +669,7 @@ function smithScene(root: HTMLElement): void {
 function storageScene(root: HTMLElement): void {
   const wrap = $(`<div class="wrap"></div>`)
   wrap.appendChild($(`<h1>set.core</h1>`))
-  const sub = $(`<div class="sub">town · storage &nbsp;·&nbsp; <span class="vault">🪙 0 vault</span></div>`)
+  const sub = $(`<div class="sub">town · the vault &nbsp;·&nbsp; <span class="vault">🪙 0 vault</span></div>`)
   wrap.appendChild(sub)
   const goldEl = sub.querySelector('.vault')!
   const panel = $(`<div class="panel"></div>`)
@@ -711,7 +750,7 @@ function storageScene(root: HTMLElement): void {
     panel.appendChild(list)
 
     const back = $<HTMLButtonElement>(`<button class="cta ghost">◂ Back to town</button>`)
-    back.addEventListener('click', () => goScene(characterSelectScene))
+    back.addEventListener('click', () => goScene(townScene))
     footer.appendChild(back)
   }
   render()
@@ -806,16 +845,16 @@ function marketScene(root: HTMLElement): void {
     if (note) panel.appendChild($(`<div class="sm-note">${note}</div>`))
 
     const back = $<HTMLButtonElement>(`<button class="cta ghost">◂ Back to town</button>`)
-    back.addEventListener('click', () => goScene(characterSelectScene))
+    back.addEventListener('click', () => goScene(townScene))
     footer.appendChild(back)
   }
   render()
 }
 
-function dungeonSelectScene(root: HTMLElement, char: SavedChar): void {
+function dungeonSelectScene(root: HTMLElement, char: SavedChar, kind: 'real' | 'teaching' | 'all' = 'all'): void {
   const wrap = $(`<div class="wrap"></div>`)
   wrap.appendChild($(`<h1>set.core</h1>`))
-  wrap.appendChild($(`<div class="sub">delve · ${char.name} — ${char.hp}/${char.maxHp} HP</div>`))
+  wrap.appendChild($(`<div class="sub">${kind === 'teaching' ? 'training ground' : 'gates of town'} · ${char.name} — ${char.hp}/${char.maxHp} HP</div>`))
   const cols = $(`<div class="hub2"></div>`)
   const leftP = $(`<div class="panel"></div>`)
   const rightP = $(`<div class="panel"></div>`)
@@ -825,7 +864,11 @@ function dungeonSelectScene(root: HTMLElement, char: SavedChar): void {
   wrap.appendChild(footer)
   root.appendChild(wrap)
 
-  const dungeonIds = Object.keys(GAMEDATA.dungeons)
+  // teaching = the coach/tutorial dungeons; real = the dungeons proper (the Gates); all = both
+  const dungeonIds = Object.keys(GAMEDATA.dungeons).filter((id) => {
+    const coach = !!GAMEDATA.dungeons[id].coach
+    return kind === 'all' ? true : kind === 'teaching' ? coach : !coach
+  })
   let dungeonId = dungeonIds[0]
   let foeVal = ''
 
@@ -921,7 +964,7 @@ function dungeonSelectScene(root: HTMLElement, char: SavedChar): void {
 
   // FOOTER: back to the roster · DELVE (the real run — boss dungeons only) · a lone practice fight
   const back = $<HTMLButtonElement>(`<button class="cta ghost">◀ Back</button>`)
-  back.addEventListener('click', () => goScene(characterSelectScene))
+  back.addEventListener('click', () => goScene(townScene))
   footer.appendChild(back)
   const delve = $<HTMLButtonElement>(`<button class="cta bob"${char.hp <= 0 ? ' disabled' : ''} data-tip-title="Delve" data-tip="Enter the dungeon proper: rooms roll from the encounter table — elites recur, the boss waits somewhere in the deep. Between rooms you choose: press on or carry your spoils home. Your HP carries room to room.">🕯 Delve</button>`)
   delve.addEventListener('click', () => { if (char.hp > 0) beginDelve(char, dungeonId) })
@@ -3089,7 +3132,7 @@ function endScreen(result: 'win' | 'lose' | 'flee'): void {
   upsertChar(V.char)
   if (DELVE) { delveFork(result); return } // the delve owns its own end beat (the between-rooms fork)
   const again = $<HTMLButtonElement>(`<button class="cta" style="display:block;margin:0 auto">▶ Back to town</button>`)
-  again.addEventListener('click', () => goScene(characterSelectScene))
+  again.addEventListener('click', () => goScene(townScene))
   if (result === 'win') {
     // the WIN REVEAL — the spoils pop part-by-part in the breakdown ledger, then the back-to-town card lands
     playBreakdown(buildWinParts(), () => { if (V) V.refs.boardwrap.replaceChildren($(`<div class="banner win">★ Victory</div>`), again) }, 0.9)
@@ -3203,7 +3246,7 @@ function marqueeCardEl(g: GearInstance): HTMLElement {
    the kept items, then ends the run (DELVE = null) back to town. Death skips this — all is lost there.
    ============================================================ */
 function lootManageScene(root: HTMLElement, char: SavedChar): void {
-  if (!DELVE) { goScene(characterSelectScene); return }
+  if (!DELVE) { goScene(townScene); return }
   const runGold = DELVE.gold
   const foundGear = DELVE.gearFound.slice()
   const consCount = new Map<string, number>() // refId → how many in the satchel
@@ -3299,7 +3342,7 @@ function lootManageScene(root: HTMLElement, char: SavedChar): void {
       const res = resolveLootKeep(loadBank(), runGold, saleGold, keepGear, keepCons)
       saveBank(res.account)
       DELVE = null
-      goScene(characterSelectScene)
+      goScene(townScene)
     })
     footer.appendChild(confirm)
   }
@@ -3322,7 +3365,7 @@ function delveFork(result: 'win' | 'lose' | 'flee'): void {
     const tithe = outcome.tithe // 12% of BANKED gold forfeit (the exit ladder, §6)
     DELVE = null
     const home = $<HTMLButtonElement>(`<button class="cta" style="display:block;margin:0 auto">🏠 Back to town</button>`)
-    home.addEventListener('click', () => goScene(characterSelectScene))
+    home.addEventListener('click', () => goScene(townScene))
     const tolls = [`Your satchel${lost > 0 ? ` and ${lost}🪙 carried` : ''} is lost where you fell.`, tithe > 0 ? `The recovery tithe takes ${tithe}🪙 from your vault.` : ''].filter(Boolean).join(' ')
     host.replaceChildren(
       $(`<div class="banner lose">✖ Slain — room ${room} claims you</div>`),
