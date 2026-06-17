@@ -18,8 +18,10 @@ Traffic-light: green = pursue · yellow = consequence · red = wounded.
 
 ## ▶ NEXT SESSION — START HERE (handoff 2026-06-16)
 **⭐ ACTIVE: YAML CONTENT-CONVERSION TRACK** (see the dedicated section below + `MODDING.md`). Converting
-all content to external YAML for moddability **before** the balancing phase — Phase 0 (foundation) in
-progress. This is the current focus; the gated balance sim comes after.
+all content to external YAML for moddability **before** the balancing phase. **Phase 0 (foundation) ✅
+DONE 2026-06-16** — the YAML pipeline + derived validator + registry are live, and `game-data.ts`
+content is fully YAML-sourced. **NEXT = Phase 1** (move the remaining pure-data domains: classes, gear
+base types, loot tables, economy/shop constants). The gated balance sim comes after the track.
 
 **⭐ 2026-06-16: POST-REVIEW HARDENING TRACK below** (from `REVIEW-2026-06-16.md` + `DESIGN-GOALS.md`).
 Progress: **POST-REVIEW HARDENING TRACK COMPLETE** — Stage 0 ✅ · Stage 1 (app.ts refactor 1A–1D) ✅ ·
@@ -332,13 +334,18 @@ in later) · **hand-rolled validation** (no `zod`/`ajv`) · **TS types stay, dat
 empty** — built-in YAML compiles via a Vite **devDep** plugin; user-mod runtime parser is a deferred,
 conscious decision (JSON escape-hatch otherwise).
 
-### Phase 0 — Foundation (gate for all else) — ⭐ ACTIVE (~4–7d)
-- `[ ]` Build-time YAML import (Vite plugin devDep + `vite.config.ts` + vitest wiring).
-- `[ ]` Hand-rolled validator (`src/data/validate.ts`) — schema-token-driven, located errors.
-- `[ ]` Referential-link step (promote `game-data.test.ts` integrity to a runtime link pass).
-- `[ ]` Registry (`src/data/registry.ts`) — `buildRegistry(sources)→GameData`; merge/collision policy = the runtime-mod seam.
-- `[ ]` Swap the consumer: `ui/app.ts:15` `import {GAMEDATA}` → the built registry via `V.deps.data`.
-- `[ ]` Round-trip test (current `GAMEDATA` → YAML → load+validate → deep-equal) = the Phase-1 oracle.
+### Phase 0 — Foundation (gate for all else) — ✅ DONE 2026-06-16 (249 tests; tsc + build clean)
+Validation revised to **derive-from-types** (JSON Schema from `schema.ts` via `ts-json-schema-generator`,
+validated by `ajv` — build/test-only, tree-shaken out of the bundle). Approved devDeps:
+`@modyfi/vite-plugin-yaml`, `ts-json-schema-generator`, `ajv`. **Runtime `dependencies` still `{}`.**
+- `[x]` Build-time YAML import (`@modyfi/vite-plugin-yaml` in `vite.config.ts`; `src/yaml.d.ts`).
+- `[x]` Schema gen (`pnpm gen:schema` → `scripts/gen-schema.ts`): whole-GameData + per-file schemas.
+- `[x]` Derived validator (`data/validate.ts`, ajv, **build/test-only**) — verified absent from bundle.
+- `[x]` Referential-link step (`registry.ts` `linkErrors`, runtime-safe zero-dep).
+- `[x]` Registry (`registry.ts` `buildRegistry`) — ordered sources, mod-over-base; the user-mod seam.
+- `[x]` Swap the consumer: `game-data.ts` is now a thin YAML loader; `GAMEDATA` export unchanged.
+- `[x]` Round-trip oracle (`game-data.test.ts` vs `__fixtures__/gamedata.snapshot.json`).
+- `[x]` BONUS: per-file `# yaml-language-server: $schema=` headers → in-editor modder autocomplete.
 
 ### Phase 1 — Pure-data move (the free win, ~2–4d)
 - `[ ]` creatures/variants/templates · traps/tricks/drifts · dungeons → YAML (`data/game-data.ts`).

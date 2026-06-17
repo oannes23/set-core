@@ -79,37 +79,34 @@ can express abilities/passives/consumables, then move those too.
 
 ---
 
-## 2. Phase 0 — Foundation (gate for all else) · ~4–7 days
+## 2. Phase 0 — Foundation (gate for all else) · ✅ DONE 2026-06-16 (249 tests; tsc + build clean)
 
-No content moves until this exists. The engine already takes data by parameter
-(`assembleFoe(foeId, dg, GAMEDATA, rng)`), so **no engine refactor** — only the UI's
-direct `GAMEDATA.*` reads and the static `import { GAMEDATA }` (`ui/app.ts:15`) change.
+The engine already takes data by parameter (`assembleFoe(foeId, dg, GAMEDATA, rng)`), so **no engine
+refactor** was needed; `game-data.ts` became a thin loader and every consumer kept importing `GAMEDATA`.
 
-- [ ] **Build-time YAML import.** `@modyfi/vite-plugin-yaml` (devDep) + `vite.config.ts` wiring so
-      `import x from './content/foo.yaml'` yields a JS object. vitest shares the Vite pipeline, so
-      tests load the same content. Add `src/yaml.d.ts` ambient `declare module '*.yaml'`.
-- [ ] **Schema generation** (`pnpm gen:schema`). `ts-json-schema-generator` emits
-      `src/data/content/schema.json` from the `GameData` type in `schema.ts`. Drives both the
-      editor `$schema` header on YAML files and the ajv validator.
-- [ ] **Derived validator** (`src/data/validate.ts`, **build/test-only — never runtime-imported**).
-      `ajv` compiles `schema.json`; `validateGameData(obj)` returns located errors. Tests + a build
-      prebuild gate call it. This replaces the hand-rolled validator (single source of truth).
-- [ ] **Referential-link step** (`registry.ts`, **runtime-safe, zero-dep**). Promote the integrity
-      assertions in `data/game-data.test.ts` to a link pass: every `traps`/`variants`/`boss`/`extends`
-      id resolves; built-in → throw; user-mod (later) → skip+warn.
-- [ ] **Registry** (`src/data/registry.ts`). `buildRegistry(sources) → GameData`-shaped
-      typed tables. Merge order + id-collision policy designed now (base → mods), even
-      though only the base source exists yet. This is the seam runtime user-mods slot into.
-- [ ] **Swap the consumer.** Replace `import { GAMEDATA }` (`ui/app.ts:15`) with the
-      built registry, handed through the existing `V.deps.data` injection seam.
-- [ ] **Round-trip test.** current `GAMEDATA` const → YAML → load+validate → deep-equal.
-      This is the migration oracle for Phase 1.
+- [x] **Build-time YAML import.** `@modyfi/vite-plugin-yaml` (devDep) in `vite.config.ts`; vitest
+      shares the pipeline. `src/yaml.d.ts` types `*.yaml` as `unknown` (untrusted until link/validate).
+- [x] **Schema generation** (`pnpm gen:schema` → `scripts/gen-schema.ts`). `ts-json-schema-generator`
+      emits `content/schema.json` (whole GameData) + `content/schemas/*.schema.json` (per file).
+- [x] **Derived validator** (`data/validate.ts`, **build/test-only**). `ajv` compiles `schema.json`;
+      `validateGameData()` returns located errors. Verified **ajv is tree-shaken out of the bundle**.
+- [x] **Referential-link step** (`registry.ts` `linkErrors`, **runtime-safe, zero-dep**) — runtime
+      promotion of the old `game-data.test.ts` integrity asserts; built-in → throw.
+- [x] **Registry** (`registry.ts` `buildRegistry`). Merges ordered sources (mod-over-base by id) +
+      links. Single `base` source today; the seam runtime user-mods slot into.
+- [x] **Swap the consumer.** `game-data.ts` now imports the per-domain YAML + `buildRegistry`; the
+      `GAMEDATA` export is unchanged so `ui/app.ts:15` and all engine/tests are untouched.
+- [x] **Round-trip oracle.** `game-data.test.ts` asserts YAML-sourced `GAMEDATA` deep-equals
+      `__fixtures__/gamedata.snapshot.json` (the pre-migration literal).
+- [x] **Editor autocomplete** (bonus payoff of derive-from-types) — each `content/*.yaml` carries a
+      `# yaml-language-server: $schema=…` header; a drift guard keeps every generated schema fresh.
 
-**Decision to make during Phase 0:** YAML file layout. Recommendation: **per-domain
-files** under `src/data/content/` (`creatures.yaml`, `traps.yaml`, `dungeons.yaml`,
-`gear.yaml`, `affixes.yaml`, `economy.yaml`, `progression.yaml`, `abilities.yaml`, …),
-not one mega-file and not one-file-per-entity. Matches the `Record<string,T>` shape and
-keeps diffs legible.
+**Decided: per-domain YAML files** under `src/data/content/` (`creatures.yaml`, `traps.yaml`, … and,
+in later phases, `gear.yaml`, `economy.yaml`, `progression.yaml`, `abilities.yaml`). Matches the
+`Record<string,T>` shape and keeps diffs legible.
+
+**Invariant verified at phase close:** runtime `dependencies: {}` (empty); ajv/js-yaml absent from the
+production bundle; 249 tests + tsc + build all green.
 
 ---
 
