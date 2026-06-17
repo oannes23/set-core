@@ -89,9 +89,21 @@ export function isGear(it: Item): it is GearInstance {
 }
 
 /** The flat per-card RIDERS gear adds to a matched set — applied AFTER the rate() contest (§7), so
- *  bounded. Chunk ①: the school-agnostic BASE riders (the color/match-TYPE scoping rides chunk ②). */
-export interface Riders { atkDamagePerCard: number; blockPerDefendCard: number; manaPerMatch: number }
+ *  bounded. The UNSCOPED fields (armor/relic base riders + all affix riders) always apply on their
+ *  shape; the SCOPED fields are the WEAPON's base rider, which fires only when the matched set's COLOUR
+ *  matches the weapon's match-type (§7 the type layer). scopedColor: 0/1/2 = mono red/green/blue ·
+ *  3 = rainbow (all-different) · null/undefined = no scoped weapon rider. */
+export interface Riders {
+  atkDamagePerCard: number // unscoped (e.g. the Honed affix)
+  blockPerDefendCard: number // unscoped (armor/relic block)
+  manaPerMatch: number // unscoped mono-colour mana (caster relic/armor + the Channeling affix)
+  scopedColor?: number | null // the weapon's match-type as a colour scope (0/1/2 mono · 3 rainbow)
+  scopedAtkPerCard?: number // martial weapon damage / Attack card, scoped to scopedColor
+  scopedManaPerMatch?: number // caster weapon mana / match, scoped to scopedColor
+}
 export const NO_RIDERS: Riders = { atkDamagePerCard: 0, blockPerDefendCard: 0, manaPerMatch: 0 }
+/** A match-type token → the colour scope index used by resolveSet/gearRiders (rainbow = 3 = all-different). */
+export const COLOR_SCOPE: Record<string, number> = { red: 0, green: 1, blue: 2, rainbow: 3 }
 
 /** A fresh instance id. UI/persistence-side, so plain Date/Math is fine (engine determinism lives
  *  in the seeded combat rng, not here). Mirrors save.ts `freshId`. */

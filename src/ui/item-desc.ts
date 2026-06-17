@@ -90,15 +90,17 @@ export function gearTipBody(g: GearInstance): string {
   if (base.nativeStat) lines.push(`+${base.nativeStat.amount} ${STAT_LABEL[base.nativeStat.stat]} <span class="tt-dim">(native)</span>`)
 
   const mult = RARITY[g.rarity].riderMult
+  const affinity = base.matchType ? AFFINITY[base.matchType] ?? base.matchType : null // the type layer (weapons)
   if (base.rider && mult > 0) {
     const r = base.rider
-    if (r.atkDamagePerCard) lines.push(`+${r.atkDamagePerCard * mult} damage per Attack card <span class="tt-dim">(×3 in an all-Attack set)</span>`)
+    const onColour = affinity ? ` <span class="tt-dim">(only on ${affinity} sets)</span>` : ''
+    if (r.atkDamagePerCard) lines.push(`+${r.atkDamagePerCard * mult} damage per Attack card${onColour}`)
     if (r.blockPerDefendCard) lines.push(`+${r.blockPerDefendCard * mult} Block per Defend card`)
-    if (r.manaPerMatch) lines.push(`+${r.manaPerMatch * mult} mana per mono-colour set`)
+    if (r.manaPerMatch) lines.push(affinity ? `+${r.manaPerMatch * mult} mana on a ${affinity} set` : `+${r.manaPerMatch * mult} mana per mono-colour set`)
   } else if (mult === 0) {
     lines.push(`<span class="tt-dim">Grey — no rarity rider (upgrade at the Smithy)</span>`)
   }
-  if (base.matchType) lines.push(`Affinity: ${AFFINITY[base.matchType] ?? base.matchType} <span class="tt-dim">(element identity)</span>`)
+  if (affinity && !(base.rider && mult > 0)) lines.push(`Affinity: ${affinity} <span class="tt-dim">(powers the weapon rider once upgraded)</span>`)
 
   if (g.affixes.length) {
     lines.push(`<span class="tt-sub">Affixes</span>`)

@@ -9,13 +9,27 @@ import type { Card } from '../core/affine'
 
 const inst = (over: Partial<GearInstance>): GearInstance => ({ uid: 'u', kind: 'gear', refId: 'axe', rarity: 'white', lootTier: 0, affixes: [], ...over })
 
-test('gearRiders sums base riders × the rarity rider multiplier', () => {
-  const blueAxe = inst({ refId: 'axe', rarity: 'blue' }) // axe rider +1 atk/card × blue ×3 = 3
-  const greenPlate = inst({ refId: 'plate', rarity: 'green' }) // plate rider +1 block/card × green ×2 = 2
+test('gearRiders scopes the WEAPON base rider to its match-type; armor stays unscoped', () => {
+  const blueAxe = inst({ refId: 'axe', rarity: 'blue' }) // axe (red) +1 atk/card × blue ×3 = 3, SCOPED to red
+  const greenPlate = inst({ refId: 'plate', rarity: 'green' }) // plate (no match-type) +1 block/card × green ×2 = 2
   const r = gearRiders({ weapon: blueAxe, armor: greenPlate })
-  expect(r.atkDamagePerCard).toBe(3)
-  expect(r.blockPerDefendCard).toBe(2)
+  expect(r.atkDamagePerCard).toBe(0) // the weapon's damage is now type-scoped, not flat
+  expect(r.scopedAtkPerCard).toBe(3)
+  expect(r.scopedColor).toBe(0) // red
+  expect(r.blockPerDefendCard).toBe(2) // armor block applies on any Defend card (unscoped)
   expect(r.manaPerMatch).toBe(0)
+})
+
+test('the TYPE layer: a weapon rider fires only on its colour (red weapon → red sets, not green)', () => {
+  const stats = { power: 10, endurance: 10, speed: 10 }
+  const foe = { power: 10, endurance: 10, speed: 10 }
+  const redAxe = gearRiders({ weapon: inst({ refId: 'axe', rarity: 'blue' }) }) // scoped red, +3 dmg/Attack card
+  const redAttacks: [Card, Card, Card] = [[0, 0, 0, 1], [0, 0, 0, 1], [0, 0, 0, 1]] // 3 all-red Attacks
+  const greenAttacks: [Card, Card, Card] = [[1, 0, 0, 1], [1, 0, 0, 1], [1, 0, 0, 1]] // 3 all-green Attacks
+  const dRed = resolveSet(redAttacks, stats, foe, mulberry32(1), redAxe).damage - resolveSet(redAttacks, stats, foe, mulberry32(1)).damage
+  const dGreen = resolveSet(greenAttacks, stats, foe, mulberry32(1), redAxe).damage - resolveSet(greenAttacks, stats, foe, mulberry32(1)).damage
+  expect(dRed).toBe(9) // +3 per Attack card × 3, ONLY on the matching colour
+  expect(dGreen).toBe(0) // a green set → the red weapon's rider does NOT fire
 })
 
 test('grey gear contributes no rider (×0)', () => {
@@ -31,7 +45,7 @@ test('gearStatBonus sums native stats + StatMod affixes', () => {
 })
 
 test('empty / undefined equipped is the zero contribution', () => {
-  expect(gearRiders(undefined)).toEqual({ atkDamagePerCard: 0, blockPerDefendCard: 0, manaPerMatch: 0 })
+  expect(gearRiders(undefined)).toEqual({ atkDamagePerCard: 0, blockPerDefendCard: 0, manaPerMatch: 0, scopedColor: null, scopedAtkPerCard: 0, scopedManaPerMatch: 0 })
   expect(gearStatBonus({})).toEqual({ power: 0, endurance: 0, speed: 0 })
 })
 

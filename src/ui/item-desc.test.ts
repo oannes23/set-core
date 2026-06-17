@@ -10,12 +10,12 @@ describe('gear tooltip', () => {
   it('title = rarity + base name', () => {
     expect(gearTipTitle(g())).toBe('Blue Spear')
   })
-  it('body spells out the base rider, native stat, and affinity', () => {
+  it('body spells out the base rider scoped to its colour, native stat, and worth', () => {
     const body = gearTipBody(g())
     expect(body).toContain('Weapon')
     expect(body).toContain('damage per Attack card') // the type-layer rider (×rarity mult)
+    expect(body).toMatch(/only on .*Nature sets/) // spear → green affinity scopes the rider
     expect(body).toContain('Power') // native stat
-    expect(body).toMatch(/Affinity:.*Nature/) // spear → green affinity
     expect(body).toContain('sells') // worth line
   })
   it('grey gear notes it has no rarity rider', () => {

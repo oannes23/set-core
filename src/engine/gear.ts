@@ -8,7 +8,7 @@
 
 import { GEAR } from '../data/gear'
 import { rollAffixes } from '../data/affixes'
-import { RARITY, NO_RIDERS, NO_MODS, freshUid, type EquipSlot, type GearInstance, type Riders, type GearMods, type StatKey, type Rarity, type AffixProc } from './items'
+import { RARITY, NO_RIDERS, NO_MODS, COLOR_SCOPE, freshUid, type EquipSlot, type GearInstance, type Riders, type GearMods, type StatKey, type Rarity, type AffixProc } from './items'
 import type { Trigger } from '../data/schema'
 import type { Rng } from '../core/rng'
 
@@ -34,17 +34,30 @@ export function gearStatBonus(eq: Equipped | undefined): Record<StatKey, number>
 /** Base riders (×rarity riderMult) + scoped RIDER affixes, summed across the kit — applied FLAT after
  *  the contest (§7). Affix riders are pre-scaled at roll time (they don't re-multiply by rarity). */
 export function gearRiders(eq: Equipped | undefined): Riders {
-  const out: Riders = { ...NO_RIDERS }
+  const out: Riders = { ...NO_RIDERS, scopedColor: null, scopedAtkPerCard: 0, scopedManaPerMatch: 0 }
   for (const g of equippedList(eq)) {
     const base = GEAR[g.refId]
+    if (!base) continue
     const mult = RARITY[g.rarity].riderMult
-    if (base?.rider && mult > 0) {
-      out.atkDamagePerCard += (base.rider.atkDamagePerCard ?? 0) * mult
-      out.blockPerDefendCard += (base.rider.blockPerDefendCard ?? 0) * mult
-      out.manaPerMatch += (base.rider.manaPerMatch ?? 0) * mult
+    if (base.rider && mult > 0) {
+      const atk = (base.rider.atkDamagePerCard ?? 0) * mult
+      const blk = (base.rider.blockPerDefendCard ?? 0) * mult
+      const mana = (base.rider.manaPerMatch ?? 0) * mult
+      // §7 the TYPE layer: a piece with a match-type (the WEAPON) scopes its base damage/mana rider to
+      // its colour; everything else (armor/relic block + mana) applies unscoped. (Block stays unscoped —
+      // only weapons carry a match-type in the catalog; there is a single weapon slot.)
+      if (base.matchType && COLOR_SCOPE[base.matchType] != null) {
+        out.scopedColor = COLOR_SCOPE[base.matchType]
+        out.scopedAtkPerCard! += atk
+        out.scopedManaPerMatch! += mana
+      } else {
+        out.atkDamagePerCard += atk
+        out.manaPerMatch += mana
+      }
+      out.blockPerDefendCard += blk
     }
     for (const a of g.affixes) for (const c of a.components) if (c.c === 'rider') {
-      out.atkDamagePerCard += c.riders.atkDamagePerCard ?? 0
+      out.atkDamagePerCard += c.riders.atkDamagePerCard ?? 0 // affix riders are unscoped (not type-bound)
       out.blockPerDefendCard += c.riders.blockPerDefendCard ?? 0
       out.manaPerMatch += c.riders.manaPerMatch ?? 0
     }

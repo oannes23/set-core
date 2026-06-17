@@ -158,14 +158,20 @@ export function resolveSet(cards: [Card, Card, Card], stats: StatBlock, foeStats
       charges += mvRate * q // fractional on purpose — the Speed contest needs the granularity
     }
   }
+  // §7 the TYPE layer: a weapon's base rider fires only when the set's COLOUR matches its match-type.
+  // setColorScope: 0/1/2 = mono red/green/blue · 3 = rainbow (all-different). A valid Set's colour is
+  // always either all-same or all-different, so !allSameColor ⇒ rainbow.
+  const cv: [number, number, number] = [cards[0][0], cards[1][0], cards[2][0]]
+  const allSameColor = cv[0] === cv[1] && cv[1] === cv[2]
+  const setColorScope = allSameColor ? cv[0] : 3
+  const weaponFires = riders.scopedColor != null && riders.scopedColor === setColorScope
   // gear riders: flat per-card additions, post-contest. Damage lumps into the "solid" bucket for FX.
-  const riderDmg = riders.atkDamagePerCard > 0 && nAtk > 0 ? riders.atkDamagePerCard * nAtk : 0
+  const atkPerCard = riders.atkDamagePerCard + (weaponFires ? (riders.scopedAtkPerCard ?? 0) : 0)
+  const riderDmg = atkPerCard > 0 && nAtk > 0 ? atkPerCard * nAtk : 0
   const riderBlock = riders.blockPerDefendCard > 0 && nDef > 0 ? riders.blockPerDefendCard * nDef : 0
   dmgMed += riderDmg
   block += riderBlock
   const damage = dmgLight + dmgMed + dmgHeavy
-  const cv: [number, number, number] = [cards[0][0], cards[1][0], cards[2][0]]
-  const allSameColor = cv[0] === cv[1] && cv[1] === cv[2]
   const mana: [number, number, number] = [0, 0, 0]
   if (allSameColor) mana[cv[0]] = 3
   else {
@@ -173,8 +179,11 @@ export function resolveSet(cards: [Card, Card, Card], stats: StatBlock, foeStats
     mana[1] = 1
     mana[2] = 1
   }
-  // caster mana rider: a mono-colour set is the caster's payoff (the school = mono-colour, §7)
-  const riderMana = riders.manaPerMatch > 0 && allSameColor ? riders.manaPerMatch : 0
+  // caster mana rider: a mono-colour set is the caster's payoff (§7); the caster WEAPON's mana is
+  // additionally scoped to its match-type colour, on top of any unscoped (relic/armor) mana.
+  const manaUnscoped = riders.manaPerMatch > 0 && allSameColor ? riders.manaPerMatch : 0
+  const manaScoped = weaponFires ? (riders.scopedManaPerMatch ?? 0) : 0
+  const riderMana = manaUnscoped + manaScoped
   if (riderMana > 0) mana[cv[0]] += riderMana
   return { damage, dmgLight, dmgMed, dmgHeavy, block, riderDmg, riderBlock, riderMana, charges, mana, allSameColor, desc: matchDescriptor(cards) }
 }
