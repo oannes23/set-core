@@ -376,6 +376,37 @@ validated by `ajv` — build/test-only, tree-shaken out of the bundle). Approved
 ### Art (forward-looking, ~0 work now)
 - `[ ]` Keep `icon` a path-or-glyph string field so real sprites slot in against `BASE_URL` later.
 
+### ⭐ DECISION PENDING — next session: Phase 3 now, or pause-and-balance? (set 2026-06-17)
+**Where we are.** Moddability Phases 0–2 are shipped + pushed (267 tests; tsc + build clean; runtime
+deps still `{}`). The ENTIRE balance surface except ability/passive/consumable *effect magnitudes* is
+now editable in YAML with editor autocomplete + validation: monsters, traps, dungeons, classes, gear,
+**affixes (incl. magnitudes via the `make` DSL)**, loot, economy, **progression curves**, delve pacing.
+Ability *costs* are YAML-adjacent (`classes` pick ability ids; costs live in `abilities.ts`); only the
+in-combat effect *numbers* (e.g. firebolt's 45 damage) remain TypeScript closures. The modder wiki
+(`docs/`) + `MODDING.md` document all of it. The real balance sim is still **gated** (CLAUDE.md /
+TUNING.md) until combat content has weight to bear — and the user wants to **"balance from abilities
+on out."**
+
+**The choice.**
+- **Option A — pause the conversion, start balancing now (RECOMMENDED).** Balancing does NOT require
+  ability behavior in YAML: every number *around* abilities (foe statlines, affixes, progression,
+  economy, loot) is already YAML-tunable, and ability effect magnitudes are readable/editable in
+  `abilities.ts`. Phase 3 is a 2–4wk build whose payoff is *authoring NEW behavior* — orthogonal to
+  tuning existing numbers. Fastest path to the thing the user actually asked for next (balance).
+  Risk: the balancer touches `abilities.ts`/`passives.ts` TS for effect magnitudes (not YAML) until
+  Phase 3 lands. Acceptable — those are simple scalar edits.
+- **Option B — do Phase 3 (the effect-DSL) first, then balance.** Gets ability/consumable effect
+  magnitudes into YAML so the balancer never touches code. But it's the biggest build in the track
+  and carries the single biggest design call (the `scale`-enum vs mini-expression-language question —
+  several abilities derive damage from board state: `fireball` footprint·mag, `rampage`/`quickstrike`
+  reductions, `wildgrowth` ripeness). Also lands the deferred simple-passives port + the
+  `overflow`/`combined_arms` woven-passive hook-point decision. Defers balancing by weeks.
+
+**Lean: A.** Start the balance pass against the now-YAML surface; build Phase 3 when we actually want
+mod-authored abilities (or when the balancer's friction with TS effect numbers justifies it). If B is
+chosen, FIRST do a dedicated design pass on the `scale`/expression facility (it's the crux) before
+writing the interpreter — see `MODDING.md` §5 + §7.
+
 ---
 
 ## Done (summaries — detail in git history + design docs)

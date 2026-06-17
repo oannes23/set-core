@@ -26,6 +26,12 @@ orientation.
   review). Principles, not a backlog — steer judgment calls + the killer-feature watch-list.
 - `WRAPPERS.md` — shipping decision: web client + PWA (Tauri/Capacitor documented);
   Godot rejected.
+- `MODDING.md` — the **YAML content-conversion track** (Phases 0–2 DONE 2026-06-17): how all content
+  became external YAML, the loader/registry/derived-validator architecture, the affix magnitude DSL,
+  and the remaining Phase 3 (the effect-DSL). Dependency invariant: runtime deps stay empty.
+- `docs/` — the **modder wiki**: `glossary.md` + the full YAML config reference (`yaml-content.md`
+  registry, `yaml-catalogs.md` classes/gear/affixes, `yaml-tuning.md` loot/economy/progression/delve).
+  Cite these for "what fields does X.yaml take".
 
 ## What this is
 A skill-component minigame based on the card game **Set**, the reusable

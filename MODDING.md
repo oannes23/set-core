@@ -5,7 +5,13 @@ external YAML, while preserving the existing engine architecture. Born from the
 2026-06-16 five-agent moddability audit (this doc supersedes that report).
 
 Read `CLAUDE.md` → `PROJECT.md` → the design-doc map first for *why* the content
-shapes are what they are. This doc is *how* we externalize them.
+shapes are what they are. This doc is *how* we externalize them. For the
+field-by-field **modder reference** (what each YAML option does), see the wiki
+under `docs/` (`docs/README.md` is the index).
+
+**Status (2026-06-17): Phases 0–2 DONE.** All content + tuning + the affix
+magnitude DSL are YAML. Remaining: Phase 3 (the effect-DSL for ability/passive/
+consumable behavior). See the §-headers below + `TODO.md` "DECISION PENDING".
 
 ---
 

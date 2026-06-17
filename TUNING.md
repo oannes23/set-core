@@ -7,6 +7,15 @@ across the design docs. Verified against `src/` on 2026-06-11 (the ROUNDS v3 +
 Resolution v3 contests build). ⚠ Every contest/tier constant is a **first cut**
 pending the derivation-sheet sim — directionally settled, numerically sim-fodder.
 
+> **⚠ YAML relocation (2026-06-17, MODDING.md Phases 1–2).** Many constants cited below now live in
+> external YAML under `src/data/content/` (the modules named are the loaders that read them):
+> **loot** weights/gold (`loot.ts` → `content/loot.yaml`) · **economy** valuation/markups/smith
+> prices/vault/tithe (`value.ts`/`smith.ts`/`bank.ts` → `content/economy.yaml`) · **progression**
+> level cap/XP curve/slots (`save.ts` → `content/progression.yaml`) · **delve** elite-step/dread
+> bands (`delve.ts` → `content/delve.yaml`) · **affix** magnitudes (`affixes.ts` → `content/affixes.yaml`).
+> Edit the YAML to tune; the module re-exports the same names. Full field reference: `docs/yaml-tuning.md`
+> + `docs/yaml-catalogs.md`. Combat/contest constants (ROUNDS v3, dodge, wounds) remain in `src/engine`.
+
 ## The derivation sheet — axioms (CRAWL §5.6; the sim validates against these)
 
 | # | Axiom | Value |
