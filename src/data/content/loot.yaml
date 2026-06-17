@@ -1,0 +1,48 @@
+# yaml-language-server: $schema=schemas/loot.schema.json
+# Loot-roll tuning (CRAWL §3 / TUNING.md). FIRST-CUT, sim-gated — recalibrate the whole gold
+# faucet/sink together once the shop sink + goldK settle. Shape is settled; numbers are balance.
+goldK: 0.12
+goldVar: 0.3
+depthRate: 0.07
+gearPityStep: 8
+marketPerSlot: 10
+rarePerTab: 10
+marketTier: # char level → vendor rarity band
+  elite: 5
+  boss: 12
+
+# category-first per-tier tables: drops [min,max], a guaranteedGold wage (× one gold roll),
+# qualityAdvantage (consumable tier rolled twice keep-better), and category weights.
+tables:
+  minion:
+    drops: [1, 1]
+    guaranteedGold: 0
+    qualityAdvantage: false
+    weights: { gold: 60, consumable: 30, gear: 10, spellbook: 0 }
+  elite:
+    drops: [2, 3]
+    guaranteedGold: 2
+    qualityAdvantage: true
+    weights: { gold: 45, consumable: 35, gear: 20, spellbook: 0 }
+  boss:
+    drops: [5, 5]
+    guaranteedGold: 4
+    qualityAdvantage: true
+    weights: { gold: 30, consumable: 40, gear: 20, spellbook: 10 }
+
+# per-tier gear-rarity drop weights — minions skew low, elites/bosses skew up (orange only at elite+).
+rarityWeights:
+  minion: [[white, 60], [green, 28], [blue, 10], [purple, 2]]
+  elite: [[white, 40], [green, 33], [blue, 20], [purple, 6], [orange, 1]]
+  boss: [[white, 22], [green, 33], [blue, 28], [purple, 13], [orange, 4]]
+
+# Merchant-House rare vendor (epic/legendary only) + the boss-clear marquee (guaranteed rare+).
+rareWeights: [[purple, 60], [orange, 40]]
+marqueeWeights: [[blue, 50], [purple, 35], [orange, 15]]
+
+# slot groups the town Market vendor stocks (offhand = relic; trinkets cover both trinket slots).
+marketGroups:
+  - { label: Weapons, slot: weapon }
+  - { label: Armor, slot: armor }
+  - { label: Offhand, slot: relic }
+  - { label: Trinkets, slot: trinket1 }

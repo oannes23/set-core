@@ -19,38 +19,50 @@ import { CONSUMABLES } from './consumables'
 import { GEAR } from '../data/gear'
 import { rollGear } from './gear'
 import { gearValue } from './value'
-import type { GearInstance, Rarity } from './items'
+import type { GearInstance, Rarity, EquipSlot } from './items'
+import lootData from '../data/content/loot.yaml'
 
 export type LootKind = 'gold' | 'consumable' | 'gear' | 'spellbook'
 export interface LootDrop { kind: LootKind; gold?: number; itemId?: string }
 
-// gold ≈ foeValue × GOLD_K (a goblin ~47 → ~6g), ±variance, × depth. The whole economy's faucet
-// is this one constant (tune AFTER the shop sink exists — instrument gold/run first).
-export const GOLD_K = 0.12
-const GOLD_VAR = 0.3 // ±30% per gold roll
-export const DEPTH_RATE = 0.07 // +7%/room: loot quality & gold climb with depth (§3 depth scaling)
-
-interface LootTable {
+export interface LootTable {
   drops: [number, number] // [min, max] item/gold drops rolled from the categories
   guaranteedGold: number // a WAGE on top of the drops (× one standard gold roll); 0 = none
   qualityAdvantage: boolean // consumable tier rolled twice, keep better (elite/boss)
   weights: Record<LootKind, number> // category weights (gear/spellbook redistribute while disabled)
 }
-const TABLES: Record<Tier, LootTable> = {
-  minion: { drops: [1, 1], guaranteedGold: 0, qualityAdvantage: false, weights: { gold: 60, consumable: 30, gear: 10, spellbook: 0 } },
-  elite: { drops: [2, 3], guaranteedGold: 2, qualityAdvantage: true, weights: { gold: 45, consumable: 35, gear: 20, spellbook: 0 } },
-  boss: { drops: [5, 5], guaranteedGold: 4, qualityAdvantage: true, weights: { gold: 30, consumable: 40, gear: 20, spellbook: 10 } },
+/** content/loot.yaml — all loot-roll tuning (FIRST-CUT, sim-gated). The rollers below read these; the
+ *  values are content/balance, not logic, so they live in YAML (MODDING.md Phase 1). */
+export interface LootConfig {
+  goldK: number // gold ≈ foeValue × goldK (a goblin ~47 → ~6g) — the whole economy's faucet constant
+  goldVar: number // ± fraction per gold roll
+  depthRate: number // per-room lift to gold + loot quality (§3 depth scaling)
+  gearPityStep: number // gear-less drop adds this to the gear weight; a gear hit resets it (sawtooth)
+  marketPerSlot: number // town Market: pieces stocked per slot group
+  rarePerTab: number // Merchant-House rare vendor: pieces stocked
+  marketTier: { elite: number; boss: number } // char level → vendor rarity band thresholds
+  tables: Record<Tier, LootTable>
+  rarityWeights: Record<Tier, Array<[Rarity, number]>> // per-tier gear-rarity drop weights
+  rareWeights: Array<[Rarity, number]> // rare vendor (epic/legendary only)
+  marqueeWeights: Array<[Rarity, number]> // boss-clear guaranteed rare+ piece
+  marketGroups: Array<{ label: string; slot: EquipSlot }> // slot groups the Market vendor stocks
 }
+export type LootFile = LootConfig
+
+const CFG = lootData as LootConfig
+
+// gold ≈ foeValue × GOLD_K, ±variance, × depth (tune AFTER the shop sink exists — instrument gold/run first).
+export const GOLD_K = CFG.goldK
+const GOLD_VAR = CFG.goldVar
+export const DEPTH_RATE = CFG.depthRate
+
+const TABLES: Record<Tier, LootTable> = CFG.tables
 /** Live categories. Gear is LIVE (chunk ②); spellbook flips on at B4 — its weight redistributes till then. */
 export const ENABLED: LootKind[] = ['gold', 'consumable', 'gear']
 
 // --- gear sub-roller (CRAWL §7 / sim §12): base type × rarity (by tier) × loot-tier (affix magnitude) ---
 /** Per-tier rarity drop weights — minions skew low, elites/bosses skew up (orange only at elite+). */
-const RARITY_WEIGHTS: Record<Tier, Array<[Rarity, number]>> = {
-  minion: [['white', 60], ['green', 28], ['blue', 10], ['purple', 2]],
-  elite: [['white', 40], ['green', 33], ['blue', 20], ['purple', 6], ['orange', 1]],
-  boss: [['white', 22], ['green', 33], ['blue', 28], ['purple', 13], ['orange', 4]],
-}
+const RARITY_WEIGHTS: Record<Tier, Array<[Rarity, number]>> = CFG.rarityWeights
 function rollGearRarity(tier: Tier, rng: Rng): Rarity {
   const tab = RARITY_WEIGHTS[tier]
   const total = tab.reduce((s, [, w]) => s + w, 0)
@@ -69,20 +81,15 @@ export function rollGearDrop(foe: FoeRuntime, depth: number, rng: Rng): GearInst
   return rollGear(refId, rarity, lootTier, rng)
 }
 /** Gear pity: each gear-LESS category drop adds this to the gear weight; a gear hit resets it (sawtooth). */
-export const GEAR_PITY_STEP = 8
+export const GEAR_PITY_STEP = CFG.gearPityStep
 
 // --- the town MARKET vendor (B4 buy-side): a randomized gear stock, grouped by slot, generated with the
 //     same roller as loot. Rarity tier rides the player's HIGHEST character level; loot-tier = that level. ---
-export const MARKET_PER_SLOT = 10
+export const MARKET_PER_SLOT = CFG.marketPerSlot
 /** Slot groups the vendor stocks (offhand = relic; trinket1 covers both trinket slots). */
-const MARKET_GROUPS: Array<{ label: string; slot: string }> = [
-  { label: 'Weapons', slot: 'weapon' },
-  { label: 'Armor', slot: 'armor' },
-  { label: 'Offhand', slot: 'relic' },
-  { label: 'Trinkets', slot: 'trinket1' },
-]
+const MARKET_GROUPS: Array<{ label: string; slot: EquipSlot }> = CFG.marketGroups
 /** Level → the rarity weight band (deeper characters unlock better vendor stock). */
-const marketTier = (level: number): Tier => (level >= 12 ? 'boss' : level >= 5 ? 'elite' : 'minion')
+const marketTier = (level: number): Tier => (level >= CFG.marketTier.boss ? 'boss' : level >= CFG.marketTier.elite ? 'elite' : 'minion')
 
 /** Roll the vendor's stock for a character level: MARKET_PER_SLOT pieces per slot group, each a random
  *  base type of that slot × level-banded rarity × loot-tier, sorted by value (high→low). `lvlBoost` (the
@@ -100,8 +107,8 @@ export function rollMarketStock(level: number, rng: Rng, lvlBoost = 0): Array<{ 
 }
 
 // --- the Merchant House RARE vendor: a 10-slot stock of EPIC (purple) / LEGENDARY (orange) gear. ---
-export const RARE_PER_TAB = 10
-const RARE_WEIGHTS: Array<[Rarity, number]> = [['purple', 60], ['orange', 40]]
+export const RARE_PER_TAB = CFG.rarePerTab
+const RARE_WEIGHTS: Array<[Rarity, number]> = CFG.rareWeights
 /** Roll the rare vendor's stock: RARE_PER_TAB random pieces, epic/legendary only (loot-quality `lvlBoost`
  *  raises the loot-tier + skews toward legendary), sorted by value. (Spellbooks slot in here at Phase 5.) */
 export function rollRareStock(level: number, rng: Rng, lvlBoost = 0): GearInstance[] {
@@ -120,7 +127,7 @@ export function rollRareStock(level: number, rng: Rng, lvlBoost = 0): GearInstan
 
 /** The dungeon-clear MARQUEE roll (CRAWL §3): one GUARANTEED rare+ gear piece on a boss kill — the
  *  dungeon's headline reward. (Spellbook-marquee lands at B4; for now the marquee is always gear.) */
-const MARQUEE_WEIGHTS: Array<[Rarity, number]> = [['blue', 50], ['purple', 35], ['orange', 15]]
+const MARQUEE_WEIGHTS: Array<[Rarity, number]> = CFG.marqueeWeights
 export function rollMarqueeGear(foe: FoeRuntime, depth: number, rng: Rng): GearInstance {
   const ids = Object.keys(GEAR)
   const refId = ids[Math.floor(rng() * ids.length)]

@@ -1,0 +1,265 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$ref": "#/definitions/LootFile",
+  "definitions": {
+    "LootFile": {
+      "$ref": "#/definitions/LootConfig"
+    },
+    "LootConfig": {
+      "type": "object",
+      "properties": {
+        "goldK": {
+          "type": "number"
+        },
+        "goldVar": {
+          "type": "number"
+        },
+        "depthRate": {
+          "type": "number"
+        },
+        "gearPityStep": {
+          "type": "number"
+        },
+        "marketPerSlot": {
+          "type": "number"
+        },
+        "rarePerTab": {
+          "type": "number"
+        },
+        "marketTier": {
+          "type": "object",
+          "properties": {
+            "elite": {
+              "type": "number"
+            },
+            "boss": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "elite",
+            "boss"
+          ],
+          "additionalProperties": false
+        },
+        "tables": {
+          "type": "object",
+          "properties": {
+            "minion": {
+              "$ref": "#/definitions/LootTable"
+            },
+            "elite": {
+              "$ref": "#/definitions/LootTable"
+            },
+            "boss": {
+              "$ref": "#/definitions/LootTable"
+            }
+          },
+          "required": [
+            "minion",
+            "elite",
+            "boss"
+          ],
+          "additionalProperties": false
+        },
+        "rarityWeights": {
+          "type": "object",
+          "properties": {
+            "minion": {
+              "type": "array",
+              "items": {
+                "type": "array",
+                "minItems": 2,
+                "items": [
+                  {
+                    "$ref": "#/definitions/Rarity"
+                  },
+                  {
+                    "type": "number"
+                  }
+                ],
+                "maxItems": 2
+              }
+            },
+            "elite": {
+              "type": "array",
+              "items": {
+                "type": "array",
+                "minItems": 2,
+                "items": [
+                  {
+                    "$ref": "#/definitions/Rarity"
+                  },
+                  {
+                    "type": "number"
+                  }
+                ],
+                "maxItems": 2
+              }
+            },
+            "boss": {
+              "type": "array",
+              "items": {
+                "type": "array",
+                "minItems": 2,
+                "items": [
+                  {
+                    "$ref": "#/definitions/Rarity"
+                  },
+                  {
+                    "type": "number"
+                  }
+                ],
+                "maxItems": 2
+              }
+            }
+          },
+          "required": [
+            "minion",
+            "elite",
+            "boss"
+          ],
+          "additionalProperties": false
+        },
+        "rareWeights": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "minItems": 2,
+            "items": [
+              {
+                "$ref": "#/definitions/Rarity"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "maxItems": 2
+          }
+        },
+        "marqueeWeights": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "minItems": 2,
+            "items": [
+              {
+                "$ref": "#/definitions/Rarity"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "maxItems": 2
+          }
+        },
+        "marketGroups": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "label": {
+                "type": "string"
+              },
+              "slot": {
+                "$ref": "#/definitions/EquipSlot"
+              }
+            },
+            "required": [
+              "label",
+              "slot"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "goldK",
+        "goldVar",
+        "depthRate",
+        "gearPityStep",
+        "marketPerSlot",
+        "rarePerTab",
+        "marketTier",
+        "tables",
+        "rarityWeights",
+        "rareWeights",
+        "marqueeWeights",
+        "marketGroups"
+      ],
+      "additionalProperties": false,
+      "description": "content/loot.yaml — all loot-roll tuning (FIRST-CUT, sim-gated). The rollers below read these; the values are content/balance, not logic, so they live in YAML (MODDING.md Phase 1)."
+    },
+    "LootTable": {
+      "type": "object",
+      "properties": {
+        "drops": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          },
+          "minItems": 2,
+          "maxItems": 2
+        },
+        "guaranteedGold": {
+          "type": "number"
+        },
+        "qualityAdvantage": {
+          "type": "boolean"
+        },
+        "weights": {
+          "type": "object",
+          "properties": {
+            "gold": {
+              "type": "number"
+            },
+            "consumable": {
+              "type": "number"
+            },
+            "gear": {
+              "type": "number"
+            },
+            "spellbook": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "gold",
+            "consumable",
+            "gear",
+            "spellbook"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "drops",
+        "guaranteedGold",
+        "qualityAdvantage",
+        "weights"
+      ],
+      "additionalProperties": false
+    },
+    "Rarity": {
+      "type": "string",
+      "enum": [
+        "grey",
+        "white",
+        "green",
+        "blue",
+        "purple",
+        "orange"
+      ]
+    },
+    "EquipSlot": {
+      "type": "string",
+      "enum": [
+        "weapon",
+        "armor",
+        "relic",
+        "trinket1",
+        "trinket2"
+      ]
+    }
+  }
+}
