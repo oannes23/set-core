@@ -12,6 +12,7 @@
 import { RARITY, RARITIES, freshUid, type Affix, type AffixComponent, type EquipSlot, type Rarity, type StatKey, type ProcEffect, type ProcEvent, type Riders, type GearMods } from '../engine/items'
 import type { Condition } from './schema'
 import type { Rng } from '../core/rng'
+import affixData from './content/affixes.yaml'
 
 export type AffixFamily = 'stat' | 'rider' | 'proc' | 'crit' | 'reactive' | 'utility' | 'unique'
 
@@ -79,44 +80,12 @@ export interface AffixDef {
   make?: AffixSpec // LIVE only: the declarative recipe realized at a magnitude unit (the magnitude DSL)
 }
 
+/** content/affixes.yaml — the themed affix catalog (a list). Pure data now that build() is a `make` spec. */
+export type AffixFile = AffixDef[]
+
 const LOOTTIER_K = 0.02 // affix magnitude × (1 + lootTier·k) — sim §12
 
-export const AFFIXES: AffixDef[] = [
-  // ── STAT patches (LIVE) — the off-stat fixers; any slot (patch what your base gear lacks). k=2 ≈ +2–3 at mid tier ──
-  { sys: 'FlatPower', name: 'Mighty', family: 'stat', slots: 'any', minRarity: 'white', weight: 10, live: true, note: '+Power (raw stat)', make: { c: 'stat', stat: 'power', k: 2 } },
-  { sys: 'FlatEndurance', name: 'Stalwart', family: 'stat', slots: 'any', minRarity: 'white', weight: 10, live: true, note: '+Endurance (raw stat)', make: { c: 'stat', stat: 'endurance', k: 2 } },
-  { sys: 'FlatSpeed', name: 'Fleet', family: 'stat', slots: 'any', minRarity: 'white', weight: 10, live: true, note: '+Speed (raw stat)', make: { c: 'stat', stat: 'speed', k: 2 } },
-  // ── scoped RIDERS (LIVE) — flat per-card, slot-appropriate (the bounded power channel) ──
-  { sys: 'AttackDamagePerCard', name: 'Honed', family: 'rider', slots: ['weapon', 'relic'], minRarity: 'green', weight: 6, live: true, note: '+damage per Attack card', make: { c: 'rider', rider: 'atkDamagePerCard' } },
-  { sys: 'BlockPerDefendCard', name: 'Warding', family: 'rider', slots: ['armor', 'relic'], minRarity: 'green', weight: 6, live: true, note: '+Block per Defend card', make: { c: 'rider', rider: 'blockPerDefendCard' } },
-  { sys: 'ManaPerMatch', name: 'Channeling', family: 'rider', slots: ['weapon', 'relic', 'trinket1'], minRarity: 'green', weight: 5, live: true, note: '+mana per mono-colour set', make: { c: 'rider', rider: 'manaPerMatch' } },
-  // ── PROCS (LIVE via the affix-proc engine) — on-match, CONDITIONED + small (sim §12: procs run hot) ──
-  { sys: 'OnMatchBonusDamage', name: 'Savage', family: 'proc', slots: ['weapon', 'relic'], minRarity: 'blue', weight: 4, live: true, note: 'all-Attack match → bonus damage', make: { c: 'proc', when: { axis: 'shape', mode: 'all_same', value: 'attack' }, effect: { kind: 'damage' }, label: '⚔+{a}' } },
-  { sys: 'OnMatchBonusDamage_red', name: 'Searing', family: 'proc', slots: ['weapon'], minRarity: 'blue', weight: 3, live: true, note: 'all-Fire match → bonus burn damage', make: { c: 'proc', when: { axis: 'color', mode: 'all_same', value: 'red' }, effect: { kind: 'damage' }, label: '🔥+{a}' } },
-  { sys: 'OnMatchManaGain', name: 'Attuned', family: 'proc', slots: ['relic', 'trinket1'], minRarity: 'blue', weight: 3, live: true, note: 'mono-colour match → +mana (to that colour)', make: { c: 'proc', when: { axis: 'color', mode: 'all_same' }, effect: { kind: 'mana', k: 0.7 }, label: '✦+{a}' } },
-  { sys: 'OnMatchHeal', name: 'Renewing', family: 'proc', slots: ['armor', 'trinket1'], minRarity: 'blue', weight: 3, live: true, note: 'all-Defend match → small heal', make: { c: 'proc', when: { axis: 'shape', mode: 'all_same', value: 'defend' }, effect: { kind: 'heal', k: 1.5 }, label: '+{a}hp' } },
-  { sys: 'OnMatchDelayEnemy', name: 'Time-Eater', family: 'proc', slots: ['relic', 'trinket1'], minRarity: 'purple', weight: 2, live: true, note: 'rainbow-colour match → delay the foe 1s', make: { c: 'proc', when: { axis: 'color', mode: 'all_different' }, effect: { kind: 'delay', seconds: 1 }, label: '⏳+1s' } },
-  { sys: 'OnMatchChurn', name: "Trickster's", family: 'proc', slots: ['trinket1'], minRarity: 'blue', weight: 3, live: false, note: 'on a match: churn the deadest card toward your bias (STAGED — needs proc-churn plumbing)' },
-  // ── gear-EXCLUSIVE (LIVE via GearMods — deterministic; gear's identity) ──
-  { sys: 'Penetration', name: 'Sundering', family: 'crit', slots: ['weapon', 'relic'], minRarity: 'blue', weight: 3, live: true, note: 'ignore some foe Endurance in the Attack contest (anti-armour)', make: { c: 'mod', mod: 'penetration', k: 1.5 } },
-  { sys: 'FlatDamageReduction', name: 'Ironhide', family: 'utility', slots: ['armor', 'relic'], minRarity: 'green', weight: 4, live: true, note: 'flat damage reduction (Soak; permanent, pre-Block)', make: { c: 'mod', mod: 'soak', k: 1.5 } },
-  { sys: 'DodgeChance', name: 'Evasive', family: 'utility', slots: ['armor', 'trinket1'], minRarity: 'blue', weight: 3, live: true, note: '+dodge chance (Speed-adjacent; +flat on the per-swing roll)', make: { c: 'mod', mod: 'dodge', perUnit: 0.03, cap: 0.2 } },
-  { sys: 'Lifesteal', name: 'Sanguine', family: 'proc', slots: ['weapon', 'trinket1'], minRarity: 'purple', weight: 2, live: true, note: 'heal a fraction of damage dealt (offensive sustain)', make: { c: 'mod', mod: 'lifesteal', perUnit: 0.04, cap: 0.2 } },
-  // CRIT (LIVE — the shared exchange-delight channel; a narrow §5.7 carve-out, player-only, capped).
-  // Both are always useful because there's a 5% global base to build on (no dead-affix combo trap).
-  { sys: 'CritChance', name: 'Keen', family: 'crit', slots: ['weapon', 'trinket1'], minRarity: 'blue', weight: 4, live: true, note: '+crit chance (adds to the 5% base; capped at 20%)', make: { c: 'mod', mod: 'critChance', perUnit: 0.02, cap: 0.1 } },
-  { sys: 'CritMultiplier', name: 'Vorpal', family: 'crit', slots: ['weapon'], minRarity: 'purple', weight: 2, live: true, note: '+crit damage multiplier (scales every crit — base ×1.5 + this)', make: { c: 'mod', mod: 'critMult', perUnit: 0.25, cap: 1.0 } },
-  // ── REACTIVE (LIVE via the affix-proc engine's player-side events: wound / kill / lowHP) ──
-  { sys: 'OnWoundThorns', name: 'Barbed', family: 'reactive', slots: ['armor', 'relic'], minRarity: 'blue', weight: 3, live: true, note: 'on taking a wound → reflect damage at the foe', make: { c: 'proc', event: 'wound', effect: { kind: 'damage', k: 2 }, label: '🌵{a}' } },
-  { sys: 'OnWoundWard', name: "Guardian's", family: 'reactive', slots: ['armor', 'relic'], minRarity: 'purple', weight: 2, live: true, note: 'on taking a wound → bank a Stand-Ground charge', make: { c: 'proc', event: 'wound', effect: { kind: 'charges', amount: 1 }, label: '🛡+1' } },
-  { sys: 'OnKillHeal', name: 'Carnage', family: 'reactive', slots: ['weapon', 'trinket1'], minRarity: 'blue', weight: 3, live: true, note: 'on a kill → heal (carries to the next room)', make: { c: 'proc', event: 'kill', effect: { kind: 'heal', k: 3 }, label: '+{a}hp' } },
-  { sys: 'OnLowHPSurge', name: 'Cornered', family: 'reactive', slots: ['armor', 'trinket1'], minRarity: 'purple', weight: 2, live: true, note: 'while below 30% HP → a Block surge each round', make: { c: 'proc', event: 'lowHP', effect: { kind: 'block', k: 2.5 }, label: '🛡+{a}' } },
-  // ── UTILITY (STAGED) ──
-  { sys: 'FavorBias', name: 'Fated', family: 'utility', slots: ['trinket1'], minRarity: 'green', weight: 3, live: false, note: 'a passive deal-bias toward a chosen value (locked-board-safe)' },
-  // ── UNIQUE (STAGED, orange) — curated named templates; locked + random affixes (§7) ──
-  { sys: 'Unique_Heartseeker', name: 'Heartseeker', family: 'unique', slots: ['weapon'], minRarity: 'orange', weight: 1, live: false, note: 'orange unique: rainbow Attacks always crit' },
-  { sys: 'Unique_Aegis', name: 'the Aegis', family: 'unique', slots: ['armor', 'relic'], minRarity: 'orange', weight: 1, live: false, note: 'orange unique: negate the first strike each fight' },
-]
+export const AFFIXES: AffixDef[] = affixData as AffixFile
 
 /** sys → thematic name (dev.ts merges this into its name map; displayName resolves affix labels). */
 export const AFFIX_THEME: Record<string, string> = Object.fromEntries(AFFIXES.map((d) => [d.sys, d.name]))

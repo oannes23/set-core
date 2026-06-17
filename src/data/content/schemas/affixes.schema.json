@@ -1,0 +1,459 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$ref": "#/definitions/AffixFile",
+  "definitions": {
+    "AffixFile": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/AffixDef"
+      },
+      "description": "content/affixes.yaml — the themed affix catalog (a list). Pure data now that build() is a `make` spec."
+    },
+    "AffixDef": {
+      "type": "object",
+      "properties": {
+        "sys": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "family": {
+          "$ref": "#/definitions/AffixFamily"
+        },
+        "slots": {
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/EquipSlot"
+              }
+            },
+            {
+              "type": "string",
+              "const": "any"
+            }
+          ]
+        },
+        "minRarity": {
+          "$ref": "#/definitions/Rarity"
+        },
+        "weight": {
+          "type": "number"
+        },
+        "live": {
+          "type": "boolean"
+        },
+        "note": {
+          "type": "string"
+        },
+        "make": {
+          "$ref": "#/definitions/AffixSpec"
+        }
+      },
+      "required": [
+        "sys",
+        "name",
+        "family",
+        "slots",
+        "minRarity",
+        "weight",
+        "live",
+        "note"
+      ],
+      "additionalProperties": false
+    },
+    "AffixFamily": {
+      "type": "string",
+      "enum": [
+        "stat",
+        "rider",
+        "proc",
+        "crit",
+        "reactive",
+        "utility",
+        "unique"
+      ]
+    },
+    "EquipSlot": {
+      "type": "string",
+      "enum": [
+        "weapon",
+        "armor",
+        "relic",
+        "trinket1",
+        "trinket2"
+      ]
+    },
+    "Rarity": {
+      "type": "string",
+      "enum": [
+        "grey",
+        "white",
+        "green",
+        "blue",
+        "purple",
+        "orange"
+      ]
+    },
+    "AffixSpec": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "c": {
+              "type": "string",
+              "const": "stat"
+            },
+            "stat": {
+              "$ref": "#/definitions/StatKey"
+            },
+            "k": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "c",
+            "stat"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "c": {
+              "type": "string",
+              "const": "rider"
+            },
+            "rider": {
+              "type": "string",
+              "enum": [
+                "atkDamagePerCard",
+                "blockPerDefendCard",
+                "manaPerMatch",
+                "scopedColor",
+                "scopedAtkPerCard",
+                "scopedManaPerMatch"
+              ]
+            },
+            "k": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "c",
+            "rider"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "c": {
+              "type": "string",
+              "const": "mod"
+            },
+            "mod": {
+              "type": "string",
+              "enum": [
+                "dodge",
+                "penetration",
+                "soak",
+                "lifesteal",
+                "critChance",
+                "critMult"
+              ]
+            },
+            "k": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "c",
+            "mod"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "c": {
+              "type": "string",
+              "const": "mod"
+            },
+            "mod": {
+              "type": "string",
+              "enum": [
+                "dodge",
+                "penetration",
+                "soak",
+                "lifesteal",
+                "critChance",
+                "critMult"
+              ]
+            },
+            "perUnit": {
+              "type": "number"
+            },
+            "cap": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "c",
+            "mod",
+            "perUnit",
+            "cap"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "c": {
+              "type": "string",
+              "const": "proc"
+            },
+            "when": {
+              "$ref": "#/definitions/Condition"
+            },
+            "event": {
+              "$ref": "#/definitions/ProcEvent"
+            },
+            "effect": {
+              "$ref": "#/definitions/ProcSpec"
+            },
+            "label": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "c",
+            "effect",
+            "label"
+          ],
+          "additionalProperties": false
+        }
+      ],
+      "description": "How to realize an affix at a magnitude unit `m`. Replaces `build: (mag)=>AffixComponent[]`."
+    },
+    "StatKey": {
+      "type": "string",
+      "enum": [
+        "power",
+        "endurance",
+        "speed"
+      ]
+    },
+    "Condition": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/SimpleCondition"
+        },
+        {
+          "$ref": "#/definitions/CompoundCondition"
+        }
+      ]
+    },
+    "SimpleCondition": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "axis": {
+              "type": "string",
+              "const": "color"
+            },
+            "mode": {
+              "$ref": "#/definitions/Mode"
+            },
+            "value": {
+              "$ref": "#/definitions/ColorTok"
+            }
+          },
+          "required": [
+            "axis",
+            "mode"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "axis": {
+              "type": "string",
+              "const": "shape"
+            },
+            "mode": {
+              "$ref": "#/definitions/Mode"
+            },
+            "value": {
+              "$ref": "#/definitions/ShapeTok"
+            }
+          },
+          "required": [
+            "axis",
+            "mode"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "axis": {
+              "type": "string",
+              "const": "number"
+            },
+            "mode": {
+              "$ref": "#/definitions/Mode"
+            },
+            "value": {
+              "$ref": "#/definitions/NumberTok"
+            }
+          },
+          "required": [
+            "axis",
+            "mode"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "Mode": {
+      "type": "string",
+      "enum": [
+        "all_same",
+        "all_different",
+        "contains",
+        "not_value"
+      ]
+    },
+    "ColorTok": {
+      "type": "string",
+      "enum": [
+        "red",
+        "green",
+        "blue"
+      ]
+    },
+    "ShapeTok": {
+      "type": "string",
+      "enum": [
+        "attack",
+        "defend",
+        "move"
+      ]
+    },
+    "NumberTok": {
+      "type": "string",
+      "enum": [
+        "one",
+        "two",
+        "three"
+      ]
+    },
+    "CompoundCondition": {
+      "type": "object",
+      "properties": {
+        "all": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/SimpleCondition"
+          }
+        }
+      },
+      "required": [
+        "all"
+      ],
+      "additionalProperties": false,
+      "description": "Compound AND of simple conditions (e.g. all-Move AND all-1s — the Limbless trigger)."
+    },
+    "ProcEvent": {
+      "type": "string",
+      "enum": [
+        "match",
+        "wound",
+        "kill",
+        "lowHP"
+      ],
+      "description": "When a proc fires: on a MATCH (condition on the set) or on a player-side EVENT (reactive family)."
+    },
+    "ProcSpec": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "enum": [
+                "damage",
+                "heal",
+                "block"
+              ]
+            },
+            "k": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "mana"
+            },
+            "k": {
+              "type": "number"
+            },
+            "color": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "charges"
+            },
+            "amount": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "kind",
+            "amount"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "delay"
+            },
+            "seconds": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "kind",
+            "seconds"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    }
+  }
+}

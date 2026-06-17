@@ -35,5 +35,6 @@ const FILES: Array<{ file: string; type: string; path?: string }> = [
   { file: 'gear', type: 'GearFile', path: 'src/data/gear.ts' },
   { file: 'loot', type: 'LootFile', path: 'src/engine/loot.ts' },
   { file: 'economy', type: 'EconomyFile', path: 'src/engine/economy.ts' },
+  { file: 'affixes', type: 'AffixFile', path: 'src/data/affixes.ts' },
 ]
 for (const { file, type, path } of FILES) write(join(schemasDir, `${file}.schema.json`), gen(type, path))

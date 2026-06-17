@@ -1,9 +1,17 @@
 /* The themed affix catalog (CRAWL §7) + the slot/tier-gated, inverse-budget roller (sim §12). */
 import { test, expect } from 'vitest'
 import { mulberry32 } from '../core/rng'
-import { AFFIXES, AFFIX_THEME, rollAffixes, buildAffixComponents } from './affixes'
+import { AFFIXES, AFFIX_THEME, rollAffixes, buildAffixComponents, type AffixFile } from './affixes'
 import { RARITY, RARITIES } from '../engine/items'
 import { gearRiders } from '../engine/gear'
+import { makeValidator } from './validate'
+import affixesSchema from './content/schemas/affixes.schema.json'
+
+test('the YAML affix catalog passes schema validation', () => {
+  const r = makeValidator<AffixFile>(affixesSchema)(AFFIXES)
+  if (!r.ok) throw new Error('affix schema errors:\n' + r.errors.join('\n'))
+  expect(r.ok).toBe(true)
+})
 
 test('catalog integrity: every def is well-formed; LIVE defs carry a make spec; names map + differ from keys', () => {
   const seen = new Set<string>()
