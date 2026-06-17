@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=schemas/drifts.schema.json
 ember:
   name: Ember Drift
   icon: 🔥

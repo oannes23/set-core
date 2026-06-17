@@ -28,12 +28,21 @@ test('a structurally malformed creature (missing stats) is rejected', () => {
   expect(validateGameData(bad).ok).toBe(false)
 })
 
+const gen = (type: string): unknown =>
+  createGenerator({ path: 'src/data/schema.ts', type, tsconfig: 'tsconfig.json', skipTypeCheck: true }).createSchema(type)
+
 test('committed schema.json matches schema.ts (no drift — run `pnpm gen:schema`)', () => {
-  const fresh = createGenerator({
-    path: 'src/data/schema.ts',
-    type: 'GameData',
-    tsconfig: 'tsconfig.json',
-    skipTypeCheck: true,
-  }).createSchema('GameData')
-  expect(fresh).toEqual(committedSchema)
+  expect(gen('GameData')).toEqual(committedSchema)
 })
+
+// the per-file editor schemas (the `$schema` header targets) must also stay fresh
+const PER_FILE: Record<string, string> = {
+  traps: 'TrapsFile', drifts: 'DriftsFile', creatures: 'CreaturesFile', variants: 'VariantsFile',
+  templates: 'TemplatesFile', dungeons: 'DungeonsFile', encounter: 'EncounterFile',
+}
+for (const [file, type] of Object.entries(PER_FILE)) {
+  test(`committed schemas/${file}.schema.json matches schema.ts`, async () => {
+    const committed = (await import(`./content/schemas/${file}.schema.json`)).default
+    expect(gen(type)).toEqual(committed)
+  })
+}

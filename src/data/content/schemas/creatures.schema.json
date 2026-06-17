@@ -1,0 +1,148 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$ref": "#/definitions/CreaturesFile",
+  "definitions": {
+    "CreaturesFile": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/definitions/Creature"
+      }
+    },
+    "Creature": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "tier": {
+          "$ref": "#/definitions/Tier"
+        },
+        "stats": {
+          "$ref": "#/definitions/CreatureStats"
+        },
+        "hp": {
+          "type": "number"
+        },
+        "tempo": {
+          "$ref": "#/definitions/TempoOverride"
+        },
+        "desc": {
+          "type": "string"
+        },
+        "voice": {
+          "$ref": "#/definitions/Voice"
+        },
+        "traps": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "variants": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "rules": {
+          "$ref": "#/definitions/FoeRules"
+        },
+        "loot_tier": {
+          "type": "number"
+        },
+        "xp": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "name",
+        "tier",
+        "stats",
+        "hp",
+        "loot_tier"
+      ],
+      "additionalProperties": false
+    },
+    "Tier": {
+      "type": "string",
+      "enum": [
+        "minion",
+        "elite",
+        "boss"
+      ]
+    },
+    "CreatureStats": {
+      "type": "object",
+      "properties": {
+        "power": {
+          "type": "number"
+        },
+        "endurance": {
+          "type": "number"
+        },
+        "speed": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "power",
+        "endurance",
+        "speed"
+      ],
+      "additionalProperties": false,
+      "description": "A foe's contest statline — the other side of every resolve.ts contest. Authored directly against the parity line `10 + 2(L−1)` (CRAWL §3 / TUNING.md): warren = fresh L3 → ~14, with role spreads (swift −2P/+5S · steady · heavy +2P/−5S · giant +4P/−9S) and per-tier E bumps (elite +4 / boss +8) baked into the numbers — no automatic tier bump at assembly."
+    },
+    "TempoOverride": {
+      "type": "object",
+      "properties": {
+        "strikeEvery": {
+          "type": "number"
+        },
+        "swings": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "strikeEvery",
+        "swings"
+      ],
+      "additionalProperties": false,
+      "description": "Override the tempo law's S−P packaging (else strikeEvery/swings derive from the statline)."
+    },
+    "Voice": {
+      "type": "object",
+      "properties": {
+        "hit": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "heal": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "zero": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "description": "Combat-log voice: swappable verbs so a foe reads in character (the zombie gnaws, the behemoth booms). Pure flavour — the UI's combat log consumes it; absent fields fall back to a neutral default."
+    },
+    "FoeRules": {
+      "type": "object",
+      "properties": {
+        "immune_card_damage": {
+          "type": "boolean"
+        },
+        "ability_damage": {
+          "type": "string",
+          "const": "mana_spent"
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

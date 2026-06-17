@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=schemas/encounter.schema.json
 traps:
   - molten_veins
   - spiked_hide

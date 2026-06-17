@@ -218,3 +218,15 @@ export interface GameData {
   dungeons: Record<string, Dungeon>
   encounter: Encounter
 }
+
+// ---- per-file content roots (one per YAML file under content/) ----
+// Each YAML content file's top level is one of these. They exist so `gen:schema` can emit a JSON
+// Schema per file, which the `# yaml-language-server: $schema=…` header points at — giving content
+// authors live autocomplete + inline validation in-editor. Same shapes as GameData's collections.
+export type TrapsFile = Record<string, Trap>
+export type DriftsFile = Record<string, Trap>
+export type CreaturesFile = Record<string, Creature>
+export type VariantsFile = Record<string, Variant>
+export type TemplatesFile = Record<string, Template>
+export type DungeonsFile = Record<string, Dungeon>
+export type EncounterFile = Encounter

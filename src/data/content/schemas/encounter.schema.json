@@ -1,0 +1,28 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$ref": "#/definitions/EncounterFile",
+  "definitions": {
+    "EncounterFile": {
+      "$ref": "#/definitions/Encounter"
+    },
+    "Encounter": {
+      "type": "object",
+      "properties": {
+        "traps": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "drift": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "traps",
+        "drift"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

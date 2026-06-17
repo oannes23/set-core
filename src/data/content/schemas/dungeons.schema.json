@@ -1,0 +1,171 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$ref": "#/definitions/DungeonsFile",
+  "definitions": {
+    "DungeonsFile": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/definitions/Dungeon"
+      }
+    },
+    "Dungeon": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "difficulty": {
+          "type": "number"
+        },
+        "coach": {
+          "type": "boolean"
+        },
+        "guided": {
+          "type": "boolean"
+        },
+        "theme": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/Theme"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "drift": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "boss_mirror": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "default_foe": {
+          "type": "string"
+        },
+        "sequence": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "enemy_table": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/EnemyTableEntry"
+          }
+        },
+        "elite_pool": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "boss": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "template": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "extends": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "difficulty",
+        "enemy_table",
+        "elite_pool"
+      ],
+      "additionalProperties": false
+    },
+    "Theme": {
+      "type": "object",
+      "properties": {
+        "axis": {
+          "$ref": "#/definitions/Axis"
+        },
+        "value": {
+          "$ref": "#/definitions/ValueTok"
+        }
+      },
+      "required": [
+        "axis",
+        "value"
+      ],
+      "additionalProperties": false
+    },
+    "Axis": {
+      "type": "string",
+      "enum": [
+        "color",
+        "shape",
+        "number"
+      ]
+    },
+    "ValueTok": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/ColorTok"
+        },
+        {
+          "$ref": "#/definitions/ShapeTok"
+        },
+        {
+          "$ref": "#/definitions/NumberTok"
+        }
+      ]
+    },
+    "ColorTok": {
+      "type": "string",
+      "enum": [
+        "red",
+        "green",
+        "blue"
+      ]
+    },
+    "ShapeTok": {
+      "type": "string",
+      "enum": [
+        "attack",
+        "defend",
+        "move"
+      ]
+    },
+    "NumberTok": {
+      "type": "string",
+      "enum": [
+        "one",
+        "two",
+        "three"
+      ]
+    },
+    "EnemyTableEntry": {
+      "type": "object",
+      "properties": {
+        "foe": {
+          "type": "string"
+        },
+        "weight": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "foe",
+        "weight"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

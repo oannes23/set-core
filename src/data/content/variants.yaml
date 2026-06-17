@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=schemas/variants.schema.json
 bloodthirsty:
   name: Bloodthirsty
   icon: 🩸

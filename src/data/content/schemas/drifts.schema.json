@@ -1,0 +1,396 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$ref": "#/definitions/DriftsFile",
+  "definitions": {
+    "DriftsFile": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/definitions/Trap"
+      }
+    },
+    "Trap": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "icon": {
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/definitions/TriggerKind"
+        },
+        "on": {
+          "$ref": "#/definitions/On"
+        },
+        "when": {
+          "$ref": "#/definitions/Condition"
+        },
+        "every": {
+          "type": "number"
+        },
+        "quiet": {
+          "type": "boolean"
+        },
+        "desc": {
+          "type": "string"
+        },
+        "do": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Effect"
+          }
+        }
+      },
+      "required": [
+        "name",
+        "on",
+        "do"
+      ],
+      "additionalProperties": false
+    },
+    "TriggerKind": {
+      "type": "string",
+      "enum": [
+        "trap",
+        "trick"
+      ],
+      "description": "Valence of a reactive trigger: a Trap is hostile (avoid, yellow); a Trick is favorable (aim for, green). Same mechanism (condition → effects); only valence + presentation differ. Default when omitted is 'trap'."
+    },
+    "On": {
+      "type": "string",
+      "enum": [
+        "match",
+        "tick"
+      ]
+    },
+    "Condition": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/SimpleCondition"
+        },
+        {
+          "$ref": "#/definitions/CompoundCondition"
+        }
+      ]
+    },
+    "SimpleCondition": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "axis": {
+              "type": "string",
+              "const": "color"
+            },
+            "mode": {
+              "$ref": "#/definitions/Mode"
+            },
+            "value": {
+              "$ref": "#/definitions/ColorTok"
+            }
+          },
+          "required": [
+            "axis",
+            "mode"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "axis": {
+              "type": "string",
+              "const": "shape"
+            },
+            "mode": {
+              "$ref": "#/definitions/Mode"
+            },
+            "value": {
+              "$ref": "#/definitions/ShapeTok"
+            }
+          },
+          "required": [
+            "axis",
+            "mode"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "axis": {
+              "type": "string",
+              "const": "number"
+            },
+            "mode": {
+              "$ref": "#/definitions/Mode"
+            },
+            "value": {
+              "$ref": "#/definitions/NumberTok"
+            }
+          },
+          "required": [
+            "axis",
+            "mode"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "Mode": {
+      "type": "string",
+      "enum": [
+        "all_same",
+        "all_different",
+        "contains",
+        "not_value"
+      ]
+    },
+    "ColorTok": {
+      "type": "string",
+      "enum": [
+        "red",
+        "green",
+        "blue"
+      ]
+    },
+    "ShapeTok": {
+      "type": "string",
+      "enum": [
+        "attack",
+        "defend",
+        "move"
+      ]
+    },
+    "NumberTok": {
+      "type": "string",
+      "enum": [
+        "one",
+        "two",
+        "three"
+      ]
+    },
+    "CompoundCondition": {
+      "type": "object",
+      "properties": {
+        "all": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/SimpleCondition"
+          }
+        }
+      },
+      "required": [
+        "all"
+      ],
+      "additionalProperties": false,
+      "description": "Compound AND of simple conditions (e.g. all-Move AND all-1s — the Limbless trigger)."
+    },
+    "Effect": {
+      "type": "object",
+      "properties": {
+        "effect": {
+          "$ref": "#/definitions/EffectName"
+        },
+        "chance": {
+          "type": "number"
+        },
+        "amount": {
+          "type": "number"
+        },
+        "max": {
+          "type": "number"
+        },
+        "seconds": {
+          "type": "number"
+        },
+        "color": {
+          "$ref": "#/definitions/ColorTok"
+        },
+        "count": {
+          "type": "number"
+        },
+        "select": {
+          "$ref": "#/definitions/Selector"
+        },
+        "bias": {
+          "$ref": "#/definitions/Bias"
+        },
+        "gap": {
+          "type": "number"
+        },
+        "scale": {
+          "type": "string",
+          "const": "set_mag",
+          "description": "severity scaled by the springing set's TOTAL magnitude: max(1, total − 4) — a modest 1+2+3 rainbow pays the mild price, a greedy 3/3/3 pays for its weight (damage / advance_timer)."
+        }
+      },
+      "required": [
+        "effect"
+      ],
+      "additionalProperties": false
+    },
+    "EffectName": {
+      "type": "string",
+      "enum": [
+        "damage",
+        "instant_attack",
+        "advance_timer",
+        "delay_attack",
+        "enemy_heal",
+        "drain_tactics",
+        "drain_mana",
+        "transmute",
+        "lock"
+      ]
+    },
+    "Selector": {
+      "type": "object",
+      "properties": {
+        "geometry": {
+          "$ref": "#/definitions/Geometry"
+        },
+        "which": {
+          "$ref": "#/definitions/Which"
+        },
+        "index": {
+          "type": "number"
+        },
+        "center": {
+          "type": "number"
+        },
+        "count": {
+          "type": "number"
+        },
+        "axis": {
+          "$ref": "#/definitions/Axis"
+        },
+        "mode": {
+          "$ref": "#/definitions/Mode"
+        },
+        "value": {
+          "$ref": "#/definitions/ValueTok"
+        },
+        "pick": {
+          "type": "string",
+          "const": "highest_mag"
+        }
+      },
+      "additionalProperties": false
+    },
+    "Geometry": {
+      "type": "string",
+      "enum": [
+        "row",
+        "column",
+        "diagonal",
+        "corners",
+        "border",
+        "center",
+        "inner",
+        "blast",
+        "cross",
+        "plus",
+        "half",
+        "random"
+      ]
+    },
+    "Which": {
+      "type": "string",
+      "enum": [
+        "top",
+        "bottom",
+        "left",
+        "right",
+        "center",
+        "anti"
+      ]
+    },
+    "Axis": {
+      "type": "string",
+      "enum": [
+        "color",
+        "shape",
+        "number"
+      ]
+    },
+    "ValueTok": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/ColorTok"
+        },
+        {
+          "$ref": "#/definitions/ShapeTok"
+        },
+        {
+          "$ref": "#/definitions/NumberTok"
+        }
+      ]
+    },
+    "Bias": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "axis": {
+              "type": "string",
+              "const": "color"
+            },
+            "value": {
+              "$ref": "#/definitions/ColorTok"
+            },
+            "intensity": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "axis",
+            "value"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "axis": {
+              "type": "string",
+              "const": "shape"
+            },
+            "value": {
+              "$ref": "#/definitions/ShapeTok"
+            },
+            "intensity": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "axis",
+            "value"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "axis": {
+              "type": "string",
+              "const": "number"
+            },
+            "value": {
+              "$ref": "#/definitions/NumberTok"
+            },
+            "intensity": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "axis",
+            "value"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    }
+  }
+}
