@@ -137,8 +137,33 @@ Detailed specs live in CRAWL-DESIGN.md + the sections below; this is the master 
   unification) — consumables are FUNGIBLE so instance-uids buy nothing, and gear is already a separate
   `gearFound: GearInstance[]` list; the loot scene triages both. Sidestepped the heavy combat-use refactor.
   `SavedChar.consumables` **kept** (re-roled as the remembered loadout selection, validated vs Storage), not retired.
-- **Still open (next):** single fights don't deplete Storage (practice mode — intentional); the **shop BUY-side**
-  + Storage-slot upgrades are B4 (the sell-side + Smithy are the live sinks; recalibrate `GOLD_K` once buy lands).
+- **Note:** single fights don't deplete Storage (practice mode — intentional). The shop BUY-side + Storage
+  upgrades shipped in the Town buildout below.
+
+### Phase 2.5 — The Town hub + the B4 buy-side — ✅ DONE 2026-06-16 (235 tests; tsc + build clean; all browser-verified)
+The home screen became a **card-grid town hub** (reusable `hubGrid`, shared with sub-districts), and the B4
+buy-side + sinks landed. All committed + pushed.
+- `[x]` **Town hub** (`townScene`) — the landing/home: cards for Barracks · Gates of Town · Training Ground ·
+  Vault · Market · Smithy · Enchanter · Merchant House · Guild District. Active hero in the header (set in the
+  Barracks); hero-gated cards bounce to the Barracks. `dungeonSelectScene` gained a real/teaching/all filter.
+- `[x]` **Vault** (Storage renamed) + the **slot upgrade**: +10 slots/step to 100, cost `(cap+10)²` (20→30 =
+  900g … 90→100 = 10k, ~38k all-in). `bank.slotUpgradeCost`.
+- `[x]` **Market** (B4 buy-side): per-type tabs (Weapons/Armor/Offhand/Trinkets + Consumables=potions only) ·
+  gear vendor `rollMarketStock` (loot roller, banded by highest char level, ~10/slot, regen on reload + delve) ·
+  **buy = 150% of value** (`value.buyPrice`/`BUY_MARKUP`).
+- `[x]` **Enchanter** — the bench **split by operation**: Smith forges (Upgrade rarity · Transfer affix), the
+  Enchanter does magic (Enchant · Reroll affixes) + **Potions / Scrolls** vendor tabs (scrolls' home). Shared
+  `craftScene(kind)`; both reuse the pure `engine/smith` ops.
+- `[x]` **Merchant House** — two **persisted** account upgrade tracks (`bank.AccountUpgrades`, v2→v3 sanitize):
+  **Merchant standing** 150→100% buy markup (all town vendors) · **Town loot quality** +rarity band (town
+  vendors ONLY) — plus a 10-slot **rare vendor** of epic(purple)/legendary(orange) gear at **2× value**
+  (`rollRareStock`). Numbers in TUNING.
+- `[x]` **Guild District** — a sub-hub of per-class HALL placeholders (proves the multi-layer pattern).
+- `[x]` **Item tooltips** (`ui/item-desc`, every inventory surface) + the **§7 TYPE layer** (weapon riders
+  scoped to their match-type colour) + a **Data Wipe** testing affordance.
+- **STILL OPEN:** class-hall CONTENT (spellbook shops / trainers / bounties — needs the ability system,
+  Phase 5) · smarter vendor restock (paid refresh / daily rotation) · the **combat re-sim** (the type layer
+  cut weapon uptime → `gearFactor` over-credits gear) + `GOLD_K` faucet recalibration (now that sinks exist).
 
 ### Phase 4 — Run-loop enrichment
 - `[ ]` Between-rooms approaches (5 verbs at the fork) + voluntary-activation preview + Speed→round-1
@@ -624,8 +649,12 @@ to live in → build the Hub scene + persistence first.** (`CRAWL-DESIGN.md` §2
   **amenities** (persistent account-level construction), shop **gear** + **consumables**, and
   **learning new abilities**. (See "Exit ladder" plan below.)
 
-### Town economy + inventory — PLAN (settled 2026-06-09; spans B1→B4)
-Decisions (locked): **shared town bank** (one Gold pool + one Storage for the whole roster, its own
+### Town economy + inventory — PLAN (settled 2026-06-09; spans B1→B4) — ✅ BUILT 2026-06-16 (see Phase 2 + Phase 2.5 above)
+**STATUS: the economy is built** (Phase 2 inventory loop + Phase 2.5 Town hub/B4). Two plan decisions were
+**superseded as-built** (deliberately): the run satchel **stayed `string[]` refIds** (consumables are fungible,
+gear is a separate found-list — the `Item[]` unification was unnecessary), and **`SavedChar.consumables` was
+KEPT** (re-roled as the remembered loadout selection, not removed). The original plan text is retained below
+for history. Decisions (locked): **shared town bank** (one Gold pool + one Storage for the whole roster, its own
 localStorage key — survives a hero's death) · **unified item bag** (consumables *and* gear share slots) ·
 inventory-full during a run → **swap-or-discard prompt** · consumables are **finite**, seeded by a
 **starter stash + loot + shop** (the current free "pick any potion" loadout is retired).
@@ -635,25 +664,25 @@ inventory-full during a run → **swap-or-discard prompt** · consumables are **
   both Storage (20) and the run inventory (10) hold `Item[]`. **`SavedChar.consumables` is removed** — the
   3-slot delve loadout (drawn from Storage) is **run-state**, not character-state; gear equip-slots
   (B3) are character-state but pull items from the shared bag.
-- `[~]` **B2 — economy core:** DATA LAYER DONE (2026-06-13). `src/engine/items.ts` (the unified `Item`
+- `[x]` **B2 — economy core — DONE** (data layer 2026-06-13; the app.ts wiring slice shipped in Phase 2,
+  2026-06-16: the Storage/Vault UI + return triage + loadout-from-Storage all live; the satchel stayed
+  `string[]` and `SavedChar.consumables` was kept — see the superseded-decisions note above). `src/engine/items.ts` (the unified `Item`
   instance model — consumables + gear share the shape) + `src/ui/bank.ts` grown from gold-only into the
   full **account store** `{ gold, storage: Item[], storageCap 20, seeded }` (v1→v2 migration, same key;
   pure storage transforms: add/addMany/remove/take/expand + the swap-or-discard `ok:false` signal) +
   **starter-stash seeding once per account** (the `seeded` flag — create/delete can't farm it). 25 new
-  tests (`items.test.ts` + grown `bank.test.ts`); 131 green; typecheck clean; the running app is
-  untouched (gold call sites kept via aliases). STILL OPEN (the app.ts wiring slice): the **Storage UI**
-  (the bag screen + return triage keep/sell) · dungeon-select loadout becomes "**load 3 from Storage**"
-  (drawing `Item[]` via `takeFromStorage`, survivors auto-return) · convert the delve **satchel
-  `string[]` → `Item[]`** + bank kept items home on a safe exit · retire `SavedChar.consumables`. Keep
-  the free-pick loadout live until the loot→storage loop closes (no dead-air gap).
-- `[ ]` **B2/B3 — run loop:** run-state (seed + room chain + **10-slot run inventory**); loot on win;
-  **swap-or-discard** when full; between-room refill of the 3 active slots from run loot; HP-only
-  attrition (replaces `onWin` full-heal); **return triage** (keep → Storage / sell → Gold; *keep* greyed
-  when Storage is full; sell-from-Storage to make room; unused brought-in consumables auto-return).
-- `[ ]` **B4 — shop + expansion:** spend Gold to buy consumables and expand Storage slots (the buy-side
-  to triage's sell-side).
-- Sequencing note: keep the current free-pick loadout live as the interim potion source and **flip it off
-  only once the loot+shop loop exists** (B3/B4) — same end state, no dead-air gap.
+  tests (`items.test.ts` + grown `bank.test.ts`); 131 green; typecheck clean. The app.ts wiring slice then
+  shipped in Phase 2 — the **Vault/Storage UI** + **return triage** (keep→Storage / sell→Gold) + the
+  **loadout-from-Storage** (depletes on delve, survivors return); the satchel stayed `string[]` and
+  `SavedChar.consumables` was kept (the two superseded plan decisions — see the status note above).
+- `[x]` **B2/B3 — run loop — DONE:** run-state (delve seed + room chain + the 10-slot run satchel); loot on
+  win; the between-rooms fork; HP-carry attrition; the **return triage** (keep→Storage / sell→Gold, keep
+  greyed/auto-sold when the Vault's full, survivors auto-return). (The mid-run swap-or-discard prompt was
+  folded into the end-of-run triage + auto-sell-overflow rather than an in-run modal.)
+- `[x]` **B4 — shop + expansion — DONE 2026-06-16:** the **🏪 Market** (buy gear + potions) + the **Vault**
+  slot upgrade + the **Merchant House** (buy-markup + loot-quality tracks + the 2× rare vendor). See Phase 2.5.
+- Sequencing note (RESOLVED): the free-pick loadout was flipped off when the loot→Storage loop closed (Phase 2);
+  the loadout now draws from Storage and the Market is the buy-side refill — no dead-air gap.
 
 ### Between-rooms approaches + the per-level bundle — SETTLED 2026-06-13 (CRAWL §2 + §3; TUNING)
 - `[ ]` **Between-rooms approaches** — at the fork, pick ONE (free, resets/room): **Scout** (info:
