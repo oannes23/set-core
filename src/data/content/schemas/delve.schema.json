@@ -1,0 +1,60 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$ref": "#/definitions/DelveFile",
+  "definitions": {
+    "DelveFile": {
+      "$ref": "#/definitions/DelveConfig"
+    },
+    "DelveConfig": {
+      "type": "object",
+      "properties": {
+        "eliteStep": {
+          "type": "number"
+        },
+        "runBagCap": {
+          "type": "number"
+        },
+        "throneLabel": {
+          "type": "string"
+        },
+        "dreadBands": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "atLeast": {
+                "type": "number"
+              },
+              "step": {
+                "type": "number",
+                "enum": [
+                  0,
+                  1,
+                  2,
+                  3
+                ]
+              },
+              "label": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "atLeast",
+              "step",
+              "label"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "eliteStep",
+        "runBagCap",
+        "throneLabel",
+        "dreadBands"
+      ],
+      "additionalProperties": false,
+      "description": "content/delve.yaml — the encounter-schema tunables (the boss triangular LAW itself stays code)."
+    }
+  }
+}

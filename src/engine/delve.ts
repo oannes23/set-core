@@ -19,8 +19,19 @@
 import type { Rng } from '../core/rng'
 import type { Dungeon } from '../data/schema'
 import { pickWeightedFoe } from './foe'
+import delveData from '../data/content/delve.yaml'
 
 export type EncounterTier = 'minion' | 'elite' | 'boss'
+
+/** content/delve.yaml — the encounter-schema tunables (the boss triangular LAW itself stays code). */
+export interface DelveConfig {
+  eliteStep: number // sawtooth: +this elite chance per room since the last elite
+  runBagCap: number // the run's consumable satchel cap
+  throneLabel: string // dread label once the boss room is found (step 4)
+  dreadBands: Array<{ atLeast: number; step: 0 | 1 | 2 | 3; label: string }> // high→low cumulative-boss% bands
+}
+export type DelveFile = DelveConfig
+const CFG = delveData as DelveConfig
 
 export interface DelveState {
   dungeonId: string
@@ -34,10 +45,10 @@ export interface DelveState {
   bossFound: boolean
 }
 
-/** Elite sawtooth step — 10% per room since the last elite (the tuning dial, CRAWL §2). */
-export const ELITE_STEP = 0.1
-/** The run's consumable satchel cap (the 10-slot run inventory, TODO §town-economy). */
-export const RUN_BAG_CAP = 10
+/** Elite sawtooth step — chance per room since the last elite (the tuning dial, CRAWL §2). */
+export const ELITE_STEP = CFG.eliteStep
+/** The run's consumable satchel cap (the run inventory, TODO §town-economy). */
+export const RUN_BAG_CAP = CFG.runBagCap
 
 /** The triangular boss law: cumulative %-chance the boss has appeared by room n (capped 100). */
 export const bossCumulative = (n: number): number => Math.min(100, (n * (n + 1)) / 2)
@@ -81,10 +92,8 @@ export function fleeReroll(d: DelveState): DelveState {
  *  appeared by the NEXT room (what "press on" actually buys). */
 export interface DreadBand { step: 0 | 1 | 2 | 3 | 4; label: string }
 export function dreadBand(d: DelveState): DreadBand {
-  if (d.bossFound) return { step: 4, label: 'the throne room lies before you' }
+  if (d.bossFound) return { step: 4, label: CFG.throneLabel }
   const cum = bossCumulative(d.room + 1)
-  if (cum >= 80) return { step: 3, label: 'he is near' }
-  if (cum >= 45) return { step: 2, label: 'the throne stirs' }
-  if (cum >= 15) return { step: 1, label: 'drums echo in the deep' }
-  return { step: 0, label: 'the halls are quiet' }
+  const band = CFG.dreadBands.find((b) => cum >= b.atLeast) ?? CFG.dreadBands[CFG.dreadBands.length - 1]
+  return { step: band.step, label: band.label }
 }

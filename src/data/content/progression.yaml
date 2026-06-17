@@ -1,0 +1,16 @@
+# yaml-language-server: $schema=schemas/progression.schema.json
+# Progression tuning (CRAWL §3 / TUNING.md, sim-derived 2026-06-12). Shape settled; numbers balance.
+levelCap: 21 # numeric to 20; 21 renders as ★
+hpPerLevel: 5 # 100 → 200 at cap
+# XP to climb FROM level L to L+1 = round(base · L^exponent / roundTo) · roundTo. base steepened to
+# 110 (2026-06-14) targets ~56 level-matched clears to ★; L^1.7 outpaces rising foe XP income.
+xp:
+  base: 110
+  exponent: 1.7
+  roundTo: 5
+activeUnlocks: [3, 6, 10, 14] # levels the 3rd…6th active slots open (1st + 2nd are class starters)
+passiveUnlocks: [8, 16] # levels the 2nd / 3rd passive slots open (1st is the signature)
+activeSlotCap: 6
+passiveSlotCap: 3
+consumableSlots: 3
+starterConsumables: [hp_std, speed_std, stoneskin_std] # a class-agnostic opener (per character)

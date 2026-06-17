@@ -1,0 +1,79 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$ref": "#/definitions/ProgressionFile",
+  "definitions": {
+    "ProgressionFile": {
+      "$ref": "#/definitions/ProgressionConfig"
+    },
+    "ProgressionConfig": {
+      "type": "object",
+      "properties": {
+        "levelCap": {
+          "type": "number"
+        },
+        "hpPerLevel": {
+          "type": "number"
+        },
+        "xp": {
+          "type": "object",
+          "properties": {
+            "base": {
+              "type": "number"
+            },
+            "exponent": {
+              "type": "number"
+            },
+            "roundTo": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "base",
+            "exponent",
+            "roundTo"
+          ],
+          "additionalProperties": false
+        },
+        "activeUnlocks": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "passiveUnlocks": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "activeSlotCap": {
+          "type": "number"
+        },
+        "passiveSlotCap": {
+          "type": "number"
+        },
+        "consumableSlots": {
+          "type": "number"
+        },
+        "starterConsumables": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "levelCap",
+        "hpPerLevel",
+        "xp",
+        "activeUnlocks",
+        "passiveUnlocks",
+        "activeSlotCap",
+        "passiveSlotCap",
+        "consumableSlots",
+        "starterConsumables"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

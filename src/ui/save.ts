@@ -12,6 +12,7 @@
 
 import { DEFAULT_PLAYER_MAX, BASE_STATS, type StatBlock } from '../engine/state'
 import { sanitizeItem, isGear, EQUIP_SLOTS, type EquipSlot, type GearInstance } from '../engine/items'
+import { PROG } from '../engine/progression'
 
 /** A character's allocated stat points (cumulative across level-ups; +3/+2/+1 per level). */
 export interface StatAlloc { power: number; endurance: number; speed: number }
@@ -38,12 +39,12 @@ export type Equipped = Partial<Record<EquipSlot, GearInstance>>
 const KEY = 'setcore.roster.v1' // stable — versioning lives in the payload envelope, not the key
 const SCHEMA_V = 4 // 1 = legacy bare array · 2 = { v, chars } envelope · 3 = + level/xp/alloc · 4 = + equipped gear
 export const DEFAULT_MAX_HP = DEFAULT_PLAYER_MAX
-export const CONSUMABLE_SLOTS = 3
-export const STARTER_CONSUMABLES = ['hp_std', 'speed_std', 'stoneskin_std'] // a class-agnostic opener
+export const CONSUMABLE_SLOTS = PROG.consumableSlots
+export const STARTER_CONSUMABLES = PROG.starterConsumables // a class-agnostic opener
 
-// --- PROGRESSION (CRAWL §3 / TUNING.md, sim-derived 2026-06-12) ---
-export const LEVEL_CAP = 21 // numeric to 20; 21 renders as ★
-export const HP_PER_LEVEL = 5 // 100 → 200 at cap
+// --- PROGRESSION (content/progression.yaml; CRAWL §3 / TUNING.md, sim-derived 2026-06-12) ---
+export const LEVEL_CAP = PROG.levelCap // numeric to cap−1; cap renders as ★
+export const HP_PER_LEVEL = PROG.hpPerLevel // 100 → 200 at cap
 /** XP needed to climb FROM `level` to level+1: polynomial 110·L^1.7 (geometric walls off — §3),
  *  display-rounded to 5s. L1→2 = 110, L2→3 = 355, L3→4 = 710. Base steepened 55→80→**110**
  *  (2026-06-14): at 55 a first warren clear gave ~2 levels (too fast post-L3); the 110 base targets
@@ -52,7 +53,8 @@ export const HP_PER_LEVEL = 5 // 100 → 200 at cap
  *  the requirement outpacing income. Onboarding (dummy→L2, gauntlet→L3) holds via the teaching foes'
  *  `xp` overrides, re-tuned to the new steps (game-data.ts). */
 export function xpForLevel(level: number): number {
-  return Math.round((110 * Math.pow(level, 1.7)) / 5) * 5
+  const { base, exponent, roundTo } = PROG.xp
+  return Math.round((base * Math.pow(level, exponent)) / roundTo) * roundTo
 }
 export const maxHpForLevel = (level: number): number => DEFAULT_MAX_HP + HP_PER_LEVEL * (level - 1)
 /** Combat statline = the parity-line base + the points the player has allocated. */
@@ -62,10 +64,10 @@ export function effectiveStats(c: SavedChar): StatBlock {
 // --- the LOADOUT slot cadence (CRAWL §3): active slots 2→6 (open at L3/6/10/14), passive 1→3 (L8/16).
 // Combat uses the first `activeSlotsAt(level)` of the class kit (capped by the kit) → your kit GROWS as you
 // level. (Stored per-character loadout choice arrives when class kits exceed the slot caps — future content.)
-const ACTIVE_UNLOCKS = [3, 6, 10, 14] // levels the 3rd…6th active slots open (1st + 2nd are class starters)
-const PASSIVE_UNLOCKS = [8, 16] // levels the 2nd / 3rd passive slots open (1st is the signature)
-export const ACTIVE_SLOT_CAP = 6
-export const PASSIVE_SLOT_CAP = 3
+const ACTIVE_UNLOCKS = PROG.activeUnlocks // levels the 3rd…6th active slots open (1st + 2nd are class starters)
+const PASSIVE_UNLOCKS = PROG.passiveUnlocks // levels the 2nd / 3rd passive slots open (1st is the signature)
+export const ACTIVE_SLOT_CAP = PROG.activeSlotCap
+export const PASSIVE_SLOT_CAP = PROG.passiveSlotCap
 export function activeSlotsAt(level: number): number {
   return Math.min(ACTIVE_SLOT_CAP, 2 + ACTIVE_UNLOCKS.filter((l) => level >= l).length)
 }

@@ -1,0 +1,12 @@
+# yaml-language-server: $schema=schemas/delve.schema.json
+# Delve encounter-schema tunables (CRAWL §2). The boss triangular LAW (n(n+1)/2, capped 100) stays
+# in code (delve.ts bossCumulative); these are its dials + the dread-meter surfacing.
+eliteStep: 0.1 # +10% elite chance per room since the last elite (sawtooth)
+runBagCap: 10 # the run's consumable satchel cap
+throneLabel: the throne room lies before you # dread step 4 (boss room found)
+# dread bands: surfaced highest-first by cumulative boss-appearance % for the NEXT room.
+dreadBands:
+  - { atLeast: 80, step: 3, label: he is near }
+  - { atLeast: 45, step: 2, label: the throne stirs }
+  - { atLeast: 15, step: 1, label: drums echo in the deep }
+  - { atLeast: 0, step: 0, label: the halls are quiet }
