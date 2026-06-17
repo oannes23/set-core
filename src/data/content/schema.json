@@ -1,0 +1,811 @@
+{
+  "$ref": "#/definitions/GameData",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "Axis": {
+      "enum": [
+        "color",
+        "shape",
+        "number"
+      ],
+      "type": "string"
+    },
+    "Bias": {
+      "anyOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "axis": {
+              "const": "color",
+              "type": "string"
+            },
+            "intensity": {
+              "type": "number"
+            },
+            "value": {
+              "$ref": "#/definitions/ColorTok"
+            }
+          },
+          "required": [
+            "axis",
+            "value"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "axis": {
+              "const": "shape",
+              "type": "string"
+            },
+            "intensity": {
+              "type": "number"
+            },
+            "value": {
+              "$ref": "#/definitions/ShapeTok"
+            }
+          },
+          "required": [
+            "axis",
+            "value"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "axis": {
+              "const": "number",
+              "type": "string"
+            },
+            "intensity": {
+              "type": "number"
+            },
+            "value": {
+              "$ref": "#/definitions/NumberTok"
+            }
+          },
+          "required": [
+            "axis",
+            "value"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "ColorTok": {
+      "enum": [
+        "red",
+        "green",
+        "blue"
+      ],
+      "type": "string"
+    },
+    "CompoundCondition": {
+      "additionalProperties": false,
+      "description": "Compound AND of simple conditions (e.g. all-Move AND all-1s — the Limbless trigger).",
+      "properties": {
+        "all": {
+          "items": {
+            "$ref": "#/definitions/SimpleCondition"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "all"
+      ],
+      "type": "object"
+    },
+    "Condition": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/SimpleCondition"
+        },
+        {
+          "$ref": "#/definitions/CompoundCondition"
+        }
+      ]
+    },
+    "Creature": {
+      "additionalProperties": false,
+      "properties": {
+        "desc": {
+          "type": "string"
+        },
+        "hp": {
+          "type": "number"
+        },
+        "loot_tier": {
+          "type": "number"
+        },
+        "name": {
+          "type": "string"
+        },
+        "rules": {
+          "$ref": "#/definitions/FoeRules"
+        },
+        "stats": {
+          "$ref": "#/definitions/CreatureStats"
+        },
+        "tempo": {
+          "$ref": "#/definitions/TempoOverride"
+        },
+        "tier": {
+          "$ref": "#/definitions/Tier"
+        },
+        "traps": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "variants": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "voice": {
+          "$ref": "#/definitions/Voice"
+        },
+        "xp": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "name",
+        "tier",
+        "stats",
+        "hp",
+        "loot_tier"
+      ],
+      "type": "object"
+    },
+    "CreatureStats": {
+      "additionalProperties": false,
+      "description": "A foe's contest statline — the other side of every resolve.ts contest. Authored directly against the parity line `10 + 2(L−1)` (CRAWL §3 / TUNING.md): warren = fresh L3 → ~14, with role spreads (swift −2P/+5S · steady · heavy +2P/−5S · giant +4P/−9S) and per-tier E bumps (elite +4 / boss +8) baked into the numbers — no automatic tier bump at assembly.",
+      "properties": {
+        "endurance": {
+          "type": "number"
+        },
+        "power": {
+          "type": "number"
+        },
+        "speed": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "power",
+        "endurance",
+        "speed"
+      ],
+      "type": "object"
+    },
+    "Dungeon": {
+      "additionalProperties": false,
+      "properties": {
+        "boss": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "boss_mirror": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "coach": {
+          "type": "boolean"
+        },
+        "default_foe": {
+          "type": "string"
+        },
+        "difficulty": {
+          "type": "number"
+        },
+        "drift": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "elite_pool": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "enemy_table": {
+          "items": {
+            "$ref": "#/definitions/EnemyTableEntry"
+          },
+          "type": "array"
+        },
+        "extends": {
+          "type": "string"
+        },
+        "guided": {
+          "type": "boolean"
+        },
+        "name": {
+          "type": "string"
+        },
+        "sequence": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "template": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "theme": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/Theme"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "name",
+        "difficulty",
+        "enemy_table",
+        "elite_pool"
+      ],
+      "type": "object"
+    },
+    "Effect": {
+      "additionalProperties": false,
+      "properties": {
+        "amount": {
+          "type": "number"
+        },
+        "bias": {
+          "$ref": "#/definitions/Bias"
+        },
+        "chance": {
+          "type": "number"
+        },
+        "color": {
+          "$ref": "#/definitions/ColorTok"
+        },
+        "count": {
+          "type": "number"
+        },
+        "effect": {
+          "$ref": "#/definitions/EffectName"
+        },
+        "gap": {
+          "type": "number"
+        },
+        "max": {
+          "type": "number"
+        },
+        "scale": {
+          "const": "set_mag",
+          "description": "severity scaled by the springing set's TOTAL magnitude: max(1, total − 4) — a modest 1+2+3 rainbow pays the mild price, a greedy 3/3/3 pays for its weight (damage / advance_timer).",
+          "type": "string"
+        },
+        "seconds": {
+          "type": "number"
+        },
+        "select": {
+          "$ref": "#/definitions/Selector"
+        }
+      },
+      "required": [
+        "effect"
+      ],
+      "type": "object"
+    },
+    "EffectName": {
+      "enum": [
+        "damage",
+        "instant_attack",
+        "advance_timer",
+        "delay_attack",
+        "enemy_heal",
+        "drain_tactics",
+        "drain_mana",
+        "transmute",
+        "lock"
+      ],
+      "type": "string"
+    },
+    "Encounter": {
+      "additionalProperties": false,
+      "properties": {
+        "drift": {
+          "type": "string"
+        },
+        "traps": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "traps",
+        "drift"
+      ],
+      "type": "object"
+    },
+    "EnemyTableEntry": {
+      "additionalProperties": false,
+      "properties": {
+        "foe": {
+          "type": "string"
+        },
+        "weight": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "foe",
+        "weight"
+      ],
+      "type": "object"
+    },
+    "FoeRules": {
+      "additionalProperties": false,
+      "properties": {
+        "ability_damage": {
+          "const": "mana_spent",
+          "type": "string"
+        },
+        "immune_card_damage": {
+          "type": "boolean"
+        }
+      },
+      "type": "object"
+    },
+    "GameData": {
+      "additionalProperties": false,
+      "properties": {
+        "creatures": {
+          "additionalProperties": {
+            "$ref": "#/definitions/Creature"
+          },
+          "type": "object"
+        },
+        "drifts": {
+          "additionalProperties": {
+            "$ref": "#/definitions/Trap"
+          },
+          "type": "object"
+        },
+        "dungeons": {
+          "additionalProperties": {
+            "$ref": "#/definitions/Dungeon"
+          },
+          "type": "object"
+        },
+        "encounter": {
+          "$ref": "#/definitions/Encounter"
+        },
+        "templates": {
+          "additionalProperties": {
+            "$ref": "#/definitions/Template"
+          },
+          "type": "object"
+        },
+        "traps": {
+          "additionalProperties": {
+            "$ref": "#/definitions/Trap"
+          },
+          "type": "object"
+        },
+        "variants": {
+          "additionalProperties": {
+            "$ref": "#/definitions/Variant"
+          },
+          "type": "object"
+        }
+      },
+      "required": [
+        "traps",
+        "drifts",
+        "creatures",
+        "variants",
+        "templates",
+        "dungeons",
+        "encounter"
+      ],
+      "type": "object"
+    },
+    "Geometry": {
+      "enum": [
+        "row",
+        "column",
+        "diagonal",
+        "corners",
+        "border",
+        "center",
+        "inner",
+        "blast",
+        "cross",
+        "plus",
+        "half",
+        "random"
+      ],
+      "type": "string"
+    },
+    "InlineTrap": {
+      "additionalProperties": false,
+      "description": "A trap authored inline on a variant/template (carries no name/icon of its own).",
+      "properties": {
+        "do": {
+          "items": {
+            "$ref": "#/definitions/Effect"
+          },
+          "type": "array"
+        },
+        "every": {
+          "type": "number"
+        },
+        "on": {
+          "$ref": "#/definitions/On"
+        },
+        "quiet": {
+          "type": "boolean"
+        },
+        "when": {
+          "$ref": "#/definitions/Condition"
+        }
+      },
+      "required": [
+        "on",
+        "do"
+      ],
+      "type": "object"
+    },
+    "Mode": {
+      "enum": [
+        "all_same",
+        "all_different",
+        "contains",
+        "not_value"
+      ],
+      "type": "string"
+    },
+    "NumberTok": {
+      "enum": [
+        "one",
+        "two",
+        "three"
+      ],
+      "type": "string"
+    },
+    "On": {
+      "enum": [
+        "match",
+        "tick"
+      ],
+      "type": "string"
+    },
+    "Selector": {
+      "additionalProperties": false,
+      "properties": {
+        "axis": {
+          "$ref": "#/definitions/Axis"
+        },
+        "center": {
+          "type": "number"
+        },
+        "count": {
+          "type": "number"
+        },
+        "geometry": {
+          "$ref": "#/definitions/Geometry"
+        },
+        "index": {
+          "type": "number"
+        },
+        "mode": {
+          "$ref": "#/definitions/Mode"
+        },
+        "pick": {
+          "const": "highest_mag",
+          "type": "string"
+        },
+        "value": {
+          "$ref": "#/definitions/ValueTok"
+        },
+        "which": {
+          "$ref": "#/definitions/Which"
+        }
+      },
+      "type": "object"
+    },
+    "ShapeTok": {
+      "enum": [
+        "attack",
+        "defend",
+        "move"
+      ],
+      "type": "string"
+    },
+    "SimpleCondition": {
+      "anyOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "axis": {
+              "const": "color",
+              "type": "string"
+            },
+            "mode": {
+              "$ref": "#/definitions/Mode"
+            },
+            "value": {
+              "$ref": "#/definitions/ColorTok"
+            }
+          },
+          "required": [
+            "axis",
+            "mode"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "axis": {
+              "const": "shape",
+              "type": "string"
+            },
+            "mode": {
+              "$ref": "#/definitions/Mode"
+            },
+            "value": {
+              "$ref": "#/definitions/ShapeTok"
+            }
+          },
+          "required": [
+            "axis",
+            "mode"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "axis": {
+              "const": "number",
+              "type": "string"
+            },
+            "mode": {
+              "$ref": "#/definitions/Mode"
+            },
+            "value": {
+              "$ref": "#/definitions/NumberTok"
+            }
+          },
+          "required": [
+            "axis",
+            "mode"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "StatMod": {
+      "additionalProperties": false,
+      "description": "Variant/template stat deltas (added to the base statline). Replaced the legacy hp/damage/ speed_band mods in the data rebase.",
+      "properties": {
+        "endurance": {
+          "type": "number"
+        },
+        "hp": {
+          "type": "number"
+        },
+        "power": {
+          "type": "number"
+        },
+        "speed": {
+          "type": "number"
+        }
+      },
+      "type": "object"
+    },
+    "Template": {
+      "additionalProperties": false,
+      "properties": {
+        "desc": {
+          "type": "string"
+        },
+        "icon": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "stat_mod": {
+          "$ref": "#/definitions/StatMod"
+        },
+        "trap": {
+          "$ref": "#/definitions/InlineTrap"
+        }
+      },
+      "required": [
+        "name",
+        "trap"
+      ],
+      "type": "object"
+    },
+    "TempoOverride": {
+      "additionalProperties": false,
+      "description": "Override the tempo law's S−P packaging (else strikeEvery/swings derive from the statline).",
+      "properties": {
+        "strikeEvery": {
+          "type": "number"
+        },
+        "swings": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "strikeEvery",
+        "swings"
+      ],
+      "type": "object"
+    },
+    "Theme": {
+      "additionalProperties": false,
+      "properties": {
+        "axis": {
+          "$ref": "#/definitions/Axis"
+        },
+        "value": {
+          "$ref": "#/definitions/ValueTok"
+        }
+      },
+      "required": [
+        "axis",
+        "value"
+      ],
+      "type": "object"
+    },
+    "Tier": {
+      "enum": [
+        "minion",
+        "elite",
+        "boss"
+      ],
+      "type": "string"
+    },
+    "Trap": {
+      "additionalProperties": false,
+      "properties": {
+        "desc": {
+          "type": "string"
+        },
+        "do": {
+          "items": {
+            "$ref": "#/definitions/Effect"
+          },
+          "type": "array"
+        },
+        "every": {
+          "type": "number"
+        },
+        "icon": {
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/definitions/TriggerKind"
+        },
+        "name": {
+          "type": "string"
+        },
+        "on": {
+          "$ref": "#/definitions/On"
+        },
+        "quiet": {
+          "type": "boolean"
+        },
+        "when": {
+          "$ref": "#/definitions/Condition"
+        }
+      },
+      "required": [
+        "name",
+        "on",
+        "do"
+      ],
+      "type": "object"
+    },
+    "TriggerKind": {
+      "description": "Valence of a reactive trigger: a Trap is hostile (avoid, yellow); a Trick is favorable (aim for, green). Same mechanism (condition → effects); only valence + presentation differ. Default when omitted is 'trap'.",
+      "enum": [
+        "trap",
+        "trick"
+      ],
+      "type": "string"
+    },
+    "ValueTok": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/ColorTok"
+        },
+        {
+          "$ref": "#/definitions/ShapeTok"
+        },
+        {
+          "$ref": "#/definitions/NumberTok"
+        }
+      ]
+    },
+    "Variant": {
+      "additionalProperties": false,
+      "properties": {
+        "desc": {
+          "type": "string"
+        },
+        "icon": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "stat_mod": {
+          "$ref": "#/definitions/StatMod"
+        },
+        "trap": {
+          "$ref": "#/definitions/InlineTrap"
+        }
+      },
+      "required": [
+        "name",
+        "trap"
+      ],
+      "type": "object"
+    },
+    "Voice": {
+      "additionalProperties": false,
+      "description": "Combat-log voice: swappable verbs so a foe reads in character (the zombie gnaws, the behemoth booms). Pure flavour — the UI's combat log consumes it; absent fields fall back to a neutral default.",
+      "properties": {
+        "heal": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "hit": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "zero": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "Which": {
+      "enum": [
+        "top",
+        "bottom",
+        "left",
+        "right",
+        "center",
+        "anti"
+      ],
+      "type": "string"
+    }
+  }
+}

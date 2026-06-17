@@ -15,7 +15,11 @@ shapes are what they are. This doc is *how* we externalize them.
   ability / passive / consumable *behavior* in YAML (the effect-DSL).
 - **Mod target:** **both, staged.** Build the built-in/authoring path now; architect
   the registry so runtime user-mod loading slots in later with no rework.
-- **Validation:** **hand-rolled**, schema-driven. No `zod`/`ajv`/`valibot`.
+- **Validation:** **derived from the TS types** (revised 2026-06-16, see below) — `schema.ts` →
+  JSON Schema (`ts-json-schema-generator`) → validated with `ajv`. Powers modder **editor
+  autocomplete/validation** (YAML language-server `$schema` header) *and* build-time validation
+  from a single source of truth, with **no hand-maintained validator**. (Supersedes the original
+  hand-rolled choice once the YAML build devDep was accepted.)
 - **Source of truth:** TS **types stay** (`schema.ts` drives the hand-rolled
   validator); only the **data literals** (`GAMEDATA`, `GEAR`, `AFFIXES`, the
   constant tables, …) move to YAML.
@@ -36,6 +40,18 @@ phase below:
 
 **Invariant for this whole effort: runtime `dependencies` in `package.json` stays
 empty unless/until we consciously choose a runtime YAML parser for user mods.**
+
+**Approved build-time devDeps (2026-06-16):** `@modyfi/vite-plugin-yaml` (import `.yaml` as
+objects), `ts-json-schema-generator` (JSON Schema from `schema.ts`), `ajv` (validate against it;
+later, `ajv` *standalone mode* compiles a **dependency-free** JS validator we ship for runtime
+user-mods — so even runtime validation costs zero runtime deps).
+
+**Critical layering to keep ajv out of the runtime bundle:** the runtime path
+(`ui/app.ts` → `data/game-data.ts`) imports the YAML + runs `registry.buildRegistry` (merge +
+referential-link, **pure TS, zero deps**) ONLY. The ajv schema validation lives in
+`data/validate.ts`, imported **only by tests + a build prebuild step** — never by a
+runtime-reachable module, so Rollup tree-shakes it out. Built-in content is validated in CI; the
+runtime link step is cheap insurance + the user-mod seam.
 
 ---
 
@@ -69,17 +85,18 @@ No content moves until this exists. The engine already takes data by parameter
 (`assembleFoe(foeId, dg, GAMEDATA, rng)`), so **no engine refactor** — only the UI's
 direct `GAMEDATA.*` reads and the static `import { GAMEDATA }` (`ui/app.ts:15`) change.
 
-- [ ] **Build-time YAML import.** Add a Vite YAML-transform plugin (devDependency) +
-      `vite.config.ts` wiring so `import x from './content/foo.yaml'` yields a JS object.
-      Mirror the plugin in `vitest` config so tests load the same content.
-- [ ] **Hand-rolled validator** (`src/data/validate.ts`). Pure TS, driven by the
-      `schema.ts` token unions. Per content collection: shape check + closed-vocabulary
-      check (every `axis`/`mode`/`geometry`/`effect`/`value` token is in its union) +
-      numeric/range sanity. Reuse the `sanitizeItem`/`isAffix` pattern already in
-      `engine/items.ts:121-142`. Rich, located error messages (`creatures.goblin.traps[0]`).
-- [ ] **Referential-link step.** Promote the integrity assertions in
-      `data/game-data.test.ts` to a runtime link pass: every `traps`/`variants`/`boss`/
-      `ability`/`passive` id must resolve; reject (built-in: throw; user-mod: skip+warn).
+- [ ] **Build-time YAML import.** `@modyfi/vite-plugin-yaml` (devDep) + `vite.config.ts` wiring so
+      `import x from './content/foo.yaml'` yields a JS object. vitest shares the Vite pipeline, so
+      tests load the same content. Add `src/yaml.d.ts` ambient `declare module '*.yaml'`.
+- [ ] **Schema generation** (`pnpm gen:schema`). `ts-json-schema-generator` emits
+      `src/data/content/schema.json` from the `GameData` type in `schema.ts`. Drives both the
+      editor `$schema` header on YAML files and the ajv validator.
+- [ ] **Derived validator** (`src/data/validate.ts`, **build/test-only — never runtime-imported**).
+      `ajv` compiles `schema.json`; `validateGameData(obj)` returns located errors. Tests + a build
+      prebuild gate call it. This replaces the hand-rolled validator (single source of truth).
+- [ ] **Referential-link step** (`registry.ts`, **runtime-safe, zero-dep**). Promote the integrity
+      assertions in `data/game-data.test.ts` to a link pass: every `traps`/`variants`/`boss`/`extends`
+      id resolves; built-in → throw; user-mod (later) → skip+warn.
 - [ ] **Registry** (`src/data/registry.ts`). `buildRegistry(sources) → GameData`-shaped
       typed tables. Merge order + id-collision policy designed now (base → mods), even
       though only the base source exists yet. This is the seam runtime user-mods slot into.
