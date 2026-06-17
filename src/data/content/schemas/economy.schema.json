@@ -1,0 +1,196 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$ref": "#/definitions/EconomyFile",
+  "definitions": {
+    "EconomyFile": {
+      "$ref": "#/definitions/EconomyConfig"
+    },
+    "EconomyConfig": {
+      "type": "object",
+      "properties": {
+        "sellRate": {
+          "type": "number"
+        },
+        "buyMarkup": {
+          "type": "number"
+        },
+        "rareMarkup": {
+          "type": "number"
+        },
+        "gear": {
+          "type": "object",
+          "properties": {
+            "base": {
+              "type": "object",
+              "properties": {
+                "grey": {
+                  "type": "number"
+                },
+                "white": {
+                  "type": "number"
+                },
+                "green": {
+                  "type": "number"
+                },
+                "blue": {
+                  "type": "number"
+                },
+                "purple": {
+                  "type": "number"
+                },
+                "orange": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "grey",
+                "white",
+                "green",
+                "blue",
+                "purple",
+                "orange"
+              ],
+              "additionalProperties": false
+            },
+            "tierK": {
+              "type": "number"
+            },
+            "affixK": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "base",
+            "tierK",
+            "affixK"
+          ],
+          "additionalProperties": false
+        },
+        "consumable": {
+          "type": "object",
+          "properties": {
+            "potionBase": {
+              "type": "number"
+            },
+            "scrollBase": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "potionBase",
+            "scrollBase"
+          ],
+          "additionalProperties": false
+        },
+        "merchant": {
+          "type": "object",
+          "properties": {
+            "markups": {
+              "type": "array",
+              "items": {
+                "type": "number"
+              }
+            },
+            "tierCost": {
+              "type": "array",
+              "items": {
+                "type": "number"
+              }
+            }
+          },
+          "required": [
+            "markups",
+            "tierCost"
+          ],
+          "additionalProperties": false
+        },
+        "quality": {
+          "type": "object",
+          "properties": {
+            "tierCost": {
+              "type": "array",
+              "items": {
+                "type": "number"
+              }
+            },
+            "lvlPerTier": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "tierCost",
+            "lvlPerTier"
+          ],
+          "additionalProperties": false
+        },
+        "smith": {
+          "type": "object",
+          "properties": {
+            "upgradeBase": {
+              "type": "number"
+            },
+            "enchantBase": {
+              "type": "number"
+            },
+            "rerollBase": {
+              "type": "number"
+            },
+            "transferBase": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "upgradeBase",
+            "enchantBase",
+            "rerollBase",
+            "transferBase"
+          ],
+          "additionalProperties": false
+        },
+        "storage": {
+          "type": "object",
+          "properties": {
+            "defaultCap": {
+              "type": "number"
+            },
+            "slotStep": {
+              "type": "number"
+            },
+            "slotMax": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "defaultCap",
+            "slotStep",
+            "slotMax"
+          ],
+          "additionalProperties": false
+        },
+        "deathTithe": {
+          "type": "number"
+        },
+        "starterStash": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "sellRate",
+        "buyMarkup",
+        "rareMarkup",
+        "gear",
+        "consumable",
+        "merchant",
+        "quality",
+        "smith",
+        "storage",
+        "deathTithe",
+        "starterStash"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

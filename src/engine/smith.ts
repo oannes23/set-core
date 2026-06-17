@@ -18,6 +18,7 @@
    gold (bank.spendGold), and writes the gear back (bank.updateStorageItem). No DOM, no storage I/O here. */
 
 import { RARITIES, RARITY, type GearInstance, type Affix, type Rarity } from './items'
+import { ECON } from './economy'
 import { GEAR } from '../data/gear'
 import { eligibleAffixes, mintAffix, rollAffixes, type AffixDef } from '../data/affixes'
 import type { Rng } from '../core/rng'
@@ -26,12 +27,7 @@ export type SmithOp = 'upgrade' | 'enchant' | 'reroll' | 'transfer'
 
 // ---- pricing (FIRST-CUT, sim-gated — see TUNING "Gear + the coupled balance pass"; recalibrate the
 //      whole gold faucet/sink together once the shop sink + GOLD_K settle) ----
-export const SMITH_PRICES = {
-  upgradeBase: 80, // cost to reach rarity R = upgradeBase · 2^(idx(R)−1) → 80/160/320/640/1280 (the raw-power sink)
-  enchantBase: 100, // per current-rarity index → 100…500 (targeted, expensive — the steady sink)
-  rerollBase: 45, // per current-rarity index → 90…225 (cheaper RNG gamble)
-  transferBase: 160, // per DESTINATION-rarity index → 480…800 (premium two-item op)
-}
+export const SMITH_PRICES = ECON.smith // upgradeBase 2^(idx−1) · enchant/reroll/transfer × rarity index (content/economy.yaml)
 
 const idx = (r: Rarity): number => RARITIES.indexOf(r) // grey 0 … orange 5
 

@@ -6,13 +6,14 @@
 
 import { type Item, type GearInstance, isGear, type Rarity } from './items'
 import { CONSUMABLES } from './consumables'
+import { ECON } from './economy'
 
-export const SELL_RATE = 0.2 // sell-back = 20% of value (CRAWL §3; a town amenity raises it later)
+export const SELL_RATE = ECON.sellRate // sell-back fraction (CRAWL §3; a town amenity raises it later)
 
 // --- gear: a geometric rarity ladder, lifted by loot-tier + affix richness ---
-const GEAR_BASE: Record<Rarity, number> = { grey: 8, white: 20, green: 50, blue: 120, purple: 300, orange: 700 }
-const GEAR_TIER_K = 0.03 // +3% per loot-tier
-const GEAR_AFFIX_K = 0.15 // +15% per rolled affix
+const GEAR_BASE: Record<Rarity, number> = ECON.gear.base
+const GEAR_TIER_K = ECON.gear.tierK // per loot-tier
+const GEAR_AFFIX_K = ECON.gear.affixK // per rolled affix
 
 export function gearValue(g: GearInstance): number {
   const base = GEAR_BASE[g.rarity] ?? 0
@@ -20,8 +21,8 @@ export function gearValue(g: GearInstance): number {
 }
 
 // --- consumables: a base by kind × a tier multiplier read off the id suffix ---
-const POTION_BASE = 12
-const SCROLL_BASE = 20
+const POTION_BASE = ECON.consumable.potionBase
+const SCROLL_BASE = ECON.consumable.scrollBase
 function tierMult(refId: string): number {
   if (refId.endsWith('_minor')) return 1
   if (refId.endsWith('_major')) return 3
@@ -46,7 +47,7 @@ export const sellValue = (item: Item): number => toSell(itemValue(item))
 /** The sell-back price of a bare consumable refId (the satchel holds refIds, not Items). */
 export const sellValueOfConsumable = (refId: string): number => toSell(consumableValue(refId))
 
-export const BUY_MARKUP = 1.5 // shop buy = 150% of value (B4 first-cut; the Merchant House pulls it → 100%)
+export const BUY_MARKUP = ECON.buyMarkup // shop buy markup (the Merchant House pulls it → 100%)
 const toBuy = (value: number, markup: number): number => (value <= 0 ? 0 : Math.max(1, Math.round(value * markup)))
 /** The shop BUY price of an inventory item (value × markup; markup defaults to the base 150%). */
 export const buyPrice = (item: Item, markup: number = BUY_MARKUP): number => toBuy(itemValue(item), markup)
@@ -55,13 +56,13 @@ export const buyPriceOfConsumable = (refId: string, markup: number = BUY_MARKUP)
 
 // ---- the Merchant House tracks (B4) — pure-gold tiers; first-cut, sim-gated ----
 /** Buy markup by Merchant-standing tier (150% → 100% over 5 tiers). */
-export const MERCHANT_MARKUPS = [1.5, 1.4, 1.3, 1.2, 1.1, 1.0]
+export const MERCHANT_MARKUPS = ECON.merchant.markups
 /** Gold to REACH each Merchant-standing tier (index = tier; 0 is free/base). */
-export const MERCHANT_TIER_COST = [0, 1500, 3500, 6500, 11000, 18000]
+export const MERCHANT_TIER_COST = ECON.merchant.tierCost
 /** Gold to REACH each Town-loot-quality tier; each tier ≈ +QUALITY_LVL_PER_TIER levels of vendor rarity band. */
-export const QUALITY_TIER_COST = [0, 2000, 5000, 10000, 18000]
-export const QUALITY_LVL_PER_TIER = 4
-export const RARE_MARKUP = 2.0 // the rare vendor's premium (× value) — high quality, high price
+export const QUALITY_TIER_COST = ECON.quality.tierCost
+export const QUALITY_LVL_PER_TIER = ECON.quality.lvlPerTier
+export const RARE_MARKUP = ECON.rareMarkup // the rare vendor's premium (× value) — high quality, high price
 
 export const markupForTier = (tier: number): number => MERCHANT_MARKUPS[Math.min(Math.max(0, tier), MERCHANT_MARKUPS.length - 1)]
 export const qualityLvlBoost = (tier: number): number => Math.max(0, tier) * QUALITY_LVL_PER_TIER

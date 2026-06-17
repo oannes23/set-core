@@ -44,6 +44,7 @@ const PER_FILE: Array<{ file: string; type: string; path?: string }> = [
   { file: 'encounter', type: 'EncounterFile' }, { file: 'classes', type: 'ClassesFile' },
   { file: 'gear', type: 'GearFile', path: 'src/data/gear.ts' },
   { file: 'loot', type: 'LootFile', path: 'src/engine/loot.ts' },
+  { file: 'economy', type: 'EconomyFile', path: 'src/engine/economy.ts' },
 ]
 for (const { file, type, path } of PER_FILE) {
   test(`committed schemas/${file}.schema.json matches its type`, async () => {
