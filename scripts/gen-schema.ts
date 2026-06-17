@@ -14,8 +14,8 @@ const contentDir = join(here, '..', 'src', 'data', 'content')
 const schemasDir = join(contentDir, 'schemas')
 mkdirSync(schemasDir, { recursive: true })
 
-const gen = (type: string): unknown =>
-  createGenerator({ path: 'src/data/schema.ts', type, tsconfig: 'tsconfig.json', skipTypeCheck: true }).createSchema(type)
+const gen = (type: string, path = 'src/data/schema.ts'): unknown =>
+  createGenerator({ path, type, tsconfig: 'tsconfig.json', skipTypeCheck: true }).createSchema(type)
 
 const write = (path: string, schema: unknown): void => {
   writeFileSync(path, JSON.stringify(schema, null, 2) + '\n', 'utf8')
@@ -25,10 +25,13 @@ const write = (path: string, schema: unknown): void => {
 // whole-GameData schema (validation gate)
 write(join(contentDir, 'schema.json'), gen('GameData'))
 
-// per-file schemas (editor autocomplete). Each maps a content/<file>.yaml to its root type in schema.ts.
-const FILES: Record<string, string> = {
-  traps: 'TrapsFile', drifts: 'DriftsFile', creatures: 'CreaturesFile', variants: 'VariantsFile',
-  templates: 'TemplatesFile', dungeons: 'DungeonsFile', encounter: 'EncounterFile',
-  classes: 'ClassesFile',
-}
-for (const [file, type] of Object.entries(FILES)) write(join(schemasDir, `${file}.schema.json`), gen(type))
+// per-file schemas (editor autocomplete). Each maps a content/<file>.yaml to its root type + the
+// source file that type lives in (defaults to schema.ts).
+const FILES: Array<{ file: string; type: string; path?: string }> = [
+  { file: 'traps', type: 'TrapsFile' }, { file: 'drifts', type: 'DriftsFile' },
+  { file: 'creatures', type: 'CreaturesFile' }, { file: 'variants', type: 'VariantsFile' },
+  { file: 'templates', type: 'TemplatesFile' }, { file: 'dungeons', type: 'DungeonsFile' },
+  { file: 'encounter', type: 'EncounterFile' }, { file: 'classes', type: 'ClassesFile' },
+  { file: 'gear', type: 'GearFile', path: 'src/data/gear.ts' },
+]
+for (const { file, type, path } of FILES) write(join(schemasDir, `${file}.schema.json`), gen(type, path))

@@ -28,21 +28,25 @@ test('a structurally malformed creature (missing stats) is rejected', () => {
   expect(validateGameData(bad).ok).toBe(false)
 })
 
-const gen = (type: string): unknown =>
-  createGenerator({ path: 'src/data/schema.ts', type, tsconfig: 'tsconfig.json', skipTypeCheck: true }).createSchema(type)
+const gen = (type: string, path = 'src/data/schema.ts'): unknown =>
+  createGenerator({ path, type, tsconfig: 'tsconfig.json', skipTypeCheck: true }).createSchema(type)
 
 test('committed schema.json matches schema.ts (no drift — run `pnpm gen:schema`)', () => {
   expect(gen('GameData')).toEqual(committedSchema)
 })
 
-// the per-file editor schemas (the `$schema` header targets) must also stay fresh
-const PER_FILE: Record<string, string> = {
-  traps: 'TrapsFile', drifts: 'DriftsFile', creatures: 'CreaturesFile', variants: 'VariantsFile',
-  templates: 'TemplatesFile', dungeons: 'DungeonsFile', encounter: 'EncounterFile',
-}
-for (const [file, type] of Object.entries(PER_FILE)) {
-  test(`committed schemas/${file}.schema.json matches schema.ts`, async () => {
+// the per-file editor schemas (the `$schema` header targets) must also stay fresh. Mirrors the
+// FILES table in scripts/gen-schema.ts (file → root type → source file).
+const PER_FILE: Array<{ file: string; type: string; path?: string }> = [
+  { file: 'traps', type: 'TrapsFile' }, { file: 'drifts', type: 'DriftsFile' },
+  { file: 'creatures', type: 'CreaturesFile' }, { file: 'variants', type: 'VariantsFile' },
+  { file: 'templates', type: 'TemplatesFile' }, { file: 'dungeons', type: 'DungeonsFile' },
+  { file: 'encounter', type: 'EncounterFile' }, { file: 'classes', type: 'ClassesFile' },
+  { file: 'gear', type: 'GearFile', path: 'src/data/gear.ts' },
+]
+for (const { file, type, path } of PER_FILE) {
+  test(`committed schemas/${file}.schema.json matches its type`, async () => {
     const committed = (await import(`./content/schemas/${file}.schema.json`)).default
-    expect(gen(type)).toEqual(committed)
+    expect(gen(type, path)).toEqual(committed)
   })
 }

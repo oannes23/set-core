@@ -8,10 +8,14 @@
    match-TYPE SCOPING is LIVE (2026-06-16): a weapon's base rider fires only when the matched set's
    colour matches its matchType (Axe→Fire/mono-red, Mace→Frost, Spear/Staff→Nature, Sword→Rainbow,
    Wand→Fire) — see engine/gear.gearRiders (scoped lane) + engine/resolve. Armor/relic block + caster
-   relic/armor mana have no matchType → unscoped. */
+   relic/armor mana have no matchType → unscoped.
+
+   Content now lives in content/gear.yaml (MODDING.md Phase 1); this module loads it + keeps the
+   types and the slot/lookup helpers. */
 
 import type { ColorTok } from './schema'
 import type { EquipSlot, StatKey, Riders } from '../engine/items'
+import gearData from './content/gear.yaml'
 
 export type School = 'martial' | 'caster'
 /** The §7 match-type a weapon rewards (which Attack-set colour outcome). Stored for ② scoping. */
@@ -30,27 +34,10 @@ export interface GearBaseType {
   matchType?: MatchType // §7 colour-type rewarded — LIVE: scopes the weapon's base rider (engine/resolve)
 }
 
-export const GEAR: Record<string, GearBaseType> = {
-  // ---- Weapons (payoff). Martial → +damage/Attack card; caster → +mana/match. Native: Power. ----
-  axe: { id: 'axe', name: 'Axe', icon: '🪓', slot: 'weapon', school: 'martial', rider: { atkDamagePerCard: 1 }, nativeStat: { stat: 'power', amount: 1 }, matchType: 'red' },
-  mace: { id: 'mace', name: 'Mace', icon: '🔨', slot: 'weapon', school: 'martial', rider: { atkDamagePerCard: 1 }, nativeStat: { stat: 'power', amount: 1 }, matchType: 'blue' },
-  spear: { id: 'spear', name: 'Spear', icon: '🔱', slot: 'weapon', school: 'martial', rider: { atkDamagePerCard: 1 }, nativeStat: { stat: 'power', amount: 1 }, matchType: 'green' },
-  sword: { id: 'sword', name: 'Sword', icon: '⚔️', slot: 'weapon', school: 'martial', rider: { atkDamagePerCard: 1 }, nativeStat: { stat: 'power', amount: 1 }, matchType: 'rainbow' },
-  wand: { id: 'wand', name: 'Wand', icon: '🪄', slot: 'weapon', school: 'caster', rider: { manaPerMatch: 1 }, nativeStat: { stat: 'power', amount: 1 }, matchType: 'red' },
-  staff: { id: 'staff', name: 'Staff', icon: '🪈', slot: 'weapon', school: 'caster', rider: { manaPerMatch: 1 }, nativeStat: { stat: 'power', amount: 1 }, matchType: 'green' },
-  // ---- Armor (defense). Martial weight → +Block/Defend card; caster colour → +mana, squishy. Native: Endurance. ----
-  plate: { id: 'plate', name: 'Plate', icon: '🛡️', slot: 'armor', school: 'martial', rider: { blockPerDefendCard: 1 }, nativeStat: { stat: 'endurance', amount: 2 } },
-  chainmail: { id: 'chainmail', name: 'Chainmail', icon: '⛓️', slot: 'armor', school: 'martial', rider: { blockPerDefendCard: 1 }, nativeStat: { stat: 'endurance', amount: 1 } },
-  leather: { id: 'leather', name: 'Leather', icon: '🦺', slot: 'armor', school: 'martial', rider: { blockPerDefendCard: 1 }, nativeStat: { stat: 'speed', amount: 1 } },
-  robe: { id: 'robe', name: 'Robe', icon: '🧥', slot: 'armor', school: 'caster', rider: { manaPerMatch: 1 }, nativeStat: { stat: 'endurance', amount: 1 } },
-  // ---- Relic / offhand (augments). School-agnostic; mostly native stat + affixes (alt-verbs at ②). ----
-  shield: { id: 'shield', name: 'Shield', icon: '🛡', slot: 'relic', rider: { blockPerDefendCard: 1 }, nativeStat: { stat: 'endurance', amount: 1 } },
-  focus: { id: 'focus', name: 'Focus', icon: '🔮', slot: 'relic', school: 'caster', rider: { manaPerMatch: 1 }, nativeStat: { stat: 'power', amount: 1 } },
-  // ---- Trinkets ×2 (flex economy). Pure-ish affix carriers; small native (Speed-leaning). ----
-  ring: { id: 'ring', name: 'Ring', icon: '💍', slot: 'trinket1', nativeStat: { stat: 'speed', amount: 1 } },
-  amulet: { id: 'amulet', name: 'Amulet', icon: '📿', slot: 'trinket1', nativeStat: { stat: 'endurance', amount: 1 } },
-  boots: { id: 'boots', name: 'Boots', icon: '🥾', slot: 'trinket1', nativeStat: { stat: 'speed', amount: 2 } },
-}
+/** content/gear.yaml — the base-type catalog, keyed by id (the moddability source of truth). */
+export type GearFile = Record<string, GearBaseType>
+
+export const GEAR: GearFile = gearData as GearFile
 
 /** Trinkets fit either trinket slot — the catalog tags them `trinket1`, but `trinket2` accepts them too. */
 export function fitsSlot(base: GearBaseType, slot: EquipSlot): boolean {

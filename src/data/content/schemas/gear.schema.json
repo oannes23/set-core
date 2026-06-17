@@ -1,0 +1,133 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$ref": "#/definitions/GearFile",
+  "definitions": {
+    "GearFile": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/definitions/GearBaseType"
+      },
+      "description": "content/gear.yaml — the base-type catalog, keyed by id (the moddability source of truth)."
+    },
+    "GearBaseType": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "icon": {
+          "type": "string"
+        },
+        "slot": {
+          "$ref": "#/definitions/EquipSlot"
+        },
+        "school": {
+          "$ref": "#/definitions/School"
+        },
+        "rider": {
+          "type": "object",
+          "properties": {
+            "atkDamagePerCard": {
+              "type": "number"
+            },
+            "blockPerDefendCard": {
+              "type": "number"
+            },
+            "manaPerMatch": {
+              "type": "number"
+            },
+            "scopedColor": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "scopedAtkPerCard": {
+              "type": "number"
+            },
+            "scopedManaPerMatch": {
+              "type": "number"
+            }
+          },
+          "additionalProperties": false,
+          "description": "Per-rarity-STEP rider (scaled by RARITY[rarity].riderMult). The gear power channel (§7)."
+        },
+        "nativeStat": {
+          "type": "object",
+          "properties": {
+            "stat": {
+              "$ref": "#/definitions/StatKey"
+            },
+            "amount": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "stat",
+            "amount"
+          ],
+          "additionalProperties": false,
+          "description": "Small slot-aligned flat stat (the 5-slot raw-stat budget — ~+25% stat share before affixes)."
+        },
+        "matchType": {
+          "$ref": "#/definitions/MatchType"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "icon",
+        "slot"
+      ],
+      "additionalProperties": false
+    },
+    "EquipSlot": {
+      "type": "string",
+      "enum": [
+        "weapon",
+        "armor",
+        "relic",
+        "trinket1",
+        "trinket2"
+      ]
+    },
+    "School": {
+      "type": "string",
+      "enum": [
+        "martial",
+        "caster"
+      ]
+    },
+    "StatKey": {
+      "type": "string",
+      "enum": [
+        "power",
+        "endurance",
+        "speed"
+      ]
+    },
+    "MatchType": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/ColorTok"
+        },
+        {
+          "type": "string",
+          "const": "rainbow"
+        }
+      ],
+      "description": "The §7 match-type a weapon rewards (which Attack-set colour outcome). Stored for ② scoping."
+    },
+    "ColorTok": {
+      "type": "string",
+      "enum": [
+        "red",
+        "green",
+        "blue"
+      ]
+    }
+  }
+}
