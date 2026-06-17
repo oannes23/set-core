@@ -1,44 +1,15 @@
-/* Guards the typed data's REFERENTIAL INTEGRITY — every id a creature/dungeon points at resolves (the
-   "dangling foe/trap/variant id" bug the prototype only surfaces at runtime when you pick that foe).
-   (The migration-era byte-parity check against prototype/game-data.js is retired: the migration is
-   complete and the live `src/` content now intentionally evolves past the archived oracle — new foes,
-   elites, retuned dungeons. The prototype is a frozen snapshot, not a living mirror.) */
+/* The ROUND-TRIP oracle for the YAML migration: the YAML-sourced GAMEDATA must deep-equal the
+   pre-migration literal, captured in __fixtures__/gamedata.snapshot.json. This guards the mechanical
+   TS-literal → YAML conversion against any drift (folded-scalar whitespace, number/string coercion).
+
+   (Referential integrity — every creature/dungeon/encounter id resolves — now lives in registry.ts
+   `linkErrors` and runs at load time inside buildRegistry; it is exercised by registry.test.ts. The
+   per-creature statline shape is covered by validate.test.ts against the generated schema.) */
 
 import { test, expect } from 'vitest'
 import { GAMEDATA } from './game-data'
+import snapshot from './__fixtures__/gamedata.snapshot.json'
 
-const has = (rec: Record<string, unknown>, id: string): boolean =>
-  Object.prototype.hasOwnProperty.call(rec, id)
-
-test('every creature trap / variant id resolves', () => {
-  for (const [cid, c] of Object.entries(GAMEDATA.creatures)) {
-    for (const t of c.traps ?? []) expect(has(GAMEDATA.traps, t), `${cid} → trap ${t}`).toBe(true)
-    for (const v of c.variants ?? []) expect(has(GAMEDATA.variants, v), `${cid} → variant ${v}`).toBe(true)
-  }
-})
-
-test('every dungeon reference (foe / drift / template / mirror / extends) resolves', () => {
-  for (const [did, d] of Object.entries(GAMEDATA.dungeons)) {
-    for (const e of d.enemy_table) expect(has(GAMEDATA.creatures, e.foe), `${did} table → ${e.foe}`).toBe(true)
-    for (const f of d.sequence ?? []) expect(has(GAMEDATA.creatures, f), `${did} sequence → ${f}`).toBe(true)
-    for (const el of d.elite_pool) expect(has(GAMEDATA.creatures, el), `${did} elite → ${el}`).toBe(true)
-    if (d.boss) expect(has(GAMEDATA.creatures, d.boss), `${did} boss → ${d.boss}`).toBe(true)
-    if (d.default_foe) expect(has(GAMEDATA.creatures, d.default_foe), `${did} default_foe → ${d.default_foe}`).toBe(true)
-    if (d.drift) expect(has(GAMEDATA.drifts, d.drift), `${did} drift → ${d.drift}`).toBe(true)
-    if (d.template) expect(has(GAMEDATA.templates, d.template), `${did} template → ${d.template}`).toBe(true)
-    if (d.boss_mirror) expect(has(GAMEDATA.traps, d.boss_mirror), `${did} mirror → ${d.boss_mirror}`).toBe(true)
-    if (d.extends) expect(has(GAMEDATA.dungeons, d.extends), `${did} extends → ${d.extends}`).toBe(true)
-  }
-})
-
-test('encounter ids resolve + every creature authors a full P/E/S statline', () => {
-  for (const t of GAMEDATA.encounter.traps) expect(has(GAMEDATA.traps, t), `encounter trap ${t}`).toBe(true)
-  expect(has(GAMEDATA.drifts, GAMEDATA.encounter.drift)).toBe(true)
-  // the data rebase: stats are authored directly (no legacy speed/damage/xp fields)
-  for (const [cid, c] of Object.entries(GAMEDATA.creatures)) {
-    for (const k of ['power', 'endurance', 'speed'] as const) {
-      expect(typeof c.stats[k], `${cid} stats.${k}`).toBe('number')
-    }
-    expect(c.hp, `${cid} hp`).toBeGreaterThan(0)
-  }
+test('YAML-sourced GAMEDATA matches the pre-migration snapshot', () => {
+  expect(GAMEDATA).toEqual(snapshot)
 })

@@ -1,0 +1,227 @@
+bloodthirsty:
+  name: Bloodthirsty
+  icon: 🩸
+  desc: 'all-red → 50%: 6 dmg + warp a Defend to Fire'
+  trap:
+    'on': match
+    when:
+      axis: color
+      mode: all_same
+      value: red
+    do:
+      - effect: damage
+        chance: 0.5
+        amount: 6
+      - effect: transmute
+        count: 1
+        select:
+          axis: shape
+          mode: all_same
+          value: defend
+        bias:
+          axis: color
+          value: red
+          intensity: 1
+sneaky:
+  name: Sneaky
+  icon: 🌑
+  desc: 'all-Move → 25%: strikes at once'
+  stat_mod:
+    speed: 3
+  trap:
+    'on': match
+    when:
+      axis: shape
+      mode: all_same
+      value: move
+    do:
+      - effect: instant_attack
+        chance: 0.25
+cowardly:
+  name: Cowardly
+  icon: 😰
+  desc: all-Attack → panics, strikes 4s sooner
+  stat_mod:
+    hp: -15
+    power: -2
+  trap:
+    'on': match
+    when:
+      axis: shape
+      mode: all_same
+      value: attack
+    do:
+      - effect: advance_timer
+        seconds: 4
+elusive:
+  name: Elusive
+  icon: 💨
+  desc: all-Move → lock 1 card 4s
+  stat_mod:
+    speed: 3
+  trap:
+    'on': match
+    when:
+      axis: shape
+      mode: all_same
+      value: move
+    do:
+      - effect: lock
+        seconds: 4
+        select:
+          geometry: random
+          count: 1
+plagued:
+  name: Plagued
+  icon: ☠️
+  desc: all-green → enemy heals 5
+  trap:
+    'on': match
+    when:
+      axis: color
+      mode: all_same
+      value: green
+    do:
+      - effect: enemy_heal
+        amount: 5
+hexer:
+  name: Hexer
+  icon: 🔮
+  desc: all-blue → burn 3 Frost mana
+  stat_mod:
+    hp: 10
+  trap:
+    'on': match
+    when:
+      axis: color
+      mode: all_same
+      value: blue
+    do:
+      - effect: drain_mana
+        color: blue
+        amount: 3
+cruel:
+  name: Cruel
+  icon: 🔪
+  desc: all-Attack → reflect 6
+  stat_mod:
+    power: 2
+  trap:
+    'on': match
+    when:
+      axis: shape
+      mode: all_same
+      value: attack
+    do:
+      - effect: damage
+        amount: 6
+grasping:
+  name: Grasping
+  icon: 🪤
+  desc: 'all-3s match → it snatches at your spoils: strikes 2s sooner'
+  trap:
+    'on': match
+    when:
+      axis: number
+      mode: all_same
+      value: three
+    do:
+      - effect: advance_timer
+        seconds: 2
+covetous:
+  name: Covetous
+  icon: 🧲
+  desc: all-3s match → it plucks your heaviest rune from the board
+  trap:
+    'on': match
+    when:
+      axis: number
+      mode: all_same
+      value: three
+    do:
+      - effect: transmute
+        count: 1
+        select:
+          pick: highest_mag
+nimble:
+  name: Nimble
+  icon: 🦶
+  desc: all-Move → drain 3 Tactics
+  stat_mod:
+    speed: 3
+  trap:
+    'on': match
+    when:
+      axis: shape
+      mode: all_same
+      value: move
+    do:
+      - effect: drain_tactics
+        amount: 3
+frenetic:
+  name: Frenetic
+  icon: ⚡
+  desc: rainbow colour → strikes 2s sooner
+  trap:
+    'on': match
+    when:
+      axis: color
+      mode: all_different
+    do:
+      - effect: advance_timer
+        seconds: 2
+greedy:
+  name: Greedy
+  icon: 🪙
+  desc: all-red → lock 1 card 4s
+  stat_mod:
+    hp: 8
+  trap:
+    'on': match
+    when:
+      axis: color
+      mode: all_same
+      value: red
+    do:
+      - effect: lock
+        seconds: 4
+        select:
+          geometry: random
+          count: 1
+firebrand:
+  name: Firebrand
+  icon: 🔥
+  desc: all-blue → warp 1 non-red card toward Fire
+  trap:
+    'on': match
+    when:
+      axis: color
+      mode: all_same
+      value: blue
+    do:
+      - effect: transmute
+        count: 1
+        select:
+          axis: color
+          mode: not_value
+          value: red
+        bias:
+          axis: color
+          value: red
+          intensity: 1
+scorched:
+  name: Scorched
+  icon: 🌶️
+  desc: all-red → burn 3 Fire mana
+  stat_mod:
+    power: 1
+  trap:
+    'on': match
+    when:
+      axis: color
+      mode: all_same
+      value: red
+    do:
+      - effect: drain_mana
+        color: red
+        amount: 3

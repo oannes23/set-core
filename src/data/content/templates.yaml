@@ -1,0 +1,14 @@
+undead:
+  name: Undead
+  icon: 💀
+  desc: regenerates 3 HP every 7s
+  stat_mod:
+    hp: 20
+    speed: -3
+  trap:
+    'on': tick
+    every: 7
+    quiet: true
+    do:
+      - effect: enemy_heal
+        amount: 3

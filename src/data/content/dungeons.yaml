@@ -1,0 +1,115 @@
+tutorial:
+  name: Tutorial · Guided Intro
+  difficulty: 0
+  coach: true
+  guided: true
+  theme: null
+  drift: null
+  boss_mirror: null
+  default_foe: training_dummy
+  enemy_table:
+    - foe: training_dummy
+      weight: 100
+  elite_pool: []
+  boss: null
+  template: null
+training:
+  name: Training · Gauntlet
+  difficulty: 0
+  coach: true
+  theme: null
+  drift: null
+  boss_mirror: null
+  sequence:
+    - limbless_zombie
+    - dread_behemoth
+    - unstable_ethereal_goblin
+  enemy_table:
+    - foe: limbless_zombie
+      weight: 1
+    - foe: dread_behemoth
+      weight: 1
+    - foe: unstable_ethereal_goblin
+      weight: 1
+  elite_pool: []
+  boss: null
+  template: null
+goblin_warren:
+  name: The Goblin Warren
+  difficulty: 1
+  theme:
+    axis: color
+    value: red
+  drift: ember
+  boss_mirror: war_cry_lesser
+  enemy_table:
+    - foe: goblin
+      weight: 35
+    - foe: cave_bat
+      weight: 20
+    - foe: goblin_shaman
+      weight: 15
+    - foe: goblin_archer
+      weight: 12
+    - foe: goblin_sapper
+      weight: 10
+    - foe: warren_rat
+      weight: 8
+  elite_pool:
+    - goblin_warlord
+    - ember_shaman
+    - warren_butcher
+    - goblin_oracle
+  boss: goblin_king
+  template: null
+emberdeep:
+  name: The Emberdeep
+  difficulty: 2
+  theme:
+    axis: color
+    value: red
+  drift: ember
+  boss_mirror: war_cry_lesser
+  enemy_table:
+    - foe: emberkin
+      weight: 32
+    - foe: magma_bat
+      weight: 20
+    - foe: cinder_shaman
+      weight: 16
+    - foe: slag_brute
+      weight: 12
+  elite_pool:
+    - molten_warlord
+    - ash_oracle
+  boss: emberlord
+  template: null
+haunted_warren:
+  name: The Haunted Warren
+  difficulty: 3
+  extends: goblin_warren
+  theme:
+    axis: color
+    value: red
+  drift: ember
+  boss_mirror: war_cry_lesser
+  enemy_table:
+    - foe: goblin
+      weight: 35
+    - foe: cave_bat
+      weight: 20
+    - foe: goblin_shaman
+      weight: 15
+    - foe: goblin_archer
+      weight: 12
+    - foe: goblin_sapper
+      weight: 10
+    - foe: warren_rat
+      weight: 8
+  elite_pool:
+    - goblin_warlord
+    - ember_shaman
+    - warren_butcher
+    - goblin_oracle
+  boss: goblin_king
+  template: undead

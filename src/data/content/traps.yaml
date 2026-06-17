@@ -1,0 +1,264 @@
+war_cry:
+  name: War Cry
+  icon: 🗣️
+  'on': match
+  when:
+    axis: color
+    mode: all_same
+    value: red
+  desc: 'all-red match → 30%: the enemy strikes at once'
+  do:
+    - effect: instant_attack
+      chance: 0.3
+spiked_hide:
+  name: Spiked Hide
+  icon: 🦔
+  'on': match
+  when:
+    axis: shape
+    mode: all_same
+    value: attack
+  desc: all-Attack match → reflect 5 damage
+  do:
+    - effect: damage
+      amount: 5
+plague:
+  name: Plague
+  icon: ☠️
+  'on': match
+  when:
+    axis: color
+    mode: all_same
+    value: green
+  desc: all-green match → enemy heals 5
+  do:
+    - effect: enemy_heal
+      amount: 5
+vigilance:
+  name: Vigilance
+  icon: 👁️
+  'on': match
+  when:
+    axis: shape
+    mode: all_same
+    value: move
+  desc: all-Move match → drain 4 Tactics
+  do:
+    - effect: drain_tactics
+      amount: 4
+mana_sear:
+  name: Mana Sear
+  icon: 🔥
+  'on': match
+  when:
+    axis: color
+    mode: all_same
+    value: red
+  desc: all-red match → burn 3 Fire mana + 4 damage
+  do:
+    - effect: drain_mana
+      color: red
+      amount: 3
+    - effect: damage
+      amount: 4
+press_swarm:
+  name: Press the Swarm
+  icon: 🌀
+  'on': match
+  when:
+    axis: color
+    mode: all_same
+    value: blue
+  desc: all-blue match → warp 2 cards toward Fire (herding)
+  do:
+    - effect: transmute
+      count: 2
+      select:
+        axis: color
+        mode: not_value
+        value: red
+      bias:
+        axis: color
+        value: red
+        intensity: 1
+molten_veins:
+  name: Molten Veins
+  icon: 🌋
+  'on': match
+  when:
+    axis: color
+    mode: all_same
+    value: red
+  desc: all-red match → 4 dmg + warp the center column to Fire
+  do:
+    - effect: damage
+      amount: 4
+    - effect: transmute
+      select:
+        geometry: column
+        which: center
+      bias:
+        axis: color
+        value: red
+        intensity: 1
+petrify:
+  name: Petrify
+  icon: 🗿
+  'on': match
+  when:
+    axis: shape
+    mode: all_same
+    value: move
+  desc: all-Move match → lock 2 cards for 5s
+  do:
+    - effect: lock
+      seconds: 5
+      select:
+        geometry: random
+        count: 2
+confusion:
+  name: Confusion
+  icon: 💫
+  'on': match
+  when:
+    axis: color
+    mode: all_different
+  desc: rainbow (all-different colour) match → the foe quickens by the set’s weight (1+2+3 → 2s · 3/3/3 → 5s)
+  do:
+    - effect: advance_timer
+      scale: set_mag
+dread_drums:
+  name: Dread Drums
+  icon: 🥁
+  'on': tick
+  every: 8
+  desc: 'every 8s: 3 unblockable dread damage'
+  do:
+    - effect: damage
+      amount: 3
+limbless:
+  name: Limbless
+  icon: 🧟
+  'on': match
+  when:
+    all:
+      - axis: shape
+        mode: all_same
+        value: move
+      - axis: number
+        mode: all_same
+        value: one
+  desc: 'all-Move + all-1s match → the zombie lurches: Moves in your bottom row lock 5s, then the row warps toward Move'
+  do:
+    - effect: lock
+      seconds: 5
+      select:
+        geometry: row
+        which: bottom
+        axis: shape
+        mode: all_same
+        value: move
+    - effect: transmute
+      gap: 5000
+      select:
+        geometry: row
+        which: bottom
+      bias:
+        axis: shape
+        value: move
+        intensity: 2
+tremor:
+  name: Tremor
+  icon: 🪨
+  'on': tick
+  every: 12
+  desc: every 12s the ground quakes, rattling your useless shields loose into Moves
+  do:
+    - effect: transmute
+      select:
+        axis: shape
+        mode: all_same
+        value: defend
+      bias:
+        axis: shape
+        value: move
+        intensity: 2
+outmaneuvered:
+  name: Outmaneuvered
+  icon: 🐢
+  kind: trick
+  'on': match
+  when:
+    axis: shape
+    mode: all_same
+    value: move
+  desc: all-Move match → you dance aside; the behemoth lumbers after you, +5s before it can strike
+  do:
+    - effect: delay_attack
+      seconds: 5
+ethereal_cackle:
+  name: Ethereal Cackle
+  icon: 😈
+  'on': match
+  when:
+    axis: shape
+    mode: all_same
+    value: attack
+  desc: all-Attack match → he cackles at your flailing and melts every sword into a Move
+  do:
+    - effect: transmute
+      select:
+        axis: shape
+        mode: all_same
+        value: attack
+      bias:
+        axis: shape
+        value: move
+        intensity: 2
+war_cry_lesser:
+  name: Lesser War Cry
+  icon: 🗣️
+  'on': match
+  when:
+    axis: color
+    mode: all_same
+    value: red
+  desc: 'all-red match → 30%: 5 damage (a foretaste of the King’s War Cry)'
+  do:
+    - effect: damage
+      chance: 0.3
+      amount: 5
+ember_sweep:
+  name: Ember Sweep
+  icon: 🌅
+  'on': match
+  when:
+    axis: color
+    mode: all_same
+    value: red
+  desc: all-red match → warp the bottom row toward Fire (an elite sweep)
+  do:
+    - effect: transmute
+      select:
+        geometry: row
+        which: bottom
+      bias:
+        axis: color
+        value: red
+        intensity: 1
+red_threes_omen:
+  name: Crimson Omen
+  icon: 🔱
+  'on': match
+  when:
+    all:
+      - axis: color
+        mode: all_same
+        value: red
+      - axis: number
+        mode: all_same
+        value: three
+  desc: 'all-red + all-Threes match → 35%: the elite strikes at once'
+  do:
+    - effect: instant_attack
+      chance: 0.35

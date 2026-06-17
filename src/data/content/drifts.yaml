@@ -1,0 +1,18 @@
+ember:
+  name: Ember Drift
+  icon: 🔥
+  'on': tick
+  every: 7
+  quiet: true
+  desc: the board drifts toward Fire
+  do:
+    - effect: transmute
+      count: 1
+      select:
+        axis: color
+        mode: not_value
+        value: red
+      bias:
+        axis: color
+        value: red
+        intensity: 1
