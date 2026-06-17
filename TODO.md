@@ -16,7 +16,11 @@ Traffic-light: green = pursue · yellow = consequence · red = wounded.
 
 ---
 
-## ▶ NEXT SESSION — START HERE (handoff 2026-06-15)
+## ▶ NEXT SESSION — START HERE (handoff 2026-06-16)
+**⭐ ACTIVE: YAML CONTENT-CONVERSION TRACK** (see the dedicated section below + `MODDING.md`). Converting
+all content to external YAML for moddability **before** the balancing phase — Phase 0 (foundation) in
+progress. This is the current focus; the gated balance sim comes after.
+
 **⭐ 2026-06-16: POST-REVIEW HARDENING TRACK below** (from `REVIEW-2026-06-16.md` + `DESIGN-GOALS.md`).
 Progress: **POST-REVIEW HARDENING TRACK COMPLETE** — Stage 0 ✅ · Stage 1 (app.ts refactor 1A–1D) ✅ ·
 Stage 2 (Rounds v3 UI, reconciled+polished) ✅ · Stage 3 (flee parting-blow + spacebar pause, smoke-tested) ✅ ·
@@ -314,6 +318,48 @@ preview; dev **sets/round** readout is live. So Stage 2 became reconcile + polis
   ability reprice/content are in (so the sim has real weight to bear), *then* run the §11/§13 coupled
   pass to resolve "combat too easy for skilled play" (Heat dial / the `X/(X+K)` base-curve question /
   the built foe-difficulty raise). **Do not hand-edit CRAWL §5.6 before the sim.**
+
+---
+
+## ⭐ YAML CONTENT-CONVERSION TRACK — moddability (NEXT, before balancing — settled 2026-06-16)
+**Full plan + `file:line` map: `MODDING.md`.** Rationale: convert *all* content to external YAML
+**before** the balancing phase, so authoring real content to replace today's placeholders is a
+data edit, not a code edit — makes balancing far easier. Decisions locked (MODDING §0): **full
+conversion** (all phases, incl. an effect-DSL for ability/passive/consumable behavior) · **both,
+staged** (build the built-in/authoring path now; architect the registry so runtime user-mods slot
+in later) · **hand-rolled validation** (no `zod`/`ajv`) · **TS types stay, data literals move** ·
+**per-domain YAML files** under `src/data/content/`. **Hard invariant: runtime `dependencies` stays
+empty** — built-in YAML compiles via a Vite **devDep** plugin; user-mod runtime parser is a deferred,
+conscious decision (JSON escape-hatch otherwise).
+
+### Phase 0 — Foundation (gate for all else) — ⭐ ACTIVE (~4–7d)
+- `[ ]` Build-time YAML import (Vite plugin devDep + `vite.config.ts` + vitest wiring).
+- `[ ]` Hand-rolled validator (`src/data/validate.ts`) — schema-token-driven, located errors.
+- `[ ]` Referential-link step (promote `game-data.test.ts` integrity to a runtime link pass).
+- `[ ]` Registry (`src/data/registry.ts`) — `buildRegistry(sources)→GameData`; merge/collision policy = the runtime-mod seam.
+- `[ ]` Swap the consumer: `ui/app.ts:15` `import {GAMEDATA}` → the built registry via `V.deps.data`.
+- `[ ]` Round-trip test (current `GAMEDATA` → YAML → load+validate → deep-equal) = the Phase-1 oracle.
+
+### Phase 1 — Pure-data move (the free win, ~2–4d)
+- `[ ]` creatures/variants/templates · traps/tricks/drifts · dungeons → YAML (`data/game-data.ts`).
+- `[ ]` classes · gear base types · loot tables/weights → YAML.
+- `[ ]` shop prices/markups/upgrade-tracks/smith-prices → `economy.yaml` (first extract `ui/bank.ts` consts).
+- `[ ]` Close the `blast`/`cross`/`plus` schema-vs-impl gap (`schema.ts:16` vs `triggers.ts:101` no-op).
+- *(Legit ship/stop point: fully moddable except authoring NEW ability/passive/consumable behavior.)*
+
+### Phase 2 — Moderate (~3–5d)
+- `[ ]` Affix magnitude DSL — retire `build()` closures (`data/affixes.ts:27`); `AffixComponent` folds unchanged.
+- `[ ]` Progression coefficients → `progression.yaml` (`ui/save.ts`; expose `xpForLevel` as `{base,exponent}`).
+- `[ ]` Delve tunables → `delve.yaml` (`engine/delve.ts`; boss triangular law stays code).
+- `[ ]` Simple passives port (after the DSL); flag the 2 woven ones (`overflow`/`combined_arms`).
+
+### Phase 3 — The effect-DSL (the moddability ceiling, ~2–4wk)
+- `[ ]` Grow `EffectName` + `runEffect` to cover ability/consumable verbs; add a `scale`/expression facility.
+- `[ ]` Port abilities → `abilities.yaml`; derive `ABILITY_PREVIEW` from the same data (kill the mirror map).
+- `[ ]` Port passives + route consumable `use()` through the effect-bus; keep native-id escape hatch.
+
+### Art (forward-looking, ~0 work now)
+- `[ ]` Keep `icon` a path-or-glyph string field so real sprites slot in against `BASE_URL` later.
 
 ---
 
