@@ -4,9 +4,11 @@
    §7 match-TYPE it rewards. Pure content (YAML-portable like the rest of data/); a GearInstance's
    `refId` indexes this catalog.
 
-   Chunk ① scope: the BASE riders (atk-damage / block / mana per match) + native stats apply in combat.
-   The color/match-TYPE SCOPING (Axe only on all-red Attacks, etc.) is stored here but rides chunk ②
-   (the coupled balance pass), so today every weapon's damage rider applies on all Attack cards. */
+   The BASE riders (atk-damage / block / mana per match) + native stats apply in combat. The color/
+   match-TYPE SCOPING is LIVE (2026-06-16): a weapon's base rider fires only when the matched set's
+   colour matches its matchType (Axe→Fire/mono-red, Mace→Frost, Spear/Staff→Nature, Sword→Rainbow,
+   Wand→Fire) — see engine/gear.gearRiders (scoped lane) + engine/resolve. Armor/relic block + caster
+   relic/armor mana have no matchType → unscoped. */
 
 import type { ColorTok } from './schema'
 import type { EquipSlot, StatKey, Riders } from '../engine/items'
@@ -25,7 +27,7 @@ export interface GearBaseType {
   rider?: Partial<Riders>
   /** Small slot-aligned flat stat (the 5-slot raw-stat budget — ~+25% stat share before affixes). */
   nativeStat?: { stat: StatKey; amount: number }
-  matchType?: MatchType // §7 colour-type rewarded (scoping deferred to ②)
+  matchType?: MatchType // §7 colour-type rewarded — LIVE: scopes the weapon's base rider (engine/resolve)
 }
 
 export const GEAR: Record<string, GearBaseType> = {

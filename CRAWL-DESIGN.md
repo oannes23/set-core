@@ -141,8 +141,15 @@ f=3/N=15 grid; only the skin changes.
     survivors return on a safe exit, lost on death), and the **end-of-run loot-triage scene** (every safe
     exit → keep→Storage / sell→gold per item, full-Storage auto-sell-overflow). Valuation + sell-back in
     `engine/value.ts` (SELL_RATE 0.2). **The satchel stayed `string[]` refIds** (consumables are fungible;
-    gear is already a separate found-list) — the proposed `Item[]` unification was unnecessary. **Still
-    open: the shop BUY-side + Storage-slot upgrades (B4).**
+    gear is already a separate found-list) — the proposed `Item[]` unification was unnecessary.
+  - **BUILT 2026-06-16 (B4 — the Market buy-side):** the **🏪 Market** scene — a **gear vendor**
+    (`loot.rollMarketStock`: the loot roller, rarity-banded by the player's HIGHEST character level,
+    ~10/slot group, sorted by value, regenerating on reload + after each delve) + the **consumables
+    catalog**; **buy = 150% of value** (`value.buyPrice`/`BUY_MARKUP`). **Still open: Storage-slot
+    upgrades (`N²`); markup-lowering base upgrades; smarter restock; the class-hall spellbook shops (B4/B5).**
+  - **BUILT 2026-06-16 (the §7 TYPE layer):** weapon base riders now fire only on their **match-type
+    colour** (engine/resolve + gearRiders) — martial/caster/armor type effects all live. ⚠ This cuts
+    weapon uptime → the foe-difficulty `gearFactor` over-credits gear now; **fold into the next combat re-sim.**
 
 ### Between-rooms approaches — the exploration verbs *(SETTLED 2026-06-13; build with the B2 run loop)*
 At the between-rooms fork (after a clear, before the next room — alongside press-on / flee /

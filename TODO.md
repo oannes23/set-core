@@ -22,9 +22,14 @@ Progress: **POST-REVIEW HARDENING TRACK COMPLETE** — Stage 0 ✅ · Stage 1 (a
 Stage 2 (Rounds v3 UI, reconciled+polished) ✅ · Stage 3 (flee parting-blow + spacebar pause, smoke-tested) ✅ ·
 Stage 4 (U6 selection revalidation) ✅. **GEAR chunk ③ — the SMITH = BUILT 2026-06-16** · **PHASE 2 — the
 INVENTORY LOOP = DONE 2026-06-16** (Storage/bag screen + tabs + sell · loadout-from-inventory w/ depletion ·
-end-of-run loot triage; the satchel stayed `string[]` — see Phase 2 below). **NEXT = B4 the SHOP buy-side**
-(spend gold on consumables + gear + Storage-slot upgrades — the buy-side to the live sell-side) + then the
-class-hall/amenity layer. Deferred to future stages: U5
+end-of-run loot triage; the satchel stayed `string[]`). · **TYPE LAYER LIVE 2026-06-16** (weapon riders
+scoped to their match-type colour — engine/resolve + gearRiders; ⚠ cuts weapon uptime → combat harder than
+the gear-factor sim assumed, fold into the next combat re-sim). · **B4 MARKET buy-side BUILT 2026-06-16**
+(🏪 one Market scene: gear vendor — randomized stock via the loot roller, banded by highest char level,
+~10/slot, regenerates on reload + after a delve — plus the consumables catalog; buy = 150% of value).
+Item TOOLTIPS + a Data Wipe testing affordance also shipped. **NEXT = remaining B4** (Storage-slot upgrades
+`N²`; markup-lowering base upgrades; smarter restock) + the class-hall/amenity layer; then the combat re-sim
+(now that loot + the type layer have settled) + `GOLD_K` faucet recalibration. Deferred to future stages: U5
 tick-coalescing (→ replay-seam build), 1E cutscene split, colorblind/relaxed-mode (→ external-playtest
 gate). The balance sim stays **gated** until loot + abilities settle.
 

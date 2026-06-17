@@ -251,6 +251,12 @@ Tier-1 bench (all ops ungated); the smithy-AMENITY tiers (cheapen/unlock) ride B
 
 So a std potion ≈ 24g (sells 4), a blue weapon ≈ 170g (sells 34), an orange ≈ 800g+ (sells 160+).
 
+**Market BUY price — FIRST-CUT (B4, BUILT 2026-06-16; `value.BUY_MARKUP`).** Buy = **150% of value**
+(`BUY_MARKUP 1.5`); the spread to the 20% sell-back kills flip-arbitrage. Base upgrades pull the markup
+toward 100% later. The gear vendor stocks ~10/slot, rarity-banded by the player's highest character level
+(`loot.rollMarketStock` → minion <L5 · elite L5–11 · boss L12+ rarity weights), regenerating on reload +
+after each delve. ⚠ Recalibrate WITH `GOLD_K` once play settles.
+
 **Crit + combos + Primed — the exchange-delight feel layer (CRIT CURVE CALIBRATED 2026-06-15, sim §13).**
 Crit is rolled once on the aggregate swing at rollover ① (player-only; a narrow §5.7 carve-out — the SET
 stays exact). The chance is a **skill-earned S-curve** (REPLACES the old flat 5% base), fed by this round's
