@@ -127,11 +127,12 @@ export function takeFromStorage(a: Account, uids: string[]): { taken: Item[]; ac
 /** Expand Storage capacity (the gold-bought slot upgrade, B4 Vault). */
 export const expandStorage = (a: Account, by: number): Account => ({ ...a, storageCap: a.storageCap + Math.max(0, Math.round(by)) })
 
-/** The gold cost of the NEXT storage slot (price ∝ the square of the target size — CRAWL §3, settled
- *  2026-06-13; a steady long-game sink). FIRST-CUT coefficient, sim-gated with GOLD_K. */
-export const STORAGE_SLOT_COEF = 2
-export const STORAGE_SLOT_MAX = 60 // a soft ceiling so the sink is bounded
-export const slotUpgradeCost = (cap: number): number => Math.round(STORAGE_SLOT_COEF * (cap + 1) ** 2)
+/** Storage expands in BLOCKS of 10, up to 100; the price is the SQUARE of the new total (CRAWL §3,
+ *  settled 2026-06-13): 20→30 = 900g · 30→40 = 1600g · … · 90→100 = 10,000g (~38k all-in — the steady
+ *  long-game sink). cost(cap) = (cap + 10)². */
+export const STORAGE_SLOT_STEP = 10
+export const STORAGE_SLOT_MAX = 100
+export const slotUpgradeCost = (cap: number): number => (cap + STORAGE_SLOT_STEP) ** 2
 
 /** Grant the one-time account starter stash (idempotent via the `seeded` flag — create/delete a hero
  *  cannot re-farm it). Trims to capacity defensively. Pure. */

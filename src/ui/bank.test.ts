@@ -106,8 +106,11 @@ test('seedStash respects capacity defensively', () => {
   expect(seedStash(acct({ seeded: false, storageCap: 2 })).storage).toHaveLength(2)
 })
 
-test('slotUpgradeCost rises with the square of the target size; expandStorage adds capacity', () => {
-  expect(slotUpgradeCost(20)).toBe(Math.round(2 * 21 ** 2)) // 882
-  expect(slotUpgradeCost(30)).toBeGreaterThan(slotUpgradeCost(20)) // monotonic
-  expect(expandStorage({ gold: 0, storage: [], storageCap: 20, seeded: true }, 1).storageCap).toBe(21)
+test('slotUpgradeCost = (new total)² in blocks of 10 (20→30 = 900, 90→100 = 10,000)', () => {
+  expect(slotUpgradeCost(20)).toBe(900) // (20+10)²
+  expect(slotUpgradeCost(90)).toBe(10000) // (90+10)²
+  // the whole 20→100 climb sums to the ~38k all-in the spec calls for
+  const total = [20, 30, 40, 50, 60, 70, 80, 90].reduce((s, c) => s + slotUpgradeCost(c), 0)
+  expect(total).toBe(38000)
+  expect(expandStorage({ gold: 0, storage: [], storageCap: 20, seeded: true }, 10).storageCap).toBe(30)
 })
