@@ -726,7 +726,7 @@ function marketScene(root: HTMLElement): void {
   wrap.appendChild(footer)
   root.appendChild(wrap)
 
-  let tab: 'gear' | 'cons' = 'gear'
+  let tab = 'Weapons' // a slot-group label or 'Consumables' — one tab per item type
   let note = ''
 
   /** Buy a gear piece: charge the markup, stow it, remove it from the vendor stock. */
@@ -751,43 +751,41 @@ function marketScene(root: HTMLElement): void {
     goldEl.textContent = `🪙 ${acc.gold} vault`
     panel.innerHTML = ''; footer.innerHTML = ''
     panel.appendChild($(`<div class="sub" style="margin:0 0 10px">Buy at 150% of value · stock for a level-${highestCharLevel()} hero · vault has ${storageRoom(acc)} free slot(s)</div>`))
+    const stock = marketStock()
     const tabs = $(`<div class="tabs"></div>`)
-    const mkTab = (id: 'gear' | 'cons', label: string): void => {
+    const mkTab = (id: string, label: string): void => {
       const t = $<HTMLButtonElement>(`<button class="tab${tab === id ? ' on' : ''}">${label}</button>`)
       t.addEventListener('click', () => { tab = id; note = ''; render() })
       tabs.appendChild(t)
     }
-    mkTab('gear', 'Gear'); mkTab('cons', 'Consumables')
+    for (const grp of stock) mkTab(grp.label, `${grp.label} (${grp.items.length})`)
+    mkTab('Consumables', 'Consumables')
     panel.appendChild(tabs)
 
-    if (tab === 'gear') {
-      for (const grp of marketStock()) {
-        if (!grp.items.length) continue
-        panel.appendChild($(`<div class="lm-hd">${grp.label}</div>`))
-        const list = $(`<div class="baglist"></div>`)
-        for (const g of grp.items) {
-          const base = gearBase(g.refId)!
-          const aff = g.affixes.length ? g.affixes.map((a) => displayName(a.label)).join(' · ') : '—'
-          const price = buyPrice(g)
-          const row = $(`<div class="gp-row" ${gearTip(g)}><span class="gs-ic r-${g.rarity}">${base.icon}</span><div class="gs-meta"><div class="gs-n r-${g.rarity}">${base.name}</div><div class="gs-a">${RARITY_LABEL[g.rarity]} · ${aff}</div></div><button class="buybtn${acc.gold < price ? ' cant' : ''}">buy 🪙${price}</button></div>`)
-          row.querySelector('.buybtn')!.addEventListener('click', () => buyGear(g))
-          list.appendChild(row)
-        }
-        panel.appendChild(list)
-      }
-    } else {
-      const ids = Object.keys(CONSUMABLES).sort((a, b) => consumableValue(b) - consumableValue(a))
-      const list = $(`<div class="baglist"></div>`)
+    const list = $(`<div class="baglist"></div>`)
+    if (tab === 'Consumables') {
+      const ids = Object.keys(CONSUMABLES).filter((id) => CONSUMABLES[id].kind === 'potion').sort((a, b) => consumableValue(b) - consumableValue(a)) // potions only — no scrolls
       for (const refId of ids) {
         const c = CONSUMABLES[refId]
         const tint = c.color != null ? `var(--c${c.color})` : 'var(--line2)'
         const price = buyPriceOfConsumable(refId)
-        const row = $(`<div class="gp-row" ${consTip(refId)}><span class="cons-slot${c.kind === 'scroll' ? ' scroll' : ''}" style="--cc:${tint}"><span class="cons-ic">${c.icon}</span></span><div class="gs-meta"><div class="gs-n">${c.name}</div><div class="gs-a">${c.desc}</div></div><button class="buybtn${acc.gold < price ? ' cant' : ''}">buy 🪙${price}</button></div>`)
+        const row = $(`<div class="gp-row" ${consTip(refId)}><span class="cons-slot" style="--cc:${tint}"><span class="cons-ic">${c.icon}</span></span><div class="gs-meta"><div class="gs-n">${c.name}</div><div class="gs-a">${c.desc}</div></div><button class="buybtn${acc.gold < price ? ' cant' : ''}">buy 🪙${price}</button></div>`)
         row.querySelector('.buybtn')!.addEventListener('click', () => buyCons(refId))
         list.appendChild(row)
       }
-      panel.appendChild(list)
+    } else {
+      const items = stock.find((g) => g.label === tab)?.items ?? []
+      if (!items.length) list.appendChild($(`<div class="sheet-soon">Sold out — the smith restocks after your next delve.</div>`))
+      for (const g of items) {
+        const base = gearBase(g.refId)!
+        const aff = g.affixes.length ? g.affixes.map((a) => displayName(a.label)).join(' · ') : '—'
+        const price = buyPrice(g)
+        const row = $(`<div class="gp-row" ${gearTip(g)}><span class="gs-ic r-${g.rarity}">${base.icon}</span><div class="gs-meta"><div class="gs-n r-${g.rarity}">${base.name}</div><div class="gs-a">${RARITY_LABEL[g.rarity]} · ${aff}</div></div><button class="buybtn${acc.gold < price ? ' cant' : ''}">buy 🪙${price}</button></div>`)
+        row.querySelector('.buybtn')!.addEventListener('click', () => buyGear(g))
+        list.appendChild(row)
+      }
     }
+    panel.appendChild(list)
     if (note) panel.appendChild($(`<div class="sm-note">${note}</div>`))
 
     const back = $<HTMLButtonElement>(`<button class="cta ghost">◂ Back to town</button>`)
