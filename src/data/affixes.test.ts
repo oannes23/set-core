@@ -1,11 +1,11 @@
 /* The themed affix catalog (CRAWL §7) + the slot/tier-gated, inverse-budget roller (sim §12). */
 import { test, expect } from 'vitest'
 import { mulberry32 } from '../core/rng'
-import { AFFIXES, AFFIX_THEME, rollAffixes } from './affixes'
+import { AFFIXES, AFFIX_THEME, rollAffixes, buildAffixComponents } from './affixes'
 import { RARITY, RARITIES } from '../engine/items'
 import { gearRiders } from '../engine/gear'
 
-test('catalog integrity: every def is well-formed; LIVE defs build; names map + differ from keys', () => {
+test('catalog integrity: every def is well-formed; LIVE defs carry a make spec; names map + differ from keys', () => {
   const seen = new Set<string>()
   for (const d of AFFIXES) {
     expect(d.sys, 'sys').toBeTruthy()
@@ -14,9 +14,26 @@ test('catalog integrity: every def is well-formed; LIVE defs build; names map + 
     expect(seen.has(d.sys), `unique sys ${d.sys}`).toBe(false)
     seen.add(d.sys)
     expect(RARITIES, `minRarity ${d.sys}`).toContain(d.minRarity)
-    if (d.live) expect(typeof d.build, `live ${d.sys} builds`).toBe('function')
+    if (d.live) expect(typeof d.make, `live ${d.sys} has a make spec`).toBe('object')
     expect(AFFIX_THEME[d.sys], `theme map ${d.sys}`).toBe(d.name)
   }
+})
+
+test('the magnitude DSL reproduces the old build() math (integer scale, fraction cap, proc label)', () => {
+  // integer: scaled(m,k) = max(1, round(m·k)). FlatPower k=2 at m=2.5 → round(5)=5.
+  expect(buildAffixComponents({ c: 'stat', stat: 'power', k: 2 }, 2.5)).toEqual([{ c: 'stat', stat: 'power', amount: 5 }])
+  // floor at 1 even for tiny magnitudes.
+  expect(buildAffixComponents({ c: 'rider', rider: 'atkDamagePerCard' }, 0.1)).toEqual([{ c: 'rider', riders: { atkDamagePerCard: 1 } }])
+  // fraction: min(cap, perUnit·m). Evasive 0.03·4=0.12 (< cap 0.2).
+  expect(buildAffixComponents({ c: 'mod', mod: 'dodge', perUnit: 0.03, cap: 0.2 }, 4)).toEqual([{ c: 'mod', mod: 'dodge', amount: 0.12 }])
+  // fraction cap bites: Keen 0.02·10=0.2 → capped 0.1.
+  expect(buildAffixComponents({ c: 'mod', mod: 'critChance', perUnit: 0.02, cap: 0.1 }, 10)).toEqual([{ c: 'mod', mod: 'critChance', amount: 0.1 }])
+  // proc: amount scaled by k, {a} filled in the label; on-match carries `when`, no `event`.
+  expect(buildAffixComponents({ c: 'proc', when: { axis: 'shape', mode: 'all_same', value: 'attack' }, effect: { kind: 'damage' }, label: '⚔+{a}' }, 3))
+    .toEqual([{ c: 'proc', proc: { when: { axis: 'shape', mode: 'all_same', value: 'attack' }, effect: { kind: 'damage', amount: 3 }, label: '⚔+3' } }])
+  // literal proc (no magnitude): Guardian's charges:1, literal label, carries `event`.
+  expect(buildAffixComponents({ c: 'proc', event: 'wound', effect: { kind: 'charges', amount: 1 }, label: '🛡+1' }, 9))
+    .toEqual([{ c: 'proc', proc: { event: 'wound', effect: { kind: 'charges', amount: 1 }, label: '🛡+1' } }])
 })
 
 test('rollAffixes mints only LIVE affixes, slot- and tier-gated, within the inverse budget', () => {
