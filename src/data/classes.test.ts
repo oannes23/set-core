@@ -5,6 +5,19 @@
 import { test, expect } from 'vitest'
 import { CLASSES, classById } from './classes'
 import { ABILITIES, PASSIVES } from '../engine'
+import { makeValidator } from './validate'
+import type { ClassesFile } from './schema'
+import classesSchema from './content/schemas/classes.schema.json'
+
+test('the YAML roster passes schema validation', () => {
+  const r = makeValidator<ClassesFile>(classesSchema)(CLASSES)
+  if (!r.ok) throw new Error('class schema errors:\n' + r.errors.join('\n'))
+  expect(r.ok).toBe(true)
+})
+
+test('YAML quoting survived the conversion (apostrophe blurb intact)', () => {
+  expect(classById('cryomancer').blurb).toBe("Freeze the enemy's tempo and grind them out.")
+})
 
 test('the roster is the 9 ported classes with unique ids', () => {
   expect(CLASSES).toHaveLength(9)

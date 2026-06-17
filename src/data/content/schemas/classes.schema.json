@@ -1,0 +1,73 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$ref": "#/definitions/ClassesFile",
+  "definitions": {
+    "ClassesFile": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/ClassDef"
+      },
+      "description": "content/classes.yaml — the playable-class roster (a list, not a keyed map)."
+    },
+    "ClassDef": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "icon": {
+          "type": "string"
+        },
+        "blurb": {
+          "type": "string"
+        },
+        "abilities": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "passives": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "stats": {
+          "type": "object",
+          "properties": {
+            "power": {
+              "type": "number"
+            },
+            "endurance": {
+              "type": "number"
+            },
+            "speed": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "power",
+            "endurance",
+            "speed"
+          ],
+          "additionalProperties": false,
+          "description": "Resolution v2 statline (Power/Endurance/Speed); omitted = BASE_STATS 2/2/2 parity. A future class-identity lever — ship uniform first, differentiate with gear/levels (B3+)."
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "icon",
+        "blurb",
+        "abilities",
+        "passives"
+      ],
+      "additionalProperties": false,
+      "description": "A playable class: a presentation shell over a loadout of ability + passive ids (resolved against the engine ABILITIES / PASSIVES registries). Pure content — chosen at run start."
+    }
+  }
+}

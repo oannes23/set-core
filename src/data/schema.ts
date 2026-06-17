@@ -230,3 +230,5 @@ export type VariantsFile = Record<string, Variant>
 export type TemplatesFile = Record<string, Template>
 export type DungeonsFile = Record<string, Dungeon>
 export type EncounterFile = Encounter
+/** content/classes.yaml — the playable-class roster (a list, not a keyed map). */
+export type ClassesFile = ClassDef[]

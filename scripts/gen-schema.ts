@@ -25,9 +25,10 @@ const write = (path: string, schema: unknown): void => {
 // whole-GameData schema (validation gate)
 write(join(contentDir, 'schema.json'), gen('GameData'))
 
-// per-file schemas (editor autocomplete)
+// per-file schemas (editor autocomplete). Each maps a content/<file>.yaml to its root type in schema.ts.
 const FILES: Record<string, string> = {
   traps: 'TrapsFile', drifts: 'DriftsFile', creatures: 'CreaturesFile', variants: 'VariantsFile',
   templates: 'TemplatesFile', dungeons: 'DungeonsFile', encounter: 'EncounterFile',
+  classes: 'ClassesFile',
 }
 for (const [file, type] of Object.entries(FILES)) write(join(schemasDir, `${file}.schema.json`), gen(type))
