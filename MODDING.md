@@ -110,30 +110,28 @@ production bundle; 249 tests + tsc + build all green.
 
 ---
 
-## 3. Phase 1 — Pure-data move (the free win) · ~2–4 days
+## 3. Phase 1 — Pure-data move (the free win) · ✅ DONE 2026-06-17 (260 tests; tsc + build clean)
 
-Everything here already satisfies the portability contract or is a plain constant
-table inlined in code. Behind the Phase-0 loader, this is transcription + a file move.
-~80% of the content surface, near-zero risk (all behind tested modules).
+Everything here already satisfied the portability contract or was a plain constant table inlined in
+code. Behind the Phase-0 loader, this was transcription + a file move + a per-domain schema. Each
+domain: extract data → `content/*.yaml`, re-import (same export, zero consumer churn), a generated
+`$schema` header for editor autocomplete, a drift-guarded schema, a validation test.
 
-- [ ] **Creatures / variants / templates** → `creatures.yaml` (`data/game-data.ts`).
-- [ ] **Traps / tricks / drifts** → `traps.yaml` (strongest case — pure interpreted vocab).
-- [ ] **Dungeons / enemy tables / elite pools / bosses** → `dungeons.yaml`.
-- [ ] **Classes** → `classes.yaml` (`data/classes.ts` — 100% id refs already).
-- [ ] **Gear base types** → `gear.yaml` (`data/gear.ts`).
-- [ ] **Loot tables / rarity & marquee weights / gold-depth constants** → `loot.yaml`
-      (`engine/loot.ts:39-53,104,123`). Tables move; the rollers stay code.
-- [ ] **Shop prices / markups / Merchant-House upgrade tracks / smith prices** →
-      `economy.yaml` (`engine/value.ts`, `engine/smith.ts:29`). First, **extract the
-      `ui/bank.ts` economy constants** (`DEATH_TITHE`, storage caps/costs) into the
-      economy module so all gold tuning lives in one place before the YAML move.
-- [ ] **Close the `blast`/`cross`/`plus` schema-vs-impl gap** (`schema.ts:16` lists them;
-      `triggers.ts:101` has no case → silent no-op). Either wire them or drop from the
-      union, so authored YAML can't silently do nothing.
+- [x] **Creatures / variants / templates · traps/tricks/drifts · dungeons** → YAML *(landed in Phase 0
+      as the pipeline proof — the `GAMEDATA` registry).* 
+- [x] **Classes** → `content/classes.yaml` (`data/classes.ts` is now a loader; `ClassesFile` schema).
+- [x] **Gear base types** → `content/gear.yaml` (`data/gear.ts`; `GearFile` schema resolves cross-module).
+- [x] **Loot tables / rarity·marquee·rare weights / gold-depth + market constants** → `content/loot.yaml`
+      (`engine/loot.ts` `LootConfig`; rollers read `CFG`, behavior oracle = `engine/loot.test.ts`).
+- [x] **Shop prices / markups / Merchant-House tracks / smith prices / vault + tithe + starter stash**
+      → `content/economy.yaml` via the new **`engine/economy.ts`** config module. `value.ts`/`smith.ts`/
+      `ui/bank.ts` read `ECON` and re-export their existing names (the `bank.ts` extraction, done).
+- [x] **Closed the `blast`/`cross`/`plus` schema-vs-impl gap** — dropped from the `Geometry` union
+      (no impl in `geometrySlots`; re-add only with a real center-anchored selector + tests).
 
-After Phase 1: the game is fully YAML-moddable for everything **except authoring new
-ability/passive/consumable *behavior*** (those still reference primitives by id). This
-is a legitimate ship/stop point.
+**Reached the ship/stop point:** the game is now fully YAML-moddable for all content **except authoring
+new ability/passive/consumable *behavior*** (those still reference engine primitives by id — Phase 3).
+Runtime `dependencies` still `{}`; ajv absent from the bundle.
 
 ---
 

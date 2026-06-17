@@ -18,10 +18,12 @@ Traffic-light: green = pursue · yellow = consequence · red = wounded.
 
 ## ▶ NEXT SESSION — START HERE (handoff 2026-06-16)
 **⭐ ACTIVE: YAML CONTENT-CONVERSION TRACK** (see the dedicated section below + `MODDING.md`). Converting
-all content to external YAML for moddability **before** the balancing phase. **Phase 0 (foundation) ✅
-DONE 2026-06-16** — the YAML pipeline + derived validator + registry are live, and `game-data.ts`
-content is fully YAML-sourced. **NEXT = Phase 1** (move the remaining pure-data domains: classes, gear
-base types, loot tables, economy/shop constants). The gated balance sim comes after the track.
+all content to external YAML for moddability **before** the balancing phase. **Phase 0 ✅ + Phase 1 ✅
+DONE 2026-06-17** — the YAML pipeline + derived validator + registry are live; ALL pure-data content
+(monsters/traps/dungeons, classes, gear, loot tuning, economy constants) is now YAML-sourced with
+editor autocomplete. **NEXT = Phase 2** (affix magnitude DSL, progression coefficients, delve
+tunables, simple passives) then **Phase 3** (the effect-DSL for ability/passive/consumable behavior).
+The gated balance sim comes after the track — and is now much easier (tuning lives in YAML).
 
 **⭐ 2026-06-16: POST-REVIEW HARDENING TRACK below** (from `REVIEW-2026-06-16.md` + `DESIGN-GOALS.md`).
 Progress: **POST-REVIEW HARDENING TRACK COMPLETE** — Stage 0 ✅ · Stage 1 (app.ts refactor 1A–1D) ✅ ·
@@ -347,12 +349,14 @@ validated by `ajv` — build/test-only, tree-shaken out of the bundle). Approved
 - `[x]` Round-trip oracle (`game-data.test.ts` vs `__fixtures__/gamedata.snapshot.json`).
 - `[x]` BONUS: per-file `# yaml-language-server: $schema=` headers → in-editor modder autocomplete.
 
-### Phase 1 — Pure-data move (the free win, ~2–4d)
-- `[ ]` creatures/variants/templates · traps/tricks/drifts · dungeons → YAML (`data/game-data.ts`).
-- `[ ]` classes · gear base types · loot tables/weights → YAML.
-- `[ ]` shop prices/markups/upgrade-tracks/smith-prices → `economy.yaml` (first extract `ui/bank.ts` consts).
-- `[ ]` Close the `blast`/`cross`/`plus` schema-vs-impl gap (`schema.ts:16` vs `triggers.ts:101` no-op).
-- *(Legit ship/stop point: fully moddable except authoring NEW ability/passive/consumable behavior.)*
+### Phase 1 — Pure-data move (the free win) — ✅ DONE 2026-06-17 (260 tests; tsc + build clean)
+- `[x]` creatures/variants/templates · traps/tricks/drifts · dungeons → YAML *(landed in Phase 0)*.
+- `[x]` classes → `content/classes.yaml` · gear base types → `content/gear.yaml`.
+- `[x]` loot tables/weights/constants → `content/loot.yaml` (`engine/loot.ts` LootConfig).
+- `[x]` shop prices/markups/upgrade-tracks/smith-prices + vault/tithe/starter-stash → `content/economy.yaml`
+  via new `engine/economy.ts` (extracted the `ui/bank.ts` consts; value/smith/bank re-export from ECON).
+- `[x]` Closed the `blast`/`cross`/`plus` schema-vs-impl gap (dropped from the `Geometry` union).
+- **REACHED the ship/stop point:** fully moddable except authoring NEW ability/passive/consumable behavior.
 
 ### Phase 2 — Moderate (~3–5d)
 - `[ ]` Affix magnitude DSL — retire `build()` closures (`data/affixes.ts:27`); `AffixComponent` folds unchanged.
