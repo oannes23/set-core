@@ -300,8 +300,9 @@ function townScene(root: HTMLElement): void {
     { icon: '🏦', name: 'Vault', desc: 'Your storage, gold, and slot upgrades', onClick: () => goScene(storageScene) },
     { icon: '🏪', name: 'Market', desc: 'Buy gear and potions', onClick: () => goScene(marketScene) },
     { icon: '🔨', name: 'Smithy', desc: 'Forge: upgrade rarity · transfer affixes', onClick: () => goScene(smithScene) },
+    { icon: '🔮', name: 'Enchanter', desc: 'Imbue affixes · brew potions · scribe scrolls', onClick: () => goScene(enchanterScene) },
   ])
-  root.appendChild($(`<div class="sub" style="margin-top:14px;text-transform:none;letter-spacing:0;color:var(--ink-faint)">More of the town opens as we build it — the Enchanter, Merchant House, and Guild District are on the way.</div>`))
+  root.appendChild($(`<div class="sub" style="margin-top:14px;text-transform:none;letter-spacing:0;color:var(--ink-faint)">More of the town opens as we build it — the Merchant House and Guild District are on the way.</div>`))
 }
 
 function characterSelectScene(root: HTMLElement): void {
@@ -518,30 +519,31 @@ function characterSelectScene(root: HTMLElement): void {
    ============================================================ */
 const RARITY_LABEL: Record<Rarity, string> = { grey: 'Grey', white: 'White', green: 'Green', blue: 'Blue', purple: 'Purple', orange: 'Orange' }
 
-function smithScene(root: HTMLElement): void {
+/** The crafting bench — shared by the SMITHY (forge: upgrade rarity · transfer affix) and the ENCHANTER
+ *  (magic: enchant · reroll affixes), split by operation. The Enchanter additionally vends Potions and
+ *  Scrolls (two tabs) — the magic shop. Gear ops reuse the pure engine/smith transforms. */
+function craftScene(root: HTMLElement, kind: 'smith' | 'enchant'): void {
+  const isEnch = kind === 'enchant'
+  const benchOps: Set<SmithOp> = new Set(isEnch ? ['enchant', 'reroll'] : ['upgrade', 'transfer'])
   const wrap = $(`<div class="wrap"></div>`)
   wrap.appendChild($(`<h1>set.core</h1>`))
-  const sub = $(`<div class="sub">town · the smithy &nbsp;·&nbsp; <span class="vault">🪙 0 vault</span></div>`)
+  const sub = $(`<div class="sub">town · ${isEnch ? 'the enchanter' : 'the smithy'} &nbsp;·&nbsp; <span class="vault">🪙 0 vault</span></div>`)
   wrap.appendChild(sub)
-  const goldEl = sub.querySelector('.vault')! // updated each render — the bench spends gold in-scene
-  const cols = $(`<div class="hub2"></div>`)
-  const leftP = $(`<div class="panel"></div>`)
-  const rightP = $(`<div class="panel"></div>`)
-  cols.appendChild(leftP); cols.appendChild(rightP)
-  wrap.appendChild(cols)
+  const goldEl = sub.querySelector('.vault')!
+  const body = $(`<div></div>`) // holds the bench (two columns) or a vendor list, per tab
+  wrap.appendChild(body)
   const footer = $(`<div class="hubfoot"></div>`)
   wrap.appendChild(footer)
   root.appendChild(wrap)
 
-  let selUid: string | null = null // the piece on the bench
-  let mode: 'none' | 'enchant' | 'transfer' = 'none' // an open sub-picker
-  let note = '' // a transient message (cost / done / blocked)
+  let selUid: string | null = null
+  let mode: 'none' | 'enchant' | 'transfer' = 'none'
+  let tab: 'bench' | 'potions' | 'scrolls' = 'bench' // the Enchanter's tab bar; the Smith stays on 'bench'
+  let note = ''
 
-  /** The gear in Storage (the bench only works on stowed pieces — unequip first to smith equipped gear). */
   const gearList = (): GearInstance[] => loadBank().storage.filter((i): i is GearInstance => i.kind === 'gear' && !!gearBase(i.refId))
   const selected = (): GearInstance | undefined => gearList().find((g) => g.uid === selUid)
 
-  /** Apply a single-piece transform, charging its cost; writes the new instance back to Storage. */
   const applySingle = (op: SmithOp, transform: (g: GearInstance) => GearInstance): void => {
     const g = selected(); if (!g) return
     const { bank, ok } = spendGold(loadBank(), smithCost(op, g))
@@ -549,7 +551,6 @@ function smithScene(root: HTMLElement): void {
     saveBank(updateStorageItem(bank, transform(g)))
     mode = 'none'; note = '✓ Done.'; render()
   }
-
   const doTransfer = (src: GearInstance, dst: GearInstance, affixId: string): void => {
     const res = transferAffix(src, dst, affixId)
     if (!res) { note = '✗ That affix can’t go there.'; render(); return }
@@ -558,8 +559,13 @@ function smithScene(root: HTMLElement): void {
     saveBank(updateStorageItem(updateStorageItem(bank, res.src), res.dst))
     mode = 'none'; note = '✓ Affix transferred.'; render()
   }
-
-  /** One affix as a removable/transferable chip (icon-less; reuses the gp-row look in the bench). */
+  const buyCons = (refId: string): void => {
+    if (storageFull(loadBank())) { note = '✗ Vault full — sell or stow something first.'; render(); return }
+    const { bank, ok } = spendGold(loadBank(), buyPriceOfConsumable(refId))
+    if (!ok) { note = '✗ Not enough gold.'; render(); return }
+    saveBank(addToStorage(bank, makeItem('consumable', refId)).account)
+    note = `✓ Bought ${CONSUMABLES[refId]?.name ?? 'item'}.`; render()
+  }
   const affixLine = (a: Affix): string => `<span class="sm-affix">✦ ${affixShort(a)}</span>`
 
   const renderBench = (host: HTMLElement, g: GearInstance): void => {
@@ -572,7 +578,6 @@ function smithScene(root: HTMLElement): void {
     if (g.affixes.length && open > 0) affixWrap.appendChild($(`<div class="sm-affixrow dim">${open} open slot${open > 1 ? 's' : ''}</div>`))
     host.appendChild(affixWrap)
 
-    // --- the four ops ---
     const ops = $(`<div class="sm-ops"></div>`)
     const mkOp = (label: string, cost: number, enabled: boolean, tip: string, onClick: () => void): void => {
       const b = $<HTMLButtonElement>(`<button class="sm-op" data-tip="${tip}" ${enabled ? '' : 'disabled'}><span class="sm-opl">${label}</span><span class="sm-opc">🪙 ${cost}</span></button>`)
@@ -580,18 +585,17 @@ function smithScene(root: HTMLElement): void {
       ops.appendChild(b)
     }
     const nr = nextRarity(g.rarity)
-    mkOp(`⬆ Upgrade${nr ? ` → ${RARITY_LABEL[nr]}` : ' (max)'}`, smithCost('upgrade', g), canUpgrade(g), 'Raise rarity one step: bigger base rider + a new affix slot. Affixes are kept.',
+    if (benchOps.has('upgrade')) mkOp(`⬆ Upgrade${nr ? ` → ${RARITY_LABEL[nr]}` : ' (max)'}`, smithCost('upgrade', g), canUpgrade(g), 'Raise rarity one step: bigger base rider + a new affix slot. Affixes are kept.',
       () => applySingle('upgrade', upgradeRarity))
-    mkOp(`✦ Enchant`, smithCost('enchant', g), canEnchant(g), 'Set one chosen affix into an open slot.',
+    if (benchOps.has('enchant')) mkOp(`✦ Enchant`, smithCost('enchant', g), canEnchant(g), 'Set one chosen affix into an open slot.',
       () => { mode = mode === 'enchant' ? 'none' : 'enchant'; note = ''; render() })
-    mkOp(`🎲 Reroll affixes`, smithCost('reroll', g), canReroll(g), 'Gamble the whole affix set — count and affixes re-roll.',
+    if (benchOps.has('reroll')) mkOp(`🎲 Reroll affixes`, smithCost('reroll', g), canReroll(g), 'Gamble the whole affix set — count and affixes re-roll.',
       () => confirmModal({ title: 'Reroll affixes?', body: 'This discards the current affixes for a fresh random set.', confirmLabel: 'Reroll',
         onConfirm: () => applySingle('reroll', (x) => rerollAffixes(x, systemRng)) }))
-    mkOp(`⇄ Transfer in`, smithCost('transfer', g, g), open > 0, 'Pull an affix from another Storage piece into an open slot (premium).',
+    if (benchOps.has('transfer')) mkOp(`⇄ Transfer in`, smithCost('transfer', g, g), open > 0, 'Pull an affix from another Storage piece into an open slot (premium).',
       () => { mode = mode === 'transfer' ? 'none' : 'transfer'; note = ''; render() })
     host.appendChild(ops)
 
-    // --- the Enchant sub-picker: the slot/rarity-eligible affixes not already on the piece ---
     if (mode === 'enchant') {
       const pick = $(`<div class="sm-picker"></div>`)
       pick.appendChild($(`<div class="sm-pickhd">Choose an affix to set:</div>`))
@@ -604,8 +608,6 @@ function smithScene(root: HTMLElement): void {
       }
       host.appendChild(pick)
     }
-
-    // --- the Transfer sub-picker: donor pieces whose affixes can land on this (dst) open slot ---
     if (mode === 'transfer') {
       const pick = $(`<div class="sm-picker"></div>`)
       pick.appendChild($(`<div class="sm-pickhd">Transfer an affix from:</div>`))
@@ -628,30 +630,66 @@ function smithScene(root: HTMLElement): void {
     }
   }
 
-  const render = (): void => {
-    leftP.innerHTML = ''; rightP.innerHTML = ''; footer.innerHTML = ''
-    goldEl.textContent = `🪙 ${loadBank().gold} vault` // live — the bench just spent some
+  /** The bench view: the Storage gear list (left) + the selected piece's bench (right). */
+  const renderBenchView = (): void => {
+    const cols = $(`<div class="hub2"></div>`)
+    const leftP = $(`<div class="panel"></div>`)
+    const rightP = $(`<div class="panel"></div>`)
+    cols.appendChild(leftP); cols.appendChild(rightP)
+    body.appendChild(cols)
     const list = gearList()
     if (selUid && !list.some((g) => g.uid === selUid)) selUid = null
-
-    // --- left: the Storage gear list ---
     leftP.appendChild($(`<label>Storage gear (${list.length})</label>`))
     if (!list.length) leftP.appendChild($(`<div class="sheet-soon">No gear in Storage. Loot some in a delve, or grant test gear from a hero sheet.</div>`))
-    const roster = $(`<div class="roster"></div>`)
+    const gl = $(`<div class="roster"></div>`)
     for (const g of list) {
       const base = gearBase(g.refId)!
       const aff = g.affixes.map((a) => displayName(a.label)).join(' · ') || (openSlots(g) > 0 ? `${openSlots(g)} open` : 'no affixes')
       const card = $(`<div class="charcard${g.uid === selUid ? ' sel' : ''}" ${gearTip(g)}><span class="gs-ic r-${g.rarity}">${base.icon}</span><div class="cmeta"><div class="cn r-${g.rarity}">${base.name}</div><div class="cc">${RARITY_LABEL[g.rarity]} · ${aff}</div></div></div>`)
       card.addEventListener('click', () => { selUid = g.uid; mode = 'none'; note = ''; render() })
-      roster.appendChild(card)
+      gl.appendChild(card)
     }
-    leftP.appendChild(roster)
-
-    // --- right: the bench ---
+    leftP.appendChild(gl)
     const g = selected()
     if (g) renderBench(rightP, g)
     else rightP.appendChild($(`<div class="sheet-soon">Select a piece of gear to work it at the bench.</div>`))
     if (note) rightP.appendChild($(`<div class="sm-note">${note}</div>`))
+  }
+
+  /** A consumable vendor list (the Enchanter's Potions / Scrolls tabs), buy at 150%. */
+  const renderVendor = (sort: 'potion' | 'scroll'): void => {
+    const panel = $(`<div class="panel"></div>`)
+    body.appendChild(panel)
+    const acc = loadBank()
+    const ids = Object.keys(CONSUMABLES).filter((id) => CONSUMABLES[id].kind === sort).sort((a, b) => consumableValue(b) - consumableValue(a))
+    const list = $(`<div class="baglist"></div>`)
+    for (const refId of ids) {
+      const c = CONSUMABLES[refId]
+      const tint = c.color != null ? `var(--c${c.color})` : 'var(--line2)'
+      const price = buyPriceOfConsumable(refId)
+      const row = $(`<div class="gp-row" ${consTip(refId)}><span class="cons-slot${c.kind === 'scroll' ? ' scroll' : ''}" style="--cc:${tint}"><span class="cons-ic">${c.icon}</span></span><div class="gs-meta"><div class="gs-n">${c.name}</div><div class="gs-a">${c.desc}</div></div><button class="buybtn${acc.gold < price ? ' cant' : ''}">buy 🪙${price}</button></div>`)
+      row.querySelector('.buybtn')!.addEventListener('click', () => buyCons(refId))
+      list.appendChild(row)
+    }
+    panel.appendChild(list)
+    if (note) panel.appendChild($(`<div class="sm-note">${note}</div>`))
+  }
+
+  const render = (): void => {
+    body.innerHTML = ''; footer.innerHTML = ''
+    goldEl.textContent = `🪙 ${loadBank().gold} vault`
+    if (isEnch) {
+      const tabs = $(`<div class="tabs"></div>`)
+      const mkTab = (id: typeof tab, label: string): void => {
+        const t = $<HTMLButtonElement>(`<button class="tab${tab === id ? ' on' : ''}">${label}</button>`)
+        t.addEventListener('click', () => { tab = id; note = ''; render() })
+        tabs.appendChild(t)
+      }
+      mkTab('bench', 'Enchanting'); mkTab('potions', 'Potions'); mkTab('scrolls', 'Scrolls')
+      body.appendChild(tabs)
+    }
+    if (tab === 'bench') renderBenchView()
+    else renderVendor(tab === 'scrolls' ? 'scroll' : 'potion')
 
     const back = $<HTMLButtonElement>(`<button class="cta ghost">◂ Back to town</button>`)
     back.addEventListener('click', () => goScene(townScene))
@@ -659,6 +697,8 @@ function smithScene(root: HTMLElement): void {
   }
   render()
 }
+const smithScene = (root: HTMLElement): void => craftScene(root, 'smith')
+const enchanterScene = (root: HTMLElement): void => craftScene(root, 'enchant')
 
 /* ============================================================
    THE STORAGE / BAG screen (CRAWL §3 town economy) — the shared account vault, browsable: GEAR and
