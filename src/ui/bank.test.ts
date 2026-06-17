@@ -5,7 +5,7 @@ import { test, expect } from 'vitest'
 import {
   addGold, spendGold, applyTithe, DEATH_TITHE,
   sanitizeAccount, parseAccount, DEFAULT_STORAGE_CAP, STARTER_STASH,
-  addToStorage, addManyToStorage, removeFromStorage, takeFromStorage, expandStorage,
+  addToStorage, addManyToStorage, removeFromStorage, takeFromStorage, expandStorage, slotUpgradeCost,
   storageFull, storageRoom, seedStash, type Account,
 } from './bank'
 import { makeItem } from '../engine/items'
@@ -104,4 +104,10 @@ test('seedStash grants the stash once and is idempotent (no create/delete farmin
 
 test('seedStash respects capacity defensively', () => {
   expect(seedStash(acct({ seeded: false, storageCap: 2 })).storage).toHaveLength(2)
+})
+
+test('slotUpgradeCost rises with the square of the target size; expandStorage adds capacity', () => {
+  expect(slotUpgradeCost(20)).toBe(Math.round(2 * 21 ** 2)) // 882
+  expect(slotUpgradeCost(30)).toBeGreaterThan(slotUpgradeCost(20)) // monotonic
+  expect(expandStorage({ gold: 0, storage: [], storageCap: 20, seeded: true }, 1).storageCap).toBe(21)
 })

@@ -479,6 +479,7 @@ button.cta.bob { animation: ctabob 1.6s ease-in-out infinite; }
 .baglist .gp-row { padding: 7px 9px; }
 .baglist .gp-row .cons-slot { flex: none; }
 .bag-x { color: var(--ink-faint); font-weight: 600; }
+.cap-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
 .sellbtn { font: 600 11px/1 'Spline Sans Mono', monospace; color: var(--gold); background: transparent; border: 1px solid color-mix(in srgb, var(--gold) 45%, transparent);
   border-radius: 6px; padding: 5px 9px; cursor: pointer; white-space: nowrap; transition: background .12s ease; }
 .sellbtn:hover { background: color-mix(in srgb, var(--gold) 14%, transparent); }

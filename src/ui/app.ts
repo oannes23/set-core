@@ -29,7 +29,7 @@ import { gearStatBonus, gearRiders, gearProcs, gearMods, rollGear } from '../eng
 import { EQUIP_SLOTS, makeItem, type EquipSlot, type Rarity, type Affix, type AffixComponent, type GearInstance } from '../engine/items'
 import { GEAR, gearBase, fitsSlot } from '../data/gear'
 import { CONSUMABLES } from '../engine/consumables'
-import { loadBank, saveBank, addToStorage, removeFromStorage, storageFull, storageCount, storageRoom, spendGold, updateStorageItem, addGold, takeConsumablesByRef } from './bank'
+import { loadBank, saveBank, addToStorage, removeFromStorage, storageFull, storageCount, storageRoom, spendGold, updateStorageItem, addGold, takeConsumablesByRef, expandStorage, slotUpgradeCost, STORAGE_SLOT_MAX } from './bank'
 import { sellValue, itemValue, consumableValue, sellValueOfConsumable, buyPrice, buyPriceOfConsumable } from '../engine/value'
 import { gearTipTitle, gearTipBody, consumableTipTitle, consumableTipBody } from './item-desc'
 import { type SmithOp, smithCost, nextRarity, canUpgrade, openSlots, enchantOptions, canEnchant, canReroll, canReceiveAffix, upgradeRarity, enchant, rerollAffixes, transferAffix } from '../engine/smith'
@@ -640,6 +640,7 @@ function storageScene(root: HTMLElement): void {
   root.appendChild(wrap)
 
   let tab: 'gear' | 'cons' = 'gear'
+  let note = ''
 
   const sellByUid = (uid: string): void => {
     let acc = loadBank()
@@ -647,6 +648,13 @@ function storageScene(root: HTMLElement): void {
     if (!it) return
     acc = addGold(removeFromStorage(acc, uid), sellValue(it))
     saveBank(acc); render()
+  }
+  const buySlot = (): void => {
+    const acc = loadBank()
+    if (acc.storageCap >= STORAGE_SLOT_MAX) { note = '✗ Storage is at its maximum.'; render(); return }
+    const { bank, ok } = spendGold(acc, slotUpgradeCost(acc.storageCap))
+    if (!ok) { note = '✗ Not enough gold.'; render(); return }
+    saveBank(expandStorage(bank, 1)); note = '✓ Storage expanded by 1 slot.'; render()
   }
 
   const render = (): void => {
@@ -656,7 +664,16 @@ function storageScene(root: HTMLElement): void {
     const gear = acc.storage.filter((i): i is GearInstance => i.kind === 'gear' && !!gearBase(i.refId))
     const cons = acc.storage.filter((i) => i.kind === 'consumable' && !!CONSUMABLES[i.refId])
 
-    panel.appendChild($(`<div class="sub" style="margin:0 0 10px">Vault — ${storageCount(acc)} / ${acc.storageCap} slots used</div>`))
+    // capacity + the slot upgrade (the inventory gold sink)
+    const capRow = $(`<div class="cap-row"><span class="sub" style="margin:0">Vault — ${storageCount(acc)} / ${acc.storageCap} slots used</span></div>`)
+    if (acc.storageCap < STORAGE_SLOT_MAX) {
+      const cost = slotUpgradeCost(acc.storageCap)
+      const up = $<HTMLButtonElement>(`<button class="buybtn${acc.gold < cost ? ' cant' : ''}" data-tip-title="Expand Storage" data-tip="Add one Storage slot. Cost rises with size (∝ the square of the new total) — the steady gold sink.">+1 slot · 🪙${cost}</button>`)
+      up.addEventListener('click', buySlot)
+      capRow.appendChild(up)
+    } else capRow.appendChild($(`<span class="sub" style="margin:0;color:var(--ink-faint)">max size</span>`))
+    panel.appendChild(capRow)
+    if (note) { panel.appendChild($(`<div class="sm-note">${note}</div>`)); note = '' }
     const tabs = $(`<div class="tabs"></div>`)
     const mkTab = (id: 'gear' | 'cons', label: string): void => {
       const t = $<HTMLButtonElement>(`<button class="tab${tab === id ? ' on' : ''}">${label}</button>`)
