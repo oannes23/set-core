@@ -266,13 +266,14 @@ const acctQualityBoost = (): number => qualityLvlBoost(loadBank().upgrades.quali
    Account-level stores need no hero; Gates of Town / Training Ground use the ACTIVE hero (set in the
    Barracks). Reaching the hub ends any run (DELVE = null).
    ============================================================ */
-interface HubEntry { icon: string; name: string; desc: string; onClick: () => void; badge?: string; dim?: boolean }
-/** Render a grid of location cards into a host element (the main town + any sub-district share this). */
+interface HubEntry { icon: string; name: string; desc: string; onClick?: () => void; badge?: string; dim?: boolean }
+/** Render a grid of location cards into a host element (the main town + any sub-district share this).
+ *  A `dim` entry (e.g. a not-yet-built location) is non-interactive (CSS pointer-events: none). */
 function hubGrid(host: HTMLElement, entries: HubEntry[]): void {
   const grid = $(`<div class="hubgrid"></div>`)
   for (const e of entries) {
     const card = $(`<div class="hubcard${e.dim ? ' dim' : ''}"><div class="hc-ic">${e.icon}</div><div class="hc-n">${e.name}${e.badge ? ` <span class="hc-badge">${e.badge}</span>` : ''}</div><div class="hc-d">${e.desc}</div></div>`)
-    card.addEventListener('click', e.onClick)
+    if (e.onClick) card.addEventListener('click', e.onClick)
     grid.appendChild(card)
   }
   host.appendChild(grid)
@@ -306,8 +307,26 @@ function townScene(root: HTMLElement): void {
     { icon: '🔨', name: 'Smithy', desc: 'Forge: upgrade rarity · transfer affixes', onClick: () => goScene(smithScene) },
     { icon: '🔮', name: 'Enchanter', desc: 'Imbue affixes · brew potions · scribe scrolls', onClick: () => goScene(enchanterScene) },
     { icon: '🏛️', name: 'Merchant House', desc: 'Upgrades: buy prices · loot quality · rare wares', onClick: () => goScene(merchantScene) },
+    { icon: '⚜️', name: 'Guild District', desc: 'The class halls — spellbooks, trainers, bounties', onClick: () => goScene(guildDistrictScene) },
   ])
-  root.appendChild($(`<div class="sub" style="margin-top:14px;text-transform:none;letter-spacing:0;color:var(--ink-faint)">More of the town opens as we build it — the Guild District is on the way.</div>`))
+}
+
+/* A SUB-DISTRICT — proves the multi-layer hub pattern: a town-like screen reached from a town card,
+   with its own entries. The Guild District holds the per-class HALLS; their shops (spellbooks/trainers/
+   bounties) light up with the ability system (Phase 5), so the halls are placeholders for now. */
+function guildDistrictScene(root: HTMLElement): void {
+  const wrap = $(`<div class="wrap"></div>`)
+  wrap.appendChild($(`<h1>set.core</h1>`))
+  wrap.appendChild($(`<div class="sub" style="text-transform:none;letter-spacing:0">⚜️ <b>Guild District</b> &nbsp;·&nbsp; the class halls</div>`))
+  root.appendChild(wrap)
+  hubGrid(wrap, CLASSES.map((c) => ({
+    icon: c.icon, name: `${c.name} Hall`, desc: 'Spellbooks · trainers · bounties — opens with the ability system', dim: true,
+  })))
+  const footer = $(`<div class="hubfoot"></div>`)
+  const back = $<HTMLButtonElement>(`<button class="cta ghost">◂ Back to town</button>`)
+  back.addEventListener('click', () => goScene(townScene))
+  footer.appendChild(back)
+  wrap.appendChild(footer)
 }
 
 function characterSelectScene(root: HTMLElement): void {
