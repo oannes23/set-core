@@ -1,6 +1,6 @@
 /* engine/value — item valuation + sell-back price (CRAWL §3). */
 import { describe, it, expect } from 'vitest'
-import { gearValue, consumableValue, itemValue, sellValue, sellValueOfConsumable, SELL_RATE } from './value'
+import { gearValue, consumableValue, itemValue, sellValue, sellValueOfConsumable, SELL_RATE, buyPrice, markupForTier, qualityLvlBoost, QUALITY_LVL_PER_TIER } from './value'
 import type { GearInstance, Rarity } from './items'
 
 const bare = (rarity: Rarity, lootTier = 0, affixes = 0): GearInstance =>
@@ -44,5 +44,18 @@ describe('sell-back', () => {
   })
   it('a worthless ref sells for 0', () => {
     expect(sellValueOfConsumable('nope')).toBe(0)
+  })
+})
+
+describe('Merchant House tiers', () => {
+  it('markupForTier drops 150% → 100% and clamps', () => {
+    expect(markupForTier(0)).toBe(1.5)
+    expect(markupForTier(5)).toBe(1.0)
+    expect(markupForTier(99)).toBe(1.0) // clamps at the top tier
+    expect(buyPrice({ uid: 'x', kind: 'consumable', refId: 'hp_std' }, markupForTier(5))).toBeLessThan(buyPrice({ uid: 'x', kind: 'consumable', refId: 'hp_std' }, markupForTier(0)))
+  })
+  it('qualityLvlBoost scales with tier', () => {
+    expect(qualityLvlBoost(0)).toBe(0)
+    expect(qualityLvlBoost(2)).toBe(2 * QUALITY_LVL_PER_TIER)
   })
 })

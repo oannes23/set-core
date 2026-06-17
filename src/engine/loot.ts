@@ -84,19 +84,38 @@ const MARKET_GROUPS: Array<{ label: string; slot: string }> = [
 /** Level → the rarity weight band (deeper characters unlock better vendor stock). */
 const marketTier = (level: number): Tier => (level >= 12 ? 'boss' : level >= 5 ? 'elite' : 'minion')
 
-/** Roll the vendor's stock for a character level: MARKET_PER_SLOT pieces per slot group, each a
- *  random base type of that slot × level-banded rarity × loot-tier = level, sorted by value (high→low). */
-export function rollMarketStock(level: number, rng: Rng): Array<{ label: string; items: GearInstance[] }> {
-  const tier = marketTier(Math.max(1, level))
-  const lootTier = Math.max(1, level)
+/** Roll the vendor's stock for a character level: MARKET_PER_SLOT pieces per slot group, each a random
+ *  base type of that slot × level-banded rarity × loot-tier, sorted by value (high→low). `lvlBoost` (the
+ *  Town-loot-quality upgrade) lifts the effective level → a better rarity band + loot-tier. */
+export function rollMarketStock(level: number, rng: Rng, lvlBoost = 0): Array<{ label: string; items: GearInstance[] }> {
+  const eff = Math.max(1, level + lvlBoost)
   return MARKET_GROUPS.map((grp) => {
     const bases = Object.values(GEAR).filter((b) => b.slot === grp.slot)
     const items = Array.from({ length: MARKET_PER_SLOT }, () => {
       const base = bases[Math.floor(rng() * bases.length)]
-      return rollGear(base.id, rollGearRarity(tier, rng), lootTier, rng)
+      return rollGear(base.id, rollGearRarity(marketTier(eff), rng), eff, rng)
     }).sort((a, b) => gearValue(b) - gearValue(a))
     return { label: grp.label, items }
   })
+}
+
+// --- the Merchant House RARE vendor: a 10-slot stock of EPIC (purple) / LEGENDARY (orange) gear. ---
+export const RARE_PER_TAB = 10
+const RARE_WEIGHTS: Array<[Rarity, number]> = [['purple', 60], ['orange', 40]]
+/** Roll the rare vendor's stock: RARE_PER_TAB random pieces, epic/legendary only (loot-quality `lvlBoost`
+ *  raises the loot-tier + skews toward legendary), sorted by value. (Spellbooks slot in here at Phase 5.) */
+export function rollRareStock(level: number, rng: Rng, lvlBoost = 0): GearInstance[] {
+  const eff = Math.max(1, level + lvlBoost)
+  const ids = Object.keys(GEAR)
+  const weights: Array<[Rarity, number]> = [['purple', Math.max(10, RARE_WEIGHTS[0][1] - lvlBoost * 3)], ['orange', RARE_WEIGHTS[1][1] + lvlBoost * 3]]
+  const total = weights.reduce((s, [, w]) => s + w, 0)
+  return Array.from({ length: RARE_PER_TAB }, () => {
+    const refId = ids[Math.floor(rng() * ids.length)]
+    let r = rng() * total
+    let rarity: Rarity = 'purple'
+    for (const [rar, w] of weights) { r -= w; if (r < 0) { rarity = rar; break } }
+    return rollGear(refId, rarity, eff, rng)
+  }).sort((a, b) => gearValue(b) - gearValue(a))
 }
 
 /** The dungeon-clear MARQUEE roll (CRAWL §3): one GUARANTEED rare+ gear piece on a boss kill — the

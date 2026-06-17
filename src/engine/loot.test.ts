@@ -7,7 +7,7 @@ import { mulberry32 } from '../core/rng'
 import { GAMEDATA } from '../data/game-data'
 import { assembleFoe, foeValue } from './foe'
 import { CONSUMABLES } from './consumables'
-import { rollGold, rollRoomLoot, rollConsumable, rollMarqueeGear, GOLD_K, ENABLED, rollMarketStock, MARKET_PER_SLOT } from './loot'
+import { rollGold, rollRoomLoot, rollConsumable, rollMarqueeGear, GOLD_K, ENABLED, rollMarketStock, MARKET_PER_SLOT, rollRareStock } from './loot'
 import { gearValue, itemValue, sellValue, buyPrice } from './value'
 import { GEAR } from '../data/gear'
 import { RARITY, RARITIES } from './items'
@@ -127,4 +127,12 @@ test('buyPrice is 150% of value (≥ sellValue)', () => {
   const g = rollMarketStock(10, mulberry32(1))[0].items[0]
   expect(buyPrice(g)).toBe(Math.round(itemValue(g) * 1.5))
   expect(buyPrice(g)).toBeGreaterThan(sellValue(g))
+})
+
+test('rollRareStock: 10 epic/legendary pieces, sorted by value', () => {
+  const stock = rollRareStock(8, mulberry32(5))
+  expect(stock).toHaveLength(10)
+  for (const g of stock) expect(['purple', 'orange']).toContain(g.rarity)
+  const vals = stock.map(gearValue)
+  expect([...vals].sort((a, b) => b - a)).toEqual(vals)
 })

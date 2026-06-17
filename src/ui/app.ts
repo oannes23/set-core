@@ -24,13 +24,13 @@ import { assembleFoe, pickWeightedFoe, computeXP } from '../engine/foe'
 import { colsForN, COMBAT_GEN, playerCritChance, type Deps, type CombatAction } from '../engine/combat'
 import { createRun, runReduce, type RunState } from '../engine/run'
 import { createDelve, nextEncounter, fleeReroll, dreadBand, RUN_BAG_CAP } from '../engine/delve'
-import { rollMarqueeGear, rollMarketStock } from '../engine/loot'
+import { rollMarqueeGear, rollMarketStock, rollRareStock } from '../engine/loot'
 import { gearStatBonus, gearRiders, gearProcs, gearMods, rollGear } from '../engine/gear'
 import { EQUIP_SLOTS, makeItem, type EquipSlot, type Rarity, type Affix, type AffixComponent, type GearInstance } from '../engine/items'
 import { GEAR, gearBase, fitsSlot } from '../data/gear'
 import { CONSUMABLES } from '../engine/consumables'
 import { loadBank, saveBank, addToStorage, removeFromStorage, storageFull, storageCount, storageRoom, spendGold, updateStorageItem, addGold, takeConsumablesByRef, expandStorage, slotUpgradeCost, STORAGE_SLOT_STEP, STORAGE_SLOT_MAX } from './bank'
-import { sellValue, itemValue, consumableValue, sellValueOfConsumable, buyPrice, buyPriceOfConsumable } from '../engine/value'
+import { sellValue, itemValue, consumableValue, sellValueOfConsumable, buyPrice, buyPriceOfConsumable, markupForTier, qualityLvlBoost, RARE_MARKUP, MERCHANT_MARKUPS, MERCHANT_TIER_COST, QUALITY_TIER_COST } from '../engine/value'
 import { gearTipTitle, gearTipBody, consumableTipTitle, consumableTipBody } from './item-desc'
 import { type SmithOp, smithCost, nextRarity, canUpgrade, openSlots, enchantOptions, canEnchant, canReroll, canReceiveAffix, upgradeRarity, enchant, rerollAffixes, transferAffix } from '../engine/smith'
 import { type DelveRun, type DelveLoot, applyRoomLoot, resolveDelveExit, resolveLootKeep } from './delve-run'
@@ -252,9 +252,13 @@ let selectedCharId: string | null = null // persists the chosen hero across scen
  *  minus what you drank, plus what you looted — HP-only attrition's sibling) + the current tier. */
 let DELVE: DelveRun | null = null
 
-/** The town MARKET vendor stock (B4 buy-side). Module-held (NOT persisted) → regenerates on a fresh
- *  reload; explicitly cleared at delve start so it regenerates after a run. null = needs (re)generation. */
+/** The town MARKET + rare-vendor stocks (B4 buy-side). Module-held (NOT persisted) → regenerate on a
+ *  fresh reload; cleared at delve start (restock after a run) + when a quality upgrade is bought. */
 let MARKET: Array<{ label: string; items: GearInstance[] }> | null = null
+let RARE: GearInstance[] | null = null
+/** The live buy markup + vendor loot-quality boost, read off the account's Merchant House tiers. */
+const acctMarkup = (): number => markupForTier(loadBank().upgrades.merchant)
+const acctQualityBoost = (): number => qualityLvlBoost(loadBank().upgrades.quality)
 
 /* ============================================================
    THE TOWN HUB — the home screen: a card grid of the town's locations (extendible + multi-layered;
@@ -301,8 +305,9 @@ function townScene(root: HTMLElement): void {
     { icon: '🏪', name: 'Market', desc: 'Buy gear and potions', onClick: () => goScene(marketScene) },
     { icon: '🔨', name: 'Smithy', desc: 'Forge: upgrade rarity · transfer affixes', onClick: () => goScene(smithScene) },
     { icon: '🔮', name: 'Enchanter', desc: 'Imbue affixes · brew potions · scribe scrolls', onClick: () => goScene(enchanterScene) },
+    { icon: '🏛️', name: 'Merchant House', desc: 'Upgrades: buy prices · loot quality · rare wares', onClick: () => goScene(merchantScene) },
   ])
-  root.appendChild($(`<div class="sub" style="margin-top:14px;text-transform:none;letter-spacing:0;color:var(--ink-faint)">More of the town opens as we build it — the Merchant House and Guild District are on the way.</div>`))
+  root.appendChild($(`<div class="sub" style="margin-top:14px;text-transform:none;letter-spacing:0;color:var(--ink-faint)">More of the town opens as we build it — the Guild District is on the way.</div>`))
 }
 
 function characterSelectScene(root: HTMLElement): void {
@@ -561,7 +566,7 @@ function craftScene(root: HTMLElement, kind: 'smith' | 'enchant'): void {
   }
   const buyCons = (refId: string): void => {
     if (storageFull(loadBank())) { note = '✗ Vault full — sell or stow something first.'; render(); return }
-    const { bank, ok } = spendGold(loadBank(), buyPriceOfConsumable(refId))
+    const { bank, ok } = spendGold(loadBank(), buyPriceOfConsumable(refId, acctMarkup()))
     if (!ok) { note = '✗ Not enough gold.'; render(); return }
     saveBank(addToStorage(bank, makeItem('consumable', refId)).account)
     note = `✓ Bought ${CONSUMABLES[refId]?.name ?? 'item'}.`; render()
@@ -666,7 +671,7 @@ function craftScene(root: HTMLElement, kind: 'smith' | 'enchant'): void {
     for (const refId of ids) {
       const c = CONSUMABLES[refId]
       const tint = c.color != null ? `var(--c${c.color})` : 'var(--line2)'
-      const price = buyPriceOfConsumable(refId)
+      const price = buyPriceOfConsumable(refId, acctMarkup())
       const row = $(`<div class="gp-row" ${consTip(refId)}><span class="cons-slot${c.kind === 'scroll' ? ' scroll' : ''}" style="--cc:${tint}"><span class="cons-ic">${c.icon}</span></span><div class="gs-meta"><div class="gs-n">${c.name}</div><div class="gs-a">${c.desc}</div></div><button class="buybtn${acc.gold < price ? ' cant' : ''}">buy 🪙${price}</button></div>`)
       row.querySelector('.buybtn')!.addEventListener('click', () => buyCons(refId))
       list.appendChild(row)
@@ -806,8 +811,12 @@ function highestCharLevel(): number {
   return Math.max(1, ...loadRoster().map((c) => c.level), 1)
 }
 function marketStock(): Array<{ label: string; items: GearInstance[] }> {
-  if (!MARKET) MARKET = rollMarketStock(highestCharLevel(), systemRng)
+  if (!MARKET) MARKET = rollMarketStock(highestCharLevel(), systemRng, acctQualityBoost())
   return MARKET
+}
+function rareStock(): GearInstance[] {
+  if (!RARE) RARE = rollRareStock(highestCharLevel(), systemRng, acctQualityBoost())
+  return RARE
 }
 
 function marketScene(root: HTMLElement): void {
@@ -828,7 +837,7 @@ function marketScene(root: HTMLElement): void {
   /** Buy a gear piece: charge the markup, stow it, remove it from the vendor stock. */
   const buyGear = (g: GearInstance): void => {
     if (storageFull(loadBank())) { note = '✗ Storage full — sell or stow something first.'; render(); return }
-    const { bank, ok } = spendGold(loadBank(), buyPrice(g))
+    const { bank, ok } = spendGold(loadBank(), buyPrice(g, acctMarkup()))
     if (!ok) { note = '✗ Not enough gold.'; render(); return }
     saveBank(addToStorage(bank, g).account)
     for (const grp of MARKET ?? []) { const i = grp.items.findIndex((x) => x.uid === g.uid); if (i >= 0) grp.items.splice(i, 1) }
@@ -836,7 +845,7 @@ function marketScene(root: HTMLElement): void {
   }
   const buyCons = (refId: string): void => {
     if (storageFull(loadBank())) { note = '✗ Storage full — sell or stow something first.'; render(); return }
-    const { bank, ok } = spendGold(loadBank(), buyPriceOfConsumable(refId))
+    const { bank, ok } = spendGold(loadBank(), buyPriceOfConsumable(refId, acctMarkup()))
     if (!ok) { note = '✗ Not enough gold.'; render(); return }
     saveBank(addToStorage(bank, makeItem('consumable', refId)).account)
     note = `✓ Bought ${CONSUMABLES[refId]?.name ?? 'item'}.`; render()
@@ -864,7 +873,7 @@ function marketScene(root: HTMLElement): void {
       for (const refId of ids) {
         const c = CONSUMABLES[refId]
         const tint = c.color != null ? `var(--c${c.color})` : 'var(--line2)'
-        const price = buyPriceOfConsumable(refId)
+        const price = buyPriceOfConsumable(refId, acctMarkup())
         const row = $(`<div class="gp-row" ${consTip(refId)}><span class="cons-slot" style="--cc:${tint}"><span class="cons-ic">${c.icon}</span></span><div class="gs-meta"><div class="gs-n">${c.name}</div><div class="gs-a">${c.desc}</div></div><button class="buybtn${acc.gold < price ? ' cant' : ''}">buy 🪙${price}</button></div>`)
         row.querySelector('.buybtn')!.addEventListener('click', () => buyCons(refId))
         list.appendChild(row)
@@ -875,13 +884,112 @@ function marketScene(root: HTMLElement): void {
       for (const g of items) {
         const base = gearBase(g.refId)!
         const aff = g.affixes.length ? g.affixes.map((a) => displayName(a.label)).join(' · ') : '—'
-        const price = buyPrice(g)
+        const price = buyPrice(g, acctMarkup())
         const row = $(`<div class="gp-row" ${gearTip(g)}><span class="gs-ic r-${g.rarity}">${base.icon}</span><div class="gs-meta"><div class="gs-n r-${g.rarity}">${base.name}</div><div class="gs-a">${RARITY_LABEL[g.rarity]} · ${aff}</div></div><button class="buybtn${acc.gold < price ? ' cant' : ''}">buy 🪙${price}</button></div>`)
         row.querySelector('.buybtn')!.addEventListener('click', () => buyGear(g))
         list.appendChild(row)
       }
     }
     panel.appendChild(list)
+    if (note) panel.appendChild($(`<div class="sm-note">${note}</div>`))
+
+    const back = $<HTMLButtonElement>(`<button class="cta ghost">◂ Back to town</button>`)
+    back.addEventListener('click', () => goScene(townScene))
+    footer.appendChild(back)
+  }
+  render()
+}
+
+/* ============================================================
+   THE MERCHANT HOUSE (B4) — the upgrade + rare-wares shop. UPGRADES: two gold-bought tracks (Merchant
+   standing → lower buy markup; Town loot quality → better TOWN-vendor rarity band). RARE WARES: a
+   10-slot vendor of epic/legendary gear at 2× value (high quality, high price; spellbooks slot in here
+   at Phase 5). Account-level; the tiers persist on the Account.
+   ============================================================ */
+function merchantScene(root: HTMLElement): void {
+  const wrap = $(`<div class="wrap"></div>`)
+  wrap.appendChild($(`<h1>set.core</h1>`))
+  const sub = $(`<div class="sub">town · the merchant house &nbsp;·&nbsp; <span class="vault">🪙 0 vault</span></div>`)
+  wrap.appendChild(sub)
+  const goldEl = sub.querySelector('.vault')!
+  const panel = $(`<div class="panel"></div>`)
+  wrap.appendChild(panel)
+  const footer = $(`<div class="hubfoot"></div>`)
+  wrap.appendChild(footer)
+  root.appendChild(wrap)
+
+  let tab: 'upgrades' | 'rare' = 'upgrades'
+  let note = ''
+
+  const buyUpgrade = (track: 'merchant' | 'quality', costs: number[]): void => {
+    const acc = loadBank()
+    const cur = acc.upgrades[track]
+    if (cur + 1 >= costs.length) { note = 'Already at the top tier.'; render(); return }
+    const { bank, ok } = spendGold(acc, costs[cur + 1])
+    if (!ok) { note = '✗ Not enough gold.'; render(); return }
+    saveBank({ ...bank, upgrades: { ...bank.upgrades, [track]: cur + 1 } })
+    if (track === 'quality') { MARKET = null; RARE = null } // restock so the better band shows now
+    note = '✓ Upgraded.'; render()
+  }
+  const buyRare = (g: GearInstance): void => {
+    if (storageFull(loadBank())) { note = '✗ Vault full — sell or stow something first.'; render(); return }
+    const { bank, ok } = spendGold(loadBank(), buyPrice(g, RARE_MARKUP))
+    if (!ok) { note = '✗ Not enough gold.'; render(); return }
+    saveBank(addToStorage(bank, g).account)
+    const i = (RARE ?? []).findIndex((x) => x.uid === g.uid); if (i >= 0 && RARE) RARE.splice(i, 1)
+    note = `✓ Bought ${gearBase(g.refId)?.name ?? 'gear'}.`; render()
+  }
+
+  const trackCard = (host: HTMLElement, opts: { name: string; track: 'merchant' | 'quality'; costs: number[]; now: string; next?: string }): void => {
+    const acc = loadBank()
+    const cur = acc.upgrades[opts.track]
+    const maxed = cur + 1 >= opts.costs.length
+    const card = $(`<div class="mh-track"><div class="mh-th"><b>${opts.name}</b> <span class="tt-dim">· tier ${cur}/${opts.costs.length - 1}</span></div><div class="gs-a">${opts.now}</div></div>`)
+    if (!maxed) {
+      const cost = opts.costs[cur + 1]
+      const row = $(`<div class="mh-next"><span class="gs-a">next: ${opts.next}</span><button class="buybtn${acc.gold < cost ? ' cant' : ''}">upgrade 🪙${cost}</button></div>`)
+      row.querySelector('.buybtn')!.addEventListener('click', () => buyUpgrade(opts.track, opts.costs))
+      card.appendChild(row)
+    } else card.appendChild($(`<div class="gs-a" style="color:var(--ink-faint)">at the top tier</div>`))
+    host.appendChild(card)
+  }
+
+  const render = (): void => {
+    const acc = loadBank()
+    goldEl.textContent = `🪙 ${acc.gold} vault`
+    panel.innerHTML = ''; footer.innerHTML = ''
+    const tabs = $(`<div class="tabs"></div>`)
+    const mkTab = (id: typeof tab, label: string): void => {
+      const t = $<HTMLButtonElement>(`<button class="tab${tab === id ? ' on' : ''}">${label}</button>`)
+      t.addEventListener('click', () => { tab = id; note = ''; render() })
+      tabs.appendChild(t)
+    }
+    mkTab('upgrades', 'Upgrades'); mkTab('rare', 'Rare Wares')
+    panel.appendChild(tabs)
+
+    if (tab === 'upgrades') {
+      const mTier = acc.upgrades.merchant, qTier = acc.upgrades.quality
+      trackCard(panel, { name: 'Merchant Standing', track: 'merchant', costs: MERCHANT_TIER_COST,
+        now: `Buy prices at <b>${Math.round(MERCHANT_MARKUPS[mTier] * 100)}%</b> of value (all town vendors)`,
+        next: `${Math.round((MERCHANT_MARKUPS[mTier + 1] ?? 1) * 100)}% buy prices` })
+      trackCard(panel, { name: 'Town Loot Quality', track: 'quality', costs: QUALITY_TIER_COST,
+        now: qTier > 0 ? `Vendor stock rolls <b>+${qualityLvlBoost(qTier)}</b> effective levels (better rarity)` : 'Vendor stock at the base rarity band',
+        next: `+${qualityLvlBoost(qTier + 1)} effective levels` })
+    } else {
+      panel.appendChild($(`<div class="sub" style="margin:0 0 10px">Rare wares · epic & legendary gear at ${RARE_MARKUP}× value · restocks after a delve</div>`))
+      const list = $(`<div class="baglist"></div>`)
+      const stock = rareStock()
+      if (!stock.length) list.appendChild($(`<div class="sheet-soon">Sold out — fresh rare wares after your next delve.</div>`))
+      for (const g of stock) {
+        const base = gearBase(g.refId)!
+        const aff = g.affixes.length ? g.affixes.map((a) => displayName(a.label)).join(' · ') : '—'
+        const price = buyPrice(g, RARE_MARKUP)
+        const row = $(`<div class="gp-row" ${gearTip(g)}><span class="gs-ic r-${g.rarity}">${base.icon}</span><div class="gs-meta"><div class="gs-n r-${g.rarity}">${base.name}</div><div class="gs-a">${RARITY_LABEL[g.rarity]} · ${aff}</div></div><button class="buybtn${acc.gold < price ? ' cant' : ''}">buy 🪙${price}</button></div>`)
+        row.querySelector('.buybtn')!.addEventListener('click', () => buyRare(g))
+        list.appendChild(row)
+      }
+      panel.appendChild(list)
+    }
     if (note) panel.appendChild($(`<div class="sm-note">${note}</div>`))
 
     const back = $<HTMLButtonElement>(`<button class="cta ghost">◂ Back to town</button>`)
@@ -1122,7 +1230,7 @@ function beginDelve(char: SavedChar, dungeonId: string): void {
   const sel = char.consumables.filter((id) => !!id && !!CONSUMABLES[id])
   const { taken, account } = takeConsumablesByRef(loadBank(), sel) // pull the loadout out of the vault
   saveBank(account)
-  MARKET = null // the vendor restocks after a run
+  MARKET = null; RARE = null // the vendors restock after a run
   DELVE = {
     d: createDelve(dungeonId, systemRng),
     bag: taken, // exactly what was pulled from Storage (the run satchel; drunk = gone, survivors return on a safe exit)

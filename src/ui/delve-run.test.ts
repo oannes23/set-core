@@ -15,7 +15,7 @@ import { applyRoomLoot, bankRunGear, resolveDelveExit, resolveLootKeep, type Del
 
 const W = GAMEDATA.dungeons.goblin_warren
 const foe = (id: string) => assembleFoe(id, W, GAMEDATA, mulberry32(1))!
-const acct = (over: Partial<Account> = {}): Account => ({ gold: 0, storage: [], storageCap: DEFAULT_STORAGE_CAP, seeded: true, ...over })
+const acct = (over: Partial<Account> = {}): Account => ({ gold: 0, storage: [], storageCap: DEFAULT_STORAGE_CAP, seeded: true, upgrades: { merchant: 0, quality: 0 }, ...over })
 const run = (over: Partial<DelveRun> = {}): DelveRun => ({ d: { ...createDelve('goblin_warren', mulberry32(1)), room: 1 }, bag: [], tier: 'minion', gold: 0, gearFound: [], gearPity: 0, ...over })
 const gear = (n: number) => Array.from({ length: n }, (_, i) => rollGear(Object.keys(GEAR)[0], 'green', 8, mulberry32(i + 1)))
 

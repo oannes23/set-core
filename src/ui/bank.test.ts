@@ -10,7 +10,7 @@ import {
 } from './bank'
 import { makeItem } from '../engine/items'
 
-const acct = (over: Partial<Account> = {}): Account => ({ gold: 0, storage: [], storageCap: DEFAULT_STORAGE_CAP, seeded: true, ...over })
+const acct = (over: Partial<Account> = {}): Account => ({ gold: 0, storage: [], storageCap: DEFAULT_STORAGE_CAP, seeded: true, upgrades: { merchant: 0, quality: 0 }, ...over })
 
 // ---- gold (spread-preserving: safe on a full account, no storage churn) ----
 test('addGold accumulates; a negative add is ignored (use spendGold to remove)', () => {
@@ -112,5 +112,5 @@ test('slotUpgradeCost = (new total)² in blocks of 10 (20→30 = 900, 90→100 =
   // the whole 20→100 climb sums to the ~38k all-in the spec calls for
   const total = [20, 30, 40, 50, 60, 70, 80, 90].reduce((s, c) => s + slotUpgradeCost(c), 0)
   expect(total).toBe(38000)
-  expect(expandStorage({ gold: 0, storage: [], storageCap: 20, seeded: true }, 10).storageCap).toBe(30)
+  expect(expandStorage({ gold: 0, storage: [], storageCap: 20, seeded: true, upgrades: { merchant: 0, quality: 0 } }, 10).storageCap).toBe(30)
 })

@@ -14,17 +14,23 @@
 
 import { type Item, makeItem, sanitizeItem } from '../engine/items'
 
+/** Account-level gold-bought upgrade tiers (the Merchant House, B4): `merchant` lowers the buy markup,
+ *  `quality` raises the rarity band of the TOWN vendors (Market + rare tab). Tier indices, 0 = base. */
+export interface AccountUpgrades { merchant: number; quality: number }
+export const NO_UPGRADES: AccountUpgrades = { merchant: 0, quality: 0 }
+
 export interface Account {
   gold: number
   storage: Item[]
-  storageCap: number // 20 baseline; gold-expandable at the shop (B4)
+  storageCap: number // 20 baseline; gold-expandable at the Vault (B4)
   seeded: boolean // has the one-time account starter stash been granted?
+  upgrades: AccountUpgrades // Merchant House tiers (B4)
 }
 /** Back-compat alias — older call sites referred to the gold-only `Bank`. */
 export type Bank = Account
 
 const KEY = 'setcore.bank.v1' // stable across schema bumps (versioning lives in the payload)
-const SCHEMA_V = 2 // 1 = { v, gold } · 2 = + storage / storageCap / seeded
+const SCHEMA_V = 3 // 1 = { v, gold } · 2 = + storage / storageCap / seeded · 3 = + upgrades
 export const DEATH_TITHE = 0.12 // a run-ending death costs 12% of BANKED gold (the exit ladder, §6)
 export const DEFAULT_STORAGE_CAP = 20
 
@@ -32,7 +38,9 @@ export const DEFAULT_STORAGE_CAP = 20
  *  load (NOT per hero). A gentle opener so a brand-new account has something to load into a loadout. */
 export const STARTER_STASH: string[] = ['hp_std', 'hp_std', 'speed_std', 'stoneskin_std', 'hp_minor', 'hp_minor']
 
-const emptyAccount = (): Account => ({ gold: 0, storage: [], storageCap: DEFAULT_STORAGE_CAP, seeded: false })
+const emptyAccount = (): Account => ({ gold: 0, storage: [], storageCap: DEFAULT_STORAGE_CAP, seeded: false, upgrades: { ...NO_UPGRADES } })
+
+const clampTier = (x: unknown): number => (typeof x === 'number' && Number.isFinite(x) && x > 0 ? Math.floor(x) : 0)
 
 // ---- sanitize / parse (never throw) ----
 export function sanitizeAccount(x: unknown): Account {
@@ -41,7 +49,9 @@ export function sanitizeAccount(x: unknown): Account {
   const gold = typeof a.gold === 'number' && Number.isFinite(a.gold) && a.gold > 0 ? Math.floor(a.gold) : 0
   const storage = Array.isArray(a.storage) ? a.storage.map(sanitizeItem).filter((i): i is Item => i !== null) : []
   const storageCap = typeof a.storageCap === 'number' && Number.isFinite(a.storageCap) && a.storageCap > 0 ? Math.floor(a.storageCap) : DEFAULT_STORAGE_CAP
-  return { gold, storage: storage.slice(0, Math.max(storageCap, storage.length)), storageCap, seeded: a.seeded === true }
+  const u = a.upgrades as Partial<AccountUpgrades> | undefined
+  const upgrades: AccountUpgrades = { merchant: clampTier(u?.merchant), quality: clampTier(u?.quality) } // missing → base (v2→v3)
+  return { gold, storage: storage.slice(0, Math.max(storageCap, storage.length)), storageCap, seeded: a.seeded === true, upgrades }
 }
 /** Back-compat: the old name returned a gold-only shape. Kept as a thin alias over the account. */
 export const sanitizeBank = (x: unknown): Account => sanitizeAccount(x)

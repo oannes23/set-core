@@ -46,9 +46,22 @@ export const sellValue = (item: Item): number => toSell(itemValue(item))
 /** The sell-back price of a bare consumable refId (the satchel holds refIds, not Items). */
 export const sellValueOfConsumable = (refId: string): number => toSell(consumableValue(refId))
 
-export const BUY_MARKUP = 1.5 // shop buy = 150% of value (B4 first-cut; base upgrades pull it toward 100% later)
-const toBuy = (value: number): number => (value <= 0 ? 0 : Math.max(1, Math.round(value * BUY_MARKUP)))
-/** The shop BUY price of an inventory item (value × BUY_MARKUP). */
-export const buyPrice = (item: Item): number => toBuy(itemValue(item))
+export const BUY_MARKUP = 1.5 // shop buy = 150% of value (B4 first-cut; the Merchant House pulls it → 100%)
+const toBuy = (value: number, markup: number): number => (value <= 0 ? 0 : Math.max(1, Math.round(value * markup)))
+/** The shop BUY price of an inventory item (value × markup; markup defaults to the base 150%). */
+export const buyPrice = (item: Item, markup: number = BUY_MARKUP): number => toBuy(itemValue(item), markup)
 /** The shop BUY price of a bare consumable refId. */
-export const buyPriceOfConsumable = (refId: string): number => toBuy(consumableValue(refId))
+export const buyPriceOfConsumable = (refId: string, markup: number = BUY_MARKUP): number => toBuy(consumableValue(refId), markup)
+
+// ---- the Merchant House tracks (B4) — pure-gold tiers; first-cut, sim-gated ----
+/** Buy markup by Merchant-standing tier (150% → 100% over 5 tiers). */
+export const MERCHANT_MARKUPS = [1.5, 1.4, 1.3, 1.2, 1.1, 1.0]
+/** Gold to REACH each Merchant-standing tier (index = tier; 0 is free/base). */
+export const MERCHANT_TIER_COST = [0, 1500, 3500, 6500, 11000, 18000]
+/** Gold to REACH each Town-loot-quality tier; each tier ≈ +QUALITY_LVL_PER_TIER levels of vendor rarity band. */
+export const QUALITY_TIER_COST = [0, 2000, 5000, 10000, 18000]
+export const QUALITY_LVL_PER_TIER = 4
+export const RARE_MARKUP = 2.0 // the rare vendor's premium (× value) — high quality, high price
+
+export const markupForTier = (tier: number): number => MERCHANT_MARKUPS[Math.min(Math.max(0, tier), MERCHANT_MARKUPS.length - 1)]
+export const qualityLvlBoost = (tier: number): number => Math.max(0, tier) * QUALITY_LVL_PER_TIER
