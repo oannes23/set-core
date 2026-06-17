@@ -13,7 +13,11 @@ export type ValueTok = ColorTok | ShapeTok | NumberTok
 export type Mode = 'all_same' | 'all_different' | 'contains' | 'not_value'
 export type Geometry =
   | 'row' | 'column' | 'diagonal' | 'corners' | 'border'
-  | 'center' | 'inner' | 'blast' | 'cross' | 'plus' | 'half' | 'random'
+  | 'center' | 'inner' | 'half' | 'random'
+// NOTE: 'blast' | 'cross' | 'plus' were dropped 2026-06-17 — they were in the union but had no case
+// in geometrySlots (triggers.ts), so authored content using them silently selected nothing. Re-add
+// them here only alongside a real center-anchored implementation + tests (the Fireball ABILITY uses a
+// separate offset footprint, select.ts FIREBALL_BLAST — not this region-selector path).
 export type Which = 'top' | 'bottom' | 'left' | 'right' | 'center' | 'anti'
 export type On = 'match' | 'tick'
 export type Tier = 'minion' | 'elite' | 'boss'
