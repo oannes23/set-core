@@ -1153,7 +1153,7 @@ function classBlurbHTML(id: string): string {
   return `${c.icon} <b>${c.name}</b> — ${c.blurb}<br><b>Abilities:</b> ${abil} &nbsp; <b>Passive:</b> ${pas}`
 }
 
-/* ---- LEVEL-UP: allocate +3/+2/+1 across P/E/S (CRAWL §3). Opens from the sheet; loops over every
+/* ---- LEVEL-UP: allocate +4 across P/E/S (CRAWL §3; tempered from +6, BALANCE.md §8). Opens from the sheet; loops over every
    pending level. XP is already banked; this just spends it into stats. Deferrable (close = allocate
    later) since pending levels persist. ---- */
 const LU_STATS: { key: keyof StatAlloc; icon: string; name: string }[] = [
@@ -1161,8 +1161,10 @@ const LU_STATS: { key: keyof StatAlloc; icon: string; name: string }[] = [
   { key: 'endurance', icon: '🛡', name: 'Endurance' },
   { key: 'speed', icon: '👟', name: 'Speed' },
 ]
-const LU_POINTS = 6 // points to distribute per level (CRAWL §3, revised 2026-06-14)
-const LU_MAX_PER = 3 // ≤3 to any one stat → 3/3/0 · 2/2/2 · 3/2/1 (was a rigid 3/2/1 permutation)
+const LU_POINTS = 4 // points to distribute per level — tempered 6→4 (BALANCE.md §8 dec.7): a clean "1 in each
+// + 1 bonus" (2/1/1), and it lets GEAR overtake innate in the late game (gear share crosses 50% ~L17). Balanced
+// allocation now sits BELOW the foe parity line — gear is expected to close the gap (the "gear matters" cost).
+const LU_MAX_PER = 3 // ≤3 to any one stat → 3/1/0 · 2/2/0 · 2/1/1 (a focused main can still reach +3/level)
 
 function openLevelUp(c: SavedChar, onComplete: (c: SavedChar) => void): void {
   document.getElementById('levelup')?.remove()
@@ -1171,7 +1173,7 @@ function openLevelUp(c: SavedChar, onComplete: (c: SavedChar) => void): void {
   const spent = (): number => alloc.power + alloc.endurance + alloc.speed
   const overlay = $(`<div id="levelup"><div class="lucard">
     <div class="lu-hd">⬆ Level Up — <b>Lv ${c.level} → ${c.level + 1}</b></div>
-    <div class="lu-sub">Distribute <b>+6</b> across your stats — up to <b>+3</b> each. <b id="lu-left"></b></div>
+    <div class="lu-sub">Distribute <b>+4</b> across your stats — up to <b>+3</b> each. <b id="lu-left"></b></div>
     <div class="lu-rows"></div>
     <div class="lu-btns"><button class="confbtn" id="lu-later">Later</button><button class="confbtn primary" id="lu-go" disabled>Confirm</button></div>
   </div></div>`) as HTMLElement & { _cancel?: () => void }

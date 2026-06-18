@@ -18,18 +18,20 @@ pending the derivation-sheet sim — directionally settled, numerically sim-fodd
 
 ## The derivation sheet — axioms (CRAWL §5.6; the sim validates against these)
 
-> **⚠ Rebalance in flight (`BALANCE.md`, 2026-06-17; pass #1 + decisions settled).** A2/A4/A6 below are
-> being re-anchored and the defensive model restructured. Settled in the `BALANCE.md` §6 sim (built:
-> `sim/balance-sim.mjs`), not yet ported to `src/`:
-> - **A6 kill budgets re-anchor to *Typical* play** → foe HP **100 / 250 / 400** (minion/elite/boss).
-> - **A5 tier output multipliers 1/1.5/2 → 1 / 1.7 / 2.4** (elites/bosses must out-demand spare Defend).
-> - **Telegraph decouples from player Endurance** (anchored to level-parity E) → zero Defend = full damage.
-> - **Block loses cross-round carry**; **Move banks a Dodge pool** capped by foe cadence (60→100%).
-> - **Damage abilities → VPM ≈ 4** (Firebolt/Cleave 45→24 max — already shipped in `abilities.ts`).
-> - **Gear scales with level**: rarity-by-level drop bands + `LOOTTIER_K 0.02 → 0.12`; **innate allocation
->   +6 → +4/level** → gear power share rises ~23%→~58%, crossing 50% ~L17.
+> **⚠ Rebalance in flight (`BALANCE.md`, 2026-06-17; porting from the `sim/balance-sim.mjs` workshop).**
+> A2/A4/A6 below are being re-anchored and the defensive model restructured. Port status:
+> - ✅ **Damage abilities → VPM ≈ 4** (Firebolt/Cleave/Venom 45/45/36 → 24 max). PORTED — `abilities.ts`.
+> - ✅ **Gear scales with level**: rarity-by-level drop bands + `LOOTTIER_K 0.02 → 0.12`. PORTED —
+>   `loot.yaml`/`loot.ts`/`affixes.ts` → gear power share rises ~23%→~58%, crossing 50% ~L17.
+> - ✅ **Foe HP re-anchored to *Typical* play** (tier anchors 100/250/400; per-creature ×~1.67/2.27/2.0,
+>   teaching/puzzle foes exempt). PORTED — `creatures.yaml`.
+> - ✅ **A5 tier output multipliers 1/1.5/2 → 1/1.7/2.4.** PORTED — `resolve.ts` (`TIER_BUDGET_MULT`).
+> - ✅ **Innate allocation +6 → +4/level** (gear closes the gap to parity). PORTED — `app.ts` (`LU_POINTS`).
+> - ⏳ **Telegraph decouples from player Endurance** (anchored to level-parity E) → zero Defend = full damage.
+> - ⏳ **Block loses cross-round carry**; **Move banks a Dodge pool** capped by foe cadence (60→100%) + dodge meter.
 > The model: Attack·Power→deal · Defend·Endurance→block · Move·Speed→dodge. Difficulty lives in the
-> delve *context*, not the fresh duel. Rows here update only as each piece lands in code.
+> delve *context*, not the fresh duel. The ⏳ items (the defensive-model redesign) are the last port.
+> NOTE: foe HP↑ lifts gold/XP ~+13% via `foeValue` (hp/10 term) — the §8 reward-coupling decouple is deferred to the gated economy pass.
 
 | # | Axiom | Value |
 |---|---|---|

@@ -104,7 +104,10 @@ test('a full warren clear banks ~100–150g (the design band)', () => {
   }
   const avg = total / runs
   expect(avg).toBeGreaterThan(90)
-  expect(avg).toBeLessThan(220) // a comfortable band around the ~100–150 target (variance + depth)
+  // Band widened after the foe-HP re-anchor (BALANCE.md §5.2): gold = foeValue×goldK and foeValue includes
+  // hp/10, so the ~×1.7–2 HP raise lifts rewards ~+13% (the "reward coupling" §8 dec.1 — decouple in the
+  // gated economy pass; for now the tankier-foe = more-gold coupling is accepted).
+  expect(avg).toBeLessThan(260)
 })
 
 test('rollConsumable always returns a real consumable id', () => {

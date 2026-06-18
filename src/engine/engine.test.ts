@@ -354,7 +354,7 @@ test('selectSlots: geometry ∩ value, and lock/transmute board verbs', () => {
 // ---- foe assembly ----
 test('assembleFoe resolves the AUTHORED statline, tempo, triggers, rules (the data rebase)', () => {
   const z = foe('limbless_zombie')
-  expect(z.hp).toBe(50) // authored HP (kill-budget lever — no more legacy ×10/3 scale)
+  expect(z.hp).toBe(85) // authored HP, re-anchored to Typical play (BALANCE.md §5.2: minion tier ×~1.67 → ~100)
   expect(z.stats).toEqual({ power: 5, endurance: 8, speed: 5 }) // authored directly
   expect(z.strikeEvery).toBe(1)
   expect(z.swings).toBe(2) // S−P 0 → two modest swings

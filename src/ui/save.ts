@@ -14,7 +14,7 @@ import { DEFAULT_PLAYER_MAX, BASE_STATS, type StatBlock } from '../engine/state'
 import { sanitizeItem, isGear, EQUIP_SLOTS, type EquipSlot, type GearInstance } from '../engine/items'
 import { PROG } from '../engine/progression'
 
-/** A character's allocated stat points (cumulative across level-ups; +3/+2/+1 per level). */
+/** A character's allocated stat points (cumulative across level-ups; +4/level, ≤3/stat — BALANCE.md §8). */
 export interface StatAlloc { power: number; endurance: number; speed: number }
 
 export interface SavedChar {
@@ -94,9 +94,9 @@ export function addXP(c: SavedChar, amount: number): SavedChar {
   if (amount <= 0 || c.level >= LEVEL_CAP) return c
   return { ...c, xp: c.xp + amount }
 }
-/** Apply ONE level-up with the player's chosen allocation (deltas summing to 6, **each ≤3** —
- *  freely distributed: 3/3/0 · 2/2/2 · 3/2/1, per CRAWL §3, revised 2026-06-14; the rigid
- *  +3/+2/+1 permutation is retired). The allocation rule is enforced UI-side (the level-up modal);
+/** Apply ONE level-up with the player's chosen allocation (deltas summing to 4, **each ≤3** —
+ *  freely distributed: 3/1/0 · 2/2/0 · 2/1/1, per CRAWL §3; tempered from +6 — BALANCE.md §8 dec.7,
+ *  so gear overtakes innate late). The allocation rule is enforced UI-side (the level-up modal);
  *  this transform just adds the delta. Spends one level's XP, bumps level + maxHp (+HP_PER_LEVEL to
  *  current HP too, a small level heal). Returns a NEW char (pure). Caller gates on pendingLevels > 0. */
 export function applyLevelUp(c: SavedChar, delta: StatAlloc): SavedChar {

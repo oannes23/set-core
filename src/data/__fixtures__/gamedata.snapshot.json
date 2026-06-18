@@ -428,7 +428,7 @@
         "endurance": 8,
         "speed": 5
       },
-      "hp": 50,
+      "hp": 85,
       "desc": "A zombie with no limbs, chin-crawling across the floor toward you. Harmless — until it gathers itself for a sudden lurch.",
       "voice": {
         "hit": [
@@ -453,7 +453,7 @@
         "endurance": 10,
         "speed": 5
       },
-      "hp": 90,
+      "hp": 205,
       "desc": "A mountain that walks. Its blow is <b>certain death</b>, so blocking is futile — but it is <i>ponderously</i> slow. Its tremors shake your useless <b>Defend</b> cards loose into <b>Moves</b>; spend a <b>Move</b> set and you dance aside, leaving it a step behind. Stay mobile, bank <b>Tactics</b>, and break it with a decisive strike.",
       "voice": {
         "hit": [
@@ -511,7 +511,7 @@
         "endurance": 14,
         "speed": 14
       },
-      "hp": 55,
+      "hp": 90,
       "variants": [
         "bloodthirsty",
         "sneaky",
@@ -528,7 +528,7 @@
         "endurance": 12,
         "speed": 19
       },
-      "hp": 40,
+      "hp": 65,
       "variants": [
         "sneaky",
         "elusive"
@@ -543,7 +543,7 @@
         "endurance": 14,
         "speed": 9
       },
-      "hp": 60,
+      "hp": 100,
       "variants": [
         "plagued",
         "hexer",
@@ -559,7 +559,7 @@
         "endurance": 18,
         "speed": 9
       },
-      "hp": 115,
+      "hp": 260,
       "variants": [
         "bloodthirsty",
         "cruel",
@@ -575,7 +575,7 @@
         "endurance": 22,
         "speed": 14
       },
-      "hp": 200,
+      "hp": 400,
       "traps": [
         "war_cry",
         "molten_veins",
@@ -592,7 +592,7 @@
         "endurance": 14,
         "speed": 14
       },
-      "hp": 50,
+      "hp": 85,
       "desc": "A wiry goblin loosing crude arrows from a ledge — quick to panic, quicker to flee.",
       "voice": {
         "hit": [
@@ -616,7 +616,7 @@
         "endurance": 16,
         "speed": 14
       },
-      "hp": 65,
+      "hp": 110,
       "desc": "A grubby goblin lugging fire-bombs — more dangerous to your board than to you.",
       "voice": {
         "hit": [
@@ -640,7 +640,7 @@
         "endurance": 12,
         "speed": 18
       },
-      "hp": 38,
+      "hp": 65,
       "desc": "A fat, fearless rat the size of a dog. It comes in a chittering rush.",
       "voice": {
         "hit": [
@@ -664,7 +664,7 @@
         "endurance": 18,
         "speed": 14
       },
-      "hp": 110,
+      "hp": 250,
       "desc": "A scarred captain in looted plate, bellowing the King’s own war-cry. His red rage foretells the throne room.",
       "voice": {
         "hit": [
@@ -691,7 +691,7 @@
         "endurance": 18,
         "speed": 9
       },
-      "hp": 105,
+      "hp": 240,
       "desc": "A goblin mystic wreathed in cinders, dragging whole rows of your runes into the fire — the warren’s drift made a weapon.",
       "voice": {
         "hit": [
@@ -721,7 +721,7 @@
         "endurance": 18,
         "speed": 11
       },
-      "hp": 130,
+      "hp": 295,
       "desc": "A hulking goblin gone to fat and cruelty, a cleaver in each hand. Slow, but every red blow lands like the King’s.",
       "voice": {
         "hit": [
@@ -749,7 +749,7 @@
         "endurance": 18,
         "speed": 19
       },
-      "hp": 100,
+      "hp": 225,
       "desc": "A wild-eyed seer who reads doom in the runes — crimson and threefold, and the strike comes at once.",
       "voice": {
         "hit": [
@@ -776,7 +776,7 @@
         "endurance": 22,
         "speed": 22
       },
-      "hp": 58,
+      "hp": 95,
       "desc": "A coal-bodied imp clawed up from the deep vents, trailing sparks.",
       "voice": {
         "hit": [
@@ -800,7 +800,7 @@
         "endurance": 20,
         "speed": 27
       },
-      "hp": 42,
+      "hp": 70,
       "desc": "A bat with cinders for eyes, diving in searing flickers.",
       "voice": {
         "hit": [
@@ -824,7 +824,7 @@
         "endurance": 22,
         "speed": 17
       },
-      "hp": 62,
+      "hp": 105,
       "desc": "A robed ember-caller dragging your runes into the coals.",
       "voice": {
         "hit": [
@@ -851,7 +851,7 @@
         "endurance": 24,
         "speed": 17
       },
-      "hp": 66,
+      "hp": 110,
       "desc": "A lumbering thing of cooled lava, cracking molten with every step.",
       "voice": {
         "hit": [
@@ -875,7 +875,7 @@
         "endurance": 26,
         "speed": 22
       },
-      "hp": 110,
+      "hp": 250,
       "desc": "A warlord sheathed in glowing slag, bellowing the deep-fire’s war-cry — the Emberlord is near.",
       "voice": {
         "hit": [
@@ -902,7 +902,7 @@
         "endurance": 26,
         "speed": 17
       },
-      "hp": 105,
+      "hp": 240,
       "desc": "A blind seer of ash, reading ruin in the embers and pulling whole rows into the fire.",
       "voice": {
         "hit": [
@@ -932,7 +932,7 @@
         "endurance": 30,
         "speed": 22
       },
-      "hp": 200,
+      "hp": 400,
       "desc": "The molten heart of the Emberdeep — a crowned giant of living fire, the warren’s King made small beside him.",
       "traps": [
         "war_cry",

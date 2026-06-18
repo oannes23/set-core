@@ -53,7 +53,9 @@ export function moveRate(yourSpeed: number, theirSpeed: number): number {
 // but your parity Defend set still blocks ~25/round). Computed against the live player E in
 // createCombat; the per-swing budget is this packaged by the tempo law's strikeEvery/swings.
 export const TELEGRAPH_QSUM = 3.1 // a magnitude-6 set's quality sum (0.7+1.0+1.4), the budget anchor (A4)
-export const TIER_BUDGET_MULT = { minion: 1, elite: 1.5, boss: 2 } as const // A5 output multipliers
+export const TIER_BUDGET_MULT = { minion: 1, elite: 1.7, boss: 2.4 } as const // A5 output multipliers — RAISED
+// from 1/1.5/2 (BALANCE.md §8 dec.6): elites/bosses must out-demand the Defend a player can casually spare,
+// else they can't threaten competent play (the telegraph is fully blockable). The structural rush-cost lever.
 export function telegraphRoundBudget(foePower: number, playerEndurance: number, tier: 'minion' | 'elite' | 'boss'): number {
   return contestRate(foePower, playerEndurance) * TELEGRAPH_QSUM * TIER_BUDGET_MULT[tier]
 }
