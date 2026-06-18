@@ -102,7 +102,12 @@ export function createCombat(opts: NewCombatOpts, rng: Rng): CombatState {
   // §7/§11 FOE-DIFFICULTY RAISE: HP + telegraph × gearFactor(foe level-equiv) — foes balanced against
   // the rarity-current GEARED baseline (×1.0 ≤L6, ~×1.6 orange). XP/gold use the BARE statline (foeValue).
   const gf = gearFactor(foeLevelEquiv(opts.foe))
-  const foe: FoeRuntime = { ...opts.foe, hp: Math.round(opts.foe.hp * gf), damage: telegraphPerSwing(opts.foe, stats.endurance) * gf }
+  // TELEGRAPH DECOUPLE (BALANCE.md §2.2): the budget anchors to the foe's LEVEL-PARITY Endurance, NOT the
+  // player's chosen E. This keeps it level-invariant (parity foe vs parity player → 25×tier, A4) while
+  // removing the passive freebie for stacking E — your Endurance now only scales BLOCK (Defend sets), not
+  // the incoming. Zero Defend = full damage. (parityE = the 10 + 2·(L−1) parity line at the foe's level.)
+  const parityE = 10 + 2 * (foeLevelEquiv(opts.foe) - 1)
+  const foe: FoeRuntime = { ...opts.foe, hp: Math.round(opts.foe.hp * gf), damage: telegraphPerSwing(opts.foe, parityE) * gf }
   const nextStrikeRound = foe.strikeEvery
   // EARLY REVEAL (§5.7): the telegraph shows from round 1 — strikeEvery−1 rounds before it lands —
   // so slow foes are a savings test (block carries through the windup). Dodge is rolled here.
@@ -378,8 +383,8 @@ function tick(s: CombatState, dtMs: number, deps: Deps, sink: EventSink): void {
 /** The rollover exchange — the v3 grammar's heartbeat, resolved atomically (the UI choreographs
  *  the emitted events as the staged diegetic exchange beat (EXCHANGE_BEATS, app.ts)). Fixed order:
  *  ① player swing (LETHAL CANCELS — the kill-race; symmetric) → ② enemy swing IF this is the strike
- *  round (else the telegraph is still winding up — block CARRIES, §5.7); bite past Block computes
- *  wounds, the guard drops only AFTER a strike resolves → ⑤ the deal: one wound knits → ⑥ the new
+ *  round (else the telegraph is still winding up — no strike); bite past Block computes wounds, the
+ *  guard then resets EVERY rollover (NO carry — BALANCE.md §2.1) → ⑤ the deal: one wound knits → ⑥ the new
  *  round + the next telegraph revealed at its WINDUP START (strikeEvery−1 rounds early). Stances are
  *  LIVE now (§5.7): no queue to lock, Maneuver burns in tick (no rollover dump). */
 function rollover(s: CombatState, deps: Deps, sink: EventSink): void {
@@ -427,10 +432,11 @@ function rollover(s: CombatState, deps: Deps, sink: EventSink): void {
     } else {
       sink.emit({ type: 'playerBlocked' })
     }
-    // the guard drops AFTER the strike resolves — leftover Block is PURE LOSS (settled 2026-06-11);
-    // during a windup round we SKIP this (the carry), so banked Defend survives toward the strike.
-    s.block = 0
   }
+  // BLOCK NO-CARRY (BALANCE.md §2.1): the guard resets EVERY rollover — Defend mitigates only the round the
+  // hit lands; it never banks across windup rounds. (Was: carried through windups. The complement is the
+  // banked Dodge pool, which DOES persist — Block is the in-the-moment lever, Dodge the planned one.)
+  s.block = 0
   // §5.8 — the generic UNGUARDABLE dread bleed: a per-round drain past the onset (bypasses Block; the
   // foe-INDEPENDENT anti-stall lane the sim proved necessary). Only reached if the player survived ①②.
   const bleed = Math.round(dreadBleed(s))

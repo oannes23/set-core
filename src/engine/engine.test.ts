@@ -294,7 +294,7 @@ test('§5.7 dodge: a fast foe full-whiff fires strikeDodged + a free round (no d
   expect(r.events.some((e) => e.type === 'playerDamaged')).toBe(false)
 })
 
-test('§5.7 guard carry: a slow foe reveals early, block survives the windup, drops after the strike', () => {
+test('block NO-CARRY (BALANCE §2.1): a slow foe reveals early but banked Block does NOT survive the windup', () => {
   // the shaman is heavy (S−P −7 → every 2nd round) and its variants don't shift P/S, so strikeEvery
   // is a stable 2 (unlike the butcher, whose Cruel variant can add Power and tip it into giant).
   const wf = assembleFoe('goblin_shaman', GAMEDATA.dungeons.goblin_warren, GAMEDATA, mulberry32(8))!
@@ -303,14 +303,15 @@ test('§5.7 guard carry: a slow foe reveals early, block survives the windup, dr
   expect(s.incoming).not.toBeNull() // EARLY REVEAL: telegraph shows from round 1 (the windup)
   s.block = 12
   const deps = { data: GAMEDATA, rng: mulberry32(8) }
-  // round 1 is a WINDUP round (strike lands round 2) — the guard must CARRY
+  // round 1 is a WINDUP round (strike lands round 2) — Block built now is WASTED (no carry): the
+  // haymaker that can't be blocked in one round is the Dodge pool's job, not Block's (the §2.3 split).
   const r1 = reduce(s, { type: 'tick', dtMs: ROUND_MS + 100 }, deps)
   expect(r1.state.round).toBe(2)
-  expect(r1.state.block).toBe(12) // carried, not reset
+  expect(r1.state.block).toBe(0) // reset at the rollover — NOT carried toward the strike
   expect(r1.events.some((e) => e.type === 'playerDamaged' || e.type === 'playerBlocked')).toBe(false) // no strike yet
-  // round 2 is the strike — guard absorbs, then drops
+  // round 2 is the strike — block stays reset across this rollover too
   const r2 = reduce(r1.state, { type: 'tick', dtMs: ROUND_MS + 100 }, deps)
-  expect(r2.state.block).toBe(0) // drops only AFTER the strike resolves
+  expect(r2.state.block).toBe(0)
 })
 
 // ---- trigger conditions ----

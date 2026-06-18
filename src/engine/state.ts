@@ -70,7 +70,7 @@ export interface CombatState {
   playerMax: number
   enemyHP: number
   enemyMax: number
-  block: number // Defend's round accumulator: mitigates THIS round's telegraph, resets at the exchange
+  block: number // Defend's round accumulator: mitigates the hit landing THIS round; resets EVERY rollover (NO carry — BALANCE §2.1)
   stats: StatBlock // Resolution v2: sets steer, these carry (Power/Endurance/Speed) — incl. gear stat bonus
   riders: Riders // §7 gear riders: flat per-card damage/block/mana added AFTER the contest (resolveSet)
   procs: AffixProc[] // §7 gear affix ON-MATCH procs (fired like passives — the affix-proc engine)
