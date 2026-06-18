@@ -50,7 +50,13 @@ const WOUND_CAP = 5
 
 const rate = (yours, theirs) => clamp(RATE_BASE + RATE_K * (yours - theirs), RATE_MIN, RATE_MAX)
 const moveRate = (yS, tS) => clamp(MOVE_BASE + MOVE_K * (yS - tS), MOVE_MIN, MOVE_MAX)
-const parityStat = (L) => 10 + 2 * (L - 1)
+const parityStat = (L) => 10 + 2 * (L - 1) // the INTENDED total (innate + gear) and the foe-authoring line
+// INNATE is TEMPERED to +4/level (was +6) so gear can overtake it (§8 decision 7, 2026-06-17). +4 reads
+// as a clean "1 in each + 1 bonus" (2/1/1) allocation and crosses the gear share to mid (~L17). A balanced
+// player allocates 4/3 per stat/level; the gap to the parity line is what gear fills — so a well-geared
+// player sits ~at parity, an ungeared one below it (the intended "gear matters" cost).
+const INNATE_PER_LEVEL = 4 // +4/level: a clean "1 in each + 1 bonus" allocation (2/1/1) — see §8 decision 7
+const innateStat = (L) => 10 + (INNATE_PER_LEVEL / 3) * (L - 1)
 const maxHP = (L) => HP_BASE + HP_PER_LEVEL * (L - 1)
 
 function tempo(S, P) {
@@ -139,7 +145,7 @@ function makeFoe(tier, L, archetype = 'steady') {
 function fight(foe, L, sk, rng, opts = {}) {
   const gEff = opts.gearOverride ?? sk.gear ?? 0
   const g = gearStatAtL(L, gEff)
-  const base = opts.stats ?? { P: parityStat(L), E: parityStat(L), S: parityStat(L) }
+  const base = opts.stats ?? { P: innateStat(L), E: innateStat(L), S: innateStat(L) } // tempered innate; gear closes the gap to parity
   const st = { P: base.P + g, E: base.E + g, S: base.S + g }
   if (opts.statBonus) { st.P += opts.statBonus.P || 0; st.E += opts.statBonus.E || 0; st.S += opts.statBonus.S || 0 }
   const pMax = maxHP(L)
@@ -299,7 +305,8 @@ function sectionC() {
 
 function sectionD() {
   console.log('\n════ §D THE 4-AXIS PROFILE MATRIX (winrate · TTK · HP-left · worst-round) vs §7 targets ════')
-  console.log('No consumables (panic-button headroom). Foe = "steady" archetype at level-matched parity.')
+  console.log('FRESH / best-case: full HP, no consumables, level-matched. Competent play SHOULD win these (decision 1) —')
+  console.log('the §7 win-bands apply to the CONTEXTUAL fight (§H: post-delve attrition + dread depth + Heat).')
   for (const L of [3, 12, 20]) {
     console.log(`\n  — level ${L} (parity ${parityStat(L)}, HP ${maxHP(L)}) —`)
     for (const tier of ['minion', 'elite', 'boss']) {
@@ -357,14 +364,14 @@ function sectionG() {
   const bandLabel = (L) => L <= 5 ? '≤5  ' : L <= 12 ? '6–12' : L <= 18 ? '13–18' : '19+ '
   for (const L of [3, 6, 11, 16, 21]) {
     const w = rarityBand(L)
-    const innate = parityStat(L) // full innate stat (base + balanced allocation)
+    const innate = innateStat(L) // TEMPERED innate (+5/level), base 10 + balanced allocation
     const gear = gearPower(L) * GEAR_SHARE_C
     const share = gear / (innate + gear)
     const ws = `${w.white}/${w.green}/${w.blue}/${w.purple}/${w.orange}`.padEnd(16)
     console.log(`  L${String(L).padEnd(2)} (${bandLabel(L)})  ${ws}  ${expRarityIdx2(L).toFixed(2).padStart(6)}   ${gear.toFixed(0).padStart(4)}    ${pct(share).padStart(6)}`)
   }
-  console.log(`  → rarity-by-level makes the share RISE & cross ~50% late (was flat). The combat raw-stat slice is bounded (GEAR_COMBAT_C ${GEAR_COMBAT_C}); riders/procs carry the rest.`)
-  console.log(`    NOTE: the +6/level innate allocation grows steeply early — a literal "innate 80% at L3" needs tempering that allocation too (a §5.6 lever); rarity-by-level alone lands ~${pct((gearPower(3) * GEAR_SHARE_C) / (parityStat(3) + gearPower(3) * GEAR_SHARE_C))} gear at L3.`)
+  console.log(`  → rarity-by-level + item-level magnitude + tempered innate (+4/lvl): share RISES from ~23% to ~58% and crosses 50% around L17 (was flat 35%).`)
+  console.log(`    Innate-led most of the arc, gear-led from the late game. The combat raw-stat slice stays bounded (GEAR_COMBAT_C ${GEAR_COMBAT_C}); riders/procs carry the rest (they don't pin the rate clamp).`)
 }
 
 function sectionH() {

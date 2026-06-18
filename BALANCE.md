@@ -387,14 +387,15 @@ lootTier × 0.02)` (`affixes.ts:109`) — only +2%/loot-tier, integer mags floor
 item level = *magnitude* (raw power). Keep `gearFactor` but **extend it below L6**
 so the D1 warren isn't unscaled.
 
+3. **Temper innate +6 → +4/level** (§8 decision 7, settled) so gear can overtake it
+   — gear can't reach late-dominance while innate grows +6/level.
+
 **Result (sim §G):** gear power ∝ E[rarity²] × (1 + 0.12·iLvl) climbs *super-
-linearly*, so its share now **rises and crosses ~50% late** (≈ 22% at L3 → 34%
-mid → 50% at L21) — was a flat ~35%. **Caveat:** the literal "innate 80% at L3"
-isn't reachable by gear alone — the **+6/level innate allocation grows too steeply
-early**. Pushing gear past ~50% / hitting the exact early-innate-bias additionally
-needs **tempering the innate allocation** (e.g. +4/level, or a cap) — a new §8
-decision. Rarity-by-level + item-level magnitude is necessary and gets the
-*direction* right; the innate temper is the optional second half.
+linearly*; with the +4 innate temper its share **rises ~23% (L3) → ~37% (mid) →
+~58% (cap)**, crossing 50% around **L17** — was a flat ~35%. Innate-led most of the
+arc, gear-led from the late game. The combat *raw-stat* slice stays bounded
+(riders/procs carry the rest of gear's power — they don't compete on the stat axis
+or pin the rate clamp).
 
 ### 5.5 Dodge UI (build it — currently absent)
 
@@ -528,7 +529,10 @@ Principles baked in: tune at **Typical**; **one bad round ≤ 40% HP** and a 2�
 bad-round streak is losable vs elites/bosses but survivable vs minions; the
 **attack rush is fast but exposed** (forgoing Defend/Dodge is the cost).
 
-**Gear-vs-innate share:** innate ~80% (L1–6) → 50% (~L11) → gear ~65% (L14–21).
+**Gear-vs-innate share (settled curve):** with rarity-by-level + `LOOTTIER_K` 0.12
++ innate tempered to +4/level, gear's power share rises **~23% (L3) → ~37% (mid) →
+~58% (cap)**, crossing 50% around **L17**. Innate-led most of the arc, gear-led from
+the late game.
 
 ---
 
@@ -543,21 +547,23 @@ bad-round streak is losable vs elites/bosses but survivable vs minions; the
 4. **Cooldowns** — VPM-reprice alone, or also build the planned cooldown gate so
    burst can't be mana-dumped? *(Recommend: reprice first, add cooldowns only if
    burst still spikes.)*
-5. **Where difficulty lives** (from pass #1) — accept that fresh level-matched
-   fights are won by competent players, with the §7 win bands applying to the
-   **contextual** fight (post-delve attrition + dread depth + Heat)? *(Recommend:
-   yes — it preserves "Defend is the safe answer if you play it hard enough" and
-   keeps fresh fights from feeling unfair; difficulty comes from the run, not the
-   duel.)*
-6. **Tier multiplier vs Novice floor** — set A5 at `{1, 1.7, 2.4}` (doom-safe, but
-   context-boss ~85–90% for Average) or `{1, 1.9, 2.8}` (context-boss on the 70%
-   target, but Novice can't survive a level-matched boss)? *(Recommend: the
-   moderate 2.4 + lean on dread/Heat/depth for the top end, since Novices lean on
-   consumables — excluded from the sim — and shouldn't solo a level-matched boss.)*
-7. **Temper the innate allocation?** Gear can't reach the early-innate-bias / late-
-   gear-dominance curve while innate grows +6/level. Drop to **+4–5/level** (or cap
-   a focused stat) so gear's rising share can actually overtake it? *(Recommend:
-   yes, modestly — it's the second half of the §5.4 gear fix.)*
+5. **Where difficulty lives** — ✅ **DECIDED (2026-06-17): difficulty lives in the
+   run, not the duel.** Fresh level-matched fights are won by competent players; the
+   §7 win bands are the **contextual** fight (post-delve attrition + dread depth +
+   Heat). Preserves "Defend is the safe answer if you play it hard enough."
+6. **Tier multiplier vs Novice floor** — ✅ **DECIDED: A5 = `{1, 1.7, 2.4}`**
+   (doom-safe), leaning on dread/Heat/depth for the top end. Novices lean on
+   consumables (excluded from the sim) and aren't expected to solo a level-matched
+   boss — Novice-vs-fresh-boss ≈ 0% bare is accepted.
+7. **Temper the innate allocation** — ✅ **DECIDED: +6 → +4/level.** Chosen over +5
+   on *feel* — +4 reads as a clean "1 in each + 1 bonus" (2/1/1), where +5 (2/2/1)
+   feels "1 short of 2." Bonus: +4 pulls the gear crossover to **~L17** (closer to
+   the "even by mid" goal) and gear share to **~58% at cap**. Cost: a more gear-
+   dependent game (under-geared/Novice play is harder — Novice-vs-elite dipped below
+   the §7 band; softenable later via base stat or the `gearFactor` extension if real
+   testing bites). Balanced = 4/3 per stat/level; gear fills the gap to parity.
+   *Live `progression.yaml`/`save.ts` still carry +6 — the change is a build step,
+   sim-gated.*
 
 ---
 
