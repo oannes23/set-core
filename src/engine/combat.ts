@@ -242,6 +242,13 @@ export function playerCritChance(s: CombatState): number {
 export function playerCritMult(s: CombatState): number {
   return BASE_CRIT_MULT + s.mods.critMult
 }
+/** The live DODGE readout for the HUD (§2.3): the Speed-differential FLOOR, the banked pool, the foe's
+ *  cadence CAP, and the effective per-swing chance = min(cap, floor + pool). */
+export function dodgeReadout(s: CombatState): { chance: number; floor: number; cap: number; pool: number } {
+  const floor = Math.min(DODGE_MAX, dodgeChance(s.stats.speed, s.foe.stats.speed, DODGE_BASE, DODGE_K, DODGE_MIN, DODGE_MAX) + s.mods.dodge)
+  const cap = dodgeCapForFoe(s.foe.strikeEvery, s.foe.swings)
+  return { floor, cap, pool: s.dodgePool, chance: Math.min(cap, floor + s.dodgePool) }
+}
 
 /** The AFFIX-PROC ENGINE (CRAWL §7): gear affix procs fire like class passives. ON-MATCH procs gate on
  *  the match descriptor (condMet); REACTIVE procs (wound/kill/lowHP) fire on a player-side event (no

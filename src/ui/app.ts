@@ -21,7 +21,7 @@ import { condMet } from '../engine/triggers'
 import { revalidateSelection } from '../engine/select'
 import { PASSIVES } from '../engine/passives'
 import { assembleFoe, pickWeightedFoe, computeXP } from '../engine/foe'
-import { colsForN, COMBAT_GEN, playerCritChance, type Deps, type CombatAction } from '../engine/combat'
+import { colsForN, COMBAT_GEN, playerCritChance, dodgeReadout, type Deps, type CombatAction } from '../engine/combat'
 import { createRun, runReduce, type RunState } from '../engine/run'
 import { createDelve, nextEncounter, fleeReroll, dreadBand, RUN_BAG_CAP } from '../engine/delve'
 import { rollMarqueeGear, rollMarketStock, rollRareStock } from '../engine/loot'
@@ -1383,6 +1383,7 @@ function buildPlay(): void {
       <span class="spritebox" data-tip-title="You" data-tip="The badge on your shoulder is the locked stance (Maneuver shows its bias). You pace with the board's lean — you advance as your bias takes hold, give ground as the dungeon's theme floods it."><span class="sprite you" id="spyou">🧙<span class="stb" id="stancebadge">🛡</span></span></span>
       <div class="gauge you"><div class="lab"><span class="youname">You <span class="buffbadge" id="buffind"></span></span><span id="phpv"></span></div><div class="track"><span class="fill php" id="php"></span></div></div>
       <div class="critdisp" id="critdisp" data-tip-title="✦ Crit chance" data-tip="Your chance for the exchange swing to land a CRIT (×1.5+ damage). EARNED by combos this round — keep matching within 3s, especially the same colour or shape, to ramp it. Soft-capped, so it's a delight, never a reliable strategy."><span class="cd-val" id="critval">5</span><span class="cd-unit">%</span><span class="cd-lab">✦ crit</span></div>
+      <div class="critdisp dodgedisp" id="dodgedisp" data-tip-title="💨 Dodge chance" data-tip="Your chance to SLIP each incoming swing WHOLE. A floor from your Speed vs theirs, plus a BANKED pool you build with Move matches — it persists across rounds and resets when you dodge. Capped by the foe's cadence (rare big hits dodgeable in full; fast multi-swing flurries only partly). Stack it during a slow foe's windup to slip a haymaker you can't fully Block."><span class="cd-val" id="dodgeval">0</span><span class="cd-unit">%</span><span class="cd-lab">💨 dodge</span></div>
       <div class="tricounter" id="tricounter">
         <div class="tc-cell atk" id="tcatk" data-tip-title="⚔ Banked Attack" data-tip="Attack matches BANK damage here all round and land as ONE swing at the exchange. Reach the foe's remaining HP and it reads LETHAL — a lethal swing lands first and cancels their strike entirely.">
           <span class="tc-lab">attack</span><span class="tc-ico">⚔</span><span class="tc-val" id="exatk">0</span><span class="tc-tag lethal" id="exlethal">LETHAL</span>
@@ -1407,7 +1408,7 @@ function buildPlay(): void {
   if (!document.getElementById('ptint')) document.body.appendChild($(`<div id="ptint"></div>`)) // low-HP vignette (body-level)
 
   V.refs = {}
-  for (const id of ['foename', 'foedesc', 'fleebtn', 'enemylab', 'phpv', 'ehpv', 'php', 'ehp', 'clock', 'roundlab', 'roundfill', 'exatk', 'exinc', 'exguard', 'exguardfill', 'critdisp', 'critval', 'exfoe', 'tricounter', 'tcatk', 'tcgrd', 'tctac', 'tcch', 'tcbite', 'tacpips', 'm0', 'm1', 'm2', 'mp0', 'mp1', 'mp2', 'buffind', 'strip', 'dreadbar', 'dreadfill', 'dreadfloor', 'dreadlab', 'boardwrap', 'board', 'tugbar', 'tugmarker', 'tugfoe', 'tugyou', 'devstats', 'spyou', 'spfoe', 'stancebadge', 'log', 'abilities', 'tactics', 'passives', 'consumables', 'floatlayer', 'comboglow']) {
+  for (const id of ['foename', 'foedesc', 'fleebtn', 'enemylab', 'phpv', 'ehpv', 'php', 'ehp', 'clock', 'roundlab', 'roundfill', 'exatk', 'exinc', 'exguard', 'exguardfill', 'critdisp', 'critval', 'dodgedisp', 'dodgeval', 'exfoe', 'tricounter', 'tcatk', 'tcgrd', 'tctac', 'tcch', 'tcbite', 'tacpips', 'm0', 'm1', 'm2', 'mp0', 'mp1', 'mp2', 'buffind', 'strip', 'dreadbar', 'dreadfill', 'dreadfloor', 'dreadlab', 'boardwrap', 'board', 'tugbar', 'tugmarker', 'tugfoe', 'tugyou', 'devstats', 'spyou', 'spfoe', 'stancebadge', 'log', 'abilities', 'tactics', 'passives', 'consumables', 'floatlayer', 'comboglow']) {
     const el = wrap.querySelector('#' + id)
     if (el) V.refs[id] = el as HTMLElement
   }
@@ -2222,8 +2223,10 @@ function choreographRollover(events: CombatEvent[]): void {
     parts.push({ title: 'Your Swing', cls: 'atk', terms, onTotal: () => { interpretChunk(seg.swing); paintHP('e', postFoeHP) } })
   }
   if (!won) {
-    if (raw != null) { // ② THEIR STRIKE — telegraph − soak − block → the net
-      const terms: BTerm[] = [{ txt: `⚔ Telegraph ${raw}`, sub: 'their raw blow', mag: 0.55 }]
+    if (raw != null) { // ② THEIR STRIKE — (dodge) → telegraph − soak − block → the net
+      const terms: BTerm[] = []
+      if (bm && bm.dodged > 0) terms.push({ txt: `💨 ${bm.dodged} dodged`, sub: 'swings you slipped', mag: 0.45, whiff: true }) // §2.3 banked-dodge slip
+      terms.push({ txt: `⚔ Telegraph ${raw}`, sub: bm && bm.dodged > 0 ? 'what got through' : 'their raw blow', mag: 0.55 })
       if (bm && bm.soaked > 0) terms.push({ txt: `🪨 Soak −${bm.soaked}`, sub: 'your armor shrugs it off', mag: 0.45 })
       const blk = bm ? bm.block : absorbed
       if (blk > 0) terms.push({ txt: `🛡 Block −${blk}`, sub: bm ? `${plural(bm.defends, 'defend card')} × Endurance${bm.blkRider > 0 ? ` · +${bm.blkRider} armor` : ''}` : 'your guard', mag: 0.55 })
@@ -3122,6 +3125,12 @@ function updateBar(): void {
       const cc = Math.round(playerCritChance(s) * 100)
       V.refs.critval.textContent = String(cc)
       V.refs.critdisp.classList.toggle('hot', cc >= 15) // emphasize when a hot streak has it ramping
+    }
+    // the DODGE% display (§2.3) — the live per-swing chance to slip the strike (Speed floor + banked Move pool)
+    if (V.refs.dodgeval) {
+      const d = dodgeReadout(s)
+      V.refs.dodgeval.textContent = String(Math.round(d.chance * 100))
+      V.refs.dodgedisp.classList.toggle('hot', d.pool > 0 && d.chance >= 0.5) // glows when banked dodge nears a sure slip
     }
     // the BITE PREVIEW (UX §4c#4, the Into the Breach lesson): never raw inputs when the resolved
     // consequence fits in one glyph — what bites past the guard, and the wounds it would scar

@@ -27,10 +27,12 @@ pending the derivation-sheet sim — directionally settled, numerically sim-fodd
 >   teaching/puzzle foes exempt). PORTED — `creatures.yaml`.
 > - ✅ **A5 tier output multipliers 1/1.5/2 → 1/1.7/2.4.** PORTED — `resolve.ts` (`TIER_BUDGET_MULT`).
 > - ✅ **Innate allocation +6 → +4/level** (gear closes the gap to parity). PORTED — `app.ts` (`LU_POINTS`).
-> - ⏳ **Telegraph decouples from player Endurance** (anchored to level-parity E) → zero Defend = full damage.
-> - ⏳ **Block loses cross-round carry**; **Move banks a Dodge pool** capped by foe cadence (60→100%) + dodge meter.
-> The model: Attack·Power→deal · Defend·Endurance→block · Move·Speed→dodge. Difficulty lives in the
-> delve *context*, not the fresh duel. The ⏳ items (the defensive-model redesign) are the last port.
+> - ✅ **Telegraph decoupled from player Endurance** (anchored to level-parity E) → zero Defend = full damage. PORTED — `combat.ts`.
+> - ✅ **Block loses cross-round carry** (resets every rollover). PORTED — `combat.ts`.
+> - ✅ **Move banks a Dodge pool** capped by foe cadence (60→100%), rolled at the strike + a dodge meter. PORTED —
+>   `combat.ts`/`state.ts` (`dodgePool`, `dodgeCapForFoe`, `DODGE_PER_CHARGE`) + `app.ts` (the 💨 dodge readout).
+> The model: Attack·Power→deal · Defend·Endurance→block · Move·Speed→dodge — **all ported.** Difficulty lives
+> in the delve *context*, not the fresh duel. Remaining balance work is tuning in play + the gated economy pass.
 > NOTE: foe HP↑ lifts gold/XP ~+13% via `foeValue` (hp/10 term) — the §8 reward-coupling decouple is deferred to the gated economy pass.
 
 | # | Axiom | Value |
