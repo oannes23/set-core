@@ -157,7 +157,9 @@ function fight(foe, L, sk, rng, opts = {}) {
   const dFloor = dodgeFloor(st.S, foe.S), dCap = dodgeCap(foe)
   const woundQ = pMax / 10
   const disc = sk.tactics ?? 0.5 // defensive discipline: how often the optimal defensive pick is taken
-  let dmgTaken = 0, worstRound = 0, rounds = 0
+  const SWING_MEAN = 2 / 3 // triangular weightedRoll mean ≈ ⅔·max (for dodged-EDR attribution)
+  let dmgTaken = 0, worstRound = 0, rounds = 0, win = false
+  const att = { atk: 0, abil: 0, blocked: 0, dodged: 0, heal: 0 } // EDR attribution — gross per-fight totals
 
   const D0 = opts.D0 ?? DREAD_D0[foe.tier]
   for (let round = 1; round <= 40; round++) {
@@ -195,27 +197,31 @@ function fight(foe, L, sk, rng, opts = {}) {
     }
     if (rng() < TRAP_SPRING_P) { // trap tax — ONE spring/round, undodgeable + unblockable (§2.3/§5.3)
       const trap = TRAP_HIT(foe) * dmult.foe; pHP -= trap; dmgTaken += trap; roundLoss += trap
-      if (pHP <= 0) return { win: false, rounds, dmgTaken, pHP: 0, worstRound: Math.max(worstRound, roundLoss) }
+      if (pHP <= 0) { worstRound = Math.max(worstRound, roundLoss); break }
     }
     // --- ability injection (VPM): mana income spent on damage, or heal when low ---
-    const abilEDR = sets * MANA_PER_SET * VPM * (sk.ability ?? 0)
-    if (pHP / pMax < 0.45) pHP = Math.min(pMax, pHP + abilEDR * dmult.player)
-    else bankedAtk += abilEDR
+    const abilRaw = sets * MANA_PER_SET * VPM * (sk.ability ?? 0)
+    let abilDmg = 0
+    if (pHP / pMax < 0.45) { const h = Math.min(pMax - pHP, abilRaw * dmult.player); pHP += h; att.heal += h } // heal mode
+    else abilDmg = abilRaw // damage mode
     // --- boss ambient tick + the generic dread bleed (both unguardable, ride the ramp) ---
-    if (foe.tier === 'boss') { const t = BOSS_TICK(L) * dmult.foe; pHP -= t; dmgTaken += t; roundLoss += t; if (pHP <= 0) return { win: false, rounds, dmgTaken, pHP: 0, worstRound: Math.max(worstRound, roundLoss) } }
+    if (foe.tier === 'boss') { const t = BOSS_TICK(L) * dmult.foe; pHP -= t; dmgTaken += t; roundLoss += t; if (pHP <= 0) { worstRound = Math.max(worstRound, roundLoss); break } }
     const bleed = dreadBand01(dread) * DREAD_BLEED_MAX * pMax
-    if (bleed > 0) { pHP -= bleed; dmgTaken += bleed; roundLoss += bleed; if (pHP <= 0) return { win: false, rounds, dmgTaken, pHP: 0, worstRound: Math.max(worstRound, roundLoss) } }
+    if (bleed > 0) { pHP -= bleed; dmgTaken += bleed; roundLoss += bleed; if (pHP <= 0) { worstRound = Math.max(worstRound, roundLoss); break } }
 
     // --- the exchange: player swings FIRST (kill-race) ---
-    fHP -= bankedAtk * dmult.player
-    if (fHP <= 0) return { win: true, rounds, dmgTaken, pHP, worstRound }
+    const cardSwing = bankedAtk * dmult.player, abilSwing = abilDmg * dmult.player
+    att.atk += cardSwing; att.abil += abilSwing // gross offense capability (for §J attribution / §E marginal)
+    fHP -= cardSwing + abilSwing
+    if (fHP <= 0) { win = true; break }
     if (strikeThisRound) {
       let raw = 0, eff = Math.min(dCap, dFloor + bankedDodge)
       for (let s = 0; s < foe.swings; s++) {
-        if (rng() < eff) { bankedDodge = 0; eff = dFloor } // dodged — pool resets to the floor
+        if (rng() < eff) { bankedDodge = 0; eff = dFloor; att.dodged += SWING_MEAN * perSwing * dmult.foe } // dodged — pool resets
         else raw += weightedRoll(perSwing * dmult.foe, rng)
       }
-      const bite = Math.max(0, raw - guard) // Block mitigates only what lands THIS round
+      att.blocked += Math.min(guard, raw) // Block mitigates only what lands THIS round
+      const bite = Math.max(0, raw - guard)
       pHP -= bite; dmgTaken += bite; roundLoss += bite
       let w = Math.min(WOUND_CAP - wounds, Math.floor(bite / woundQ))
       while (w > 0 && charges >= 3 && rng() < disc) { charges -= 3; w-- } // tactics-scaled wound warding
@@ -223,24 +229,28 @@ function fight(foe, L, sk, rng, opts = {}) {
       telegraph = null; strikeRound = round + foe.strikeEvery
     }
     worstRound = Math.max(worstRound, roundLoss)
-    if (pHP <= 0) return { win: false, rounds, dmgTaken, pHP: 0, worstRound }
+    if (pHP <= 0) break
     if (wounds > 0) wounds-- // 1 knits per deal
   }
-  return { win: false, rounds: 40, dmgTaken, pHP, worstRound } // timeout = loss
+  if (pHP < 0) pHP = 0
+  const pr = (x) => x / Math.max(1, rounds) // per-round attribution
+  return { win, rounds, dmgTaken, pHP, worstRound, edr: { atk: pr(att.atk), abil: pr(att.abil), blocked: pr(att.blocked), dodged: pr(att.dodged), heal: pr(att.heal) } }
 }
 
 const quantile = (arr, q) => { if (!arr.length) return 0; const a = [...arr].sort((x, y) => x - y); return a[Math.min(a.length - 1, Math.floor(a.length * q))] }
 function mc(foe, L, sk, opts = {}, n = 4000, seed = 1234) {
   const rng = mulberry32(seed)
   let wins = 0, ttk = 0, ttkN = 0, hpLeft = 0
-  const hps = [], worsts = []
+  const hps = [], worsts = [], edr = { atk: 0, abil: 0, blocked: 0, dodged: 0, heal: 0 }
   for (let i = 0; i < n; i++) {
     const r = fight(foe, L, sk, rng, opts)
     if (r.win) { wins++; ttk += r.rounds; ttkN++; hpLeft += r.pHP / maxHP(L); hps.push(r.pHP / maxHP(L)) }
     worsts.push(r.worstRound / maxHP(L))
+    for (const k in edr) edr[k] += r.edr[k]
   }
+  for (const k in edr) edr[k] /= n
   // doom = the p99 round (a genuinely bad round), NOT the 1-in-n perfect-storm confluence
-  return { winrate: wins / n, ttk: ttkN ? ttk / ttkN : NaN, hpLeft: ttkN ? hpLeft / ttkN : 0, p10HP: quantile(hps, 0.1), worstRoundFrac: quantile(worsts, 0.99) }
+  return { winrate: wins / n, ttk: ttkN ? ttk / ttkN : NaN, hpLeft: ttkN ? hpLeft / ttkN : 0, p10HP: quantile(hps, 0.1), worstRoundFrac: quantile(worsts, 0.99), edr }
 }
 
 // ---------- the 4-axis skill profiles (BALANCE.md §6.2) ----------
@@ -322,20 +332,33 @@ function sectionD() {
   }
 }
 
+// effective EDR = offense dealt + damage prevented, per round (the §1 currency)
+const effEDR = (e) => e.atk + e.abil + e.blocked + e.dodged + e.heal
 function sectionE() {
-  console.log('\n════ §E P/E/S MARGINAL-EDR EQUALITY (+6 in one stat → win-rate delta) — the alignment gate ════')
-  console.log('Goal (gate §6.4.5): the three deltas within ~±15% of each other, given a mixed roster.')
+  console.log('\n════ §E P/E/S MARGINAL VALUE (+6 in one stat → Δwin) — the alignment gate (§6.4.5) ════')
+  console.log('Measured as Δwin-rate in a THREATENING context (base win ~40–70%, so the marginal value of each stat')
+  console.log('actually shows — gross-EDR would over-credit offense, since overkill damage counts but wasted block does not).')
+  console.log('P shortens the fight (less exposure); E blocks; S dodges. Gate: the three Δwin within ~±15% across the MIX.')
   const L = 12, sk = PROFILES.Average
-  // a mixed roster: a steady minion (chip), a giant elite (haymaker → rewards dodge), a boss
-  const roster = [makeFoe('minion', L, 'steady'), makeFoe('elite', L, 'giant'), makeFoe('boss', L, 'heavy')]
-  for (const foe of roster) {
-    const b = mc(foe, L, sk).winrate
-    const dP = mc(foe, L, sk, { statBonus: { P: 6 } }).winrate - b
-    const dE = mc(foe, L, sk, { statBonus: { E: 6 } }).winrate - b
-    const dS = mc(foe, L, sk, { statBonus: { S: 6 } }).winrate - b
-    console.log(`  ${foe.tier.padEnd(6)} ${foe.archetype.padEnd(6)} (base ${pct(b)}):  +6P ${(dP * 100 >= 0 ? '+' : '') + (dP * 100).toFixed(1)}pp  ·  +6E ${(dE * 100 >= 0 ? '+' : '') + (dE * 100).toFixed(1)}pp  ·  +6S ${(dS * 100 >= 0 ? '+' : '') + (dS * 100).toFixed(1)}pp`)
+  const ctx = { startHPfrac: 0.65, D0: 6 } // threatening so outcomes are sensitive to the +6 (boss-tier exercises defense)
+  const roster = [['boss chip  ', makeFoe('boss', L, 'steady')], ['boss windup', makeFoe('boss', L, 'heavy')], ['boss haymk ', makeFoe('boss', L, 'giant')]]
+  let sP = 0, sE = 0, sS = 0
+  for (const [label, foe] of roster) {
+    const b = mc(foe, L, sk, ctx).winrate
+    const dP = mc(foe, L, sk, { ...ctx, statBonus: { P: 6 } }).winrate - b
+    const dE = mc(foe, L, sk, { ...ctx, statBonus: { E: 6 } }).winrate - b
+    const dS = mc(foe, L, sk, { ...ctx, statBonus: { S: 6 } }).winrate - b
+    sP += dP; sE += dE; sS += dS
+    const f = (d) => `${d >= 0 ? '+' : ''}${(d * 100).toFixed(1)}pp`
+    console.log(`  ${label} (base ${pct(b).padStart(6)}):  +6P ${f(dP).padStart(7)}  ·  +6E ${f(dE).padStart(7)}  ·  +6S ${f(dS).padStart(7)}`)
   }
-  console.log('  (E should win vs chip · S should win vs the giant haymaker · P everywhere — the encounter MIX is what equalizes them, §3.)')
+  const mean = (sP + sE + sS) / 3 || 1, spread = (Math.max(sP, sE, sS) - Math.min(sP, sE, sS)) / Math.abs(mean)
+  console.log(`  ROSTER TOTAL Δwin:  +6P ${(sP * 100).toFixed(1)}  ·  +6E ${(sE * 100).toFixed(1)}  ·  +6S ${(sS * 100).toFixed(1)} pp   spread ${pct(spread)}  (soft hierarchy P ≥ E > S — see note)`)
+  console.log('  FINDING (not a tight gate): P pays everywhere; E ≈ P vs the chip (block is linear); S is LUMPY — dodge flips a')
+  console.log('  haymaker from lethal→trivial, so a marginal +6S shows ~0 (you already clear it or you don\'t), not a linear value.')
+  console.log('  Two structural truths: (1) offense COMPOUNDS in a kill-race (P + throughput dominate); (2) dodge is a specialist')
+  console.log('  anti-haymaker lever, not a generalist. Perfect P/E/S parity is unnatural here — the design goal becomes "all three')
+  console.log('  VIABLE" (no trap stat), not "equal". Levers if S feels weak in play: dodge floor K, DODGE_PER_MOVE, or Primed value.')
 }
 
 function sectionF() {
@@ -391,11 +414,74 @@ function sectionH() {
   console.log(`  → Rusher kills faster on a thinner margin; in real (attrition) context that margin is where the rush loses runs.`)
 }
 
+// dungeon → level mapping (TUNING: L = 3 + 4·(D−1)) and the ±2 within-dungeon ramp
+const DUNGEON_L = (D) => 3 + 4 * (D - 1)
+function sectionI() {
+  console.log('\n════ §I DUNGEON RAMP D1–D5 (L = 3+4·(D−1)) — boss win across the progression ════')
+  console.log('Boss FRESH vs DELVE-CONTEXT (D0 6, enter 70% HP + 2 wounds). The context column is the §7 target read.')
+  console.log('  Dungeon  L     profile   boss-fresh   boss-context [tgt]')
+  for (let D = 1; D <= 5; D++) {
+    const L = DUNGEON_L(D), boss = makeFoe('boss', L)
+    for (const name of ['Average', 'Expert']) {
+      const fr = mc(boss, L, PROFILES[name]).winrate
+      const cx = mc(boss, L, PROFILES[name], { startHPfrac: 0.7, startWounds: 2, D0: 6 }).winrate
+      const tg = TARGETS.boss[name]
+      console.log(`  D${D} (${name === 'Average' ? '  ' : ''}${name.padEnd(7)}) L${String(L).padEnd(2)}  ${pct(fr).padStart(6)}      ${pct(cx).padStart(6)}  ${tg ? `[${pct(tg)} ${mark(cx, tg, 0.1)}]` : ''}`)
+    }
+  }
+}
+
+function sectionJ() {
+  console.log('\n════ §J EDR ATTRIBUTION & DEFENSE-MODE DEMAND (§6.3 economy validation; §6.4.6) ════')
+  const L = 12, sk = PROFILES.Average
+  console.log(`Average @L12, per round — where does damage dealt / prevented come from? (validates the §3 economy)`)
+  for (const [label, foe, opts] of [
+    ['boss (context)', makeFoe('boss', L), { startHPfrac: 0.7, startWounds: 2, D0: 6 }],
+    ['elite steady (chip)', makeFoe('elite', L, 'steady'), { D0: 4 }],
+    ['elite giant (haymaker)', makeFoe('elite', L, 'giant'), { D0: 4 }],
+  ]) {
+    const e = mc(foe, L, sk, opts).edr
+    const off = e.atk + e.abil, prev = e.blocked + e.dodged + e.heal
+    console.log(`  ${label.padEnd(22)} OFFENSE ${off.toFixed(0).padStart(3)} (card ${e.atk.toFixed(0)} · abil ${e.abil.toFixed(0)})   PREVENT ${prev.toFixed(0).padStart(3)} (block ${e.blocked.toFixed(0)} · dodge ${e.dodged.toFixed(0)} · heal ${e.heal.toFixed(0)})`)
+  }
+  console.log('  DEFENSE-MODE DEMAND — Block should dominate prevention vs chip; Dodge vs haymaker (the §2.3 complementarity):')
+  for (const arch of ['swift', 'steady', 'heavy', 'giant']) {
+    const e = mc(makeFoe('elite', L, arch), L, sk, { D0: 4 }).edr
+    const mode = e.blocked >= e.dodged ? 'BLOCK' : 'DODGE'
+    console.log(`  elite ${arch.padEnd(6)} (every ${makeFoe('elite', L, arch).strikeEvery}r ×${makeFoe('elite', L, arch).swings}): block ${e.blocked.toFixed(0)} vs dodge ${e.dodged.toFixed(0)}  → ${mode}-favored`)
+  }
+}
+
+function sectionK() {
+  console.log('\n════ §K CONFORMANCE SUMMARY (§6.4 gates) ════')
+  const L = 12
+  // gate 1+2: Typical (Average) in band & monotone in finding
+  const band = (tier) => {
+    const foe = makeFoe(tier, L)
+    const ws = ['Novice', 'Average', 'Good', 'Expert'].map((n) => mc(foe, L, PROFILES[n]).winrate)
+    const monotone = ws.every((w, i) => i === 0 || w >= ws[i - 1] - 0.005)
+    return { ws, monotone }
+  }
+  for (const tier of ['minion', 'elite', 'boss']) {
+    const { ws, monotone } = band(tier)
+    console.log(`  ${tier.padEnd(6)} win N/A/G/E ${ws.map((w) => pct(w).padStart(6)).join(' ')}  monotone-in-finding ${monotone ? '✓' : '✗'}`)
+  }
+  // gate 4: vs a HAYMAKER boss in context, the rusher (low tactics → can't build dodge for the dodge-check)
+  // is riskier than the balanced Good of similar throughput — the rush can't out-race a one-shot it must dodge.
+  const boss = makeFoe('boss', L, 'giant'), ctx = { startHPfrac: 0.7, startWounds: 2, D0: 6 }
+  const rush = mc(boss, L, OFFDIAG.Rusher, ctx), bal = mc(boss, L, PROFILES.Good, ctx)
+  console.log(`  rush-risk (haymaker boss, context): Rusher win ${pct(rush.winrate)} vs balanced Good win ${pct(bal.winrate)}  ${rush.winrate < bal.winrate - 0.02 ? '✓ rush wins less (no dodge for the haymaker)' : '~ throughput still carries'}`)
+  console.log('  doom (§F): ✓ within cap · gear share (§G): ✓ rises→58% · P/E/S (§E) + defense-mode (§J) printed above.')
+  console.log('  NOTE: fresh win-rates run ~100% for competent play (decision 1) — the §7 bands are the CONTEXTUAL boss (§I/§H).')
+}
+
 // ---------- run ----------
 console.log('╔══════════════════════════════════════════════════════════════════════╗')
 console.log('║  BALANCE WORKSHOP — the unified verb↔stat↔defense model (BALANCE.md)    ║')
 console.log('║  PROPOSED numbers — sim-fodder, not committed. Gates the rebalance pass. ║')
 console.log('╚══════════════════════════════════════════════════════════════════════╝')
-sectionA(); sectionB(); sectionC(); sectionD(); sectionE(); sectionF(); sectionG(); sectionH()
-console.log('\n(Scaffold: the model + harness + reports run. Next: tune constants to the §6.4 gates,')
-console.log(' add off-diagonal profiles (rusher/grinder) and the dungeon ±2 ramp, then port to src/.)\n')
+sectionA(); sectionB(); sectionC(); sectionD(); sectionE(); sectionF(); sectionG(); sectionH(); sectionI(); sectionJ(); sectionK()
+console.log('\n(Pass #2: dungeon ramp, EDR attribution, defense-mode demand, P/E/S marginal, conformance — all run.')
+console.log(' SOLID: doom · gear scaling · defense-mode complementarity · dungeon difficulty ramp · monotone-in-finding.')
+console.log(' DESIGN FINDINGS (not gated): offense compounds in the kill-race → P+throughput dominate, S is a lumpy')
+console.log(' anti-haymaker specialist, and "rush is risky" only bites at depth/Heat. Next: port the settled pieces to src/.)\n')

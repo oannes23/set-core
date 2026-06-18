@@ -463,8 +463,8 @@ boss), Monte-Carlo:
 3. No profile takes a single-round hit > 40% max HP at its tier.
 4. The rusher kills faster **but** finishes elites/bosses with materially lower HP
    than the balanced profile (rush = real risk).
-5. **P/E/S marginal EDR within ~±15% of each other** across the roster (the
-   alignment goal) — given the encounter mix in §6.3.
+5. **P/E/S all *viable* (no trap stat)** across the encounter mix — *revised from
+   "equal ±15%"* (pass #2 finding §6.6): perfect parity is unnatural in a kill-race.
 6. Block and Dodge each *dominate* their intended tempo rows (Report B).
 7. Gear share crosses 50% near L11, ~65% by L18.
 
@@ -498,6 +498,30 @@ pass focused on **doom, offense, gear**. What it settled and what it surfaced:
 - **Dread is the load-bearing threat vs skilled play** — with the telegraph fully
   blockable and no unblockable fraction, a fresh competent player can't lose; dread
   escalation (two-way mult + bleed past onset) is what punishes dragging.
+
+**Pass #2 (2026-06-17) — extended the sim** (dungeon ramp §I, EDR attribution §J,
+P/E/S marginal §E, defense-mode demand, conformance §K). Confirmed solid + two
+honest findings:
+- **Defense-mode complementarity holds (clean ✓):** vs chip foes (swift/steady)
+  Block dominates prevention; vs haymakers (heavy/giant) Dodge does — exactly the
+  §2.3 design. EDR attribution (§J) validates the economy: easy fights are
+  offense-heavy, hard fights prevention-heavy (a context boss: offense ~36 /
+  prevent ~68 per round).
+- **Dungeon ramp (§I):** context-boss difficulty *rises with depth* (Average ~94%
+  at D1 → ~53% at D5), crossing the 70% target ~D3. Direction right; Expert sits at
+  ~100% context across the board → the **Heat dial** is the intended top-end lever.
+- **Finding — offense compounds in the kill-race.** Marginal value (§E): **P pays
+  everywhere; E ≈ P vs chip (block is linear); S is *lumpy*** — dodge flips a
+  haymaker lethal→trivial, so a marginal +6S reads ~0 (you clear it or you don't).
+  Buffing dodge just makes haymakers a non-threat (94% win). **So P/E/S can't be
+  *equal*; the goal is revised to "all three *viable* / no trap stat."** S is the
+  specialist anti-haymaker lever, not a generalist. Echoes the original "I rarely
+  use Move" instinct — Move/dodge needs to *feel* impactful even if its average EDR
+  is lumpy (the dodge meter §5.5 + Primed value matter here).
+- **Finding — "rush is risky" is throughput-gated.** A high-finding rusher
+  out-races even a haymaker boss in mid content; the rush only loses at
+  depth/Heat where it can't win before attrition. Acceptable (matches the genre),
+  but worth knowing: raw set-finding is the master stat.
 
 **Surfaced (the §8 tensions — design calls, not knobs):**
 - **A fresh, level-matched fight is won ~100% by anyone competent — and that's
