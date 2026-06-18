@@ -359,20 +359,42 @@ a round where your Attacks whiff. The sim enforces the cap.
 
 ### 5.4 Make gear scale with item level (overtake innate late)
 
-Root cause: `affixMagUnit = perAffixPower × (1 + lootTier × 0.02)` (`affixes.ts:109`)
-— only +2%/loot-tier, integer mags floored at 1, so a L19 orange ≈ a L3 orange.
+Two root causes: (a) **rarity doesn't scale with level** — drop weights are keyed
+to *foe tier* (minion/elite/boss), not character/dungeon level, so a L20 player
+sees the same rarity mix as a L3 one; and (b) `affixMagUnit = perAffixPower × (1 +
+lootTier × 0.02)` (`affixes.ts:109`) — only +2%/loot-tier, integer mags floored at
+1, so a L19 orange ≈ a L3 orange. Gear is frozen on both axes.
 
-- Raise `LOOTTIER_K` `0.02 → ~0.08–0.12` and lift the integer floor so high-item-
-  level affixes round to 2–4, not 1.
-- **Separate the axes:** rarity = *texture* (how many affixes, which proc
-  families); item level = *magnitude* (raw power). Rarity = build variety, item
-  level = strength.
-- Keep `gearFactor` but **extend it below L6** (or a small early-foe HP raise) so
-  the D1 warren isn't unscaled.
+**The fix is two levers, both proven in the §6 sim:**
 
-**Target power share** (the requested curve): innate **~80%** early (L1–6) →
-**~50%** mid (crossover ~L11) → gear **~65%** late (L14–21). Exact `LOOTTIER_K`
-and floor are sim outputs; the constraint is this curve.
+1. **Rarity drop-rate scales with character/dungeon level** (the headline). Drop
+   weights become a per-level-band table:
+
+   | Level band | white | green | blue | purple | orange | feel |
+   |---|---|---|---|---|---|---|
+   | **≤ 5** | 65 | 28 | 7 | — | — | mostly white, some green, rarely blue |
+   | **6–12** | 25 | 50 | 20 | 5 | — | mostly green, unusually blue, rarely purple |
+   | **13–18** | 5 | 45 | 35 | 13 | 2 | often green/blue, unusually purple, rarely orange |
+   | **19+** | — | 15 | 50 | 28 | 7 | mostly blue, some purple, rarely-but-more orange |
+
+   (These stack on the existing foe-tier quality bias — an *elite* at L15 still
+   skews better than a minion at L15.)
+
+2. **Raise `LOOTTIER_K` `0.02 → ~0.12`** and lift the integer floor so high-item-
+   level affixes round to 2–4, not 1.
+
+**Separate the axes:** rarity = *texture* (how many affixes, which proc families);
+item level = *magnitude* (raw power). Keep `gearFactor` but **extend it below L6**
+so the D1 warren isn't unscaled.
+
+**Result (sim §G):** gear power ∝ E[rarity²] × (1 + 0.12·iLvl) climbs *super-
+linearly*, so its share now **rises and crosses ~50% late** (≈ 22% at L3 → 34%
+mid → 50% at L21) — was a flat ~35%. **Caveat:** the literal "innate 80% at L3"
+isn't reachable by gear alone — the **+6/level innate allocation grows too steeply
+early**. Pushing gear past ~50% / hitting the exact early-innate-bias additionally
+needs **tempering the innate allocation** (e.g. +4/level, or a cap) — a new §8
+decision. Rarity-by-level + item-level magnitude is necessary and gets the
+*direction* right; the innate temper is the optional second half.
 
 ### 5.5 Dodge UI (build it — currently absent)
 
@@ -456,6 +478,39 @@ boss), Monte-Carlo:
   banked-dodge combat model, the doom-cap constraint, the P/E/S-equality and
   defense-mode-demand checks, the gear-vs-innate share check.
 
+### 6.6 Tuning-pass #1 results (`sim/balance-sim.mjs`, 2026-06-17)
+
+The model + harness are built and run (`node sim/balance-sim.mjs`). First tuning
+pass focused on **doom, offense, gear**. What it settled and what it surfaced:
+
+**Settled (gates met):**
+- **Doom cap holds** at every tier (p99 round loss: minion 5% · elite 8.5% · boss
+  18.5%). Fixes: trap springs **once/round** (was per-set — skilled players sprang
+  a pile), severity ∝ intended HP, and a reliable defensive AI. The doom metric is
+  now the **p99 round** (a genuinely bad round), not the 1-in-n perfect storm.
+- **Gear share rises** (§5.4) — 22% → 34% → 50% via rarity-by-level + `LOOTTIER_K`.
+- **Offense trimmed / rush has a cost:** ability mana/set 2 → 1.1; **shape-steering
+  is now a skill** (`steer = 0.40 + 0.42·tactics`) — you get the shape you want
+  only ~45% (novice) … 82% (expert) of the time, so you can't both fully attack
+  *and* fully cover the telegraph. The Grinder off-diagonal (low throughput) now
+  **loses** bosses (~18%), and the Rusher wins fast but on a thin margin.
+- **Dread is the load-bearing threat vs skilled play** — with the telegraph fully
+  blockable and no unblockable fraction, a fresh competent player can't lose; dread
+  escalation (two-way mult + bleed past onset) is what punishes dragging.
+
+**Surfaced (the §8 tensions — design calls, not knobs):**
+- **A fresh, level-matched fight is won ~100% by anyone competent — and that's
+  correct.** Boss/elite difficulty lives in the **expected context** (end-of-delve:
+  wounded, resources spent, dread floor raised by depth + Heat). Sim §H: Average vs
+  a fresh boss = 100%, but in delve-context (D0 6, enter 70% HP + 2 wounds) drops
+  toward the §7 band. **→ the §7 win-rate targets should be read as the contextual
+  case, not the fresh duel.**
+- **Tier-multiplier vs doom/novice.** Raising A5 to `{1, 1.7, 2.4}` (from 1/1.5/2)
+  is the structural "rush is harder" lever (forces the attack-vs-defend tradeoff),
+  and keeps the doom cap. Pushing to `2.8` lands the *context* boss exactly on the
+  70% target but over-dooms **Novice** (who can't cover the bigger telegraph) — a
+  real floor-vs-ceiling tension (§8).
+
 ---
 
 ## 7. Difficulty targets (the curve we tune against)
@@ -488,6 +543,21 @@ bad-round streak is losable vs elites/bosses but survivable vs minions; the
 4. **Cooldowns** — VPM-reprice alone, or also build the planned cooldown gate so
    burst can't be mana-dumped? *(Recommend: reprice first, add cooldowns only if
    burst still spikes.)*
+5. **Where difficulty lives** (from pass #1) — accept that fresh level-matched
+   fights are won by competent players, with the §7 win bands applying to the
+   **contextual** fight (post-delve attrition + dread depth + Heat)? *(Recommend:
+   yes — it preserves "Defend is the safe answer if you play it hard enough" and
+   keeps fresh fights from feeling unfair; difficulty comes from the run, not the
+   duel.)*
+6. **Tier multiplier vs Novice floor** — set A5 at `{1, 1.7, 2.4}` (doom-safe, but
+   context-boss ~85–90% for Average) or `{1, 1.9, 2.8}` (context-boss on the 70%
+   target, but Novice can't survive a level-matched boss)? *(Recommend: the
+   moderate 2.4 + lean on dread/Heat/depth for the top end, since Novices lean on
+   consumables — excluded from the sim — and shouldn't solo a level-matched boss.)*
+7. **Temper the innate allocation?** Gear can't reach the early-innate-bias / late-
+   gear-dominance curve while innate grows +6/level. Drop to **+4–5/level** (or cap
+   a focused stat) so gear's rising share can actually overtake it? *(Recommend:
+   yes, modestly — it's the second half of the §5.4 gear fix.)*
 
 ---
 

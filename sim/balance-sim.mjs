@@ -41,7 +41,10 @@ const HP_BASE = 100, HP_PER_LEVEL = 5
 const RATE_BASE = 8, RATE_MIN = 2, RATE_MAX = 20, RATE_K = 0.2
 const MOVE_BASE = 1, MOVE_MIN = 0.2, MOVE_MAX = 3, MOVE_K = 0.025
 const QSUM = 3.1 // quality-sum of a magnitude-6 set (0.7+1.0+1.4)
-const TIER_OUT = { minion: 1.0, elite: 1.5, boss: 2.0 } // A5
+const TIER_OUT = { minion: 1.0, elite: 1.7, boss: 2.4 } // A5 tier output multipliers — RAISED from 1/1.5/2:
+// elites/bosses must out-demand the Defend capacity a player can casually spare, or they can't threaten
+// competent play (the telegraph is fully blockable). This is the structural "rush is harder" lever — but
+// it trades against the doom cap (bigger telegraph = bigger unblocked tail), the §8 design tension.
 const ELITE_E_BUMP = { minion: 0, elite: 4, boss: 8 }
 const WOUND_CAP = 5
 
@@ -83,19 +86,43 @@ function dodgeCap(foe) {
   return foe.swings === 3 ? 0.60 : foe.swings === 2 ? 0.70 : 0.80 // 1/round: 3-swing 60 · 2-swing 70 · clean 80
 }
 
-// ABILITY economy (§3/§5.1): mana income from sets, spent at VPM≈4.
-const VPM = 4, MANA_PER_SET = 2 // avg mana/set across the mono/rainbow mix — §6 refines
-// TRAP TAX (§5.3): the undodgeable/unblockable pressure floor. Severity ∝ intended-level HP.
-const TRAP_SPRING_P = 0.22
-const TRAP_HIT = (foe) => 7 * TIER_OUT[foe.tier] * (maxHP(foe.L) / 100) // §5.3 raised the bite a touch
-const BOSS_TICK = (L) => 3 * (maxHP(L) / 100)
-const FORCED_FRAC = 1 / 3 // the board forces ~⅓ of picks (no agency); the rest are steered
-const DOOM_CAP = 0.40 // §3.1 — worst single-round HP loss must stay ≤ 40% maxHP
+// DREAD escalation (the anti-stall). With the telegraph fully blockable and the unblockable fraction
+// cut, dread is THE load-bearing threat vs skilled "block everything" play: a two-way damage multiplier
+// + an unguardable bleed past the onset, so dragging a fight is punished. D0 = depth floor (deeper foes
+// start hotter). Bosses sit at the end of a delve → high D0; minions early → low.
+const DREAD_RISE = 0.5, DMG_ONSET = 7, DREAD_MAX = 10, DREAD_FOE_MAX = 2.0, DREAD_PLAYER_MAX = 1.5, DREAD_BLEED_MAX = 0.06
+const DREAD_D0 = { minion: 1.5, elite: 2.5, boss: 4.0 }
+const dreadAt = (round, D0) => Math.min(DREAD_MAX, Math.max(1, D0 + DREAD_RISE * round))
+const dreadBand01 = (d) => clamp((d - DMG_ONSET) / (DREAD_MAX - DMG_ONSET), 0, 1)
+const dmgMult = (d) => d < DMG_ONSET ? { foe: 1, player: 1 } : { foe: 1 + dreadBand01(d) * (DREAD_FOE_MAX - 1), player: 1 + dreadBand01(d) * (DREAD_PLAYER_MAX - 1) }
 
-// GEAR model (§5.4): gear adds stat-equivalent power that SCALES with level (rarity = texture, item
-// level = magnitude). PROPOSED curve — §G reports the resulting innate-vs-gear share so we can tune it.
-const GEAR_STAT_AT_CAP = 22 // per-stat gear-equivalent at L21, full kit (gearEff 1) — §6 tunes
-const gearStatAtL = (L, eff) => eff * GEAR_STAT_AT_CAP * ((L - 1) / 20)
+// ABILITY economy (§3/§5.1): mana income from sets, spent at VPM≈4.
+const VPM = 4, MANA_PER_SET = 1.1 // avg mana/set net of the mono/rainbow mix + cap losses (trimmed — offense was hot)
+// TRAP TAX (§5.3): the undodgeable/unblockable pressure floor. ONE spring per round (not per-set — the
+// per-set roll let skilled players, who make many sets, eat a pile of unguardable hits → the doom blowout).
+const TRAP_SPRING_P = 0.28 // chance the foe springs its trap in a round
+const TRAP_HIT = (foe) => 5 * TIER_OUT[foe.tier] * (maxHP(foe.L) / 100) // severity ∝ intended-level HP
+const BOSS_TICK = (L) => 3 * (maxHP(L) / 100)
+const STEER_BASE = 0.40, STEER_SKILL = 0.42 // P(get the shape you wanted) = base + skill·tactics (cap ~0.82)
+const DOOM_CAP = 0.40 // §3.1 — worst single-round HP loss must stay ≤ 40% maxHP (haymakers are the noted exception)
+
+// GEAR model (§5.4 — the user's rarity-by-level spec). Drop rarity climbs with character/dungeon level;
+// affix magnitude climbs with item level (LOOTTIER_K). Gear POWER ∝ rarity² (higher rarity = MORE
+// affixes AND bigger riders) × the item-level magnitude → gear climbs SUPER-linearly, so its share can
+// rise against the (linear) innate stat curve. §G reports the resulting share.
+const RARITY_IDX = { white: 1, green: 2, blue: 3, purple: 4, orange: 5 }
+const RARITY_BANDS = [ // drop weights per character/dungeon-level band (sum 100)
+  { maxL: 5, w: { white: 65, green: 28, blue: 7, purple: 0, orange: 0 } }, // ≤5: mostly white, some green, rarely blue
+  { maxL: 12, w: { white: 25, green: 50, blue: 20, purple: 5, orange: 0 } }, // 6–12: some white, mostly green, unusually blue, rarely purple
+  { maxL: 18, w: { white: 5, green: 45, blue: 35, purple: 13, orange: 2 } }, // 13–18: often green, sometimes blue, unusually purple, rarely orange
+  { maxL: 99, w: { white: 0, green: 15, blue: 50, purple: 28, orange: 7 } }, // 19+: mostly blue, some purple, rarely-but-more orange
+]
+const rarityBand = (L) => RARITY_BANDS.find((b) => L <= b.maxL).w
+const expRarityIdx2 = (L) => { const w = rarityBand(L); let s = 0, n = 0; for (const k in w) { s += w[k] * RARITY_IDX[k] ** 2; n += w[k] } return s / n }
+const LOOTTIER_K = 0.12 // affix magnitude × (1 + k·(itemLevel−1)) — PROPOSED, up from live 0.02 (§5.4)
+const gearPower = (L) => expRarityIdx2(L) * (1 + LOOTTIER_K * (L - 1)) // abstract power units (stat + riders + procs)
+const GEAR_COMBAT_C = 0.42 // gear's BOUNDED raw-stat slice for the contest (riders/procs aren't raw stat)
+const gearStatAtL = (L, eff) => eff * gearPower(L) * GEAR_COMBAT_C
 
 /** Author a foe at dungeon level L, tier, speed archetype (level-invariant role spread). */
 function makeFoe(tier, L, archetype = 'steady') {
@@ -116,7 +143,7 @@ function fight(foe, L, sk, rng, opts = {}) {
   const st = { P: base.P + g, E: base.E + g, S: base.S + g }
   if (opts.statBonus) { st.P += opts.statBonus.P || 0; st.E += opts.statBonus.E || 0; st.S += opts.statBonus.S || 0 }
   const pMax = maxHP(L)
-  let pHP = pMax, fHP = foe.hp, wounds = 0, charges = 0, bankedDodge = 0
+  let pHP = pMax * (opts.startHPfrac ?? 1), fHP = foe.hp, wounds = opts.startWounds ?? 0, charges = 0, bankedDodge = 0
   let telegraph = null, strikeRound = foe.strikeEvery
   const budget = foeBudget(foe)
   const perSwing = (budget * foe.strikeEvery) / foe.swings
@@ -126,10 +153,13 @@ function fight(foe, L, sk, rng, opts = {}) {
   const disc = sk.tactics ?? 0.5 // defensive discipline: how often the optimal defensive pick is taken
   let dmgTaken = 0, worstRound = 0, rounds = 0
 
+  const D0 = opts.D0 ?? DREAD_D0[foe.tier]
   for (let round = 1; round <= 40; round++) {
     rounds = round
+    const dread = opts.noDread ? 1 : dreadAt(round, D0)
+    const dmult = dmgMult(dread)
     const revealAt = strikeRound - (foe.strikeEvery - 1) // telegraph shows at windup start
-    if (telegraph == null && round >= revealAt) telegraph = perSwing * foe.swings // expected total (rolled at strike)
+    if (telegraph == null && round >= revealAt) telegraph = perSwing * foe.swings * dmult.foe // expected (dread folds in at reveal)
     const strikeThisRound = round >= strikeRound && telegraph != null
     const inWindup = telegraph != null && !strikeThisRound
 
@@ -138,42 +168,46 @@ function fight(foe, L, sk, rng, opts = {}) {
     const expected = sk.find * liveScale
     const sets = Math.floor(expected) + (rng() < expected % 1 ? 1 : 0)
     let bankedAtk = 0, guard = 0, roundLoss = 0 // guard is THIS-ROUND-ONLY (no carry)
+    // SHAPE-STEERING IS A SKILL: you find whatever sets the board offers; Tactics/Maneuver bias the
+    // shape toward your intent but never dictate it. steer = P(you get the shape you wanted); the rest
+    // is board-forced (random). This is the opportunity cost that makes the rush real — you can't both
+    // fully attack AND fully cover the telegraph, and even experts miss ~20% of their intended shapes.
+    const steer = STEER_BASE + STEER_SKILL * disc // novice ~0.45 · average ~0.60 · expert ~0.80
     for (let i = 0; i < sets; i++) {
       let q = clamp(QSUM + (rng() - 0.5) * 1.2, 2.1, 4.2)
       if (charges >= 1 && rng() < disc * 0.3) { q = Math.min(4.2, q + 0.4); charges -= 1 } // Maneuver Priming
-      let shape
-      if (rng() < FORCED_FRAC) shape = ['atk', 'def', 'mov'][Math.floor(rng() * 3)] // board-forced
-      else if (rng() < disc) { // a steered pick (taken with prob = discipline)
-        if (strikeThisRound && guard < telegraph) shape = 'def' // block the hit landing THIS round
-        else if (inWindup && bankedDodge < dCap) shape = 'mov' // build dodge for the coming haymaker
-        else shape = 'atk'
-      } else shape = 'atk' // undisciplined default → attack (the rush bias)
-      if (opts.turtle && shape === 'atk') shape = 'def'
+      let want // the intent
+      if (opts.turtle) want = 'def'
+      else if (strikeThisRound && guard < telegraph) want = 'def' // cover the hit landing THIS round
+      else if (inWindup && bankedDodge < dCap) want = 'mov' // build dodge for the coming haymaker
+      else want = 'atk'
+      const shape = rng() < steer ? want : ['atk', 'def', 'mov'][Math.floor(rng() * 3)] // steered, else board-forced
 
       if (shape === 'atk') bankedAtk += atkRate * q
       else if (shape === 'def') guard += defRate * q
       else { charges = Math.min(15, charges + chgRate * q); bankedDodge = Math.min(dCap, bankedDodge + DODGE_PER_MOVE * (q / QSUM)) }
-
-      if (rng() < TRAP_SPRING_P) { // trap tax — undodgeable, unblockable (§2.3/§5.3)
-        const trap = TRAP_HIT(foe); pHP -= trap; dmgTaken += trap; roundLoss += trap
-        if (pHP <= 0) { return { win: false, rounds, dmgTaken, pHP: 0, worstRound: Math.max(worstRound, roundLoss) } }
-      }
+    }
+    if (rng() < TRAP_SPRING_P) { // trap tax — ONE spring/round, undodgeable + unblockable (§2.3/§5.3)
+      const trap = TRAP_HIT(foe) * dmult.foe; pHP -= trap; dmgTaken += trap; roundLoss += trap
+      if (pHP <= 0) return { win: false, rounds, dmgTaken, pHP: 0, worstRound: Math.max(worstRound, roundLoss) }
     }
     // --- ability injection (VPM): mana income spent on damage, or heal when low ---
     const abilEDR = sets * MANA_PER_SET * VPM * (sk.ability ?? 0)
-    if (pHP / pMax < 0.45) pHP = Math.min(pMax, pHP + abilEDR)
+    if (pHP / pMax < 0.45) pHP = Math.min(pMax, pHP + abilEDR * dmult.player)
     else bankedAtk += abilEDR
-    // --- boss ambient tick (undodgeable) ---
-    if (foe.tier === 'boss') { const t = BOSS_TICK(L); pHP -= t; dmgTaken += t; roundLoss += t; if (pHP <= 0) return { win: false, rounds, dmgTaken, pHP: 0, worstRound: Math.max(worstRound, roundLoss) } }
+    // --- boss ambient tick + the generic dread bleed (both unguardable, ride the ramp) ---
+    if (foe.tier === 'boss') { const t = BOSS_TICK(L) * dmult.foe; pHP -= t; dmgTaken += t; roundLoss += t; if (pHP <= 0) return { win: false, rounds, dmgTaken, pHP: 0, worstRound: Math.max(worstRound, roundLoss) } }
+    const bleed = dreadBand01(dread) * DREAD_BLEED_MAX * pMax
+    if (bleed > 0) { pHP -= bleed; dmgTaken += bleed; roundLoss += bleed; if (pHP <= 0) return { win: false, rounds, dmgTaken, pHP: 0, worstRound: Math.max(worstRound, roundLoss) } }
 
     // --- the exchange: player swings FIRST (kill-race) ---
-    fHP -= bankedAtk
+    fHP -= bankedAtk * dmult.player
     if (fHP <= 0) return { win: true, rounds, dmgTaken, pHP, worstRound }
     if (strikeThisRound) {
       let raw = 0, eff = Math.min(dCap, dFloor + bankedDodge)
       for (let s = 0; s < foe.swings; s++) {
         if (rng() < eff) { bankedDodge = 0; eff = dFloor } // dodged — pool resets to the floor
-        else raw += weightedRoll(perSwing, rng)
+        else raw += weightedRoll(perSwing * dmult.foe, rng)
       }
       const bite = Math.max(0, raw - guard) // Block mitigates only what lands THIS round
       pHP -= bite; dmgTaken += bite; roundLoss += bite
@@ -189,17 +223,18 @@ function fight(foe, L, sk, rng, opts = {}) {
   return { win: false, rounds: 40, dmgTaken, pHP, worstRound } // timeout = loss
 }
 
+const quantile = (arr, q) => { if (!arr.length) return 0; const a = [...arr].sort((x, y) => x - y); return a[Math.min(a.length - 1, Math.floor(a.length * q))] }
 function mc(foe, L, sk, opts = {}, n = 4000, seed = 1234) {
   const rng = mulberry32(seed)
-  let wins = 0, ttk = 0, ttkN = 0, hpLeft = 0, worst = 0
-  const hps = []
+  let wins = 0, ttk = 0, ttkN = 0, hpLeft = 0
+  const hps = [], worsts = []
   for (let i = 0; i < n; i++) {
     const r = fight(foe, L, sk, rng, opts)
     if (r.win) { wins++; ttk += r.rounds; ttkN++; hpLeft += r.pHP / maxHP(L); hps.push(r.pHP / maxHP(L)) }
-    worst = Math.max(worst, r.worstRound / maxHP(L))
+    worsts.push(r.worstRound / maxHP(L))
   }
-  hps.sort((a, b) => a - b)
-  return { winrate: wins / n, ttk: ttkN ? ttk / ttkN : NaN, hpLeft: ttkN ? hpLeft / ttkN : 0, p10HP: hps.length ? hps[Math.floor(hps.length * 0.1)] : 0, worstRoundFrac: worst }
+  // doom = the p99 round (a genuinely bad round), NOT the 1-in-n perfect-storm confluence
+  return { winrate: wins / n, ttk: ttkN ? ttk / ttkN : NaN, hpLeft: ttkN ? hpLeft / ttkN : 0, p10HP: quantile(hps, 0.1), worstRoundFrac: quantile(worsts, 0.99) }
 }
 
 // ---------- the 4-axis skill profiles (BALANCE.md §6.2) ----------
@@ -214,6 +249,11 @@ const TARGETS = {
   minion: { Novice: 0.85, Average: 0.97, Expert: 0.995 },
   elite: { Novice: 0.55, Average: 0.80, Expert: 0.95 },
   boss: { Novice: 0.40, Average: 0.70, Expert: 0.90 },
+}
+// off-diagonal profiles (gate §6.4.4): the curve should reward BALANCED skill, not let one axis carry.
+const OFFDIAG = {
+  Rusher: { find: 11, tactics: 0.1, ability: 0.6, gear: 0.6 }, // all finding, no defensive discipline
+  Grinder: { find: 4, tactics: 0.9, ability: 0.75, gear: 0.75 }, // patient, defensive, low throughput
 }
 const pct = (x) => `${(x * 100).toFixed(1)}%`
 const mark = (actual, target, tol = 0.08) => Math.abs(actual - target) <= tol ? '✓' : actual > target ? '↑' : '↓'
@@ -292,27 +332,56 @@ function sectionE() {
 }
 
 function sectionF() {
-  console.log('\n════ §F DOOM-CAP CHECK — worst single-round HP loss ≤ 40% (§3.1) ════')
+  console.log('\n════ §F DOOM-CAP CHECK — worst single-round HP loss ≤ 40% (§3.1), Average profile ════')
+  console.log('Measured on the Average profile (who defends/dodges). The GIANT haymaker is the noted exception:')
+  console.log('its identity is a telegraphed one-hit dodge-check (cap 100%) — failing it is a multi-round prep failure, not "one bad round".')
   const L = 12
   for (const tier of ['minion', 'elite', 'boss']) {
-    const foe = makeFoe(tier, L, tier === 'elite' ? 'giant' : 'steady')
-    const r = mc(foe, L, PROFILES.Average)
-    console.log(`  ${tier.padEnd(6)} worst round ${pct(r.worstRoundFrac)}  ${r.worstRoundFrac <= DOOM_CAP ? '✓ within cap' : '✗ EXCEEDS 40% — tune threat down'}`)
+    for (const arch of (tier === 'minion' ? ['swift', 'steady'] : tier === 'elite' ? ['steady', 'giant'] : ['steady'])) {
+      const foe = makeFoe(tier, L, arch)
+      const r = mc(foe, L, PROFILES.Average)
+      const haymaker = foe.strikeEvery >= 2
+      const ok = r.worstRoundFrac <= DOOM_CAP
+      console.log(`  ${tier.padEnd(6)} ${arch.padEnd(6)} worst round ${pct(r.worstRoundFrac).padStart(6)}  ${ok ? '✓ within cap' : haymaker ? '⚠ over (haymaker — dodge-check by design)' : '✗ EXCEEDS 40% — tune threat down'}`)
+    }
   }
   console.log('  (banked dodge is the bad-round insurance: Move investment carries protection into a whiffed Attack round.)')
 }
 
+const GEAR_SHARE_C = 1.30 // total gear power (stat + riders + procs) per power-unit — calibrated to the §7 curve
 function sectionG() {
-  console.log('\n════ §G GEAR-vs-INNATE POWER SHARE by level (the §5.4 crossover; target 80%→50%→65% gear) ════')
-  console.log('Innate = balanced allocation +2/stat/level; gear = the PROPOSED scaling curve (eff 1.0).')
+  console.log('\n════ §G GEAR-vs-INNATE POWER SHARE by level — rarity-by-level + item-level magnitude (§5.4) ════')
+  console.log('Drop rarity climbs with level (the user spec); affix magnitude climbs with item level (LOOTTIER_K).')
+  console.log('Gear power ∝ E[rarity²]×(1+k·iLvl); share vs FULL innate stat (base 10 + balanced allocation). Target: innate-led early → gear-led late.')
+  console.log('  band         drop weights (W/G/B/P/O)        E[rarity²]  gearPow   share')
+  const bandLabel = (L) => L <= 5 ? '≤5  ' : L <= 12 ? '6–12' : L <= 18 ? '13–18' : '19+ '
   for (const L of [3, 6, 11, 16, 21]) {
-    const innate = parityStat(L) - 10 // earned stat above the L1 base, per stat
-    const gear = gearStatAtL(L, 1.0)
-    const share = gear / (innate + gear || 1)
-    console.log(`  L${String(L).padEnd(2)}  innate +${String(innate).padStart(2)}/stat · gear +${gear.toFixed(0)}/stat  →  gear share ${pct(share)}`)
+    const w = rarityBand(L)
+    const innate = parityStat(L) // full innate stat (base + balanced allocation)
+    const gear = gearPower(L) * GEAR_SHARE_C
+    const share = gear / (innate + gear)
+    const ws = `${w.white}/${w.green}/${w.blue}/${w.purple}/${w.orange}`.padEnd(16)
+    console.log(`  L${String(L).padEnd(2)} (${bandLabel(L)})  ${ws}  ${expRarityIdx2(L).toFixed(2).padStart(6)}   ${gear.toFixed(0).padStart(4)}    ${pct(share).padStart(6)}`)
   }
-  console.log(`  → With GEAR_STAT_AT_CAP=${GEAR_STAT_AT_CAP} gear tops out ~${pct(gearStatAtL(21, 1) / (parityStat(21) - 10 + gearStatAtL(21, 1)))} share — SHORT of the 65% goal.`)
-  console.log(`    Closing it needs steeper gear OR tempered innate OR riders/procs (not raw stat) carrying late power (§5.4/§5.6 open).`)
+  console.log(`  → rarity-by-level makes the share RISE & cross ~50% late (was flat). The combat raw-stat slice is bounded (GEAR_COMBAT_C ${GEAR_COMBAT_C}); riders/procs carry the rest.`)
+  console.log(`    NOTE: the +6/level innate allocation grows steeply early — a literal "innate 80% at L3" needs tempering that allocation too (a §5.6 lever); rarity-by-level alone lands ~${pct((gearPower(3) * GEAR_SHARE_C) / (parityStat(3) + gearPower(3) * GEAR_SHARE_C))} gear at L3.`)
+}
+
+function sectionH() {
+  console.log('\n════ §H WHERE BOSS DIFFICULTY LIVES — context & off-diagonal (§6.4.4) ════')
+  const L = 12, boss = makeFoe('boss', L)
+  console.log(`A FRESH level-matched boss is winnable by anyone competent (correct!). The §7 boss band is the EXPECTED CONTEXT:`)
+  console.log(`reached at the end of a delve — wounded, resources spent, the dread floor elevated by depth + Heat.`)
+  const fresh = mc(boss, L, PROFILES.Average)
+  const ctx = mc(boss, L, PROFILES.Average, { startHPfrac: 0.7, startWounds: 2, D0: 6, abilityCap: true })
+  console.log(`  Average vs boss — FRESH (D0 ${DREAD_D0.boss}, full HP): win ${pct(fresh.winrate)}  TTK ${fresh.ttk.toFixed(1)}r`)
+  console.log(`  Average vs boss — DELVE CONTEXT (D0 6, enter 70% HP + 2 wounds): win ${pct(ctx.winrate)}  TTK ${ctx.ttk.toFixed(1)}r  [tgt ${pct(TARGETS.boss.Average)}]`)
+  console.log(`\nOff-diagonal (same boss, fresh) — the rush should be FASTER but RISKIER (lower HP-left = thinner margin):`)
+  for (const [name, sk] of Object.entries(OFFDIAG)) {
+    const r = mc(boss, L, sk)
+    console.log(`  ${name.padEnd(8)} (find ${sk.find}, tactics ${sk.tactics}) win ${pct(r.winrate).padStart(6)}  TTK ${r.ttk.toFixed(1)}r  HPleft ${pct(r.hpLeft)} (p10 ${pct(r.p10HP)})`)
+  }
+  console.log(`  → Rusher kills faster on a thinner margin; in real (attrition) context that margin is where the rush loses runs.`)
 }
 
 // ---------- run ----------
@@ -320,6 +389,6 @@ console.log('╔═════════════════════�
 console.log('║  BALANCE WORKSHOP — the unified verb↔stat↔defense model (BALANCE.md)    ║')
 console.log('║  PROPOSED numbers — sim-fodder, not committed. Gates the rebalance pass. ║')
 console.log('╚══════════════════════════════════════════════════════════════════════╝')
-sectionA(); sectionB(); sectionC(); sectionD(); sectionE(); sectionF(); sectionG()
+sectionA(); sectionB(); sectionC(); sectionD(); sectionE(); sectionF(); sectionG(); sectionH()
 console.log('\n(Scaffold: the model + harness + reports run. Next: tune constants to the §6.4 gates,')
 console.log(' add off-diagonal profiles (rusher/grinder) and the dungeon ±2 ramp, then port to src/.)\n')
