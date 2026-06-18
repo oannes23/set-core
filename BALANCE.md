@@ -139,8 +139,14 @@ Today Endurance does two jobs: (a) scales Block per Defend card, and (b)
 foe telegraph becomes a function of the **foe's own Power × tier** against a fixed
 reference — your only mitigation is **Block (Defend × E)** and **Dodge (Move × S)**.
 
-`telegraphBudget = contestRate(foeP, REF=10) × 3.1 × tierMult`,
-`tierMult = {minion 1, elite 1.5, boss 2}`.
+`telegraphBudget = contestRate(foeP, parityE(L)) × 3.1 × tierMult`,
+`tierMult = {minion 1, elite 1.5, boss 2}` — where **`parityE(L)` is the level's
+parity Endurance, not the player's chosen E.** Anchoring to parity (rather than a
+flat constant) keeps the telegraph **level-invariant** (parity foe vs parity
+player → 25×tier at every level, A4) while removing the *passive* benefit of
+stacking E: your actual Endurance no longer shrinks the incoming, it only scales
+your **Block** (Defend sets). *(Surfaced building the §6 sim — a flat reference
+would make the telegraph grow with foe Power across the arc and break A4.)*
 
 So **zero Defend → full damage**; Endurance is the *slope* that decides how few
 Defend sets it takes to reach zero (§4, Report A). This is what makes the attack
