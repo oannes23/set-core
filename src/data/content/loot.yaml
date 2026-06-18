@@ -7,9 +7,6 @@ depthRate: 0.07
 gearPityStep: 8
 marketPerSlot: 10
 rarePerTab: 10
-marketTier: # char level → vendor rarity band
-  elite: 5
-  boss: 12
 
 # category-first per-tier tables: drops [min,max], a guaranteedGold wage (× one gold roll),
 # qualityAdvantage (consumable tier rolled twice keep-better), and category weights.
@@ -30,11 +27,14 @@ tables:
     qualityAdvantage: true
     weights: { gold: 30, consumable: 40, gear: 20, spellbook: 10 }
 
-# per-tier gear-rarity drop weights — minions skew low, elites/bosses skew up (orange only at elite+).
-rarityWeights:
-  minion: [[white, 60], [green, 28], [blue, 10], [purple, 2]]
-  elite: [[white, 40], [green, 33], [blue, 20], [purple, 6], [orange, 1]]
-  boss: [[white, 22], [green, 33], [blue, 28], [purple, 13], [orange, 4]]
+# gear-rarity drop weights by CHARACTER/DUNGEON LEVEL band (BALANCE.md §5.4). Drops climb white→orange as
+# you level. Elite/boss foes additionally roll twice keep-better (tables.*.qualityAdvantage skew), so a
+# tougher foe at the same level skews up — the band is the floor, the foe tier is the bonus.
+rarityBands:
+  - { maxLevel: 5, weights: [[white, 65], [green, 28], [blue, 7]] }                       # ≤5: mostly white, some green, rarely blue
+  - { maxLevel: 12, weights: [[white, 25], [green, 50], [blue, 20], [purple, 5]] }        # 6–12: mostly green, unusually blue, rarely purple
+  - { maxLevel: 18, weights: [[white, 5], [green, 45], [blue, 35], [purple, 13], [orange, 2]] } # 13–18: green/blue, unusually purple, rarely orange
+  - { maxLevel: 99, weights: [[green, 15], [blue, 50], [purple, 28], [orange, 7]] }       # 19+: mostly blue, some purple, rarely-but-more orange
 
 # Merchant-House rare vendor (epic/legendary only) + the boss-clear marquee (guaranteed rare+).
 rareWeights: [[purple, 60], [orange, 40]]

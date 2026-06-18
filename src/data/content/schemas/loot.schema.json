@@ -26,22 +26,6 @@
         "rarePerTab": {
           "type": "number"
         },
-        "marketTier": {
-          "type": "object",
-          "properties": {
-            "elite": {
-              "type": "number"
-            },
-            "boss": {
-              "type": "number"
-            }
-          },
-          "required": [
-            "elite",
-            "boss"
-          ],
-          "additionalProperties": false
-        },
         "tables": {
           "type": "object",
           "properties": {
@@ -62,64 +46,37 @@
           ],
           "additionalProperties": false
         },
-        "rarityWeights": {
-          "type": "object",
-          "properties": {
-            "minion": {
-              "type": "array",
-              "items": {
+        "rarityBands": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "maxLevel": {
+                "type": "number"
+              },
+              "weights": {
                 "type": "array",
-                "minItems": 2,
-                "items": [
-                  {
-                    "$ref": "#/definitions/Rarity"
-                  },
-                  {
-                    "type": "number"
-                  }
-                ],
-                "maxItems": 2
+                "items": {
+                  "type": "array",
+                  "minItems": 2,
+                  "items": [
+                    {
+                      "$ref": "#/definitions/Rarity"
+                    },
+                    {
+                      "type": "number"
+                    }
+                  ],
+                  "maxItems": 2
+                }
               }
             },
-            "elite": {
-              "type": "array",
-              "items": {
-                "type": "array",
-                "minItems": 2,
-                "items": [
-                  {
-                    "$ref": "#/definitions/Rarity"
-                  },
-                  {
-                    "type": "number"
-                  }
-                ],
-                "maxItems": 2
-              }
-            },
-            "boss": {
-              "type": "array",
-              "items": {
-                "type": "array",
-                "minItems": 2,
-                "items": [
-                  {
-                    "$ref": "#/definitions/Rarity"
-                  },
-                  {
-                    "type": "number"
-                  }
-                ],
-                "maxItems": 2
-              }
-            }
-          },
-          "required": [
-            "minion",
-            "elite",
-            "boss"
-          ],
-          "additionalProperties": false
+            "required": [
+              "maxLevel",
+              "weights"
+            ],
+            "additionalProperties": false
+          }
         },
         "rareWeights": {
           "type": "array",
@@ -180,9 +137,8 @@
         "gearPityStep",
         "marketPerSlot",
         "rarePerTab",
-        "marketTier",
         "tables",
-        "rarityWeights",
+        "rarityBands",
         "rareWeights",
         "marqueeWeights",
         "marketGroups"

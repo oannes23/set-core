@@ -19,6 +19,7 @@ import { CONSUMABLES } from './consumables'
 import { GEAR } from '../data/gear'
 import { rollGear } from './gear'
 import { gearValue } from './value'
+import { RARITIES } from './items'
 import type { GearInstance, Rarity, EquipSlot } from './items'
 import lootData from '../data/content/loot.yaml'
 
@@ -40,9 +41,8 @@ export interface LootConfig {
   gearPityStep: number // gear-less drop adds this to the gear weight; a gear hit resets it (sawtooth)
   marketPerSlot: number // town Market: pieces stocked per slot group
   rarePerTab: number // Merchant-House rare vendor: pieces stocked
-  marketTier: { elite: number; boss: number } // char level → vendor rarity band thresholds
   tables: Record<Tier, LootTable>
-  rarityWeights: Record<Tier, Array<[Rarity, number]>> // per-tier gear-rarity drop weights
+  rarityBands: Array<{ maxLevel: number; weights: Array<[Rarity, number]> }> // gear-rarity drop weights by CHARACTER/DUNGEON LEVEL band (BALANCE.md §5.4); elite/boss roll twice keep-better on top
   rareWeights: Array<[Rarity, number]> // rare vendor (epic/legendary only)
   marqueeWeights: Array<[Rarity, number]> // boss-clear guaranteed rare+ piece
   marketGroups: Array<{ label: string; slot: EquipSlot }> // slot groups the Market vendor stocks
@@ -60,24 +60,32 @@ const TABLES: Record<Tier, LootTable> = CFG.tables
 /** Live categories. Gear is LIVE (chunk ②); spellbook flips on at B4 — its weight redistributes till then. */
 export const ENABLED: LootKind[] = ['gold', 'consumable', 'gear']
 
-// --- gear sub-roller (CRAWL §7 / sim §12): base type × rarity (by tier) × loot-tier (affix magnitude) ---
-/** Per-tier rarity drop weights — minions skew low, elites/bosses skew up (orange only at elite+). */
-const RARITY_WEIGHTS: Record<Tier, Array<[Rarity, number]>> = CFG.rarityWeights
-function rollGearRarity(tier: Tier, rng: Rng): Rarity {
-  const tab = RARITY_WEIGHTS[tier]
+// --- gear sub-roller (CRAWL §7 / BALANCE.md §5.4): base type × rarity (by LEVEL band, +tier skew) × loot-tier ---
+/** Gear-rarity drop weights by CHARACTER/DUNGEON LEVEL band — drops climb white→orange as you level. */
+const RARITY_BANDS = CFG.rarityBands
+const rankOf = (r: Rarity): number => RARITIES.indexOf(r)
+const bandFor = (level: number) => RARITY_BANDS.find((b) => level <= b.maxLevel) ?? RARITY_BANDS[RARITY_BANDS.length - 1]
+function pickRarity(tab: Array<[Rarity, number]>, rng: Rng): Rarity {
   const total = tab.reduce((s, [, w]) => s + w, 0)
   let r = rng() * total
   for (const [rar, w] of tab) { r -= w; if (r < 0) return rar }
   return tab[tab.length - 1][0]
 }
-/** Roll one gear drop: a uniform base type (affinity bias = B4 halls), tier-weighted rarity, loot-tier =
- *  foe level-equiv + depth (→ affix magnitude). Affixes via the minimal stat-patch roller until the full
- *  affix CONTENT pool lands (the next ② slice). */
+/** Rarity by level band; `advantage` (elite/boss foes) rolls twice keep-better, so a tougher foe at the
+ *  same level skews up — the level band is the floor, the foe tier is the bonus. */
+function rollGearRarity(level: number, advantage: boolean, rng: Rng): Rarity {
+  const tab = bandFor(level).weights
+  let rar = pickRarity(tab, rng)
+  if (advantage) { const r2 = pickRarity(tab, rng); if (rankOf(r2) > rankOf(rar)) rar = r2 }
+  return rar
+}
+/** Roll one gear drop: a uniform base type (affinity bias = B4 halls), LEVEL-banded rarity (elite/boss
+ *  skew up), loot-tier = foe level-equiv + depth (→ affix magnitude). */
 export function rollGearDrop(foe: FoeRuntime, depth: number, rng: Rng): GearInstance {
   const ids = Object.keys(GEAR)
   const refId = ids[Math.floor(rng() * ids.length)]
-  const rarity = rollGearRarity(foe.tier ?? 'minion', rng)
   const lootTier = foeLevelEquiv(foe) + depth
+  const rarity = rollGearRarity(foeLevelEquiv(foe), (foe.tier ?? 'minion') !== 'minion', rng)
   return rollGear(refId, rarity, lootTier, rng)
 }
 /** Gear pity: each gear-LESS category drop adds this to the gear weight; a gear hit resets it (sawtooth). */
@@ -88,11 +96,9 @@ export const GEAR_PITY_STEP = CFG.gearPityStep
 export const MARKET_PER_SLOT = CFG.marketPerSlot
 /** Slot groups the vendor stocks (offhand = relic; trinket1 covers both trinket slots). */
 const MARKET_GROUPS: Array<{ label: string; slot: EquipSlot }> = CFG.marketGroups
-/** Level → the rarity weight band (deeper characters unlock better vendor stock). */
-const marketTier = (level: number): Tier => (level >= CFG.marketTier.boss ? 'boss' : level >= CFG.marketTier.elite ? 'elite' : 'minion')
 
 /** Roll the vendor's stock for a character level: MARKET_PER_SLOT pieces per slot group, each a random
- *  base type of that slot × level-banded rarity × loot-tier, sorted by value (high→low). `lvlBoost` (the
+ *  base type of that slot × LEVEL-banded rarity × loot-tier, sorted by value (high→low). `lvlBoost` (the
  *  Town-loot-quality upgrade) lifts the effective level → a better rarity band + loot-tier. */
 export function rollMarketStock(level: number, rng: Rng, lvlBoost = 0): Array<{ label: string; items: GearInstance[] }> {
   const eff = Math.max(1, level + lvlBoost)
@@ -100,7 +106,7 @@ export function rollMarketStock(level: number, rng: Rng, lvlBoost = 0): Array<{ 
     const bases = Object.values(GEAR).filter((b) => b.slot === grp.slot)
     const items = Array.from({ length: MARKET_PER_SLOT }, () => {
       const base = bases[Math.floor(rng() * bases.length)]
-      return rollGear(base.id, rollGearRarity(marketTier(eff), rng), eff, rng)
+      return rollGear(base.id, rollGearRarity(eff, false, rng), eff, rng)
     }).sort((a, b) => gearValue(b) - gearValue(a))
     return { label: grp.label, items }
   })

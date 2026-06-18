@@ -83,7 +83,9 @@ export interface AffixDef {
 /** content/affixes.yaml — the themed affix catalog (a list). Pure data now that build() is a `make` spec. */
 export type AffixFile = AffixDef[]
 
-const LOOTTIER_K = 0.02 // affix magnitude × (1 + lootTier·k) — sim §12
+const LOOTTIER_K = 0.12 // affix magnitude × (1 + lootTier·k) — raised 0.02→0.12 (BALANCE.md §5.4 / balance-sim §G):
+// item level = the MAGNITUDE axis (rarity = the texture axis), so high-item-level affixes round up to 2–4
+// instead of being frozen at the floor of 1, letting gear's power share climb with level toward late-game dominance.
 
 export const AFFIXES: AffixDef[] = affixData as AffixFile
 
