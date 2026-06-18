@@ -170,6 +170,7 @@ test('rounds: the TEMPO LAW — a giant strikes every 3rd round, telegraphed at 
   // fully whiff on the deal-time dodge — that path is covered by the dodge test).
   const tele = s.foe.damage
   s.incoming = tele
+  s.incomingSwings = [tele] // pin the raw single swing (strike-time dodge reads this now, §2.3)
   s.incomingDodged = 0
   expect(s.incoming).not.toBeNull() // revealed from round 1
   const r1 = reduce(s, { type: 'tick', dtMs: ROUND_MS + 100 }, { data: GAMEDATA, rng })
@@ -179,10 +180,12 @@ test('rounds: the TEMPO LAW — a giant strikes every 3rd round, telegraphed at 
   const r2 = reduce(r1.state, { type: 'tick', dtMs: ROUND_MS + 100 }, { data: GAMEDATA, rng })
   expect(r2.state.round).toBe(3)
   expect(r2.state.incoming).toBe(tele) // still held — round 2 was the second windup round
-  // round 3 elapses — the strike lands EXACTLY the telegraphed amount (block 0; likely lethal — the point)
+  // round 3 elapses — the strike RESOLVES exactly at round 3 (the tempo timing). It either lands for
+  // `tele` or is slipped by the Speed-floor dodge — the point here is the WINDUP HOLD + strike-at-round-3.
   const r3 = reduce(r2.state, { type: 'tick', dtMs: ROUND_MS + 100 }, { data: GAMEDATA, rng })
+  expect(r3.events.some((e) => e.type === 'blockMath')).toBe(true) // the strike resolved this round
   const hit = r3.events.find((e) => e.type === 'playerDamaged') as { amount: number } | undefined
-  expect(hit?.amount).toBe(tele)
+  if (hit) expect(hit.amount).toBe(tele) // if it landed (not dodged), it lands EXACTLY the telegraphed amount
 })
 
 test('rounds: the tempo law packages a shambler as 2 modest swings every round', () => {
@@ -281,16 +284,15 @@ test('§5.7 stances are LIVE: Maneuver gathers then burns ~1 charge/sec; bail to
   expect(r.state.charges).toBe(held)
 })
 
-test('§5.7 dodge: a fast foe full-whiff fires strikeDodged + a free round (no damage)', () => {
+test('§2.3 dodge: a stacked Dodge pool slips a giant haymaker WHOLE (strikeDodged, no damage)', () => {
   const rng = mulberry32(8)
-  const f = foe('cave_bat', rng) // swift, 3 swings — but we force a guaranteed dodge below
+  const f = foe('dread_behemoth', rng) // giant: strikeEvery 3, 1 swing → dodge cap 100% (the haymaker IS dodgeable)
   const s = createCombat({ foe: f, gen: GEN }, rng)
-  s.stats = { ...s.stats, speed: 999 } // overwhelming Speed edge → DODGE_MAX every swing
-  s.incoming = 0 // simulate a fully-dodged telegraph already revealed this (strike) round
-  s.incomingDodged = f.swings
-  s.nextStrikeRound = s.round
+  s.dodgePool = 1.0 // banked to certainty over the windup (the Move investment that the §2.3 model rewards)
+  s.incoming = 40; s.incomingSwings = [40] // the pending haymaker
+  s.nextStrikeRound = s.round // the strike lands this rollover
   const r = reduce(s, { type: 'tick', dtMs: ROUND_MS + 100 }, { data: GAMEDATA, rng })
-  expect(r.events.some((e) => e.type === 'strikeDodged')).toBe(true)
+  expect(r.events.some((e) => e.type === 'strikeDodged')).toBe(true) // eff = min(cap 1.0, floor + pool 1.0) = 1.0 → slipped whole
   expect(r.events.some((e) => e.type === 'playerDamaged')).toBe(false)
 })
 

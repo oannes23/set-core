@@ -14,7 +14,8 @@ export type CombatEvent =
   | { type: 'enemyDamaged'; amount: number; immune?: boolean; magic?: boolean; crit?: boolean } // immune = card damage hit an immune foe; magic = ethereal mana-spent drain; crit = the exchange-delight crit (§7)
   | { type: 'combo'; level: number; styled: boolean; color: number; shape: number } // §7/§13 combo streak; styled = colour/shape continued
   | { type: 'swingMath'; matches: number; weapon: number; attacks: number; crit: boolean; mult: number; total: number } // the exchange-cutscene swing breakdown (matches + weapon + crit → total)
-  | { type: 'blockMath'; block: number; blkRider: number; defends: number; telegraph: number; soaked: number; bite: number; dodgedAll: boolean } // the exchange-cutscene block→net breakdown
+  | { type: 'blockMath'; block: number; blkRider: number; defends: number; telegraph: number; soaked: number; bite: number; dodgedAll: boolean; dodged: number } // the exchange-cutscene block→net breakdown (dodged = swings slipped at the strike, §2.3)
+  | { type: 'dodgeGained'; pool: number; cap: number } // a Move set banked Dodge — the meter ticks up (§2.3)
   | { type: 'roundSummary'; primed: number; comboPeak: number; combos: number } // the round's offense quality (primed sets + combo peak) — cutscene celebration
   | { type: 'enemyHealed'; amount: number }
   | { type: 'playerDamaged'; amount: number; absorbed: number; source: string }
@@ -31,7 +32,7 @@ export type CombatEvent =
   | { type: 'warded'; what: 'transmute' | 'lock' | 'shatter'; cost: number; slots?: number[] } // Stand Ground ate a hostile board verb (1 charge; a wound costs 3); slots = the saved cards (for the shake→settle cue)
   | { type: 'clockChanged'; deltaSeconds: number } // round stretched (+, stall spells — interim) or yanked shorter (−)
   | { type: 'enemyStrikes' } // an instant attack landed mid-round (trap effect — outside the exchange)
-  | { type: 'windup'; amount: number; strikesAt: number; dodged: number; swings: number } // the foe TELEGRAPHS the pending exchange (revealed early for slow foes); dodged = swings evaded at the deal (💨)
+  | { type: 'windup'; amount: number; strikesAt: number; dodged: number; swings: number } // the foe TELEGRAPHS the pending exchange (RAW, revealed early for slow foes); dodged is 0 here now — dodge resolves at the strike (§2.3)
   | { type: 'strikeDodged' } // §5.7: every swing of a strike was evaded — the full whiff (the DODGED! card)
   | { type: 'cardsTransmuted'; slots: number[]; gapMs: number; hostile?: boolean; source?: 'churn' | 'drift' | 'trap' | 'trick' } // hostile = boomed; source = WHO pulled (undefined = a player cast) — the tug-attribution channel
   | { type: 'cardsReformed'; slots: number[] }

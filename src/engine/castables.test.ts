@@ -201,13 +201,25 @@ test('flee forfeits the encounter at any time (not gated by the meter)', () => {
 test('an exchange hit past Block scars by the wound law — and one wound knits with the deal', () => {
   const s = combat('limbless_zombie')
   s.block = 0
-  s.incoming = 35 // force this round's telegraph: bite 35 → floor(35 / (100/10)) = 3 wounds
+  s.incoming = 35; s.incomingSwings = [35] // force this round's telegraph (single swing): bite 35 → floor(35/(100/10)) = 3 wounds
+  s.dodgePool = 0 // no banked dodge; the Speed-floor draw (seed 1 → 0.627 ≥ 0.175) lands the hit deterministically
   const before = s.board.filter(Boolean).length
   const t = reduce(s, { type: 'tick', dtMs: 20_100 }, deps()) // the rollover exchange
   expect(t.events.some((e) => e.type === 'playerDamaged' && e.amount === 35)).toBe(true)
   expect(t.events.some((e) => e.type === 'cardsShattered')).toBe(true)
   expect(t.state.board.filter(Boolean).length).toBe(before - 2) // 3 scarred, 1 knit at the draw phase
   expect([...t.state.pending.values()].filter((p) => p.wound)).toHaveLength(2)
+})
+
+test('§2.3 a Move set banks Dodge, capped by the foe cadence', () => {
+  const s = combat('limbless_zombie') // strikeEvery 1, swings 2 → dodge cadence cap 0.7
+  // a rainbow all-Move set at slots 0–2 (colors 0/1/2 diff · shape all-Move · num 0/1/2 diff)
+  s.board[0] = card(0, SHAPE_MOVE, 0); s.board[1] = card(1, SHAPE_MOVE, 1); s.board[2] = card(2, SHAPE_MOVE, 2)
+  expect(s.dodgePool).toBe(0)
+  const r = reduce(s, { type: 'completeSet', slots: [0, 1, 2] }, deps())
+  expect(r.state.dodgePool).toBeGreaterThan(0) // Move fed the pool
+  expect(r.state.dodgePool).toBeLessThanOrEqual(0.7) // never past the cadence cap
+  expect(r.events.some((e) => e.type === 'dodgeGained')).toBe(true)
 })
 
 test('block never exceeds the cap — and overflow is PURE LOSS (no charge trickle)', () => {

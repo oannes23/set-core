@@ -91,6 +91,8 @@ export interface CombatState {
   // Maneuver burns LIVE (~1/s after a gather) — §5.7 amendment; no more rollover dump.
   maneuverGatherUntil: number // while now < this, a just-entered Maneuver is still gathering (no burn yet)
   burnAccum: number // ms accumulated toward the next live Maneuver burn (the 1/s churn cadence)
+  dodgePool: number // BANKED dodge chance fed by Move sets (BALANCE §2.3) — persists across rounds, capped by
+  // the foe's tempo cadence (dodgeCapForFoe), rolled per swing AT THE STRIKE, resets to 0 on a successful dodge.
   // board
   board: Board
   cols: number // grid width (for geometry selectors); rows = ceil(board.length / cols)
@@ -114,11 +116,12 @@ export interface CombatState {
   roundExtendedS: number // seconds of stall-spell extension already applied this round (capped)
   roundAttack: number // Attack's round accumulator: lands as the player's exchange swing
   nextStrikeRound: number // the round index of the foe's next exchange swing
-  /** the TELEGRAPH: the pending exchange total, revealed at the deal — strikeEvery−1 rounds EARLY
-   *  for slow foes (the windup, §5.7), then HELD until the strike round. null = no strike pending.
-   *  0 = a strike was fully DODGED (every swing evaded at the deal). */
+  /** the TELEGRAPH: the pending exchange total (RAW, pre-dodge), revealed at the deal — strikeEvery−1
+   *  rounds EARLY for slow foes (the windup, §5.7), then HELD until the strike round. null = no strike
+   *  pending. Dodge is now rolled AT THE STRIKE from the banked pool (BALANCE §2.3), not pre-rolled here. */
   incoming: number | null
-  incomingDodged: number // swings of the pending telegraph evaded at the deal (💨 tags; 0 = none)
+  incomingSwings: number[] // the raw per-swing telegraph values (banked-dodge negates individual swings at the strike)
+  incomingDodged: number // swings evaded at the LAST strike (💨 tags; set when the strike resolves, 0 at reveal)
   // dread escalation (§5.8) — the within-fight anti-stall; the live level derives from these + round
   dreadFloor: number // across-run depth floor (from the delve dread band; 1 if not in a delve)
   dreadOn: boolean // is dread active? false for coach/teaching fights (the dummy stays pressure-free)
@@ -180,13 +183,20 @@ export const BASE_STATS: StatBlock = { power: 10, endurance: 10, speed: 10 }
 export const START_GRACE_MS = 3000 // UI freezes the round this long after Engage (read the board, no ticks advance)
 
 // --- COMBAT AMENDMENTS (CRAWL §5.7, sim-derived 2026-06-12) ---
-// DODGE: per-SWING evasion rolled at the deal, folded into the telegraph (Speed owns whether/when,
-// Defend owns how much — strikes only, never traps/drift/ticks). Sim-derived: base 10%, +1.5%/pt
-// of Speed edge, clamp [3%, 40%].
+// DODGE (BALANCE §2.3): two parts. (1) a Speed-differential FLOOR per swing — base 10%, +1.5%/pt of Speed
+// edge, clamp [3%, 40%]. (2) a BANKED pool fed by Move sets (DODGE_PER_CHARGE per charge of Move income),
+// persisting across rounds, capped by the foe's tempo CADENCE (dodgeCapForFoe). Effective dodge at a swing
+// = min(cadenceCap, floor + pool); rolled per swing AT THE STRIKE (so windup Move investment pays off),
+// resetting the pool on a successful dodge. Strikes only — never traps/drift/ticks (the unguardable floor).
 export const DODGE_BASE = 0.1
 export const DODGE_K = 0.015
 export const DODGE_MIN = 0.03
 export const DODGE_MAX = 0.4
+export const DODGE_PER_CHARGE = 0.04 // banked dodge added per charge-point of Move income (~0.12 per parity Move set)
+// The dodge CEILING by the foe's cadence (the §2.3 complementarity): rarer-but-bigger hits → invest all the
+// way to certainty; frequent chip can't be fully slipped, so Block carries it. Block ↔ Dodge tile the tempo spectrum.
+export const dodgeCapForFoe = (strikeEvery: number, swings: number): number =>
+  strikeEvery >= 3 ? 1.0 : strikeEvery === 2 ? 0.9 : swings >= 3 ? 0.6 : swings === 2 ? 0.7 : 0.8
 // CRIT (§7/§13 — the shared exchange-delight channel; player-only, rolled once on the banked swing at the
 // rollover so the SET stays exact). The chance is a SKILL-EARNED S-curve (sim §13), soft-capped so the
 // diminishing curve IS the practical ceiling: crit = CRIT_SOFT_CAP / (1 + e^(−CRIT_A·(score − CRIT_M))),

@@ -9,7 +9,7 @@ import { findSets } from '../core/sets'
 import { type GenConfig, genInitial } from '../core/generate'
 import type { Rng } from '../core/rng'
 import type { GameData } from '../data/schema'
-import { type CombatState, type FoeRuntime, type Pending, type TacticKind, type ManeuverBias, type StatBlock, MANA_CAP, DEFAULT_PLAYER_MAX, BASE_STATS, ROUND_MS, DODGE_BASE, DODGE_K, DODGE_MIN, DODGE_MAX, MANEUVER_BURN_MS, BASE_CRIT_MULT, CRIT_SOFT_CAP, CRIT_A, CRIT_M, COMBO_W, CRIT_GRACE_MS, COMBO_STYLE_STEP, COMBO_TEMPO_STEP, PRIMED_WINDOW_MS, dreadFoeMult, dreadPlayerMult, dreadBleed, driftRateMult } from './state'
+import { type CombatState, type FoeRuntime, type Pending, type TacticKind, type ManeuverBias, type StatBlock, MANA_CAP, DEFAULT_PLAYER_MAX, BASE_STATS, ROUND_MS, DODGE_BASE, DODGE_K, DODGE_MIN, DODGE_MAX, DODGE_PER_CHARGE, dodgeCapForFoe, MANEUVER_BURN_MS, BASE_CRIT_MULT, CRIT_SOFT_CAP, CRIT_A, CRIT_M, COMBO_W, CRIT_GRACE_MS, COMBO_STYLE_STEP, COMBO_TEMPO_STEP, PRIMED_WINDOW_MS, dreadFoeMult, dreadPlayerMult, dreadBleed, driftRateMult } from './state'
 import { type CombatEvent, EventSink } from './events'
 import { type Resolution, type MatchDescriptor, resolveSet, weightedRoll, telegraphPerSwing, dodgeChance } from './resolve'
 import { NO_RIDERS, NO_MODS, type Riders, type GearMods, type AffixProc, type ProcEvent } from './items'
@@ -55,20 +55,14 @@ export interface NewCombatOpts {
   coach?: boolean // a teaching/coach fight → dread escalation stays OFF (the dummy is pressure-free)
 }
 
-/** Roll a foe's exchange total at the DEAL: each swing independently checks DODGE (your Speed vs
- *  theirs — §5.7); evaded swings vanish from the telegraph (Speed owns whether/when). Returns the
- *  summed surviving total + how many swings were dodged (for the 💨 tags / the DODGED! card). */
-function rollStrike(foe: FoeRuntime, playerSpeed: number, rng: Rng, dodgeBonus = 0): { total: number; dodged: number } {
-  if (foe.damage <= 0) return { total: 0, dodged: 0 }
-  // §7 Evasive (gear dodge) adds flat chance on top of the Speed contest, clamped to the same ceiling
-  const pDodge = Math.min(DODGE_MAX, dodgeChance(playerSpeed, foe.stats.speed, DODGE_BASE, DODGE_K, DODGE_MIN, DODGE_MAX) + dodgeBonus)
-  let total = 0
-  let dodged = 0
-  for (let i = 0; i < foe.swings; i++) {
-    if (rng() < pDodge) dodged++ // evaded — this swing never lands (one rng draw either way)
-    else total += weightedRoll(foe.damage, rng)
-  }
-  return { total, dodged }
+/** Roll a foe's RAW telegraph at the reveal: the per-swing damages (no dodge — dodge is rolled at the
+ *  STRIKE now, from the banked pool, so windup Move investment can pay off; BALANCE §2.3). Returns the
+ *  per-swing array + its sum (the honest ⚔ shown to the player). */
+function rollTelegraph(foe: FoeRuntime, rng: Rng): { total: number; swings: number[] } {
+  if (foe.damage <= 0) return { total: 0, swings: [] }
+  const swings: number[] = []
+  for (let i = 0; i < foe.swings; i++) swings.push(weightedRoll(foe.damage, rng))
+  return { total: swings.reduce((a, b) => a + b, 0), swings }
 }
 
 /** The flee PARTING BLOW (§5.7 / the exit ladder): turning to run gives the foe ONE swing on your way
@@ -109,9 +103,9 @@ export function createCombat(opts: NewCombatOpts, rng: Rng): CombatState {
   const parityE = 10 + 2 * (foeLevelEquiv(opts.foe) - 1)
   const foe: FoeRuntime = { ...opts.foe, hp: Math.round(opts.foe.hp * gf), damage: telegraphPerSwing(opts.foe, parityE) * gf }
   const nextStrikeRound = foe.strikeEvery
-  // EARLY REVEAL (§5.7): the telegraph shows from round 1 — strikeEvery−1 rounds before it lands —
-  // so slow foes are a savings test (block carries through the windup). Dodge is rolled here.
-  const first = foe.damage > 0 ? rollStrike(foe, stats.speed, rng, opts.mods?.dodge ?? 0) : { total: 0, dodged: 0 }
+  // EARLY REVEAL (§5.7): the telegraph shows from round 1 — strikeEvery−1 rounds before it lands. The
+  // shown amount is the RAW per-swing roll; dodge resolves at the strike from the banked pool (§2.3).
+  const first = rollTelegraph(foe, rng)
   return {
     playerHP: playerMax,
     playerMax,
@@ -131,6 +125,7 @@ export function createCombat(opts: NewCombatOpts, rng: Rng): CombatState {
     charges: 0,
     maneuverGatherUntil: 0,
     burnAccum: 0,
+    dodgePool: 0, // §2.3 — banked dodge, fed by Move sets
     board,
     cols: colsForN(opts.gen.n),
     pending: new Map(),
@@ -150,7 +145,8 @@ export function createCombat(opts: NewCombatOpts, rng: Rng): CombatState {
     roundAttack: 0,
     nextStrikeRound,
     incoming: foe.damage > 0 ? first.total : null, // revealed from round 1 (held until the strike round)
-    incomingDodged: first.dodged,
+    incomingSwings: first.swings, // raw per-swing — banked dodge negates individual swings at the strike
+    incomingDodged: 0,
     dreadFloor: opts.dreadFloor ?? 1, // §5.8 — depth floor from the delve band (1 = not in a delve)
     dreadOn: !opts.coach, // teaching/coach fights stay pressure-free (no dread escalation)
     tickAccum: {},
@@ -202,7 +198,15 @@ function applyResolution(s: CombatState, res: Resolution, rng: Rng, sink: EventS
     s.mana[i] += Math.max(0, gained[i])
   }
   sink.emit({ type: 'manaGained', mana: gained })
-  if (charges > 0) addCharges(s, charges, sink)
+  if (charges > 0) {
+    addCharges(s, charges, sink)
+    // §2.3 — a Move set ALSO banks Dodge: each charge-point of income adds to the pool, capped by the foe's
+    // tempo cadence. Move now has a terminal defensive payoff (slip the haymaker), not just Tactics fuel.
+    const cap = dodgeCapForFoe(s.foe.strikeEvery, s.foe.swings)
+    const before = s.dodgePool
+    s.dodgePool = Math.min(cap, s.dodgePool + charges * DODGE_PER_CHARGE)
+    if (s.dodgePool > before) sink.emit({ type: 'dodgeGained', pool: s.dodgePool, cap })
+  }
 }
 
 const LOW_HP_FRAC = 0.3 // §7 reactive: an on-lowHP proc (Cornered) fires while HP is below this fraction
@@ -411,17 +415,27 @@ function rollover(s: CombatState, deps: Deps, sink: EventSink): void {
     }
   }
   // ② enemy swing — ONLY on the actual strike round. During the windup (telegraph revealed early but
-  // not yet due) there is NO strike and the guard CARRIES (§5.7 — the savings test).
+  // not yet due) there is NO strike. BANKED DODGE rolls HERE (§2.3): each swing vs min(cadenceCap, floor +
+  // pool); a dodge negates that swing and resets the pool — so windup Move investment pays off at the strike.
   const strikeLands = s.incoming != null && finished >= s.nextStrikeRound
   if (strikeLands) {
-    const raw0 = s.incoming as number
+    const floor = Math.min(DODGE_MAX, dodgeChance(s.stats.speed, s.foe.stats.speed, DODGE_BASE, DODGE_K, DODGE_MIN, DODGE_MAX) + s.mods.dodge)
+    const cap = dodgeCapForFoe(s.foe.strikeEvery, s.foe.swings)
+    let eff = Math.min(cap, floor + s.dodgePool)
+    let survived = 0, dodged = 0
+    for (const sw of s.incomingSwings) {
+      if (deps.rng() < eff) { dodged++; s.dodgePool = 0; eff = Math.min(cap, floor) } // dodged — pool spent, falls back to the floor
+      else survived += sw
+    }
+    const raw0 = survived // the post-dodge telegraph that actually reached you (the honest landed amount)
     const raw = raw0 > 0 ? Math.max(0, raw0 - s.mods.soak) : 0 // §7 Soak (Ironhide): flat, permanent (pre-Block) mitigation
-    const dodgedAll = raw0 === 0 && s.incomingDodged > 0 // every swing evaded at the deal
+    const dodgedAll = survived === 0 && dodged > 0 // every swing slipped
     const bite = Math.max(0, raw - s.block)
-    // the exchange-cutscene block→net beat: narrate your defense math (defends → block → soak → net)
-    sink.emit({ type: 'blockMath', block: s.block, blkRider: Math.round(s.roundLog.blkRider), defends: s.roundLog.defends, telegraph: raw0, soaked: raw0 - raw, bite, dodgedAll })
+    // the exchange-cutscene block→net beat: narrate dodge → defense math (defends → block → soak → net)
+    sink.emit({ type: 'blockMath', block: s.block, blkRider: Math.round(s.roundLog.blkRider), defends: s.roundLog.defends, telegraph: raw0, soaked: raw0 - raw, bite, dodgedAll, dodged })
     s.incoming = null
-    s.incomingDodged = 0
+    s.incomingSwings = []
+    s.incomingDodged = dodged
     s.nextStrikeRound = finished + s.foe.strikeEvery
     if (raw > 0) {
       hurtPlayer(s, raw, s.foe.name, sink)
@@ -467,10 +481,12 @@ function rollover(s: CombatState, deps: Deps, sink: EventSink): void {
   s.roundLog = { atkBase: 0, atkRider: 0, blkBase: 0, blkRider: 0, attacks: 0, defends: 0, primed: 0 } // fresh round breakdown
   s.combo.combos = 0
   if (s.foe.damage > 0 && s.incoming == null && s.round >= s.nextStrikeRound - (s.foe.strikeEvery - 1)) {
-    const strike = rollStrike(s.foe, s.stats.speed, deps.rng, s.mods.dodge)
-    s.incoming = Math.round(strike.total * dreadFoeMult(s)) // §5.8: fold dread-at-reveal into the telegraph (honest ⚔)
-    s.incomingDodged = strike.dodged
-    sink.emit({ type: 'windup', amount: strike.total, strikesAt: s.roundEndsAt, dodged: strike.dodged, swings: s.foe.swings })
+    const tel = rollTelegraph(s.foe, deps.rng)
+    const fm = dreadFoeMult(s) // §5.8: fold dread-at-reveal into each swing (keeps the shown ⚔ honest)
+    s.incomingSwings = tel.swings.map((v) => Math.round(v * fm))
+    s.incoming = s.incomingSwings.reduce((a, b) => a + b, 0)
+    s.incomingDodged = 0 // dodge resolves at the strike now (§2.3), not at reveal
+    sink.emit({ type: 'windup', amount: s.incoming, strikesAt: s.roundEndsAt, dodged: 0, swings: s.foe.swings })
   }
   sink.emit({ type: 'roundStarted', round: s.round, incoming: s.incoming })
 }
