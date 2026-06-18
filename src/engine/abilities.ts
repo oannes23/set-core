@@ -51,9 +51,9 @@ function deadestN(s: CombatState, n: number, rng: Rng): number[] {
 export const ABILITIES: Record<string, Ability> = {
   // ---- AUTO-TARGET bolts: aim at a random deadest off-colour card, reforge it toward colour + verb ----
   firebolt: {
-    id: 'firebolt', name: 'Firebolt', icon: '🔥', cost: [4, 0, 0], desc: '45 dmg · burns a deadest off-red card → Fire/Attack',
+    id: 'firebolt', name: 'Firebolt', icon: '🔥', cost: [4, 0, 0], desc: '24 dmg · burns a deadest off-red card → Fire/Attack',
     cast(s, rng, sink) {
-      dealRolled(s, 45, rng, sink)
+      dealRolled(s, 24, rng, sink)
       const pick = randOf(deadestCandidates(s, COLOR_RED), rng)
       if (pick != null) transmute(s, [pick], { bias: { color: COLOR_RED, colorW: BIAS_W, shape: SHAPE_ATTACK, shapeW: BIAS_W } }, sink)
     },
@@ -148,9 +148,9 @@ export const ABILITIES: Record<string, Ability> = {
   },
   // ---- SHAPE consumers: reshape the board along the verb axis ----
   cleave: {
-    id: 'cleave', name: 'Cleave', icon: '🪓', cost: [4, 0, 0], desc: '45 dmg · razes a deadest card → heavy Attack',
+    id: 'cleave', name: 'Cleave', icon: '🪓', cost: [4, 0, 0], desc: '24 dmg · razes a deadest card → heavy Attack',
     cast(s, rng, sink) {
-      dealRolled(s, 45, rng, sink)
+      dealRolled(s, 24, rng, sink)
       const pick = randOf(deadestCandidates(s, COLOR_RED), rng)
       if (pick != null) transmute(s, [pick], { bias: { shape: SHAPE_ATTACK, shapeW: BIAS_W, mag: 2, magW: BIAS_W } }, sink)
     },
@@ -199,9 +199,9 @@ export const ABILITIES: Record<string, Ability> = {
     },
   },
   venomstrike: {
-    id: 'venomstrike', name: 'Venom Strike', icon: '🐍', cost: [0, 4, 0], desc: '36 dmg · poisons a deadest off-green card → Nature/Attack',
+    id: 'venomstrike', name: 'Venom Strike', icon: '🐍', cost: [0, 4, 0], desc: '24 dmg · poisons a deadest off-green card → Nature/Attack',
     cast(s, rng, sink) {
-      dealRolled(s, 36, rng, sink)
+      dealRolled(s, 24, rng, sink)
       const pick = randOf(deadestCandidates(s, COLOR_GREEN), rng)
       if (pick != null) transmute(s, [pick], { bias: { color: COLOR_GREEN, colorW: BIAS_W, shape: SHAPE_ATTACK, shapeW: BIAS_W } }, sink)
     },
