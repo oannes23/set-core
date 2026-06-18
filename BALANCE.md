@@ -586,25 +586,34 @@ the late game.
    dependent game (under-geared/Novice play is harder — Novice-vs-elite dipped below
    the §7 band; softenable later via base stat or the `gearFactor` extension if real
    testing bites). Balanced = 4/3 per stat/level; gear fills the gap to parity.
-   *Live `progression.yaml`/`save.ts` still carry +6 — the change is a build step,
-   sim-gated.*
+   *Ported: `app.ts` `LU_POINTS` 6→4 is the live gate (per-level points live in the
+   level-up modal, not `progression.yaml`).*
 
 ---
 
-## 9. Sequencing
+## 9. Sequencing — ✅ ALL PORTED (2026-06-17)
 
-1. **Now:** ship the §5.1 damage-ability reprice (Firebolt/Cleave/Venom → max 24).
-   Low risk, directly fixes the reported feel.
-2. **Spec + sim:** write `sim/balance-sim.mjs` (§6) with the new combat model + the
-   4-axis skill vector; iterate until the §6.4 gates pass.
-3. **Build:** the engine changes (no block carry, telegraph decoupled from E,
-   banked dodge pool + cadence cap, Move→dodge) + the **dodge meter** (§5.5),
-   driven by the sim's numbers. Re-run the generation-invariant sweep (unaffected,
-   but assert it).
-4. **Tune:** enemy HP/threat (§5.2–5.3), gear scaling (§5.4) from the sim.
-5. **Commit** tuned constants to YAML + `TUNING.md`; update `CRAWL-DESIGN.md` §5.6
-   to the new model **only after** the sim proves it; fold the conformance run into
-   CI beside the generation-invariant sweep.
+1. ✅ **Damage-ability reprice** (Firebolt/Cleave/Venom → max 24) — `abilities.ts`.
+2. ✅ **`sim/balance-sim.mjs`** built — the new combat model + 4-axis skill vector +
+   the §6 sections (conformance, EDR attribution, P/E/S marginal, dungeon ramp).
+3. ✅ **Engine + UI** — telegraph decouple + Block no-carry + Move-banked dodge with
+   cadence caps + the 💨 dodge meter. `combat.ts`/`state.ts`/`resolve.ts`/`app.ts`.
+4. ✅ **Tunes** — foe HP (§5.2), A5 mults, gear scaling (§5.4), innate temper.
+5. ✅ **Docs synced** — `TUNING.md` (live constants + port table), `CRAWL-DESIGN.md`
+   §5.6 (amended post-sim, gate lifted), `TODO.md` (handoff + next steps).
+
+### Next — after the playtest (the user is testing now)
+- **Tune from feel** (§8 levers): Novice/under-geared survivability (base-stat floor /
+  extend `gearFactor` <L6 / ease A5 boss toward 2.2 if early game is brutal); dodge
+  feel (`DODGE_PER_CHARGE` / floor `DODGE_K` / Primed) — watch the 💨 meter; the rush
+  (lean on dread/Heat, not raw nerfs).
+- **Reward-coupling decouple (§8 dec.1)** — gold/XP off `P+E+S` only — **in the gated
+  economy pass** (with the `GOLD_K` faucet + shop sink; `loot.test` band widened to
+  <260 as interim).
+- **Sim follow-ups** (optional): EDR-attribution reprice of the *non-damage* abilities
+  (§5.1 deferred them); the dungeon ±2 / Heat dial in `balance-sim.mjs`.
+- **The `X/(X+K)` floor-curve (§5.6)** — still deferred; revisit if late-game testing
+  shows the `rate()` clamp binding too often.
 
 *Code is the source of truth; cite `TUNING.md` for live constants. Every value in
 §5 is a target for the §6 sim to confirm — not yet committed.*

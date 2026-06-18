@@ -1150,7 +1150,21 @@ fork (run continues; encounter rerolled, elite counter reset) rather than ending
 
 ---
 
-## 5.6 ROUNDS v3 — the 20-second round grammar (SETTLED 2026-06-11; next combat build)
+## 5.6 ROUNDS v3 — the 20-second round grammar (SETTLED 2026-06-11; BUILT)
+
+> **⚠ DEFENSIVE MODEL REVISED + BUILT (2026-06-17 — `BALANCE.md` §2, proven in `sim/balance-sim.mjs`,
+> ported to `src/`).** The round grammar, exchange beats, and tempo law below are UNCHANGED. What changed
+> (the verb↔stat↔defense rework — Attack·Power→deal · Defend·Endurance→block · Move·Speed→dodge):
+> - **Telegraph decoupled from the player's Endurance** — it now anchors to the foe's LEVEL-PARITY E
+>   (`budget = rate(P_f, parityE(L)) × 3.1 × tier`), so it stays level-invariant but stacking E no longer
+>   passively shrinks the incoming. Endurance scales **Block only**. Zero Defend = full damage.
+> - **Block no longer carries across windup rounds** — the guard resets every rollover (mitigates only the
+>   round the hit lands). Was: carried through the windup (the old "savings test").
+> - **Dodge is now a BANKED pool fed by Move sets** (not a deal-time Speed roll baked into the telegraph),
+>   capped by the foe's tempo cadence (60→100%), rolled per swing AT the strike, reset on a successful dodge
+>   — so windup Move investment slips a haymaker. Plus the 💨 dodge meter. (§5.7's deal-time dodge is superseded.)
+> - Foe HP re-anchored (~100/250/400), A5 tier mult 1/1.7/2.4, innate +6→+4/level. Difficulty lives in the
+>   delve **context**, not the fresh duel. See `TUNING.md` (live constants) + `BALANCE.md` for the full model.
 
 The temporal grammar that supersedes §5.5's continuous clock (approach→windup→strike).
 Grew out of the Move/Defend-distinctness thread (TODO, 2026-06-10/11): the draw-phase idea,
@@ -1607,9 +1621,10 @@ session-based roguelite. Full verdict list in `TODO.md`.)
   Chunky-now (~5 tiers) evolving to à la carte; each tier = a `ContextFlags` override; gated/rewarded via
   the achievement web; horizontal-guardrail-safe.
 - **The `X/(X+K)` base-curve question** (the complementary *floor* lever — asymptotic ratio vs the
-  resolution-v3 difference-clamp `rate()`, so a geared/skilled player can't *pin the clamp*) → **DEFERRED
-  to the coupled sim pass (confirmed 2026-06-15).** Higher-risk (touches sim-validated core math) — decide
-  it there with numbers; do NOT hand-edit §5.6.
+  resolution-v3 difference-clamp `rate()`, so a geared/skilled player can't *pin the clamp*) → **STILL
+  DEFERRED after the 2026-06-17 balance pass** (`BALANCE.md` §5.6). The rest of the rebalance is built; this
+  lever waits until late-game testing shows the clamp binding too often (then decide it with numbers in
+  `balance-sim.mjs`). §5.6 has now been amended (post-sim) — the build gate is lifted.
 
 **FLAGGED — optional levers (lean defer; note for later):** specialist-amplifier passive (a class/
 Background that boosts consumables → makes the consumable economy a build axis; fits the Background

@@ -16,15 +16,54 @@ Traffic-light: green = pursue · yellow = consequence · red = wounded.
 
 ---
 
-## ▶ NEXT SESSION — START HERE (handoff 2026-06-16)
-**⭐ ACTIVE: YAML CONTENT-CONVERSION TRACK** (see the dedicated section below + `MODDING.md`). Converting
-all content to external YAML for moddability **before** the balancing phase. **Phases 0 ✅ + 1 ✅ + 2 ✅
+## ▶ NEXT SESSION — START HERE (handoff 2026-06-17 — THE BALANCE PASS)
+**⭐ THE BALANCE PASS IS BUILT + PORTED.** The full rebalance from `BALANCE.md` (planned + proven in the
+`sim/balance-sim.mjs` workshop) is now live in `src/` across these shipped chunks — all tested green (268
+tests, tsc + build clean), each its own commit:
+1. **Ability VPM reprice** — Firebolt/Cleave/Venom 45/45/36 → 24 max (≈4 dmg/mana). `abilities.ts`.
+2. **Gear scales with level** — rarity-by-level drop bands (≤5 white → 19+ blue/purple/orange) + `LOOTTIER_K`
+   0.02→0.12 → gear power share rises ~23%→~58%, crossing 50% ~L17. `loot.yaml`/`loot.ts`/`affixes.ts`.
+3. **Numeric retunes** — foe HP re-anchored to Typical play (~100/250/400) `creatures.yaml` · A5 tier mult
+   1/1.5/2 → 1/1.7/2.4 `resolve.ts` · innate allocation +6 → +4/level `app.ts` (`LU_POINTS`).
+4. **The defensive model** (the verb↔stat↔defense grammar) — telegraph DECOUPLED from player E (anchored to
+   level-parity E → zero Defend = full damage) · Block NO cross-round carry · Move banks a DODGE pool capped
+   by foe cadence (60→100%), rolled at the strike, + the 💨 **dodge meter**. `combat.ts`/`state.ts`/`app.ts`.
+
+**Model:** Attack·Power→deal · Defend·Endurance→block · Move·Speed→dodge. Difficulty lives in the delve
+**context** (post-attrition + dread depth + Heat), not the fresh duel — fresh level-matched fights are won
+by competent play *by design* (§8 decision 1). `TUNING.md`'s port-status table tracks every piece (all ✅).
+
+**⚠ The live game is now in the FULL rebalanced state** — coherent only as a set (tankier/harder foes +
+weaker innate + gear-reliant + the new defense). Validated in the sim, NOT yet in play → **the user is
+playtesting now.**
+
+### NEXT STEPS — after the playtest (tune from feel, then the gated economy)
+- `[ ]` **Tune from playtest feel.** Likely levers, in priority order:
+  - **Novice / under-geared survivability** — the sim flagged Novice-vs-fresh-boss ≈ 0% bare (relies on
+    consumables, excluded from the sim). If early game feels brutal, soften via: a small base-stat floor, or
+    extend `gearFactor` below L6, or ease the A5 boss mult back toward 2.2. (`BALANCE.md` §8 dec.6.)
+  - **Dodge FEEL** — S is a *lumpy* anti-haymaker lever (sim §E). If Move/dodge feels weak or unreadable in
+    play, the knobs are `DODGE_PER_CHARGE` (0.04), the dodge floor `DODGE_K`, and Primed value. Watch the 💨 meter.
+  - **The rush** — if attack-rush still trivializes, it's throughput-gated (sim finding); lean on dread/Heat
+    depth rather than nerfing raw output.
+- `[ ]` **Reward-coupling decouple (§8 dec.1)** — foe HP↑ lifts gold/XP ~+13% via `foeValue`'s `hp/10` term.
+  Decouple (price gold/XP off `P+E+S` only) **in the gated economy pass** — bundled with the `GOLD_K` faucet
+  recalibration + the shop sink (CLAUDE.md gates the economy until the sink settles). The `loot.test` gold
+  band was widened (<260) as an interim.
+- `[ ]` **Sim follow-ups** (optional, when balancing deeper): EDR-attribution-driven reprice of the
+  *non-damage* abilities (Block/Bulwark/Call-*/Berserk/Rally — `BALANCE.md` §5.1 deferred them); the dungeon
+  ±2 ramp + Heat dial in `balance-sim.mjs`.
+- `[ ]` **MODDING Phase 3 (the effect-DSL)** — still the moddability ceiling (see the YAML track below). We
+  took **Option A** (balance against the now-YAML surface; ability/passive *effect magnitudes* are still TS).
+  Build Phase 3 when we want mod-authored abilities or when balancing friction with TS effect numbers justifies it.
+
+---
+
+**(Historical, pre-balance handoff 2026-06-16 — YAML track + hardening, all DONE; kept for context below.)**
+**⭐ YAML CONTENT-CONVERSION TRACK** (see the dedicated section below + `MODDING.md`). **Phases 0 ✅ + 1 ✅ + 2 ✅
 DONE 2026-06-17** — the YAML pipeline + derived validator + registry are live; ALL pure-data content
 (monsters/traps/dungeons, classes, gear, loot, economy) PLUS the affix magnitude DSL, progression
-coefficients, and delve tunables are now YAML-sourced with editor autocomplete. **NEXT = Phase 3**
-(the effect-DSL for ability/passive/consumable behavior — the moddability ceiling; also lands the
-deferred simple-passives port). The gated balance sim comes after — and is now much easier
-(abilities/affixes/progression/economy all tune in YAML).
+coefficients, and delve tunables are YAML-sourced with editor autocomplete. **Phase 3** (the effect-DSL) remains.
 
 **⭐ 2026-06-16: POST-REVIEW HARDENING TRACK below** (from `REVIEW-2026-06-16.md` + `DESIGN-GOALS.md`).
 Progress: **POST-REVIEW HARDENING TRACK COMPLETE** — Stage 0 ✅ · Stage 1 (app.ts refactor 1A–1D) ✅ ·
@@ -47,7 +86,7 @@ the multi-layer pattern). **NEXT = the class-hall CONTENT** (spellbook shops/tra
 ability system, Phase 5) + smarter vendor restock; then the **combat re-sim** (now that loot + the type layer
 have settled) + `GOLD_K` faucet recalibration. Deferred to future stages: U5
 tick-coalescing (→ replay-seam build), 1E cutscene split, colorblind/relaxed-mode (→ external-playtest
-gate). The balance sim stays **gated** until loot + abilities settle.
+gate). *(Update 2026-06-17: the balance sim has since RUN and the rebalance is ported — see the top handoff.)*
 
 **GEAR chunk ① the foundation = BUILT 2026-06-15.** Next = **chunk ② loot + the coupled balance pass.**
 - **Chunk ① — DONE (160 tests green, tsc + build clean):** the gear data model (`engine/items.ts`:
@@ -317,12 +356,14 @@ preview; dev **sets/round** readout is live. So Stage 2 became reconcile + polis
   (color is a match axis), BUT deferred until an external human needs to play — which won't happen
   before the full town buildout. Park here; do not start early. (Market review §4 / FABLE #12.)
 
-### Gated — the real balance sim (NOT yet)
-- `[ ]` **Hold the coupled balance sim until loot + class abilities are settled.** The numbers are
-  skeleton/"vibes" by design right now — we're getting the frame standing. Once gear loot and the
-  ability reprice/content are in (so the sim has real weight to bear), *then* run the §11/§13 coupled
-  pass to resolve "combat too easy for skilled play" (Heat dial / the `X/(X+K)` base-curve question /
-  the built foe-difficulty raise). **Do not hand-edit CRAWL §5.6 before the sim.**
+### The balance sim — ✅ RUN (2026-06-17 — `sim/balance-sim.mjs`; gate lifted)
+- `[x]` **The coupled balance pass is done.** Was gated until loot + abilities settled; with the YAML
+  conversion + gear loot in, it ran: `BALANCE.md` (the EDR economy + targets) + `sim/balance-sim.mjs`
+  (the 4-axis skill model, doom cap, gear-share, defense-mode demand) → the rebalance, now ported (top
+  handoff). `CRAWL §5.6` is updated to the new model (post-sim, as the gate required).
+- `[ ]` **Still open** (`BALANCE.md` §5.6 / §8): the deferred asymptotic `X/(X+K)` base-curve (so a
+  geared player can't pin the `rate()` clamp and make foe Endurance irrelevant late) — revisit if late-game
+  testing shows the clamp binding too often.
 
 ---
 
@@ -376,8 +417,13 @@ validated by `ajv` — build/test-only, tree-shaken out of the bundle). Approved
 ### Art (forward-looking, ~0 work now)
 - `[ ]` Keep `icon` a path-or-glyph string field so real sprites slot in against `BASE_URL` later.
 
-### ⭐ DECISION PENDING — next session: Phase 3 now, or pause-and-balance? (set 2026-06-17)
-**Where we are.** Moddability Phases 0–2 are shipped + pushed (267 tests; tsc + build clean; runtime
+### ⭐ DECISION RESOLVED (2026-06-17) — took Option A: balanced first, Phase 3 later
+**We ran the balance pass against the now-YAML surface (Option A).** `BALANCE.md` planned it, `sim/balance-sim.mjs`
+proved it, and it's PORTED (see the top handoff). Ability/passive *effect magnitudes* stayed TS scalars as
+predicted — fine for tuning. Phase 3 (the effect-DSL) remains the open moddability build; do it when we want
+mod-authored abilities or when balancing friction with TS numbers justifies it. The original analysis is kept below.
+
+**Where we were.** Moddability Phases 0–2 are shipped + pushed (267 tests; tsc + build clean; runtime
 deps still `{}`). The ENTIRE balance surface except ability/passive/consumable *effect magnitudes* is
 now editable in YAML with editor autocomplete + validation: monsters, traps, dungeons, classes, gear,
 **affixes (incl. magnitudes via the `make` DSL)**, loot, economy, **progression curves**, delve pacing.
