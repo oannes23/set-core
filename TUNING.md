@@ -18,6 +18,14 @@ pending the derivation-sheet sim — directionally settled, numerically sim-fodd
 
 ## The derivation sheet — axioms (CRAWL §5.6; the sim validates against these)
 
+> **⚠ Rebalance in flight (`BALANCE.md`, 2026-06-17).** A2/A4/A6 below are being re-anchored and the
+> defensive model restructured. Headlines, gated by the `BALANCE.md` §6 sim: **A6 kill budgets re-anchor
+> from Floor play to *Typical* play** (foe HP → **100 / 250 / 400**); **the telegraph decouples from
+> player Endurance** (zero Defend = full damage); **Block loses cross-round carry**; **Move sets bank a
+> Dodge pool** (capped by the foe's tempo cadence — 60→100%); **damage abilities reprice to VPM ≈ 4**
+> (Firebolt/Cleave 45→24 max). The verb↔stat↔defense model: Attack·Power→deal, Defend·Endurance→block,
+> Move·Speed→dodge. These rows are updated here only after the sim proves the numbers.
+
 | # | Axiom | Value |
 |---|---|---|
 | A1 | The round is THE pacing constant | `ROUND_S` 20 · rollover ≈ 4.5s staged diegetic beat (playtest-raised from 2.5 — it must be FELT), never a modal |

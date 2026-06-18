@@ -402,6 +402,13 @@ combinatorial Class × Background space is the long-tail replayability.
   slot-locked. Shared account; rescale with `GOLD_K` if it recalibrates. (`TUNING.md` for the curve.)
 
 ### Gear vs levels — the power share (settled; REVISED 2026-06-15 by the §7 clean-slate)
+> **⚠ Under re-evaluation by the balance pass (`BALANCE.md` §5.4, 2026-06-17).** The "gear ~⅓,
+> flat" model below is being revisited: gear currently *can't* scale with item level
+> (`LOOTTIER_K 0.02` freezes affix magnitude) and innate dwarfs it at every level. The new target
+> curve is **innate ~80% early → ~50% mid (crossover ~L11) → gear ~65% late** — i.e. gear *does*
+> overtake innate in the endgame, via item-level-scaled magnitude (rarity = texture, item level =
+> raw power). Gated by the `BALANCE.md` §6 sim; this section is rewritten only after it proves out.
+
 **Levels carry the stat baseline (+120 points over the arc); gear carries ~⅓ of effective combat
 power** (revised UP from the old ¼). The key shift: **gear's power is flat per-card RIDERS, not raw
 stats** (§7) — a rider is bounded (doesn't scale with the `rate()` contest) yet *impactful* (it hits
