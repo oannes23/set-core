@@ -77,8 +77,9 @@ export interface CombatState {
   mods: GearMods // §7 gear-exclusive scalars: dodge / penetration / soak / lifesteal / crit
   // §7/§13 the combo streak: tempo (≤3s grace) keeps it alive, identity (colour/shape) escalates it.
   // `level` = the live streak (float); `highest`/`combos` are the THIS-ROUND metrics that feed the crit
-  // score at the rollover (reset each round); lastColor/lastShape compare the next match for "styled".
-  combo: { level: number; highest: number; combos: number; lastAt: number; lastColor: number | null; lastShape: number | null }
+  // score at the rollover (reset each round); `fightPeak` is the whole-fight best chain (gating hook,
+  // never reset mid-fight); lastColor/lastShape compare the next match for "styled".
+  combo: { level: number; highest: number; combos: number; fightPeak: number; lastAt: number; lastColor: number | null; lastShape: number | null }
   primed: Record<number, number> // §7 Primed: slot → churn timestamp; matched within PRIMED_WINDOW_MS → +1 quality tier
   // the EXCHANGE-CUTSCENE breakdown: this round's damage/block decomposed (base contest vs gear rider) +
   // match/primed tallies, so the rollover can narrate the math beat-by-beat. Reset each rollover.
@@ -113,6 +114,7 @@ export interface CombatState {
   now: number
   round: number // current round index (1-based)
   roundEndsAt: number // when the rollover exchange fires
+  roundOvertime: boolean // §13 COMBO OVERTIME: the round elapsed but a live chain is HOLDING the exchange open
   roundExtendedS: number // seconds of stall-spell extension already applied this round (capped)
   roundAttack: number // Attack's round accumulator: lands as the player's exchange swing
   nextStrikeRound: number // the round index of the foe's next exchange swing
@@ -214,6 +216,13 @@ export const COMBO_W = 0.5 // the (normalized) combo count's weight in the crit 
 export const CRIT_GRACE_MS = 3000
 export const COMBO_STYLE_STEP = 1.0 // a styled (colour/shape-continued) in-grace match advances the chain by this
 export const COMBO_TEMPO_STEP = 0.6 // a tempo-only (in-grace but off-identity) match advances it by this (slower)
+// COMBO OVERTIME (§13 — the clutch end-of-round extension): when the round clock elapses while a chain is
+// live (level ≥ MIN, last match < CRIT_GRACE_MS ago), the exchange is HELD OPEN — sets keep stacking until
+// the chain lapses, then the rollover fires instantly. The 3s grace IS the skill gate (no other limit).
+// Deliberately bypasses the stall normalization: overtime damage/combos feed crit FULLY (the CRIT_SOFT_CAP
+// is the only backstop) — the reward for the streak. CAP_MS=0 ⇒ uncapped (safety valve for later tuning).
+export const COMBO_OVERTIME_MIN_LEVEL = 2 // a chain must reach this to hold the round open (styled 2-chain)
+export const COMBO_OVERTIME_CAP_MS = 0 // 0 = uncapped; >0 force-rolls the round this many ms past roundEndsAt
 // PRIMED (§7/§11 — the Speed/Maneuver OUTPUT payoff): a Maneuver-churned card matched within this window
 // counts ONE quality tier higher (① glancing → ② solid → ③ heavy, capped). Converts Speed's board-control
 // into measurable output, in-lane (the under-buy fix). Bounded: only churned-then-matched cards, +1 tier.

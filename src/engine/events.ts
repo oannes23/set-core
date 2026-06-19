@@ -13,6 +13,7 @@ export type CombatEvent =
   | { type: 'tacticsBurned'; churned: number; remaining: number } // §5.7: a LIVE Maneuver burn (1 charge → 1 card churns toward bias)
   | { type: 'enemyDamaged'; amount: number; immune?: boolean; magic?: boolean; crit?: boolean; procSource?: string } // immune = card damage hit an immune foe; magic = ethereal mana-spent drain; crit = the exchange-delight crit (§7); procSource = the affix label when this came from an on-match/on-wound gear proc (UI attribution)
   | { type: 'combo'; level: number; styled: boolean; color: number; shape: number } // §7/§13 combo streak; styled = colour/shape continued
+  | { type: 'roundOvertime'; level: number } // §13 the round clock elapsed but a live chain is HOLDING the exchange open
   | { type: 'swingMath'; matches: number; weapon: number; attacks: number; crit: boolean; mult: number; total: number } // the exchange-cutscene swing breakdown (matches + weapon + crit → total)
   | { type: 'blockMath'; block: number; blkRider: number; defends: number; telegraph: number; soaked: number; bite: number; dodgedAll: boolean; dodged: number } // the exchange-cutscene block→net breakdown (dodged = swings slipped at the strike, §2.3)
   | { type: 'dodgeGained'; pool: number; cap: number } // a Move set banked Dodge — the meter ticks up (§2.3)

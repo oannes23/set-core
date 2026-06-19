@@ -9,7 +9,7 @@ import { findSets } from '../core/sets'
 import { type GenConfig, genInitial } from '../core/generate'
 import type { Rng } from '../core/rng'
 import type { GameData } from '../data/schema'
-import { type CombatState, type FoeRuntime, type Pending, type TacticKind, type ManeuverBias, type StatBlock, MANA_CAP, DEFAULT_PLAYER_MAX, BASE_STATS, ROUND_MS, DODGE_BASE, DODGE_K, DODGE_MIN, DODGE_MAX, DODGE_PER_CHARGE, dodgeCapForFoe, MANEUVER_BURN_MS, BASE_CRIT_MULT, CRIT_SOFT_CAP, CRIT_A, CRIT_M, COMBO_W, CRIT_GRACE_MS, COMBO_STYLE_STEP, COMBO_TEMPO_STEP, PRIMED_WINDOW_MS, dreadFoeMult, dreadPlayerMult, dreadBleed, driftRateMult } from './state'
+import { type CombatState, type FoeRuntime, type Pending, type TacticKind, type ManeuverBias, type StatBlock, MANA_CAP, DEFAULT_PLAYER_MAX, BASE_STATS, ROUND_MS, DODGE_BASE, DODGE_K, DODGE_MIN, DODGE_MAX, DODGE_PER_CHARGE, dodgeCapForFoe, MANEUVER_BURN_MS, BASE_CRIT_MULT, CRIT_SOFT_CAP, CRIT_A, CRIT_M, COMBO_W, CRIT_GRACE_MS, COMBO_STYLE_STEP, COMBO_TEMPO_STEP, COMBO_OVERTIME_MIN_LEVEL, COMBO_OVERTIME_CAP_MS, PRIMED_WINDOW_MS, dreadFoeMult, dreadPlayerMult, dreadBleed, driftRateMult } from './state'
 import { type CombatEvent, EventSink } from './events'
 import { type Resolution, type MatchDescriptor, resolveSet, weightedRoll, telegraphPerSwing, dodgeChance } from './resolve'
 import { NO_RIDERS, NO_MODS, type Riders, type GearMods, type AffixProc, type ProcEvent } from './items'
@@ -116,7 +116,7 @@ export function createCombat(opts: NewCombatOpts, rng: Rng): CombatState {
     riders: opts.riders ?? NO_RIDERS,
     mods: opts.mods ?? NO_MODS,
     procs: opts.procs ? opts.procs.slice() : [],
-    combo: { level: 0, highest: 0, combos: 0, lastAt: -Infinity, lastColor: null, lastShape: null },
+    combo: { level: 0, highest: 0, combos: 0, fightPeak: 0, lastAt: -Infinity, lastColor: null, lastShape: null },
     primed: {},
     roundLog: { atkBase: 0, atkRider: 0, blkBase: 0, blkRider: 0, attacks: 0, defends: 0, primed: 0 },
     mana: [0, 0, 0],
@@ -141,6 +141,7 @@ export function createCombat(opts: NewCombatOpts, rng: Rng): CombatState {
     now: 0,
     round: 1,
     roundEndsAt: ROUND_MS,
+    roundOvertime: false,
     roundExtendedS: 0,
     roundAttack: 0,
     nextStrikeRound,
@@ -224,6 +225,7 @@ function updateCombo(s: CombatState, desc: MatchDescriptor, sink: EventSink): vo
     s.combo.level = 1 // a fresh streak (the grace lapsed)
   }
   s.combo.highest = Math.max(s.combo.highest, s.combo.level)
+  s.combo.fightPeak = Math.max(s.combo.fightPeak, s.combo.level) // §13 the whole-fight best chain (gating hook)
   s.combo.lastAt = s.now
   s.combo.lastColor = desc.sameColor
   s.combo.lastShape = desc.sameShape
@@ -390,8 +392,19 @@ function tick(s: CombatState, dtMs: number, deps: Deps, sink: EventSink): void {
       s.burnAccum -= MANEUVER_BURN_MS
     }
   }
-  // THE ROLLOVER: the round elapsed — resolve the exchange (CRAWL §5.6)
-  if (s.running && s.now >= s.roundEndsAt) rollover(s, deps, sink)
+  // THE ROLLOVER: the round elapsed — resolve the exchange (CRAWL §5.6), UNLESS a live chain holds it open
+  // (§13 COMBO OVERTIME). A chain at level ≥ MIN whose last match is still inside the grace window defers the
+  // exchange; sets keep stacking (each refreshes lastAt → pushes the deadline out). The instant the chain
+  // lapses (no set within grace) the guard fails and the rollover fires this same frame. CAP_MS caps it.
+  if (s.running && s.now >= s.roundEndsAt) {
+    const chainLive = s.combo.level >= COMBO_OVERTIME_MIN_LEVEL && s.now - s.combo.lastAt < CRIT_GRACE_MS
+    const capped = COMBO_OVERTIME_CAP_MS > 0 && s.now - s.roundEndsAt >= COMBO_OVERTIME_CAP_MS
+    if (chainLive && !capped) {
+      if (!s.roundOvertime) { s.roundOvertime = true; sink.emit({ type: 'roundOvertime', level: s.combo.level }) }
+    } else {
+      rollover(s, deps, sink)
+    }
+  }
 }
 
 /** The rollover exchange — the v3 grammar's heartbeat, resolved atomically (the UI choreographs
@@ -488,6 +501,7 @@ function rollover(s: CombatState, deps: Deps, sink: EventSink): void {
   // slow foes), rolling dodge at the deal. Nothing revealed yet → roll once we enter the window.
   s.round = finished + 1
   s.roundEndsAt = s.now + ROUND_MS
+  s.roundOvertime = false // §13 a fresh round — the chain may carry via grace, but the hold is released
   s.roundExtendedS = 0
   s.roundAttack = 0
   // round-summary for the cutscene: the offense quality this round (primed sets + combo peak) — read

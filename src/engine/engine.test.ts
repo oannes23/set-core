@@ -98,6 +98,62 @@ test('COMBOS: tempo keeps the streak alive, identity (colour OR shape) escalates
   expect(r.state.combo.level).toBe(1) // grace lapsed → fresh streak
 })
 
+// §13 COMBO OVERTIME — a live chain HOLDS the round open past the clock; the rollover fires the instant it
+// lapses. Builds a 2-chain late in the round (last set inside the 3s grace as the clock elapses).
+function overtimeFoe() {
+  return { id: 'x', name: 'x', tier: 'minion', hp: 1e9, stats: { power: 10, endurance: 10, speed: 10 }, strikeEvery: 99, swings: 1, triggers: [], rules: {} } as unknown as ReturnType<typeof foe>
+}
+function buildLateChain(rng: ReturnType<typeof mulberry32>, links: number) {
+  const deps = { data: GAMEDATA, rng }
+  const C = card
+  let r = reduce(createCombat({ foe: overtimeFoe(), gen: GEN }, rng), { type: 'tick', dtMs: 17000 }, deps) // deep into the round (now 17000)
+  for (let i = 0; i < links; i++) {
+    r.state.board = [C(0, 0, 0), C(0, 0, 1), C(0, 0, 2), ...r.state.board.slice(3)] // a red-Attack set (styled chain)
+    r = reduce(r.state, { type: 'completeSet', slots: [0, 1, 2] }, deps)
+    if (i < links - 1) r = reduce(r.state, { type: 'tick', dtMs: 500 }, deps) // small step, stays in grace
+  }
+  return { r, deps }
+}
+
+test('COMBO OVERTIME: a live 2-chain holds the round open past the clock, then rolls over the instant it lapses', () => {
+  const { r: built, deps } = buildLateChain(mulberry32(2), 2) // level 2 (two styled links), last set ~now 17500
+  let r = built
+  expect(r.state.combo.level).toBeCloseTo(2, 5)
+  // tick past the round clock (20000) but within grace of the last set (17500 + 3000) → HELD
+  r = reduce(r.state, { type: 'tick', dtMs: 2700 }, deps) // now 20200 ≥ roundEndsAt, 2700ms since last set < grace
+  expect(r.state.round).toBe(1) // the exchange is HELD — no rollover
+  expect(r.state.roundOvertime).toBe(true)
+  expect(r.events.some((e) => e.type === 'roundOvertime')).toBe(true)
+  // let the chain lapse (no set within grace) → the rollover fires this same frame
+  r = reduce(r.state, { type: 'tick', dtMs: 1000 }, deps) // now 21200, 3700ms since the last set > grace
+  expect(r.state.round).toBe(2) // exchanged
+  expect(r.state.roundOvertime).toBe(false) // hold released on the fresh round
+  expect(r.state.combo.highest).toBe(0) // §13 per-round metric reset…
+  expect(r.state.combo.fightPeak).toBeGreaterThanOrEqual(2) // …but the whole-fight peak (gating hook) persists
+})
+
+test('COMBO OVERTIME: sets landed in overtime keep stacking damage and the chain (the clutch extension)', () => {
+  const { r: built, deps } = buildLateChain(mulberry32(2), 2)
+  let r = reduce(built.state, { type: 'tick', dtMs: 2700 }, deps) // enter overtime (round held)
+  expect(r.state.roundOvertime).toBe(true)
+  const atkBefore = r.state.roundAttack
+  const lvlBefore = r.state.combo.level
+  r.state.board = [card(0, 0, 0), card(0, 0, 1), card(0, 0, 2), ...r.state.board.slice(3)]
+  r = reduce(r.state, { type: 'completeSet', slots: [0, 1, 2] }, deps) // a set lands DURING overtime
+  expect(r.state.round).toBe(1) // still held
+  expect(r.state.roundAttack).toBeGreaterThan(atkBefore) // banked more for the exchange
+  expect(r.state.combo.level).toBeGreaterThan(lvlBefore) // the chain grew
+})
+
+test('COMBO OVERTIME: a lone set (chain below the MIN) does NOT hold — the round rolls over on time', () => {
+  const { r: built, deps } = buildLateChain(mulberry32(2), 1) // one set → level 1 (< COMBO_OVERTIME_MIN_LEVEL)
+  let r = built
+  expect(r.state.combo.level).toBe(1)
+  r = reduce(r.state, { type: 'tick', dtMs: 3500 }, deps) // past the clock (now 20500) with no qualifying chain
+  expect(r.state.round).toBe(2) // rolled over normally
+  expect(r.state.roundOvertime).toBe(false)
+})
+
 test('the exchange cutscene: swingMath narrates matches + weapon = the banked swing', () => {
   const rng = mulberry32(3)
   const f = { id: 'x', name: 'x', tier: 'minion', hp: 1e9, stats: { power: 10, endurance: 10, speed: 10 }, strikeEvery: 9, swings: 1, triggers: [], rules: {} } as unknown as ReturnType<typeof foe>
