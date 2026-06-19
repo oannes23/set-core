@@ -42,6 +42,11 @@ a feature we're *already* building gives a clean hook-in point (noted in parens)
 - **Daily seed + leaderboards** — deterministic resolution makes clean, RNG-complaint-free leaderboards
   nearly free; a strong social/replay lever for a solo game. *(Hook-in: the `session.ts` replay seam +
   seeded runs — also why U5 tick-coalescing matters.)*
+- **Big-chain achievements / streaming highlights** — **combo OVERTIME shipped 2026-06-18** (a live chain
+  holds the round open; the gold OVERTIME skin is a built-in highlight-reel moment). `combo.fightPeak`
+  (whole-fight best chain) is already surfaced on combat state as the gating hook. *(Hook-in: PRESENT —
+  persist `fightPeak` through the run/`save.ts` layer, then key achievements / special abilities / gear
+  affixes on it. Pairs naturally with the daily-seed leaderboard above: "highest chain on today's seed".)*
 - **A relaxed / no-timer (or tunable-clock) mode** — widens the audience, de-risks the timer for the
   deliberate-RPG crowd, and is the accessibility entry point. *(Hook-in: the pause / clock work.)*
 - **Clock-starts-on-first-action** (Puzzle Quest 3 lesson) — let players read the board before the

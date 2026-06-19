@@ -255,6 +255,10 @@ buy-side + sinks landed. All committed + pushed.
   under-the-hood **loot-roll trace** (`loot.ts` RoomLoot.trace). 6 new tests (`dev.test.ts`); 151 green;
   tsc + build clean. The name toggle has few live consumers until gear renders affixes (chunk ①).
 - `[ ]` Achievement meta-layer → guild halls + bounties → town amenities
+  - **Hook ready (combo OVERTIME, shipped 2026-06-18):** `combo.fightPeak` (whole-fight best chain) is on
+    combat state but not yet persisted. First step = thread it through the run/`save.ts` layer, then gate
+    achievements / special abilities / gear affixes on big chains (+ "highest chain on today's seed" once the
+    daily-seed leaderboard lands). Spec: `CRAWL-DESIGN.md` §5.6 overtime note + `TUNING.md` combo section.
 
 ---
 

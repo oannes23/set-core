@@ -68,7 +68,13 @@ The vocabulary of SET.crawl, grouped by layer. Mechanical constants live in `TUN
 - **wound** — computed HP-bucket damage that shatters cards; repaired by heals.
 - **telegraph** — the previewed incoming strike, revealed early and held until the strike round.
 - **dodge** — a per-swing evasion roll (your Speed vs theirs).
-- **crit** — the shared "exchange-delight" upward roll on a swing (5% base + gear; player-only).
+- **crit** — the shared "exchange-delight" upward roll on the swing (player-only). A skill-earned,
+  soft-capped S-curve fed by the **chain** + gear (Keen) — not a flat base.
+- **combo / chain** — a run of sets each completed ≤ 3s apart (the grace window). Tempo (any in-time
+  match) keeps it alive; identity (same colour OR shape as the last) escalates it faster — the style
+  chase. Drives the combo meter and feeds the crit score.
+- **overtime** — when the round clock elapses while a chain is live, the exchange is **held open** so
+  you can keep stacking sets; it resolves the instant the chain lapses. The clutch end-of-round push.
 
 ## Gear & affixes
 

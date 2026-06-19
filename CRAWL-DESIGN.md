@@ -1221,6 +1221,19 @@ The beat order (the engine emit order the popover narrates):
 4. **Next telegraph reveals.** The breath; next round's plan forms. *(Stances are LIVE, §5.7 —
    no round-lock/queue; the Tactics wheel applies a stance the instant you tap it.)*
 
+**COMBO OVERTIME — the clutch end-of-round extension (BUILT 2026-06-18; §13 combo layer).** The rollover
+does NOT fire the instant the clock hits 0 if a **chain is live** — `level ≥ 2` AND the last match is still
+inside the 3s grace window. Instead the exchange is **HELD OPEN**: you keep completing sets, each one banking
+more into the swing AND refreshing the grace deadline, and the rollover fires the moment the chain finally
+lapses. This is the desperate end-of-round push — race the grace clock to wring out a few more matches before
+the exchange lands. **It deliberately violates the anti-stall contract** (the held time isn't counted as
+round-extension, so overtime combos feed crit at full weight — `CRIT_SOFT_CAP` is the only ceiling): the
+reward for sustaining a streak, self-limiting because holding a chain past the clock is *hard*. Uncapped by
+default (the 3s grace is the gate; a `COMBO_OVERTIME_CAP_MS` safety valve exists at 0). The UI flips the combo
+meter + round clock + bar to a gold **OVERTIME** skin so the held round is unmistakable — a natural highlight-
+reel/streaming moment. The whole-fight peak chain (`combo.fightPeak`) is surfaced as the gating hook for
+**future** achievements / special abilities / gear affixes keyed on big chains (mechanic present; content TBD).
+
 **Foe speed = round BEHAVIOR, not round length.** The speed bands (24…9s) retire. Every
 foe gives the same 20s of scan; quickness becomes exchange cadence — and cadence is not
 authored but **DERIVED from the statline by the tempo law** (Resolution v3 below): swarm

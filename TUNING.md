@@ -308,6 +308,18 @@ play + gear, and **soft-capped** so the diminishing curve IS the practical ceili
   distinct from the crit channel (delight). ⚠ The old flat `BASE_CRIT_CHANCE`/`CRIT_CAP`/`CHAIN_CRIT_STEP`
   + the colour+shape-only chain are SUPERSEDED by this curve — the build swaps them in.
 
+**COMBO OVERTIME — the clutch end-of-round extension (BUILT 2026-06-18).** When the round clock elapses while
+a chain is **live** (`level ≥ COMBO_OVERTIME_MIN_LEVEL` **2** AND the last match is still inside the `CRIT_GRACE_MS`
+3s window), the rollover exchange is **HELD OPEN**: sets keep stacking (each match refreshes `lastAt` → pushes the
+deadline out), and the instant the chain lapses the rollover fires that same tick. `COMBO_OVERTIME_CAP_MS` **0** =
+**uncapped** — the 3s grace IS the only limit (the skill gate); it's the safety-valve knob if play ever turns
+degenerate. **Deliberately bypasses the stall normalization** (`roundExtendedS` untouched): overtime combos/damage
+feed the crit score **fully**, with `CRIT_SOFT_CAP` (0.25) as the only backstop — the reward for the streak, not a
+farm (the soft-cap bounds it; sustaining a chain past the clock is hard). Engine `combat.ts` (rollover guard) +
+`roundOvertime` state/event; UI flips the meter + round clock (`⏱ OT`) + bar to the gold OVERTIME skin. The
+whole-fight peak `combo.fightPeak` (never reset mid-fight) is the surface for **future** achievement/affix/ability
+gating (hook present; persistence + content later).
+
 **Gear-exclusive mods + reactive procs — FIRST-CUT (BUILT 2026-06-15; same §13 gate).** GearMods:
 Sundering `penetration` & Ironhide `soak` = `round(magUnit×1.5)` (flat) · Evasive `dodge` & Sanguine
 `lifesteal` = `min(0.20, 0.03–0.04 × magUnit)` (fractions, clamped). Reactive: Barbed thorns `×2` ·
