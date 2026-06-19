@@ -38,6 +38,7 @@ import type { CombatState, FoeRuntime, StatBlock } from '../engine/state'
 import { CHARGE_CAP, MANA_CAP, START_GRACE_MS, ROUND_MS, WOUND_WARD_COST, WOUND_CAP_PER_EXCHANGE, woundQuantum, dreadLevel, dreadFoeMult, dreadPlayerMult, DREAD_ONSET, DREAD_MAX, PRIMED_WINDOW_MS } from '../engine/state'
 import type { CombatEvent } from '../engine/events'
 import { offenseRecap, defenseRecap, woundTail, knitLine, guardDropLine, lockLine, churnLine, dreadLine } from './combat-log'
+import { careerRounds, bumpCareerRounds, paceForRounds } from './career'
 import { bumpTurn, pick, strikeWord, healWord, drainWord, magicLead, tierOf, joinClauses, voiceOf, ABILITY_FLAVOR } from './flavor'
 import { type SavedChar, type StatAlloc, loadRoster, upsertChar, deleteChar, makeChar, freshId, CONSUMABLE_SLOTS, effectiveStats, xpForLevel, pendingLevels, applyLevelUp, addXP, LEVEL_CAP, activeSlotsAt, passiveSlotsAt, activeUnlockLevel } from './save'
 import { isDev, toggleDev, onDevChange, displayName } from './dev'
@@ -2173,6 +2174,7 @@ let choreoFinale = false
 
 function choreographRollover(events: CombatEvent[]): void {
   if (!V) return
+  bumpCareerRounds() // one fought round → the lifetime tally that paces the splash cinematics
   const B = exBeats()
   const seg: Record<'swing' | 'counter' | 'tide' | 'deal', CombatEvent[]> = { swing: [], counter: [], tide: [], deal: [] }
   const finale: CombatEvent[] = [] // won/lost — the end banner fires the instant an HP count crosses 0
@@ -2330,28 +2332,47 @@ function choreographRollover(events: CombatEvent[]): void {
    flash), the TOTAL biggest + longest, then the next part. onTotal fires the HP snap / log for that part. */
 interface BTerm { txt: string; sub?: string; mag: number; total?: boolean; whiff?: boolean }
 interface BPart { title: string; cls: string; terms: BTerm[]; onTotal?: () => void }
-const XB = { intro: 500, partIntro: 460, term: 920, total: 1550, gap: 640, hold: 3000, outro: 520 } // deliberately slow — the Mörk Borg ledger reads beat by beat; `hold` = the parked-tableau dwell
-const XB_REDUCED: typeof XB = { intro: 180, partIntro: 160, term: 280, total: 420, gap: 220, hold: 800, outro: 200 }
+// modestly faster than the original (500/460/920/1550/640/3000/520) — the "speed it up a little" pass.
+// Still reads beat by beat; the experience-pace multiplier (paceForRounds) compresses it further for
+// veterans, and a CLICK skips the rest (playBreakdown). `hold` = the parked-tableau dwell.
+const XB = { intro: 420, partIntro: 380, term: 760, total: 1280, gap: 520, hold: 2400, outro: 440 }
+const XB_REDUCED: typeof XB = { intro: 160, partIntro: 150, term: 260, total: 400, gap: 200, hold: 650, outro: 180 }
+/** The live experience pace (1 = novice/full window → 0.4 = veteran/floor), read from the lifetime tally.
+ *  Multiplies the animation beats AND the dwell so the whole ledger compresses as the player logs rounds. */
+const expPace = (): number => paceForRounds(careerRounds())
 const xbT = (pace = 1): typeof XB => {
   const x = matchMedia('(prefers-reduced-motion: reduce)').matches ? XB_REDUCED : XB
-  return pace === 1 ? x : { intro: x.intro * pace, partIntro: x.partIntro * pace, term: x.term * pace, total: x.total * pace, gap: x.gap * pace, hold: x.hold, outro: x.outro * pace }
+  const exp = expPace()
+  const m = pace * exp // animation beats scale with BOTH the per-call pace and experience
+  if (m === 1 && exp === 1) return x
+  return { intro: x.intro * m, partIntro: x.partIntro * m, term: x.term * m, total: x.total * m, gap: x.gap * m, hold: x.hold * exp, outro: x.outro * m }
 }
-/** Parked-panel slots (CSS transforms from screen-centre): the corners, then the mid-sides — each panel
- *  slides + scales down to its slot as the NEXT part appears, scattering the round's ledger across the field. */
-const XB_PARK = [
-  'translate(calc(-50% - 30vw), calc(-50% - 27vh)) scale(.5) rotate(-2.5deg)', // top-left
-  'translate(calc(-50% + 30vw), calc(-50% - 27vh)) scale(.5) rotate(2deg)', // top-right
-  'translate(calc(-50% - 30vw), calc(-50% + 27vh)) scale(.5) rotate(1.5deg)', // bottom-left
-  'translate(calc(-50% + 30vw), calc(-50% + 27vh)) scale(.5) rotate(-2deg)', // bottom-right
-  'translate(calc(-50% - 36vw), -50%) scale(.46) rotate(2deg)', // mid-left
-  'translate(calc(-50% + 36vw), -50%) scale(.46) rotate(-1.5deg)', // mid-right
-]
-const XB_QUICKHOLD = 760 // the dwell when there's no tableau (a single panel, a kill swing, the opener) — pop, linger, go
+const XB_QUICKHOLD = 700 // the dwell when there's no tableau (a single panel, a kill swing, the opener) — pop, linger, go
+const quickHold = (): number => XB_QUICKHOLD * expPace()
+/** The two-click skip dwell: after a click reveals the whole ledger, this short window holds before the
+ *  auto-release (a second click ends it instantly). Independent of experience — it's already minimal. */
+const SKIP_HOLD = 480
 function breakdownDuration(parts: BPart[], pace = 1, tableau = parts.length > 1): number {
   const X = xbT(pace)
   let t = X.intro
   for (const p of parts) { t += X.partIntro; for (const term of p.terms) t += term.total ? X.total : X.term; t += X.gap }
-  return t + (tableau ? X.hold : XB_QUICKHOLD) + X.outro
+  return t + (tableau ? X.hold : quickHold()) + X.outro
+}
+/** UX-FRIENDLY PARK ZONES (replaces the old four-corner scatter). Finished ledger panels settle into two
+ *  readable columns flanking the centre, top→bottom, instead of being flung to the screen edges over the
+ *  HP bars / tactics wheel. Each lands a little randomly within its zone (jitter) so the spread reads
+ *  hand-dealt, not gridded. Offsets are vw/vh from screen-centre; kept well inside the edges. */
+const PARK_ANCHORS: [number, number][] = [
+  [-20, -15], [20, -15], // upper-left, upper-right
+  [-23, 0], [23, 0],     // mid-left, mid-right
+  [-18, 14], [18, 14],   // lower-left, lower-right
+]
+function parkTransform(i: number): string {
+  const [bx, by] = PARK_ANCHORS[i % PARK_ANCHORS.length]
+  const jx = (Math.random() - 0.5) * 5 // ±2.5vw jitter (cosmetic — Math.random, never the engine rng)
+  const jy = (Math.random() - 0.5) * 4 // ±2vh
+  const rot = (Math.random() - 0.5) * 4 // ±2°
+  return `translate(calc(-50% + ${(bx + jx).toFixed(1)}vw), calc(-50% + ${(by + jy).toFixed(1)}vh)) scale(.52) rotate(${rot.toFixed(1)}deg)`
 }
 /** The sequenced ledger. tableau (default = more than one part) scatters finished panels to corners and
  *  holds the spread; without it (a lone panel, a kill swing, the round-1 opener) each panel just fades as
@@ -2364,38 +2385,71 @@ function playBreakdown(parts: BPart[], release: () => void, pace = 1, tableau = 
   const stage = $(`<div id="xbreak"></div>`)
   document.body.appendChild(stage)
   void stage.offsetWidth; stage.classList.add('in')
-  const park = (i: number): void => { const c = cards[i]; if (c) { c.classList.add('parked'); c.style.transform = XB_PARK[i % XB_PARK.length] } } // slide+scale to its corner
-  const fade = (i: number): void => { const c = cards[i]; if (c) { c.classList.remove('show'); window.setTimeout(() => c.remove(), 450) } } // no-tableau: the panel just leaves
   const cards: HTMLElement[] = []
+  const park = (i: number): void => { const c = cards[i]; if (c) { c.classList.add('parked'); c.style.transform = parkTransform(i) } } // slide+scale to its zone
+  const fade = (i: number): void => { const c = cards[i]; if (c) { c.classList.remove('show'); window.setTimeout(() => c.remove(), 450) } } // no-tableau: the panel just leaves
+  const showPart = (idx: number, part: BPart): void => {
+    if (idx > 0) { if (tableau) park(idx - 1); else fade(idx - 1) } // the previous panel slides to its slot, or fades out
+    const card = $(`<div class="xb-card ${part.cls}"><div class="xb-title in"></div><div class="xb-row"></div></div>`)
+    card.querySelector('.xb-title')!.textContent = part.title
+    stage.appendChild(card); cards[idx] = card
+    void card.offsetWidth; card.classList.add('show')
+  }
+  const showTerm = (idx: number, part: BPart, term: BTerm): void => {
+    if (!cards[idx]) return
+    const chip = $(`<div class="xb-term${term.total ? ' total' : ''}${term.whiff ? ' whiff' : ''}"><span class="xb-val"></span>${term.sub ? '<span class="xb-sub"></span>' : ''}</div>`)
+    chip.querySelector('.xb-val')!.textContent = term.txt
+    if (term.sub) chip.querySelector('.xb-sub')!.textContent = term.sub
+    chip.style.setProperty('--mag', String(term.mag))
+    cards[idx].querySelector('.xb-row')!.appendChild(chip); void chip.offsetWidth; chip.classList.add('pop')
+    if (term.total) part.onTotal?.()
+  }
+  // BUILD the timed beats up front (functions + their offsets) so a CLICK can flush the remainder instantly
+  const beats: { at: number; fn: () => void; done: boolean }[] = []
+  const add = (at: number, fn: () => void): void => { beats.push({ at, fn, done: false }) }
   let t = X.intro
   parts.forEach((part, idx) => {
-    sceneTimeout(() => {
-      if (view !== V) return
-      if (idx > 0) { if (tableau) park(idx - 1); else fade(idx - 1) } // the previous panel slides to its slot, or fades out
-      const card = $(`<div class="xb-card ${part.cls}"><div class="xb-title in"></div><div class="xb-row"></div></div>`)
-      card.querySelector('.xb-title')!.textContent = part.title
-      stage.appendChild(card); cards[idx] = card
-      void card.offsetWidth; card.classList.add('show')
-    }, t)
+    add(t, () => showPart(idx, part))
     let tt = t + X.partIntro
-    for (const term of part.terms) {
-      const isTotal = !!term.total
-      sceneTimeout(() => {
-        if (view !== V || !cards[idx]) return
-        const chip = $(`<div class="xb-term${isTotal ? ' total' : ''}${term.whiff ? ' whiff' : ''}"><span class="xb-val"></span>${term.sub ? '<span class="xb-sub"></span>' : ''}</div>`)
-        chip.querySelector('.xb-val')!.textContent = term.txt
-        if (term.sub) chip.querySelector('.xb-sub')!.textContent = term.sub
-        chip.style.setProperty('--mag', String(term.mag))
-        cards[idx].querySelector('.xb-row')!.appendChild(chip); void chip.offsetWidth; chip.classList.add('pop')
-        if (isTotal) part.onTotal?.()
-      }, tt)
-      tt += isTotal ? X.total : X.term
-    }
+    for (const term of part.terms) { const trm = term; add(tt, () => showTerm(idx, part, trm)); tt += term.total ? X.total : X.term }
     t = tt + X.gap
   })
-  if (tableau) sceneTimeout(() => { if (view === V) park(parts.length - 1) }, t) // the last part parks too → the full ledger sits scattered
-  t += tableau ? X.hold : XB_QUICKHOLD
-  sceneTimeout(() => { stage.classList.add('out'); window.setTimeout(() => stage.remove(), X.outro); document.body.classList.remove('xbreak-on'); if (view === V) release() }, t)
+  if (tableau) add(t, () => park(parts.length - 1)) // the last part parks too → the full ledger sits laid out
+  const holdAt = t + (tableau ? X.hold : quickHold())
+
+  // RELEASE — fade the stage, remove it, hand back to the caller. Idempotent (skip + auto-fire race).
+  let finished = false
+  let skipped = false
+  const finish = (): void => {
+    if (finished) return
+    finished = true
+    document.removeEventListener('pointerdown', onClick, true)
+    stage.classList.add('out')
+    window.setTimeout(() => stage.remove(), X.outro)
+    document.body.classList.remove('xbreak-on')
+    // on a SKIP, unfreeze the clock AS the board settles (the natural path keeps its tuned hitstop window)
+    if (skipped && view === V) view.hitstopUntil = performance.now()
+    if (view === V) release()
+  }
+
+  // DRIVER + SKIP. First click reveals the whole ledger at once (and unfreezes the clock so a skipped
+  // exchange re-opens immediately); a second click ends the brief hold and releases now.
+  let pending: number[] = []
+  const clearPending = (): void => { for (const id of pending) clearTimeout(id); pending = [] }
+  const flushRemaining = (): void => { for (const b of beats) if (!b.done) { b.done = true; if (view === V) b.fn() } }
+  let phase: 'playing' | 'revealed' = 'playing'
+  const skip = (): void => {
+    if (finished) return
+    skipped = true
+    if (phase === 'playing') {
+      clearPending(); flushRemaining(); phase = 'revealed' // reveal the whole ledger; clock stays frozen until finish settles the board
+      pending.push(sceneTimeout(finish, SKIP_HOLD))
+    } else { clearPending(); finish() }
+  }
+  const onClick = (e: Event): void => { e.stopPropagation(); skip() }
+  document.addEventListener('pointerdown', onClick, true)
+  for (const b of beats) pending.push(sceneTimeout(() => { if (view === V && !b.done) { b.done = true; b.fn() } }, b.at))
+  pending.push(sceneTimeout(finish, holdAt))
 }
 
 /** ROUND-1 PREVIEW — a short, abbreviated read at combat start: the incoming swings, the dodges, and how
