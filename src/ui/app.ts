@@ -2751,7 +2751,8 @@ function interpretChunk(events: CombatEvent[]): void {
         floatBoard(`+${e.amount}`, 'var(--green)', 'you')
         V.stats.healed += e.amount
         const ps = procSourceOf(e)
-        if (ps) { if (isDev()) log(`<span class="recap">gear</span> ${ps}.`, 'you'); else { procAgg.heal += e.amount; procAgg.labels.push(ps) } break }
+        // a RATE label (e.g. lifesteal 🩸5%) doesn't encode the HP it restored — show both; a flat label (+4hp) already does
+        if (ps) { if (isDev()) log(`<span class="recap">gear</span> ${ps}${ps.includes('%') ? ` — <b>+${e.amount}</b> HP` : ''}.`, 'you'); else { procAgg.heal += e.amount; procAgg.labels.push(ps) } break }
         if (actor) { actor.heal += e.amount; break }
         log(`You ${healWord()} — <b>+${e.amount}</b> HP.`, 'you')
         break
