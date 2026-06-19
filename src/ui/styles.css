@@ -866,6 +866,10 @@ button.cta:disabled { opacity: .4; cursor: not-allowed; }
 .log { font-size: 12px; line-height: 1.7; max-height: 220px; overflow-y: auto; color: var(--ink-dim); }
 .log .you { color: var(--phos); } .log .foe { color: var(--red); } .log .win { color: var(--gold); } .log .trick { color: var(--trick); }
 .log .big { font-weight: 700; animation: lognudge .25s ease; } /* heavy hits read louder */
+/* the exchange RECEIPT — the dim "how the number came to be" breakdown trailing a strike line */
+.log .recap { opacity: .6; font-size: 11px; font-weight: 400; }
+/* dev-mode verbose flow (charge/mana/dodge income) — present only when dev is on, kept visually quiet */
+.log .devlog { opacity: .5; font-size: 11px; font-style: italic; }
 /* one dispatch (a Set, a tactic/ability/potion) = one .loggroup; a divider splits actions, the action
    reads first and any consequence lines nest indented beneath it (consistent for single- or multi-line) */
 .log .loggroup + .loggroup { margin-top: 7px; padding-top: 6px; border-top: 1px solid var(--line); }

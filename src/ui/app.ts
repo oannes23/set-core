@@ -35,8 +35,9 @@ import { gearTipTitle, gearTipBody, consumableTipTitle, consumableTipBody } from
 import { type SmithOp, smithCost, nextRarity, canUpgrade, openSlots, enchantOptions, canEnchant, canReroll, canReceiveAffix, upgradeRarity, enchant, rerollAffixes, transferAffix } from '../engine/smith'
 import { type DelveRun, type DelveLoot, applyRoomLoot, resolveDelveExit, resolveLootKeep } from './delve-run'
 import type { CombatState, FoeRuntime, StatBlock } from '../engine/state'
-import { CHARGE_CAP, MANA_CAP, START_GRACE_MS, ROUND_MS, WOUND_WARD_COST, WOUND_CAP_PER_EXCHANGE, woundQuantum, dreadLevel, DREAD_ONSET, DREAD_MAX, PRIMED_WINDOW_MS } from '../engine/state'
+import { CHARGE_CAP, MANA_CAP, START_GRACE_MS, ROUND_MS, WOUND_WARD_COST, WOUND_CAP_PER_EXCHANGE, woundQuantum, dreadLevel, dreadFoeMult, dreadPlayerMult, DREAD_ONSET, DREAD_MAX, PRIMED_WINDOW_MS } from '../engine/state'
 import type { CombatEvent } from '../engine/events'
+import { offenseRecap, defenseRecap, woundTail, knitLine, guardDropLine, lockLine, churnLine, dreadLine } from './combat-log'
 import { bumpTurn, pick, strikeWord, healWord, drainWord, magicLead, tierOf, joinClauses, voiceOf, ABILITY_FLAVOR } from './flavor'
 import { type SavedChar, type StatAlloc, loadRoster, upsertChar, deleteChar, makeChar, freshId, CONSUMABLE_SLOTS, effectiveStats, xpForLevel, pendingLevels, applyLevelUp, addXP, LEVEL_CAP, activeSlotsAt, passiveSlotsAt, activeUnlockLevel } from './save'
 import { isDev, toggleDev, onDevChange, displayName } from './dev'
@@ -122,6 +123,12 @@ interface View {
   morphSrc: Map<number, 'churn' | 'drift' | 'trap' | 'trick'>
   /** the always-on dev balance instruments (TRAPS §5.5 targets etc.) — display-only, replay-safe */
   dev: { reshapeYou: number; reshapeFoe: number; matches: number; springs: number; k1: number; wards: number; churns: number }
+  /** the rollover's swing/block math, stashed so the exchange's "you land …"/"foe strikes" log lines can
+   *  carry the receipt breakdown (set in choreographRollover, consumed once in interpretChunk). */
+  exSwing?: Extract<CombatEvent, { type: 'swingMath' }>
+  exBlock?: Extract<CombatEvent, { type: 'blockMath' }>
+  /** the last dread level we announced in the log (so the 0.5/round rise only narrates on new steps) */
+  lastDread: number
 }
 let V: View | null = null
 
@@ -1294,7 +1301,7 @@ function startCombat(root: HTMLElement, char: SavedChar, dungeonId: string, foe:
   const stats: StatBlock = { power: base.power + gb.power, endurance: base.endurance + gb.endurance, speed: base.speed + gb.speed }
   const run = createRun({ foe, gen: GEN, playerMax: char.maxHp, stats, riders: gearRiders(char.equipped), mods: gearMods(char.equipped), procs: gearProcs(char.equipped), passives: pass, consumables, sequence, dungeonId, dreadFloor, coach: !!dg.coach }, rng)
   run.combat.playerHP = Math.max(0, Math.min(char.maxHp, char.hp)) // the hero enters at their persisted HP, not full
-  V = { root, deps: { data: GAMEDATA, rng }, run, state: run.combat, char, actions: [], classId: cls.id, loadout: acts, coach: !!dg.coach, coachCue: null, manaColor: dominantManaColor(acts), paused: true, userPaused: false, hitstopUntil: 0, holdHud: false, preview: null, selected: [], raf: 0, lastT: 0, boardSig: '', refs: {}, stats: { dealt: 0, taken: 0, blocked: 0, healed: 0, sets: 0, traps: 0, xp: 0, gearDmg: 0, gearBlock: 0, gearMana: 0 }, roundFx: emptyRoundFx(), morphSrc: new Map(), dev: { reshapeYou: 0, reshapeFoe: 0, matches: 0, springs: 0, k1: 0, wards: 0, churns: 0 } }
+  V = { root, deps: { data: GAMEDATA, rng }, run, state: run.combat, char, actions: [], classId: cls.id, loadout: acts, coach: !!dg.coach, coachCue: null, manaColor: dominantManaColor(acts), paused: true, userPaused: false, hitstopUntil: 0, holdHud: false, preview: null, selected: [], raf: 0, lastT: 0, boardSig: '', refs: {}, stats: { dealt: 0, taken: 0, blocked: 0, healed: 0, sets: 0, traps: 0, xp: 0, gearDmg: 0, gearBlock: 0, gearMana: 0 }, roundFx: emptyRoundFx(), morphSrc: new Map(), dev: { reshapeYou: 0, reshapeFoe: 0, matches: 0, springs: 0, k1: 0, wards: 0, churns: 0 }, lastDread: 0 }
   buildPlay()
   renderBoard()
   updateBar()
@@ -2199,6 +2206,12 @@ function choreographRollover(events: CombatEvent[]): void {
   const sm = events.find((e): e is Extract<CombatEvent, { type: 'swingMath' }> => e.type === 'swingMath')
   const bm = events.find((e): e is Extract<CombatEvent, { type: 'blockMath' }> => e.type === 'blockMath')
   const rs = events.find((e): e is Extract<CombatEvent, { type: 'roundSummary' }> => e.type === 'roundSummary')
+  V.exSwing = sm; V.exBlock = bm // hand the receipt math to the seg.swing/seg.counter log lines (consumed there)
+  // guard NO-CARRY (BALANCE §2.1): what was raised but went UNSPENT this rollover — it never carries. On a
+  // strike round the engine reports block+telegraph; on a no-strike round read the held HUD before it resets.
+  const guardHeld = bm ? bm.block : domNum(V.refs.exguard, 0)
+  const guardUsed = bm ? Math.min(bm.block, Math.max(0, bm.telegraph - bm.soaked)) : 0
+  const guardWasted = Math.max(0, guardHeld - guardUsed)
   const wEv = seg.deal.find((e): e is Extract<CombatEvent, { type: 'windup' }> => e.type === 'windup')
   if (sm) V.stats.gearDmg += sm.weapon // fight-cumulative gear contribution (the end-screen "your gear" lines)
   if (bm) V.stats.gearBlock += bm.blkRider
@@ -2275,7 +2288,7 @@ function choreographRollover(events: CombatEvent[]): void {
   const ending = won || lost
   // RELEASE — the popover closed; re-brighten, settle the board (morphs/knits/wound-cracks), stamp the round
   const release = ending
-    ? (): void => { if (V) { choreoFinale = true; interpretChunk(finale); choreoFinale = false } } // → endScreen NOW (the popover already sequenced it)
+    ? (): void => { if (V) { V.exSwing = undefined; V.exBlock = undefined; choreoFinale = true; interpretChunk(finale); choreoFinale = false } } // → endScreen NOW (the popover already sequenced it)
     : (): void => {
       if (!V) return
       V.holdHud = false
@@ -2287,6 +2300,11 @@ function choreographRollover(events: CombatEvent[]): void {
       holdKnits(knits, B.knitHold)
       interpretChunk(seg.deal)
       if (raw == null && !dodgedAll && !seg.counter.length) log(`<span style="opacity:.7">The ${foeName} doesn't strike.</span>`, 'foe')
+      // the guard no-carry drop (only when banked Defend actually went to waste) + the deal's wound knit
+      if (guardWasted > 0) log(`<span style="opacity:.75">${guardDropLine(guardWasted)}</span>`, 'you')
+      if (knits.length) log(knitLine(knits.length), 'you')
+      if (rs && (rs.comboPeak >= 2 || rs.primed > 0)) devLog(`round — ${rs.comboPeak}× combo peak · ${Math.round(rs.combos)} chains · ${rs.primed} primed.`)
+      V.exSwing = undefined; V.exBlock = undefined // clear any unconsumed receipt (no swing fired this round)
       roundStamp(V.state.round)
       pulseTelegraph() // the new telegraph reveals with its flourish
       V.roundFx = emptyRoundFx() // the new round starts with a clean activity slate (settle events above are flushed)
@@ -2542,6 +2560,19 @@ function accrueRoundFx(events: CombatEvent[]): void {
   }
 }
 
+/** Wrap a (possibly empty) receipt breakdown as a dim trailing span — the secondary "how the number
+ *  came to be" detail that rides under the headline strike line. '' in → '' out (no empty span). */
+function recapSpan(detail: string): string {
+  return detail ? ` <span class="recap">(${detail})</span>` : ''
+}
+
+/** Dev-mode verbose log: the continuous resource flow (charge/mana/dodge income) that normally lives on
+ *  the HUD/floats only. Gated on isDev() so normal play stays outcome-focused (the user's "log all gains
+ *  that don't normally surface, if dev mode is on"). */
+function devLog(html: string): void {
+  if (isDev()) log(`<span class="devlog">${html}</span>`, 'you')
+}
+
 function interpretChunk(events: CombatEvent[]): void {
   if (!V || !events.length) return
   accrueRoundFx(events)
@@ -2558,6 +2589,10 @@ function interpretChunk(events: CombatEvent[]): void {
   // a resolved set means its cards are IN FLIGHT to the counter — the landing owns the punch
   // (cellLand/flashStat fire from landPunch when each card arrives, never before)
   const resolveFlight = !REDUCED.matches && events.some((e) => e.type === 'setResolved')
+  // wound count in this batch — folded as the "(N wounds)" tail onto the strike line that scarred them
+  const shatterCount = events.reduce((n, e) => n + (e.type === 'cardsShattered' ? e.slots.length : 0), 0)
+  // a named trap/trick already narrates its own board pull — suppress the generic churn line when present
+  const hasNamedTrigger = events.some((e) => e.type === 'triggerSprung')
   const bursts: [string, string, string, string, ('trick' | 'wound')?][] = []
   const queueFlash = (k: 'trap' | 'trick' | 'wound', pow = 1) => { if (!flashKind || FLASH_PRI[k] > FLASH_PRI[flashKind]) { flashKind = k; flashPow = pow } }
   // a player-initiated action (ability/potion) owns its line; its damage/heal/block/mana fold INTO it
@@ -2573,13 +2608,22 @@ function interpretChunk(events: CombatEvent[]): void {
         break
       case 'chargesGained':
         if (!resolveFlight) { cellLand('tctac'); flashStat('tcch') } // the ⚙ ring fires when the Move card lands
+        devLog(`⚙ +${e.amount} charge${e.amount === 1 ? '' : 's'}${e.source === 'overflow' ? ' (block overflow)' : ''}.`)
         break
-      case 'roundStarted':
+      case 'dodgeGained':
+        devLog(`💨 dodge pool ${e.pool.toFixed(2)}/${e.cap.toFixed(2)}.`)
+        break
+      case 'roundStarted': {
         log(e.incoming != null
           ? `<b>Round ${e.round}</b> — the ${foe} telegraphs <b>⚔${e.incoming}</b>.`
           : `<b>Round ${e.round}</b> — the ${foe} circles: <b>no strike</b> this round.`, 'foe')
+        // §5.8 dread: narrate the moment it crosses the onset / climbs a step — the live damage multipliers
+        const dl = dreadLevel(V.state)
+        const dline = dreadLine(V.lastDread, { level: dl, foeMult: dreadFoeMult(V.state), playerMult: dreadPlayerMult(V.state) }, DREAD_ONSET)
+        if (dline) { log(`<b>${dline}</b>`, 'foe'); V.lastDread = dl }
         kickClock() // the round bar refills with the deal
         break
+      }
       case 'tacticsBurned':
         // §5.7 live-burn: each ~1/s burn rolls one card (the morph + the ⚙ counter carry it). Keep the
         // log quiet — only mark the moment the bank runs dry, so the tide reads as continuous, not spammy.
@@ -2599,8 +2643,10 @@ function interpretChunk(events: CombatEvent[]): void {
         spriteReact('foe', 'sphit'); spriteReact('you', 'splunge')
         V.stats.dealt += e.amount
         if (actor && !e.crit) { actor.dmg += e.amount; if (e.magic) actor.magic = true; break } // fold into the action's own line (a crit gets its own shout)
-        if (e.crit) log(`✦ <b>CRITICAL</b> — you strike for <b>−${e.amount}</b>!`, 'you big')
-        else { const tier = tierOf(e.amount, 12); if (e.magic) log(`${magicLead()} — drains <b>${e.amount}</b>.`, 'you'); else log(`You land ${strikeWord(tier)} — <b>−${e.amount}</b>.`, tier === 'heavy' ? 'you big' : 'you') }
+        // the rollover swing carries its receipt (matches + weapon + crit); a magic/mid-round hit has none
+        const recap = e.magic ? '' : recapSpan(offenseRecap(V.exSwing)); V.exSwing = undefined
+        if (e.crit) log(`✦ <b>CRITICAL</b> — you strike for <b>−${e.amount}</b>!${recap}`, 'you big')
+        else { const tier = tierOf(e.amount, 12); if (e.magic) log(`${magicLead()} — drains <b>${e.amount}</b>.`, 'you'); else log(`You land ${strikeWord(tier)} — <b>−${e.amount}</b>.${recap}`, tier === 'heavy' ? 'you big' : 'you') }
         break
       }
       case 'enemyHealed':
@@ -2632,6 +2678,7 @@ function interpretChunk(events: CombatEvent[]): void {
         // set income: float only a SIZEABLE mono-colour bank (≥3) so it reads "you charged up" without spamming every set
         const top = e.mana.indexOf(Math.max(...e.mana))
         if (e.mana[top] >= 3) floatText(`+${e.mana[top]}${MANA_ICON[top]}`, { mag: 0.34, color: `var(--c${top})`, side: 'you' })
+        if (e.mana.some((x) => x > 0)) devLog(`✦ mana ${e.mana.map((x, i) => (x > 0 ? `+${x} ${MANA[i]}` : '')).filter(Boolean).join(' · ')}.`)
         break
       }
       case 'cardsTransmuted': {
@@ -2649,8 +2696,17 @@ function interpretChunk(events: CombatEvent[]): void {
         if (src === 'drift' || src === 'trap' || src === 'trick') V.dev.reshapeFoe += e.slots.length
         else V.dev.reshapeYou += e.slots.length
         if (src === 'churn') V.dev.churns += e.slots.length
+        // attribution line — only when no NAMED trap/trick already narrates this pull (avoid double-logging),
+        // and never for player churn (the continuous ~1/s Maneuver burn carries its own beat)
+        if ((src === 'drift' || src === 'trap' || src === 'trick') && !hasNamedTrigger) log(churnLine(src, e.slots.length), src === 'trick' ? 'trick' : 'foe')
         break
       }
+      case 'cardsLocked':
+        log(lockLine(e.slots.length, Math.round((e.untilMs - V.state.now) / 1000)), 'foe')
+        break
+      case 'cardsUnlocked':
+        log(`<span style="opacity:.7">Locked cards come free.</span>`, 'you')
+        break
       case 'chargesDrained':
         log(`The ${foe} rattles your focus — <b>−${e.amount}</b> Tactics charge${e.amount > 1 ? 's' : ''}.`, 'foe')
         break
@@ -2756,8 +2812,14 @@ function interpretChunk(events: CombatEvent[]): void {
       }
       case 'playerDamaged': {
         const tier = tierOf(e.amount, V.state.foe.damage)
-        const data = `<b>−${e.amount}</b>${e.absorbed ? ` (${e.absorbed} blocked)` : ''}`
-        log(`The ${foe} ${pick(voice.hit)} you — ${strikeWord(tier, 1)}, ${data}.`, tier === 'heavy' ? 'foe big' : 'foe')
+        if (e.source === 'the dread') { // §5.8 the unguardable bleed — foe-independent, bypasses guard
+          log(`<b>Dread</b> gnaws past your guard — <b>−${e.amount}</b> (unguardable).`, 'foe')
+        } else {
+          // the rollover strike (or an instant trap hit) carries its receipt: telegraph→slip→soak→guard, + scars
+          const detail = [defenseRecap(V.exBlock), woundTail(shatterCount)].filter(Boolean).join(' · '); V.exBlock = undefined
+          const data = `<b>−${e.amount}</b>${e.absorbed ? ` (${e.absorbed} blocked)` : ''}`
+          log(`The ${foe} ${pick(voice.hit)} you — ${strikeWord(tier, 1)}, ${data}.${recapSpan(detail)}`, tier === 'heavy' ? 'foe big' : 'foe')
+        }
         V.stats.taken += e.amount; V.stats.blocked += e.absorbed
         queueFlash('wound', 0.8 + Math.min(1.2, e.amount / Math.max(1, V.state.foe.damage))) // severity-scaled flash
         spriteReact('you', 'sphit'); spriteReact('foe', 'splunge')
@@ -2792,12 +2854,15 @@ function interpretChunk(events: CombatEvent[]): void {
         V.paused = true
         showBriefing(() => { if (V) { V.paused = false; V.lastT = 0; hitstop(graceMs()) } }) // grace on each gauntlet foe too
         break
-      case 'won':
+      case 'won': {
         log(`The ${foe} collapses. <b>Victory!</b>`, 'win')
+        // a one-line payoff: the XP this fight banked (gold/drops roll in the spoils ledger after this scene)
+        if (V.stats.xp > 0) log(`<span style="opacity:.9">Spoils — <b>+${V.stats.xp} XP</b>${pendingLevels(V.char) > 0 ? ' · <b>Level up!</b>' : ''}.</span>`, 'win')
         // the rollover's win-reveal fires NOW (the popover already sequenced it); a mid-round kill
         // (passive/trick) gets a beat so the killing cue lands before the reveal.
         if (choreoFinale) endScreen('win'); else sceneTimeout(() => endScreen('win'), PARTING_BEAT_MS)
         break
+      }
       case 'lost':
         log(`You fall in battle. <b>Defeat.</b>`, 'foe')
         // rollover death → end now (popover-sequenced); a flee parting-blow / instant trap death → a
