@@ -35,7 +35,7 @@ import { gearTipTitle, gearTipBody, consumableTipTitle, consumableTipBody } from
 import { type SmithOp, smithCost, nextRarity, canUpgrade, openSlots, enchantOptions, canEnchant, canReroll, canReceiveAffix, upgradeRarity, enchant, rerollAffixes, transferAffix } from '../engine/smith'
 import { type DelveRun, type DelveLoot, applyRoomLoot, resolveDelveExit, resolveLootKeep } from './delve-run'
 import type { CombatState, FoeRuntime, StatBlock } from '../engine/state'
-import { CHARGE_CAP, MANA_CAP, START_GRACE_MS, ROUND_MS, WOUND_WARD_COST, WOUND_CAP_PER_EXCHANGE, woundQuantum, dreadLevel, dreadFoeMult, dreadPlayerMult, DREAD_ONSET, DREAD_MAX, PRIMED_WINDOW_MS } from '../engine/state'
+import { CHARGE_CAP, MANA_CAP, START_GRACE_MS, ROUND_MS, WOUND_WARD_COST, BOARD_WARD_COST, WOUND_CAP_PER_EXCHANGE, woundQuantum, dreadLevel, dreadFoeMult, dreadPlayerMult, DREAD_ONSET, DREAD_MAX, PRIMED_WINDOW_MS } from '../engine/state'
 import type { CombatEvent } from '../engine/events'
 import { offenseRecap, defenseRecap, woundTail, knitLine, guardDropLine, lockLine, churnLine, dreadLine } from './combat-log'
 import { careerRounds, bumpCareerRounds, paceForRounds } from './career'
@@ -1401,7 +1401,7 @@ function buildPlay(): void {
           <span class="tc-lab">guard</span><span class="tc-ico">🛡</span><span class="tc-val" id="exguard">0</span><span class="tc-tag ok">✓</span><span class="tc-tag bite" id="tcbite" data-tip-title="The bite" data-tip="What lands if the exchange came now: their telegraph minus your guard — and the wounds it would scar (one per tenth of your max HP)."></span>
           <span class="grdmeter"><span class="grdfill" id="exguardfill"></span></span>
         </div>
-        <div class="tc-cell tac" id="tctac" data-tip-title="⚙ Tactics" data-tip="Move matches bank Tactics charges — a Speed contest, yours vs theirs. Your stance spends them: <b>Stand Ground</b> wards enemy meddling live (board verbs 1 · wounds ${WOUND_WARD_COST}); <b>Maneuver</b> burns the WHOLE bank at the rollover, redrawing the deadest cards toward your bias.">
+        <div class="tc-cell tac" id="tctac" data-tip-title="⚙ Tactics" data-tip="Move matches bank Tactics charges — a Speed contest, yours vs theirs. Your stance spends them: <b>Stand Ground</b> wards enemy meddling live (board verbs ${BOARD_WARD_COST} · wounds ${WOUND_WARD_COST}); <b>Maneuver</b> burns the WHOLE bank at the rollover, redrawing the deadest cards toward your bias.">
           <span class="tc-lab">tactics</span><span class="tc-ico">⚙</span><span class="tc-val" id="tcch">0</span><span class="tc-cap">/${CHARGE_CAP}</span>
         </div>
       </div>
@@ -1475,14 +1475,14 @@ function buildCastPanel(): HTMLElement {
   const tacSec = $(`<div class="coach-sec" data-sec="tactics"></div>`)
   tacSec.appendChild($(`<div class="panelhd"><label>Tactics</label></div>`)) // the charge COUNT lives in the tri-counter (one number, one place); the pips here are the gauge
   // the charge gauge: 15 thin pips, grouped in threes (one wound-ward each — CHARGE_CAP = 5 × 3)
-  const pips = $(`<div class="tacpips" id="tacpips" data-tip-title="Tactics charges" data-tip="Banked by matching Move cards — each Move card's worth is a Speed contest (yours vs theirs). Your stance spends them: <b>Stand Ground</b> wards enemy meddling live (board verbs 1 · wounds ${WOUND_WARD_COST}) and carries the bank; <b>Maneuver</b> burns ALL charges at the rollover, redrawing the deadest cards toward your bias. Pips group in threes — one warded wound each."></div>`)
+  const pips = $(`<div class="tacpips" id="tacpips" data-tip-title="Tactics charges" data-tip="Banked by matching Move cards — each Move card's worth is a Speed contest (yours vs theirs). Your stance spends them: <b>Stand Ground</b> wards enemy meddling live (board verbs ${BOARD_WARD_COST} · wounds ${WOUND_WARD_COST}) and carries the bank; <b>Maneuver</b> burns ALL charges at the rollover, redrawing the deadest cards toward your bias. Pips group in threes — one warded wound each."></div>`)
   for (let i = 0; i < CHARGE_CAP; i++) pips.appendChild($(`<span class="pip"></span>`))
   tacSec.appendChild(pips)
   // THE WHEEL — center: Stand Ground · top arc: shape biases · bottom arc: colour biases.
   // One tap queues next round's stance (it LOCKS at the deal — the commitment mechanic).
   const wheel = $(`<div class="wheel" id="tactics"></div>`)
   for (const sp of WHEEL_SPOKES) wheel.appendChild($(`<div class="spoke pos-${sp.pos}" data-axis="${sp.axis}" data-value="${sp.value}" data-tip-title="Maneuver · ${BIAS_NAME[sp.axis][sp.value]}" data-tip="${sp.tip} Locks at the next deal; the dump burns the whole bank.">${sp.icon}</div>`))
-  wheel.appendChild($(`<div class="hub" data-tip-title="🛡 Stand Ground" data-tip="Hold the line — charges ward enemy meddling live (a warp or lock costs 1, a wound costs ${WOUND_WARD_COST}), and the bank carries across rounds. Locks at the next deal.">${HUB_SVG}</div>`))
+  wheel.appendChild($(`<div class="hub" data-tip-title="🛡 Stand Ground" data-tip="Hold the line — charges ward enemy meddling live (a warp or lock costs ${BOARD_WARD_COST}, a wound costs ${WOUND_WARD_COST}), and the bank carries across rounds. Locks at the next deal.">${HUB_SVG}</div>`))
   tacSec.appendChild(wheel)
   panel.appendChild(tacSec)
   // ABILITIES section — the mana BANK gets a real standing read (UX §4c#2: number + pip strip per
@@ -2735,7 +2735,7 @@ function interpretChunk(events: CombatEvent[]): void {
         flashStat('ehpv')
         spriteReact('foe', 'sphit'); spriteReact('you', 'splunge')
         V.stats.dealt += e.amount
-        { const ps = procSourceOf(e); if (ps) { if (isDev()) log(`<span class="recap">${ps}</span> — <b>−${e.amount}</b>.`, 'you'); else { procAgg.dmg += e.amount; procAgg.labels.push(ps) } break } } // gear proc — attribute (dev) / coalesce (normal)
+        { const ps = procSourceOf(e); if (ps) { if (isDev()) log(`<span class="recap">gear</span> ${ps}.`, 'you'); else { procAgg.dmg += e.amount; procAgg.labels.push(ps) } break } } // gear proc — attribute (dev: the label self-describes) / coalesce (normal)
         if (actor && !e.crit) { actor.dmg += e.amount; if (e.magic) actor.magic = true; break } // fold into the action's own line (a crit gets its own shout)
         // the rollover swing carries its receipt (matches + weapon + crit); a magic/mid-round hit has none
         const recap = e.magic ? '' : recapSpan(offenseRecap(V.exSwing)); V.exSwing = undefined
@@ -2751,7 +2751,7 @@ function interpretChunk(events: CombatEvent[]): void {
         floatBoard(`+${e.amount}`, 'var(--green)', 'you')
         V.stats.healed += e.amount
         const ps = procSourceOf(e)
-        if (ps) { if (isDev()) log(`<span class="recap">${ps}</span> — <b>+${e.amount}</b> HP.`, 'you'); else { procAgg.heal += e.amount; procAgg.labels.push(ps) } break }
+        if (ps) { if (isDev()) log(`<span class="recap">gear</span> ${ps}.`, 'you'); else { procAgg.heal += e.amount; procAgg.labels.push(ps) } break }
         if (actor) { actor.heal += e.amount; break }
         log(`You ${healWord()} — <b>+${e.amount}</b> HP.`, 'you')
         break
@@ -2762,7 +2762,7 @@ function interpretChunk(events: CombatEvent[]): void {
         floatBoard(wasSated ? `+${e.amount}🛡 wasted` : `+${e.amount}🛡`, wasSated ? 'var(--ink-faint)' : 'var(--blue)', 'you', wasSated ? 'wasted' : undefined)
         if (!wasSated && !resolveFlight) { cellLand('tcgrd'); flashStat('exguard') } // the guard cell rings as real Block lands (waste gets no reward ring; a flight rings on landing)
         const ps = procSourceOf(e)
-        if (ps) { if (isDev()) log(`<span class="recap">${ps}</span> — <b>+${e.amount}</b> Block.`, 'you'); else { procAgg.block += e.amount; procAgg.labels.push(ps) } break }
+        if (ps) { if (isDev()) log(`<span class="recap">gear</span> ${ps}.`, 'you'); else { procAgg.block += e.amount; procAgg.labels.push(ps) } break }
         if (actor) { actor.block += e.amount; break }
         log(wasSated ? `<span style="opacity:.7">You brace — but the guard already meets their strike.</span>` : `You brace — <b>+${e.amount}</b> Defend.`, 'you')
         break
@@ -2779,7 +2779,7 @@ function interpretChunk(events: CombatEvent[]): void {
         if (e.mana[top] >= 3) floatText(`+${e.mana[top]}${MANA_ICON[top]}`, { mag: 0.34, color: `var(--c${top})`, side: 'you' })
         const ps = procSourceOf(e)
         const manaClause = e.mana.map((x, i) => (x > 0 ? `+${x} ${MANA[i]}` : '')).filter(Boolean).join(' · ')
-        if (ps) { if (isDev()) log(`<span class="recap">${ps}</span> — ${manaClause}.`, 'you'); else { for (let i = 0; i < 3; i++) procAgg.mana[i] += e.mana[i]; procAgg.labels.push(ps) } break }
+        if (ps) { if (isDev()) log(`<span class="recap">gear</span> ${ps} ${e.mana.map((x, i) => (x > 0 ? MANA[i] : '')).filter(Boolean).join(' · ')}.`, 'you'); else { for (let i = 0; i < 3; i++) procAgg.mana[i] += e.mana[i]; procAgg.labels.push(ps) } break }
         if (manaClause) devLog(`✦ mana ${manaClause}.`)
         break
       }
@@ -2891,7 +2891,8 @@ function interpretChunk(events: CombatEvent[]): void {
         if (e.deltaSeconds > 0) {
           kickClock() // the round bar recoils + visibly refills as roundEndsAt moves out
           log(`<span style="opacity:.85">⏳ The round stretches — <b>+${e.deltaSeconds}s</b>.</span>`, 'you')
-        } else if (e.deltaSeconds < 0) {
+        } else if (e.deltaSeconds < 0 && !hasNamedTrigger) {
+          // a named trap (e.g. Confusion) already narrates its own "−Ns" line — don't double-log the yank
           log(`The ${foe} hurries the exchange — <b>${e.deltaSeconds}s</b>.`, 'foe')
         }
         break
