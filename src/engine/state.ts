@@ -142,7 +142,8 @@ export const ROUND_EXTEND_CAP_S = 10
 export const DEFAULT_PLAYER_MAX = 100 // the decimal rebase: HP 100 so the /10 wound laws read clean
 // Tactics v3 (CRAWL §5.6) — tuning defaults
 export const CHARGE_CAP = 15 // exact both ways: a max 5-wound haymaker (5×3) or a whole-board (15) dump
-export const WOUND_WARD_COST = 3 // Stand Ground's live cost to fizzle ONE incoming wound (board verbs cost 1)
+export const WOUND_WARD_COST = 3 // Stand Ground's live cost to fizzle ONE incoming wound (the backstop)
+export const BOARD_WARD_COST = 2 // …and to ward ONE board verb (a drift/enemy transmute or a lock) — raised 1→2 so the stance can't trivialize a heavy trap kit for free
 export const MANA_CAP = 15 // per color; gains past it are pure loss (gear may raise it later)
 
 // DREAD ESCALATION (CRAWL §5.8; sim §7/§10) — one meter drives two lanes: drift (soft) + a two-way

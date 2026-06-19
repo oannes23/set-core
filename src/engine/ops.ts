@@ -5,7 +5,7 @@
 import type { Rng } from '../core/rng'
 import { patch, patchFavor, type FavorBias } from '../core/generate'
 import type { CombatState } from './state'
-import { CHARGE_CAP, MANA_CAP, ROUND_EXTEND_CAP_S, WOUND_WARD_COST, woundQuantum, dreadPlayerMult } from './state'
+import { CHARGE_CAP, MANA_CAP, ROUND_EXTEND_CAP_S, WOUND_WARD_COST, BOARD_WARD_COST, woundQuantum, dreadPlayerMult } from './state'
 import type { EventSink } from './events'
 import { weightedRoll } from './resolve'
 
@@ -46,11 +46,11 @@ export function addCharges(s: CombatState, amt: number, sink: EventSink, source?
 }
 
 /** Stand Ground interception (LIVE, mid-round): a hostile board verb fires → banked charges eat it.
- *  Board verbs (drift / enemy transmute / lock) cost 1; an incoming WOUND costs 3 (CRAWL §5.6 —
+ *  Board verbs (drift / enemy transmute / lock) cost 2; an incoming WOUND costs 3 (CRAWL §5.6 —
  *  Defend allocation is the primary wound prevention; this is the backstop). Never absorbs raw
  *  damage (that's Block's lane). */
 export function tryWard(s: CombatState, what: 'transmute' | 'lock' | 'shatter', sink: EventSink, slots?: number[]): boolean {
-  const cost = what === 'shatter' ? WOUND_WARD_COST : 1
+  const cost = what === 'shatter' ? WOUND_WARD_COST : BOARD_WARD_COST
   if (s.tactic !== 'stand' || s.charges < cost) return false
   s.charges -= cost
   sink.emit({ type: 'warded', what, cost, slots }) // slots = the cards the verb WOULD have hit (the shake→settle cue)

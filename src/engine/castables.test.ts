@@ -137,12 +137,12 @@ test('Combined Arms (Warlord): a shape-rainbow set banks +1 bonus charge', () =>
   expect(r.events.some((e) => e.type === 'passiveProc' && e.id === 'combined_arms')).toBe(true)
 })
 
-test('Stand Ground intercepts a hostile transmute (1 charge), but a TRICK passes through', () => {
+test('Stand Ground intercepts a hostile transmute (2 charges), but a TRICK passes through', () => {
   const s = combat('training_dummy')
   s.tactic = 'stand'
-  s.charges = 2
+  s.charges = 3
   const sink = new EventSink()
-  // a hostile trap transmute → warded: board untouched, one charge eaten
+  // a hostile trap transmute → warded: board untouched, two charges eaten (BOARD_WARD_COST)
   runTrigger(s, { name: 'Razor Wind', icon: 'x', on: 'match', do: [{ effect: 'transmute', count: 2, select: {} }] }, EMPTY_DESC, mulberry32(5), sink)
   expect(sink.events.some((e) => e.type === 'warded' && e.what === 'transmute')).toBe(true)
   expect(sink.events.some((e) => e.type === 'cardsTransmuted')).toBe(false)

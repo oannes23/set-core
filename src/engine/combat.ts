@@ -417,8 +417,14 @@ function rollover(s: CombatState, deps: Deps, sink: EventSink): void {
     sink.emit({ type: 'swingMath', matches: Math.round(s.roundLog.atkBase * dmult), weapon: Math.round(s.roundLog.atkRider * dmult), attacks: s.roundLog.attacks, crit, mult: crit ? playerCritMult(s) : 1, total: dmg })
     s.enemyHP = Math.max(0, s.enemyHP - dmg)
     sink.emit({ type: 'enemyDamaged', amount: dmg, crit })
-    // §7 Lifesteal (Sanguine): heal a fraction of the (possibly crit) damage dealt (deterministic)
-    if (s.mods.lifesteal > 0 && dmg > 0) healPlayer(s, Math.floor(dmg * s.mods.lifesteal), deps.rng, sink)
+    // §7 Lifesteal (Sanguine): heal a fraction of the (possibly crit) damage dealt (deterministic).
+    // It's a gear MOD (not a fireProcs proc), so tag its heal with a source label for the same UI attribution.
+    if (s.mods.lifesteal > 0 && dmg > 0) {
+      const before = sink.events.length
+      healPlayer(s, Math.floor(dmg * s.mods.lifesteal), deps.rng, sink)
+      const label = `🩸${Math.round(s.mods.lifesteal * 100)}%`
+      for (let i = before; i < sink.events.length; i++) (sink.events[i] as { procSource?: string }).procSource = label
+    }
     if (s.enemyHP <= 0) {
       onWin(s, deps.rng, sink)
       return
