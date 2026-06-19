@@ -38,6 +38,7 @@ export interface LootConfig {
   goldK: number // gold ≈ foeValue × goldK (a goblin ~47 → ~6g) — the whole economy's faucet constant
   goldVar: number // ± fraction per gold roll
   depthRate: number // per-room lift to gold + loot quality (§3 depth scaling)
+  depthTierRate: number // how much depth lifts a drop's loot-tier: tier = foeLevelEquiv + round(depth × this)
   gearPityStep: number // gear-less drop adds this to the gear weight; a gear hit resets it (sawtooth)
   marketPerSlot: number // town Market: pieces stocked per slot group
   rarePerTab: number // Merchant-House rare vendor: pieces stocked
@@ -55,6 +56,12 @@ const CFG = lootData as LootConfig
 export const GOLD_K = CFG.goldK
 const GOLD_VAR = CFG.goldVar
 export const DEPTH_RATE = CFG.depthRate
+const DEPTH_TIER_RATE = CFG.depthTierRate ?? 0.34
+
+/** A drop's loot-tier (→ affix magnitude): anchored to the FOE's difficulty, with only a gentle depth
+ *  bonus on top — so loot tracks how hard the enemy is, not merely how many rooms you've cleared. */
+export const lootTierFor = (foe: FoeRuntime, depth: number): number =>
+  Math.max(1, Math.round(foeLevelEquiv(foe) + Math.max(0, depth) * DEPTH_TIER_RATE))
 
 const TABLES: Record<Tier, LootTable> = CFG.tables
 /** Live categories. Gear is LIVE (chunk ②); spellbook flips on at B4 — its weight redistributes till then. */
@@ -84,7 +91,7 @@ function rollGearRarity(level: number, advantage: boolean, rng: Rng): Rarity {
 export function rollGearDrop(foe: FoeRuntime, depth: number, rng: Rng): GearInstance {
   const ids = Object.keys(GEAR)
   const refId = ids[Math.floor(rng() * ids.length)]
-  const lootTier = foeLevelEquiv(foe) + depth
+  const lootTier = lootTierFor(foe, depth)
   const rarity = rollGearRarity(foeLevelEquiv(foe), (foe.tier ?? 'minion') !== 'minion', rng)
   return rollGear(refId, rarity, lootTier, rng)
 }
@@ -141,7 +148,7 @@ export function rollMarqueeGear(foe: FoeRuntime, depth: number, rng: Rng): GearI
   let r = rng() * total
   let rarity: Rarity = 'blue'
   for (const [rar, w] of MARQUEE_WEIGHTS) { r -= w; if (r < 0) { rarity = rar; break } }
-  return rollGear(refId, rarity, foeLevelEquiv(foe) + depth, rng)
+  return rollGear(refId, rarity, lootTierFor(foe, depth), rng)
 }
 
 const depthMult = (depth: number): number => 1 + DEPTH_RATE * Math.max(0, depth - 1)

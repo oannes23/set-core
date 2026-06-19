@@ -5,9 +5,9 @@
 import { test, expect } from 'vitest'
 import { mulberry32 } from '../core/rng'
 import { GAMEDATA } from '../data/game-data'
-import { assembleFoe, foeValue } from './foe'
+import { assembleFoe, foeValue, foeLevelEquiv } from './foe'
 import { CONSUMABLES } from './consumables'
-import { rollGold, rollRoomLoot, rollConsumable, rollMarqueeGear, GOLD_K, ENABLED, rollMarketStock, MARKET_PER_SLOT, rollRareStock } from './loot'
+import { rollGold, rollRoomLoot, rollConsumable, rollMarqueeGear, GOLD_K, ENABLED, rollMarketStock, MARKET_PER_SLOT, rollRareStock, lootTierFor } from './loot'
 import { gearValue, itemValue, sellValue, buyPrice } from './value'
 import { GEAR } from '../data/gear'
 import { RARITY, RARITIES } from './items'
@@ -47,6 +47,17 @@ test('gear is LIVE in the loot tables (chunk ②); items + gear validate', () =>
     }
   }
   expect(sawGear).toBe(true) // gear actually drops now
+})
+
+test('loot-tier is anchored to FOE difficulty, not raw room depth', () => {
+  const g = foe('goblin')
+  const lvl = foeLevelEquiv(g)
+  // depth must NOT add a tier per room (the old `foeLevelEquiv + depth` inflation): at depth 12 the
+  // bonus is only round(12 × 0.34) ≈ 4, so a low-level foe never showers high-tier gear for going deep.
+  expect(lootTierFor(g, 0)).toBe(Math.max(1, Math.round(lvl)))
+  expect(lootTierFor(g, 12)).toBeLessThan(Math.round(lvl) + 12) // would equal lvl+12 under the old formula
+  expect(lootTierFor(g, 12)).toBeLessThanOrEqual(Math.round(lvl) + 5) // gentle depth bonus only
+  expect(lootTierFor(g, 12)).toBeGreaterThan(lootTierFor(g, 0)) // …but depth still helps a little
 })
 
 test('the dungeon-clear marquee is ALWAYS a rare+ gear piece (blue/purple/orange)', () => {

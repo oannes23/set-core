@@ -4,6 +4,11 @@
 goldK: 0.12
 goldVar: 0.3
 depthRate: 0.07
+# how much delving DEPTH lifts a drop's loot-tier (affix magnitude). Gear tier is anchored to the FOE's
+# difficulty (foeLevelEquiv); depth adds only `round(depth × depthTierRate)` on top — a gentle "press on
+# for a bit better" bonus, NOT a tier-per-room ramp. Keeps loot in line with enemy difficulty: a low-level
+# dungeon never showers high-tier gear just for going deep. 0 = pure foe-level; raise to reward depth more.
+depthTierRate: 0.34
 gearPityStep: 8
 marketPerSlot: 10
 rarePerTab: 10
