@@ -11,7 +11,7 @@ export type CombatEvent =
   | { type: 'roundEnded'; round: number } // the rollover exchange begins (events between this and roundStarted ARE the exchange)
   | { type: 'roundStarted'; round: number; incoming: number | null } // the deal settled; incoming = this round's telegraph (null = no strike)
   | { type: 'tacticsBurned'; churned: number; remaining: number } // §5.7: a LIVE Maneuver burn (1 charge → 1 card churns toward bias)
-  | { type: 'enemyDamaged'; amount: number; immune?: boolean; magic?: boolean; crit?: boolean } // immune = card damage hit an immune foe; magic = ethereal mana-spent drain; crit = the exchange-delight crit (§7)
+  | { type: 'enemyDamaged'; amount: number; immune?: boolean; magic?: boolean; crit?: boolean; procSource?: string } // immune = card damage hit an immune foe; magic = ethereal mana-spent drain; crit = the exchange-delight crit (§7); procSource = the affix label when this came from an on-match/on-wound gear proc (UI attribution)
   | { type: 'combo'; level: number; styled: boolean; color: number; shape: number } // §7/§13 combo streak; styled = colour/shape continued
   | { type: 'swingMath'; matches: number; weapon: number; attacks: number; crit: boolean; mult: number; total: number } // the exchange-cutscene swing breakdown (matches + weapon + crit → total)
   | { type: 'blockMath'; block: number; blkRider: number; defends: number; telegraph: number; soaked: number; bite: number; dodgedAll: boolean; dodged: number } // the exchange-cutscene block→net breakdown (dodged = swings slipped at the strike, §2.3)
@@ -19,11 +19,11 @@ export type CombatEvent =
   | { type: 'roundSummary'; primed: number; comboPeak: number; combos: number } // the round's offense quality (primed sets + combo peak) — cutscene celebration
   | { type: 'enemyHealed'; amount: number }
   | { type: 'playerDamaged'; amount: number; absorbed: number; source: string }
-  | { type: 'playerHealed'; amount: number }
+  | { type: 'playerHealed'; amount: number; procSource?: string }
   | { type: 'playerBlocked' } // an attack fully absorbed / a 0-damage swing
-  | { type: 'blockGained'; amount: number }
+  | { type: 'blockGained'; amount: number; procSource?: string }
   | { type: 'blockOverflow'; amount: number } // block past the cap (wasted unless Overflow converts it)
-  | { type: 'manaGained'; mana: [number, number, number] }
+  | { type: 'manaGained'; mana: [number, number, number]; procSource?: string }
   | { type: 'manaDrained'; color: number; amount: number }
   | { type: 'chargesGained'; amount: number; source?: 'overflow' } // Tactics charges queued (source='overflow' = excess block)
   | { type: 'chargesDrained'; amount: number } // an enemy effect drained queued/banked charges

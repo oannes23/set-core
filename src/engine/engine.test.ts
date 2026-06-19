@@ -128,6 +128,16 @@ test('the affix-proc engine: an on-match proc fires player-favourably (condMet �
   expect(r.events.some((e) => e.type === 'passiveProc' && e.id === 'affix')).toBe(true)
 })
 
+test('proc events carry the affix label (procSource) for UI attribution', () => {
+  const rng = mulberry32(7)
+  const f = { id: 'x', name: 'x', tier: 'minion', hp: 100, stats: { power: 10, endurance: 10, speed: 10 }, strikeEvery: 2, swings: 1, triggers: [], rules: {} } as unknown as ReturnType<typeof foe>
+  const s = createCombat({ foe: f, gen: GEN, procs: [{ effect: { kind: 'damage', amount: 7 }, label: '🔥+7' }] }, rng)
+  const sets = findSets(s.board)
+  const r = reduce(s, { type: 'completeSet', slots: sets[0] }, { data: GAMEDATA, rng })
+  const dmg = r.events.find((e) => e.type === 'enemyDamaged') as Extract<import('./events').CombatEvent, { type: 'enemyDamaged' }> | undefined
+  expect(dmg?.procSource).toBe('🔥+7') // the proc's damage event is tagged with its affix label
+})
+
 test('the reactive proc family: an on-KILL heal fires when the foe dies (player-side event)', () => {
   const rng = mulberry32(9)
   const f = { id: 'x', name: 'x', tier: 'minion', hp: 100, stats: { power: 10, endurance: 10, speed: 10 }, strikeEvery: 2, swings: 1, triggers: [], rules: {} } as unknown as ReturnType<typeof foe>

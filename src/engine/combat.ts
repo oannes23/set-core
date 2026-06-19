@@ -258,13 +258,16 @@ function fireProcs(s: CombatState, event: ProcEvent, desc: MatchDescriptor | nul
     if ((p.event ?? 'match') !== event) continue
     if (event === 'match' && desc && !condMet(p.when, desc)) continue
     const e = p.effect
+    const before = sink.events.length // tag whatever this proc emits with its affix label (UI attribution)
     if (e.kind === 'damage') dealAbilityDamage(s, e.amount, sink)
     else if (e.kind === 'mana') grantMana(s, e.color ?? (desc?.sameColor ?? 0), e.amount, sink)
     else if (e.kind === 'block') gainBlock(s, e.amount, rng, sink)
     else if (e.kind === 'heal') healPlayer(s, e.amount, rng, sink)
     else if (e.kind === 'charges') addCharges(s, e.amount, sink)
     else if (e.kind === 'delay') extendRound(s, e.seconds, sink)
-    sink.emit({ type: 'passiveProc', id: 'affix', label: p.label ?? '✦' })
+    const label = p.label ?? '✦'
+    for (let i = before; i < sink.events.length; i++) (sink.events[i] as { procSource?: string }).procSource = label
+    sink.emit({ type: 'passiveProc', id: 'affix', label })
     if (!s.running) return
   }
 }
