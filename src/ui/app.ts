@@ -2651,6 +2651,12 @@ function recapSpan(detail: string): string {
   return detail ? ` <span class="recap">(${detail})</span>` : ''
 }
 
+/** The affix label tagged onto a proc's effect event by the engine (`fireProcs`), or undefined for a
+ *  normal swing/heal/etc. The UI uses it to attribute on-match/on-wound gear procs in the log. */
+function procSourceOf(e: CombatEvent): string | undefined {
+  return (e as { procSource?: string }).procSource
+}
+
 /** Dev-mode verbose log: the continuous resource flow (charge/mana/dodge income) that normally lives on
  *  the HUD/floats only. Gated on isDev() so normal play stays outcome-focused (the user's "log all gains
  *  that don't normally surface, if dev mode is on"). */
@@ -2678,6 +2684,8 @@ function interpretChunk(events: CombatEvent[]): void {
   const shatterCount = events.reduce((n, e) => n + (e.type === 'cardsShattered' ? e.slots.length : 0), 0)
   // a named trap/trick already narrates its own board pull — suppress the generic churn line when present
   const hasNamedTrigger = events.some((e) => e.type === 'triggerSprung')
+  // affix gear procs: dev labels each one; normal play COALESCES them into one summary line per match
+  const procAgg = { dmg: 0, mana: [0, 0, 0] as [number, number, number], block: 0, heal: 0, labels: [] as string[] }
   const bursts: [string, string, string, string, ('trick' | 'wound')?][] = []
   const queueFlash = (k: 'trap' | 'trick' | 'wound', pow = 1) => { if (!flashKind || FLASH_PRI[k] > FLASH_PRI[flashKind]) { flashKind = k; flashPow = pow } }
   // a player-initiated action (ability/potion) owns its line; its damage/heal/block/mana fold INTO it
@@ -2727,6 +2735,7 @@ function interpretChunk(events: CombatEvent[]): void {
         flashStat('ehpv')
         spriteReact('foe', 'sphit'); spriteReact('you', 'splunge')
         V.stats.dealt += e.amount
+        { const ps = procSourceOf(e); if (ps) { if (isDev()) log(`<span class="recap">${ps}</span> — <b>−${e.amount}</b>.`, 'you'); else { procAgg.dmg += e.amount; procAgg.labels.push(ps) } break } } // gear proc — attribute (dev) / coalesce (normal)
         if (actor && !e.crit) { actor.dmg += e.amount; if (e.magic) actor.magic = true; break } // fold into the action's own line (a crit gets its own shout)
         // the rollover swing carries its receipt (matches + weapon + crit); a magic/mid-round hit has none
         const recap = e.magic ? '' : recapSpan(offenseRecap(V.exSwing)); V.exSwing = undefined
@@ -2738,17 +2747,22 @@ function interpretChunk(events: CombatEvent[]): void {
         log(`The ${foe} ${pick(voice.heal)} — <b>+${e.amount}</b>.`, 'foe')
         floatBoard(`+${e.amount}`, 'var(--red)', 'enemy')
         break
-      case 'playerHealed':
+      case 'playerHealed': {
         floatBoard(`+${e.amount}`, 'var(--green)', 'you')
         V.stats.healed += e.amount
+        const ps = procSourceOf(e)
+        if (ps) { if (isDev()) log(`<span class="recap">${ps}</span> — <b>+${e.amount}</b> HP.`, 'you'); else { procAgg.heal += e.amount; procAgg.labels.push(ps) } break }
         if (actor) { actor.heal += e.amount; break }
         log(`You ${healWord()} — <b>+${e.amount}</b> HP.`, 'you')
         break
+      }
       case 'blockGained': {
         // sated guard cue: the gain past an already-met telegraph is waste — say so, greyly
         const wasSated = V.state.incoming != null && V.state.block - e.amount >= V.state.incoming
         floatBoard(wasSated ? `+${e.amount}🛡 wasted` : `+${e.amount}🛡`, wasSated ? 'var(--ink-faint)' : 'var(--blue)', 'you', wasSated ? 'wasted' : undefined)
         if (!wasSated && !resolveFlight) { cellLand('tcgrd'); flashStat('exguard') } // the guard cell rings as real Block lands (waste gets no reward ring; a flight rings on landing)
+        const ps = procSourceOf(e)
+        if (ps) { if (isDev()) log(`<span class="recap">${ps}</span> — <b>+${e.amount}</b> Block.`, 'you'); else { procAgg.block += e.amount; procAgg.labels.push(ps) } break }
         if (actor) { actor.block += e.amount; break }
         log(wasSated ? `<span style="opacity:.7">You brace — but the guard already meets their strike.</span>` : `You brace — <b>+${e.amount}</b> Defend.`, 'you')
         break
@@ -2763,7 +2777,10 @@ function interpretChunk(events: CombatEvent[]): void {
         // set income: float only a SIZEABLE mono-colour bank (≥3) so it reads "you charged up" without spamming every set
         const top = e.mana.indexOf(Math.max(...e.mana))
         if (e.mana[top] >= 3) floatText(`+${e.mana[top]}${MANA_ICON[top]}`, { mag: 0.34, color: `var(--c${top})`, side: 'you' })
-        if (e.mana.some((x) => x > 0)) devLog(`✦ mana ${e.mana.map((x, i) => (x > 0 ? `+${x} ${MANA[i]}` : '')).filter(Boolean).join(' · ')}.`)
+        const ps = procSourceOf(e)
+        const manaClause = e.mana.map((x, i) => (x > 0 ? `+${x} ${MANA[i]}` : '')).filter(Boolean).join(' · ')
+        if (ps) { if (isDev()) log(`<span class="recap">${ps}</span> — ${manaClause}.`, 'you'); else { for (let i = 0; i < 3; i++) procAgg.mana[i] += e.mana[i]; procAgg.labels.push(ps) } break }
+        if (manaClause) devLog(`✦ mana ${manaClause}.`)
         break
       }
       case 'cardsTransmuted': {
@@ -2968,6 +2985,15 @@ function interpretChunk(events: CombatEvent[]): void {
       else mt.forEach((v, i) => { if (v) fx.push(`<b>+${v}</b> ${MANA[i]}`) })
     }
     actor.el.innerHTML = actor.base + (fx.length ? ` — ${fx.join(', ')}` : '') + '.'
+  }
+  // NORMAL play: the match's gear procs, coalesced into one summary line (dev already labelled each above)
+  if (!isDev() && (procAgg.dmg || procAgg.block || procAgg.heal || procAgg.mana.some((x) => x > 0))) {
+    const cl: string[] = []
+    if (procAgg.dmg) cl.push(`<b>−${procAgg.dmg}</b>`)
+    if (procAgg.block) cl.push(`<b>+${procAgg.block}</b> Block`)
+    if (procAgg.heal) cl.push(`<b>+${procAgg.heal}</b> HP`)
+    procAgg.mana.forEach((x, i) => { if (x > 0) cl.push(`<b>+${x}</b> ${MANA[i]}`) })
+    log(`Gear procs — ${cl.join(' · ')}. <span class="recap">${procAgg.labels.join(' · ')}</span>`, 'you')
   }
   // flush the log cascade: the batch is prepended as one unit (newest action on top); within it the action
   // reads first, its consequences indented below
