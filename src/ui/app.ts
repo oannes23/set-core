@@ -39,6 +39,7 @@ import { CHARGE_CAP, MANA_CAP, START_GRACE_MS, ROUND_MS, WOUND_WARD_COST, WOUND_
 import type { CombatEvent } from '../engine/events'
 import { offenseRecap, defenseRecap, woundTail, knitLine, guardDropLine, lockLine, churnLine, dreadLine } from './combat-log'
 import { careerRounds, bumpCareerRounds, paceForRounds } from './career'
+import { skipAction, rollClicks } from './splash'
 import { bumpTurn, pick, strikeWord, healWord, drainWord, magicLead, tierOf, joinClauses, voiceOf, ABILITY_FLAVOR } from './flavor'
 import { type SavedChar, type StatAlloc, loadRoster, upsertChar, deleteChar, makeChar, freshId, CONSUMABLE_SLOTS, effectiveStats, xpForLevel, pendingLevels, applyLevelUp, addXP, LEVEL_CAP, activeSlotsAt, passiveSlotsAt, activeUnlockLevel } from './save'
 import { isDev, toggleDev, onDevChange, displayName } from './dev'
@@ -2204,7 +2205,7 @@ function choreographRollover(events: CombatEvent[]): void {
   const shatters = seg.counter.flatMap((e) => (e.type === 'cardsShattered' ? e.slots : []))
   const knits = events.flatMap((e) => (e.type === 'cardsReformed' ? e.slots : [])) // at the rollover, reforms = the knit
   const verbs = verbsFromEvents(events) // booms (wounds) + morphs (tide) + reforms (knit/deal)
-  const foeName = s.foe.name
+  const foeName = bareFoe(s.foe.name)
   const sm = events.find((e): e is Extract<CombatEvent, { type: 'swingMath' }> => e.type === 'swingMath')
   const bm = events.find((e): e is Extract<CombatEvent, { type: 'blockMath' }> => e.type === 'blockMath')
   const rs = events.find((e): e is Extract<CombatEvent, { type: 'roundSummary' }> => e.type === 'roundSummary')
@@ -2237,52 +2238,52 @@ function choreographRollover(events: CombatEvent[]): void {
     terms.push({ txt: `${won ? '☠ ' : ''}${swingDmg} damage`, sub: won ? `the ${foeName} falls` : `foe ${postFoeHP + swingDmg} → ${postFoeHP}`, mag: 1, total: true })
     parts.push({ title: 'Your Swing', cls: 'atk', terms, onTotal: () => { interpretChunk(seg.swing); paintHP('e', postFoeHP) } })
   }
-  if (!won) {
-    if (raw != null) { // ② THEIR STRIKE — (dodge) → telegraph − soak − block → the net
-      const terms: BTerm[] = []
-      if (bm && bm.dodged > 0) terms.push({ txt: `💨 ${bm.dodged} dodged`, sub: 'swings you slipped', mag: 0.45, whiff: true }) // §2.3 banked-dodge slip
-      terms.push({ txt: `⚔ Telegraph ${raw}`, sub: bm && bm.dodged > 0 ? 'what got through' : 'their raw blow', mag: 0.55 })
-      if (bm && bm.soaked > 0) terms.push({ txt: `🪨 Soak −${bm.soaked}`, sub: 'your armor shrugs it off', mag: 0.45 })
-      const blk = bm ? bm.block : absorbed
-      if (blk > 0) terms.push({ txt: `🛡 Block −${blk}`, sub: bm ? `${plural(bm.defends, 'defend card')} × Endurance${bm.blkRider > 0 ? ` · +${bm.blkRider} armor` : ''}` : 'your guard', mag: 0.55 })
-      terms.push({ txt: bite > 0 ? `−${bite} to you` : 'Held! 0', sub: bite > 0 ? `HP ${postYouHP + bite} → ${postYouHP}` : 'the guard holds — no wound', mag: bite > 0 ? 1 : 0.8, total: true })
-      parts.push({ title: 'Their Strike', cls: bite > 0 ? 'def' : 'hold', terms, onTotal: () => { interpretChunk(seg.counter); paintHP('p', postYouHP) } })
-    } else if (dodgedAll) { // the full whiff — a free round
-      parts.push({ title: 'Their Strike', cls: 'dodge', terms: [{ txt: '💨 DODGED', sub: 'every swing slipped — a free round', mag: 1, total: true }], onTotal: () => { spriteReact('you', 'splunge'); interpretChunk(seg.counter) } })
-    }
-    if (!lost && fx.casts.length > 0) { // ③ ABILITY SUMMARY — what your spells did this round (skipped if none cast)
-      const cast = castSummary(fx.casts)
-      const terms: BTerm[] = [{ txt: `✦ ${cast}`, sub: plural(fx.casts.length, 'cast'), mag: 0.55 }]
-      const fxTerms: BTerm[] = []
-      if (fx.dmg > 0) fxTerms.push({ txt: `${fx.dmg} damage`, sub: 'dealt by your abilities', mag: 0.9 })
-      if (fx.healed > 0) fxTerms.push({ txt: `+${fx.healed} healed`, sub: 'you mend', mag: 0.7 })
-      if (fx.transformed > 0) fxTerms.push({ txt: `${fx.transformed} reforged`, sub: 'cards you transmuted', mag: 0.6 })
-      if (fx.locked > 0) fxTerms.push({ txt: `${fx.locked} locked`, sub: 'cards held fast', mag: 0.55 })
-      if (fx.extended > 0) fxTerms.push({ txt: `+${fx.extended}s`, sub: 'you stalled the clock', mag: 0.55 })
-      if (fxTerms.length) fxTerms[0].total = true; else terms[0].total = true // the headline effect lands biggest
-      parts.push({ title: 'Your Abilities', cls: 'abil', terms: [...terms, ...fxTerms] })
-    }
-    const manaSum = fx.mana[0] + fx.mana[1] + fx.mana[2]
-    if (!lost && manaSum > 0) { // ④ MANA AWARD — what you banked this round, and from where
-      const terms: BTerm[] = []
-      for (let c = 0; c < 3; c++) if (fx.mana[c] > 0) terms.push({ txt: `${MANA_ICON[c]} +${fx.mana[c]} ${MANA_NAMES[c]}`, sub: 'from your sets', mag: 0.5 })
-      terms.push({ txt: `+${manaSum} mana`, sub: fx.riderMana > 0 && casterNames ? `incl +${fx.riderMana} from ${casterNames}` : 'banked for your spells', mag: 0.8, total: true })
-      parts.push({ title: 'Mana', cls: 'mana', terms })
-    }
-    if (!lost && rs && (rs.comboPeak >= 2 || rs.primed > 0)) { // ⑤ ROUND — the offense-quality shine
-      const terms: BTerm[] = []
-      if (rs.comboPeak >= 2) terms.push({ txt: `🔥 ${rs.comboPeak}× combo`, sub: rs.combos > rs.comboPeak ? `${Math.round(rs.combos)} chains linked in time` : 'a clean streak', mag: Math.min(0.95, 0.5 + rs.comboPeak * 0.05), total: rs.primed === 0 })
-      if (rs.primed > 0) terms.push({ txt: `✦ ${rs.primed} primed`, sub: 'Maneuver churn matched in time', mag: 0.7, total: true })
-      parts.push({ title: 'Round', cls: 'sum', terms })
-    }
-    if (!lost && wEv && wEv.swings > 0) { // ⑥ NEXT STRIKE — what's incoming; how much guard to raise
-      const landed = wEv.swings - wEv.dodged
-      const per = landed > 0 ? Math.round(wEv.amount / landed) : 0
-      const terms: BTerm[] = [{ txt: `⚔ ${plural(wEv.swings, 'swing')}`, sub: per > 0 ? `~${per} each` : 'winding up', mag: 0.45 }]
-      if (wEv.dodged > 0) terms.push({ txt: `💨 ${wEv.dodged} dodged`, sub: 'your Speed slips them', mag: 0.4, whiff: true })
-      terms.push({ txt: wEv.amount > 0 ? `⚔ ${wEv.amount} incoming` : '💨 all dodged', sub: wEv.amount > 0 ? `raise ${wEv.amount} guard to negate it` : 'a free round ahead', mag: 0.85, total: true })
-      parts.push({ title: 'Next Strike', cls: 'tele', terms, onTotal: () => { const g = V?.refs.tcgrd; if (g) { g.classList.remove('goalflash'); void g.offsetWidth; g.classList.add('goalflash'); sceneTimeout(() => g.classList.remove('goalflash'), 1000) } } })
-    }
+  if (!won && raw != null) { // ② THEIR STRIKE — (dodge) → telegraph − soak − block → the net
+    const terms: BTerm[] = []
+    if (bm && bm.dodged > 0) terms.push({ txt: `💨 ${bm.dodged} dodged`, sub: 'swings you slipped', mag: 0.45, whiff: true }) // §2.3 banked-dodge slip
+    terms.push({ txt: `⚔ Telegraph ${raw}`, sub: bm && bm.dodged > 0 ? 'what got through' : 'their raw blow', mag: 0.55 })
+    if (bm && bm.soaked > 0) terms.push({ txt: `🪨 Soak −${bm.soaked}`, sub: 'your armor shrugs it off', mag: 0.45 })
+    const blk = bm ? bm.block : absorbed
+    if (blk > 0) terms.push({ txt: `🛡 Block −${blk}`, sub: bm ? `${plural(bm.defends, 'defend card')} × Endurance${bm.blkRider > 0 ? ` · +${bm.blkRider} armor` : ''}` : 'your guard', mag: 0.55 })
+    terms.push({ txt: bite > 0 ? `−${bite} to you` : 'Held! 0', sub: bite > 0 ? `HP ${postYouHP + bite} → ${postYouHP}` : 'the guard holds — no wound', mag: bite > 0 ? 1 : 0.8, total: true })
+    parts.push({ title: 'Their Strike', cls: bite > 0 ? 'def' : 'hold', terms, onTotal: () => { interpretChunk(seg.counter); paintHP('p', postYouHP) } })
+  } else if (!won && dodgedAll) { // the full whiff — a free round
+    parts.push({ title: 'Their Strike', cls: 'dodge', terms: [{ txt: '💨 DODGED', sub: 'every swing slipped — a free round', mag: 1, total: true }], onTotal: () => { spriteReact('you', 'splunge'); interpretChunk(seg.counter) } })
+  }
+  // ③④⑤ — YOUR round's offense quality. Shown even on a KILL (the user's "show my whole round, don't jump
+  // straight to loot"); only a DEATH (lost) cuts to the finish. Each panel still gates on its own data > 0.
+  if (!lost && fx.casts.length > 0) { // ③ ABILITY SUMMARY — what your spells did this round (skipped if none cast)
+    const cast = castSummary(fx.casts)
+    const terms: BTerm[] = [{ txt: `✦ ${cast}`, sub: plural(fx.casts.length, 'cast'), mag: 0.55 }]
+    const fxTerms: BTerm[] = []
+    if (fx.dmg > 0) fxTerms.push({ txt: `${fx.dmg} damage`, sub: 'dealt by your abilities', mag: 0.9 })
+    if (fx.healed > 0) fxTerms.push({ txt: `+${fx.healed} healed`, sub: 'you mend', mag: 0.7 })
+    if (fx.transformed > 0) fxTerms.push({ txt: `${fx.transformed} reforged`, sub: 'cards you transmuted', mag: 0.6 })
+    if (fx.locked > 0) fxTerms.push({ txt: `${fx.locked} locked`, sub: 'cards held fast', mag: 0.55 })
+    if (fx.extended > 0) fxTerms.push({ txt: `+${fx.extended}s`, sub: 'you stalled the clock', mag: 0.55 })
+    if (fxTerms.length) fxTerms[0].total = true; else terms[0].total = true // the headline effect lands biggest
+    parts.push({ title: 'Your Abilities', cls: 'abil', terms: [...terms, ...fxTerms] })
+  }
+  const manaSum = fx.mana[0] + fx.mana[1] + fx.mana[2]
+  if (!lost && manaSum > 0) { // ④ MANA AWARD — what you banked this round, and from where
+    const terms: BTerm[] = []
+    for (let c = 0; c < 3; c++) if (fx.mana[c] > 0) terms.push({ txt: `${MANA_ICON[c]} +${fx.mana[c]} ${MANA_NAMES[c]}`, sub: 'from your sets', mag: 0.5 })
+    terms.push({ txt: `+${manaSum} mana`, sub: fx.riderMana > 0 && casterNames ? `incl +${fx.riderMana} from ${casterNames}` : 'banked for your spells', mag: 0.8, total: true })
+    parts.push({ title: 'Mana', cls: 'mana', terms })
+  }
+  if (!lost && rs && (rs.comboPeak >= 2 || rs.primed > 0)) { // ⑤ ROUND — the offense-quality shine
+    const terms: BTerm[] = []
+    if (rs.comboPeak >= 2) terms.push({ txt: `🔥 ${rs.comboPeak}× combo`, sub: rs.combos > rs.comboPeak ? `${Math.round(rs.combos)} chains linked in time` : 'a clean streak', mag: Math.min(0.95, 0.5 + rs.comboPeak * 0.05), total: rs.primed === 0 })
+    if (rs.primed > 0) terms.push({ txt: `✦ ${rs.primed} primed`, sub: 'Maneuver churn matched in time', mag: 0.7, total: true })
+    parts.push({ title: 'Round', cls: 'sum', terms })
+  }
+  if (!won && !lost && wEv && wEv.swings > 0) { // ⑥ NEXT STRIKE — what's incoming; how much guard to raise
+    const landed = wEv.swings - wEv.dodged
+    const per = landed > 0 ? Math.round(wEv.amount / landed) : 0
+    const terms: BTerm[] = [{ txt: `⚔ ${plural(wEv.swings, 'swing')}`, sub: per > 0 ? `~${per} each` : 'winding up', mag: 0.45 }]
+    if (wEv.dodged > 0) terms.push({ txt: `💨 ${wEv.dodged} dodged`, sub: 'your Speed slips them', mag: 0.4, whiff: true })
+    terms.push({ txt: wEv.amount > 0 ? `⚔ ${wEv.amount} incoming` : '💨 all dodged', sub: wEv.amount > 0 ? `raise ${wEv.amount} guard to negate it` : 'a free round ahead', mag: 0.85, total: true })
+    parts.push({ title: 'Next Strike', cls: 'tele', terms, onTotal: () => { const g = V?.refs.tcgrd; if (g) { g.classList.remove('goalflash'); void g.offsetWidth; g.classList.add('goalflash'); sceneTimeout(() => g.classList.remove('goalflash'), 1000) } } })
   }
 
   // a fight-ENDING rollover (a kill, or your death) doesn't re-open the round — it hands off to the end
@@ -2349,9 +2350,10 @@ const xbT = (pace = 1): typeof XB => {
 }
 const XB_QUICKHOLD = 700 // the dwell when there's no tableau (a single panel, a kill swing, the opener) — pop, linger, go
 const quickHold = (): number => XB_QUICKHOLD * expPace()
-/** The two-click skip dwell: after a click reveals the whole ledger, this short window holds before the
- *  auto-release (a second click ends it instantly). Independent of experience — it's already minimal. */
-const SKIP_HOLD = 480
+/** Skip pacing: a click completes the current panel (keeping its normal wait); the next click advances.
+ *  RAPID_COUNT clicks inside RAPID_WINDOW_MS = "spam to skip" → flush straight to the end. */
+const RAPID_WINDOW_MS = 600
+const RAPID_COUNT = 3
 function breakdownDuration(parts: BPart[], pace = 1, tableau = parts.length > 1): number {
   const X = xbT(pace)
   let t = X.intro
@@ -2404,52 +2406,75 @@ function playBreakdown(parts: BPart[], release: () => void, pace = 1, tableau = 
     cards[idx].querySelector('.xb-row')!.appendChild(chip); void chip.offsetWidth; chip.classList.add('pop')
     if (term.total) part.onTotal?.()
   }
-  // BUILD the timed beats up front (functions + their offsets) so a CLICK can flush the remainder instantly
-  const beats: { at: number; fn: () => void; done: boolean }[] = []
-  const add = (at: number, fn: () => void): void => { beats.push({ at, fn, done: false }) }
-  let t = X.intro
-  parts.forEach((part, idx) => {
-    add(t, () => showPart(idx, part))
-    let tt = t + X.partIntro
-    for (const term of part.terms) { const trm = term; add(tt, () => showTerm(idx, part, trm)); tt += term.total ? X.total : X.term }
-    t = tt + X.gap
-  })
-  if (tableau) add(t, () => park(parts.length - 1)) // the last part parks too → the full ledger sits laid out
-  const holdAt = t + (tableau ? X.hold : quickHold())
+  // PANEL DRIVER — panels play one at a time; within a panel the terms pop in turn, then it WAITS (the gap,
+  // or the hold on the last) before the next. Timers are scheduled lazily one panel ahead, so at any moment
+  // only the current panel's timers are pending — which makes the per-click skip below clean to reason about.
+  let timers: number[] = []
+  const at = (ms: number, fn: () => void): void => { timers.push(sceneTimeout(fn, ms)) }
+  const clearTimers = (): void => { for (const id of timers) clearTimeout(id); timers = [] }
+  const popped: number[] = parts.map(() => 0) // terms popped per panel
+  let cur = -1 // current panel index (−1 = pre-intro)
+  let panelDone = false // the current panel's terms are all in; it's now in its WAIT
 
-  // RELEASE — fade the stage, remove it, hand back to the caller. Idempotent (skip + auto-fire race).
+  // RELEASE — fade the stage, remove it, hand back. Idempotent (skip + auto-fire race).
   let finished = false
   let skipped = false
   const finish = (): void => {
     if (finished) return
     finished = true
+    clearTimers()
     document.removeEventListener('pointerdown', onClick, true)
     stage.classList.add('out')
     window.setTimeout(() => stage.remove(), X.outro)
     document.body.classList.remove('xbreak-on')
-    // on a SKIP, unfreeze the clock AS the board settles (the natural path keeps its tuned hitstop window)
-    if (skipped && view === V) view.hitstopUntil = performance.now()
+    if (skipped && view === V) view.hitstopUntil = performance.now() // unfreeze the clock as the board settles
     if (view === V) release()
   }
 
-  // DRIVER + SKIP. First click reveals the whole ledger at once (and unfreezes the clock so a skipped
-  // exchange re-opens immediately); a second click ends the brief hold and releases now.
-  let pending: number[] = []
-  const clearPending = (): void => { for (const id of pending) clearTimeout(id); pending = [] }
-  const flushRemaining = (): void => { for (const b of beats) if (!b.done) { b.done = true; if (view === V) b.fn() } }
-  let phase: 'playing' | 'revealed' = 'playing'
+  const completePanel = (i: number): void => { // pop every remaining term of panel i now (fires its onTotal)
+    const part = parts[i]
+    for (let k = popped[i]; k < part.terms.length; k++) showTerm(i, part, part.terms[k])
+    popped[i] = part.terms.length
+    panelDone = true
+  }
+  const waitThenNext = (i: number): void => { // the panel's NORMAL wait, then advance (or finish on the last)
+    if (i >= parts.length - 1) { if (tableau) park(i); at(tableau ? X.hold : quickHold(), finish) }
+    else at(X.gap, () => startPanel(i + 1))
+  }
+  function startPanel(i: number): void {
+    if (view !== V) return
+    cur = i; panelDone = false
+    showPart(i, parts[i])
+    let tt = X.partIntro
+    parts[i].terms.forEach((term, k) => { at(tt, () => { if (popped[i] <= k) { popped[i] = k + 1; showTerm(i, parts[i], term) } }); tt += term.total ? X.total : X.term })
+    at(tt, () => { panelDone = true; waitThenNext(i) })
+  }
+
+  // SKIP — one click completes the current panel (then keeps its normal wait); a click while it's already
+  // waiting skips ahead to the next panel; THREE clicks in a short window flush straight to the end.
+  let clicks: number[] = []
+  const flushAll = (): void => {
+    clearTimers()
+    for (let i = Math.max(0, cur); i < parts.length; i++) { if (cards[i] == null) showPart(i, parts[i]); completePanel(i) }
+    if (tableau && parts.length) park(parts.length - 1)
+    finish()
+  }
   const skip = (): void => {
     if (finished) return
+    if (view !== V || !stage.isConnected) { document.removeEventListener('pointerdown', onClick, true); return } // scene torn down mid-cinematic → self-clean
     skipped = true
-    if (phase === 'playing') {
-      clearPending(); flushRemaining(); phase = 'revealed' // reveal the whole ledger; clock stays frozen until finish settles the board
-      pending.push(sceneTimeout(finish, SKIP_HOLD))
-    } else { clearPending(); finish() }
+    clicks = rollClicks(clicks, performance.now(), RAPID_WINDOW_MS)
+    switch (skipAction(cur, panelDone, parts.length - 1, clicks.length, RAPID_COUNT)) {
+      case 'flush': flushAll(); break
+      case 'start': clearTimers(); startPanel(0); break // clicked during the intro → start now
+      case 'complete': clearTimers(); completePanel(cur); waitThenNext(cur); break // end-state now, keep the wait
+      case 'advance': clearTimers(); startPanel(cur + 1); break // skip the wait → next panel
+      case 'finish': clearTimers(); finish(); break // waiting on the last → release
+    }
   }
   const onClick = (e: Event): void => { e.stopPropagation(); skip() }
   document.addEventListener('pointerdown', onClick, true)
-  for (const b of beats) pending.push(sceneTimeout(() => { if (view === V && !b.done) { b.done = true; b.fn() } }, b.at))
-  pending.push(sceneTimeout(finish, holdAt))
+  at(X.intro, () => startPanel(0))
 }
 
 /** ROUND-1 PREVIEW — a short, abbreviated read at combat start: the incoming swings, the dodges, and how
@@ -2614,6 +2639,12 @@ function accrueRoundFx(events: CombatEvent[]): void {
   }
 }
 
+/** Strip a leading "The " so our log templates ("The ${foe}…", "the ${foe}…") don't DOUBLE the article
+ *  for title-named bosses — "The Goblin King" reads "Goblin King" inside the template, so the rendered
+ *  line is "The Goblin King collapses." not "The The Goblin King…". Bare-title displays (the foe header /
+ *  briefing) use the raw name and keep the full title. */
+const bareFoe = (name: string): string => name.replace(/^the\s+/i, '')
+
 /** Wrap a (possibly empty) receipt breakdown as a dim trailing span — the secondary "how the number
  *  came to be" detail that rides under the headline strike line. '' in → '' out (no empty span). */
 function recapSpan(detail: string): string {
@@ -2633,7 +2664,7 @@ function interpretChunk(events: CombatEvent[]): void {
   const MANA = ['Fire', 'Nature', 'Frost']
   logGroup = $(`<div class="loggroup"></div>`) // collect this batch's log lines into one cascade unit
   bumpTurn() // advance the flavour-variety counter once per batch (verbs rotate, stable across re-renders)
-  const foe = V.state.foe.name
+  const foe = bareFoe(V.state.foe.name)
   const voice = voiceOf(GAMEDATA.creatures[V.state.foe.id]?.voice)
   // collect full-screen feedback and flush once: one flash (highest priority), one hitstop, staggered bursts
   let flashKind: 'trap' | 'trick' | 'wound' | null = null
@@ -2662,7 +2693,7 @@ function interpretChunk(events: CombatEvent[]): void {
         break
       case 'chargesGained':
         if (!resolveFlight) { cellLand('tctac'); flashStat('tcch') } // the ⚙ ring fires when the Move card lands
-        devLog(`⚙ +${e.amount} charge${e.amount === 1 ? '' : 's'}${e.source === 'overflow' ? ' (block overflow)' : ''}.`)
+        devLog(`⚙ +${e.amount.toFixed(2)} charge${e.amount === 1 ? '' : 's'}${e.source === 'overflow' ? ' (block overflow)' : ''}.`)
         break
       case 'dodgeGained':
         devLog(`💨 dodge pool ${e.pool.toFixed(2)}/${e.cap.toFixed(2)}.`)
