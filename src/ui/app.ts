@@ -35,7 +35,7 @@ import { gearTipTitle, gearTipBody, consumableTipTitle, consumableTipBody } from
 import { type SmithOp, smithCost, nextRarity, canUpgrade, openSlots, enchantOptions, canEnchant, canReroll, canReceiveAffix, upgradeRarity, enchant, rerollAffixes, transferAffix } from '../engine/smith'
 import { type DelveRun, type DelveLoot, applyRoomLoot, resolveDelveExit, resolveLootKeep } from './delve-run'
 import type { CombatState, FoeRuntime, StatBlock } from '../engine/state'
-import { CHARGE_CAP, MANA_CAP, START_GRACE_MS, ROUND_MS, WOUND_WARD_COST, BOARD_WARD_COST, WOUND_CAP_PER_EXCHANGE, woundQuantum, dreadLevel, dreadFoeMult, dreadPlayerMult, DREAD_ONSET, DREAD_MAX, PRIMED_WINDOW_MS } from '../engine/state'
+import { CHARGE_CAP, MANA_CAP, START_GRACE_MS, ROUND_MS, WOUND_WARD_COST, BOARD_WARD_COST, WOUND_CAP_PER_EXCHANGE, woundQuantum, dreadLevel, dreadFoeMult, dreadPlayerMult, DREAD_ONSET, DREAD_MAX, PRIMED_WINDOW_MS, CRIT_GRACE_MS } from '../engine/state'
 import type { CombatEvent } from '../engine/events'
 import { offenseRecap, defenseRecap, woundTail, knitLine, guardDropLine, lockLine, churnLine, dreadLine } from './combat-log'
 import { careerRounds, bumpCareerRounds, paceForRounds } from './career'
@@ -1375,6 +1375,9 @@ function buildPlay(): void {
   const board = $(`<div class="board" id="board"></div>`)
   board.style.gridTemplateColumns = `repeat(${V.state.cols}, 1fr)`
   boardWrap.appendChild($(`<div id="comboglow"></div>`)) // §13 ambient combo-glow (behind the board, pointer-events:none)
+  // §13 the COMBO METER — foreground popover above the board: live chain count + a draining 3s grace ring,
+  // growing + shaking harder as the chain mounts (and an OVERTIME skin when a chain holds the round open)
+  boardWrap.appendChild($(`<div id="combometer" aria-hidden="true"><div class="cmbody"><div class="cmring"><div class="cmcount"><span class="cmn">2</span><span class="cmx">×</span></div></div><div class="cmlabel">COMBO</div></div></div>`))
   boardWrap.appendChild(board)
   boardWrap.appendChild($(`<div id="floatlayer"></div>`))
   center.appendChild(boardWrap)
@@ -1417,7 +1420,7 @@ function buildPlay(): void {
   if (!document.getElementById('ptint')) document.body.appendChild($(`<div id="ptint"></div>`)) // low-HP vignette (body-level)
 
   V.refs = {}
-  for (const id of ['foename', 'foedesc', 'fleebtn', 'enemylab', 'phpv', 'ehpv', 'php', 'ehp', 'clock', 'roundlab', 'roundfill', 'exatk', 'exinc', 'exguard', 'exguardfill', 'critdisp', 'critval', 'dodgedisp', 'dodgeval', 'exfoe', 'tricounter', 'tcatk', 'tcgrd', 'tctac', 'tcch', 'tcbite', 'tacpips', 'm0', 'm1', 'm2', 'mp0', 'mp1', 'mp2', 'buffind', 'strip', 'dreadbar', 'dreadfill', 'dreadfloor', 'dreadlab', 'boardwrap', 'board', 'tugbar', 'tugmarker', 'tugfoe', 'tugyou', 'devstats', 'spyou', 'spfoe', 'stancebadge', 'log', 'abilities', 'tactics', 'passives', 'consumables', 'floatlayer', 'comboglow']) {
+  for (const id of ['foename', 'foedesc', 'fleebtn', 'enemylab', 'phpv', 'ehpv', 'php', 'ehp', 'clock', 'roundlab', 'roundfill', 'exatk', 'exinc', 'exguard', 'exguardfill', 'critdisp', 'critval', 'dodgedisp', 'dodgeval', 'exfoe', 'tricounter', 'tcatk', 'tcgrd', 'tctac', 'tcch', 'tcbite', 'tacpips', 'm0', 'm1', 'm2', 'mp0', 'mp1', 'mp2', 'buffind', 'strip', 'dreadbar', 'dreadfill', 'dreadfloor', 'dreadlab', 'boardwrap', 'board', 'tugbar', 'tugmarker', 'tugfoe', 'tugyou', 'devstats', 'spyou', 'spfoe', 'stancebadge', 'log', 'abilities', 'tactics', 'passives', 'consumables', 'floatlayer', 'comboglow', 'combometer']) {
     const el = wrap.querySelector('#' + id)
     if (el) V.refs[id] = el as HTMLElement
   }
@@ -2726,6 +2729,12 @@ function interpretChunk(events: CombatEvent[]): void {
         // §7/§13 combo streak — the visceral skill layer (full floaty escalation in onCombo).
         onCombo(e.level, e.styled, e.color)
         break
+      case 'roundOvertime':
+        // §13 the clutch moment — a live chain just held the exchange open past the clock. Shout it once;
+        // the meter + clock flip to the OVERTIME skin in updateBar for as long as the hold lasts.
+        bamWord('OVERTIME!', 'tide', V.refs.board, 1.15)
+        log('<b>OVERTIME</b> — your chain holds the round open. Keep it alive!', 'you')
+        break
       case 'enemyDamaged': {
         if (e.immune) { log('Swords pass through — only magic bites this foe.', 'foe'); floatBoard('blocked', 'var(--ink-faint)', 'enemy'); break } // fixed rule line — never varied
         // §7/§13 the floaty system, sized by magnitude: a normal hit scales with damage; a CRIT shouts
@@ -3087,6 +3096,10 @@ function onCombo(level: number, styled: boolean, color: number): void {
   const mag = Math.min(1.1, 0.35 + level * 0.08) // the floaty GROWS with the streak
   floatText(`${styled ? '✦ ' : ''}${n}× combo`, { mag, color: tint, side: 'you', cls: 'combo' })
   if (glow) { glow.style.setProperty('--combo', String(Math.min(1, level / 8))); glow.classList.add('on'); glow.classList.remove('pulse'); void glow.offsetWidth; glow.classList.add('pulse') }
+  // the meter PUNCH — the per-frame updateBar carries the count/grace-ring/scale; this just re-triggers the
+  // pop on each new link (the meter itself fades in/out + grows in updateBar from s.combo)
+  const cm = V.refs.combometer
+  if (cm) { cm.classList.remove('pop'); void cm.offsetWidth; cm.classList.add('pop') }
   if (n === 3 || n === 5 || n === 8 || n >= 12) bamWord(`${n}× COMBO`, 'tide', V.refs.board, 1 + Math.min(0.5, level * 0.05))
 }
 
@@ -3253,15 +3266,43 @@ function updateBar(): void {
     // ROUNDS v3: the bar IS the round — full at the deal, empty at the rollover. Pure time:
     // the telegraph lives in the exchange scoreboard, so low/crit colors only mean "ending".
     const roundLen = ROUND_MS / 1000 + s.roundExtendedS
-    V.refs.roundlab.textContent = s.running ? `Round ${s.round}${s.roundExtendedS > 0 ? ` · +${s.roundExtendedS}s` : ''}` : 'Round —'
+    const ot = s.roundOvertime // §13 a live chain is HOLDING the exchange open
+    V.refs.roundlab.textContent = s.running ? (ot ? `Round ${s.round} · OVERTIME` : `Round ${s.round}${s.roundExtendedS > 0 ? ` · +${s.roundExtendedS}s` : ''}`) : 'Round —'
     const clk = V.refs.clock
-    clk.textContent = !s.running ? '—' : `${Math.ceil(remain)}s`
-    clk.classList.toggle('low', remain <= 5 && remain > 2.5)
-    clk.classList.toggle('crit', remain <= 2.5)
+    clk.textContent = !s.running ? '—' : ot ? '⏱ OT' : `${Math.ceil(remain)}s`
+    clk.classList.toggle('low', !ot && remain <= 5 && remain > 2.5)
+    clk.classList.toggle('crit', !ot && remain <= 2.5)
+    clk.classList.toggle('overtime', ot)
     const frac = Math.max(0, Math.min(1, remain / roundLen))
-    V.refs.roundfill.style.width = `${s.running ? frac * 100 : 100}%`
-    V.refs.roundfill.classList.toggle('low', remain <= 5 && remain > 2.5)
-    V.refs.roundfill.classList.toggle('crit', remain <= 2.5)
+    V.refs.roundfill.style.width = `${!s.running ? 100 : ot ? 100 : frac * 100}%` // overtime pins the bar full (gold)
+    V.refs.roundfill.classList.toggle('low', !ot && remain <= 5 && remain > 2.5)
+    V.refs.roundfill.classList.toggle('crit', !ot && remain <= 2.5)
+    V.refs.roundfill.classList.toggle('overtime', ot)
+    // §13 the COMBO METER — count + draining grace ring + grow/shake, all derived from s.combo vs the engine
+    // clock (no UI-local timer → no desync with the engine's grace decision)
+    const cm = V.refs.combometer
+    if (cm) {
+      const lvl = s.combo.level
+      const graceRemain = Math.max(0, (CRIT_GRACE_MS - (s.now - s.combo.lastAt)) / 1000)
+      const live = s.running && lvl >= 2 && graceRemain > 0
+      if (live) {
+        const n = Math.floor(lvl)
+        const chain = Math.max(0, Math.min(1, (lvl - 2) / 8)) // 0 at a 2-chain → 1 by an ~10-chain (size/shake ramp)
+        cm.style.setProperty('--chain', chain.toFixed(3))
+        cm.style.setProperty('--grace', (graceRemain / (CRIT_GRACE_MS / 1000)).toFixed(3))
+        cm.style.setProperty('--shake-dur', `${(0.5 - chain * 0.34).toFixed(2)}s`) // faster rattle as it mounts
+        const tint = s.combo.lastColor != null && s.combo.lastColor >= 0 ? `var(--c${s.combo.lastColor})` : 'var(--phos)'
+        cm.style.setProperty('--tint', ot ? 'var(--gold)' : tint)
+        const nEl = cm.querySelector('.cmn'); if (nEl && nEl.textContent !== String(n)) nEl.textContent = String(n)
+        const lab = cm.querySelector('.cmlabel'); const wantLab = ot ? 'OVERTIME' : 'COMBO'
+        if (lab && lab.textContent !== wantLab) lab.textContent = wantLab
+        cm.classList.toggle('overtime', ot)
+        cm.classList.toggle('shake', chain > 0.12) // only the bigger chains rattle (low combos sit + breathe)
+        cm.classList.add('on')
+      } else {
+        cm.classList.remove('on', 'shake', 'overtime')
+      }
+    }
     // §5.8 the DREAD METER — floor base (static) + within-fight fill (rises per round); lethal past the onset
     if (V.refs.dreadbar) {
       if (!s.dreadOn) V.refs.dreadbar.style.display = 'none'

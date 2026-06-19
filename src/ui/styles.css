@@ -712,7 +712,41 @@ button.cta:disabled { opacity: .4; cursor: not-allowed; }
 #comboglow.on { opacity: calc(.25 + var(--combo, 0) * .75); }
 #comboglow.pulse { animation: comboPulse .45s ease-out; }
 @keyframes comboPulse { 0% { filter: brightness(1.8); } 100% { filter: brightness(1); } }
-@media (prefers-reduced-motion: reduce) { #comboglow.pulse { animation: none; } .floater { transition-duration: .5s; } }
+/* §13 the COMBO METER — foreground popover above the board; count + draining 3s grace ring, growing and
+   shaking harder as the chain mounts. --chain (0→1) is the mount ramp; --grace (1→0) drains the ring; --tint
+   recolours to the live set's colour (or gold in OVERTIME). pointer-events:none so it never blocks a scan. */
+#combometer { position: absolute; left: 50%; top: 0; z-index: 6; pointer-events: none;
+  transform: translate(-50%, -58%); opacity: 0; transition: opacity .25s ease;
+  --chain: 0; --grace: 1; --tint: var(--phos); --shake-dur: .5s; }
+#combometer.on { opacity: 1; }
+#combometer .cmbody { transform: scale(calc(1 + var(--chain) * .7)); transform-origin: 50% 100%; will-change: transform; }
+#combometer.shake .cmbody { animation: cmShake var(--shake-dur) linear infinite; }
+#combometer .cmring { position: relative; width: 88px; height: 88px; border-radius: 50%; display: grid; place-items: center;
+  background: conic-gradient(var(--tint) calc(var(--grace) * 360deg), color-mix(in srgb, var(--tint) 13%, transparent) 0);
+  box-shadow: 0 0 calc(8px + var(--chain) * 34px) color-mix(in srgb, var(--tint) calc(38% + var(--chain) * 52%), transparent); }
+#combometer .cmring::before { content: ''; position: absolute; inset: 6px; border-radius: 50%;
+  background: radial-gradient(circle at 50% 38%, color-mix(in srgb, var(--tint) 16%, var(--panel)), var(--bg)); }
+#combometer .cmcount { position: relative; z-index: 1; font-weight: 800; line-height: 1; color: var(--tint);
+  font-size: calc(26px + var(--chain) * 20px); text-shadow: 0 0 calc(8px + var(--chain) * 16px) var(--tint); }
+#combometer .cmx { font-size: .5em; opacity: .75; margin-left: 1px; }
+#combometer .cmlabel { position: relative; z-index: 1; text-align: center; margin-top: 3px; color: var(--tint);
+  font-weight: 700; letter-spacing: .2em; font-size: 10px; opacity: .85; text-shadow: 0 0 6px color-mix(in srgb, var(--tint) 60%, transparent); }
+#combometer.pop .cmring { animation: cmPop .26s ease-out; }
+#combometer.overtime .cmring { box-shadow: 0 0 calc(16px + var(--chain) * 40px) var(--gold); animation: cmOver .6s ease-in-out infinite; }
+#combometer.overtime .cmlabel { letter-spacing: .26em; }
+@keyframes cmPop { 0% { filter: brightness(2.3); transform: scale(1.16); } 100% { filter: brightness(1); transform: scale(1); } }
+@keyframes cmOver { 0%, 100% { filter: brightness(1); } 50% { filter: brightness(1.4); } }
+@keyframes cmShake {
+  0%, 100% { transform: scale(calc(1 + var(--chain) * .7)) translate(0, 0) rotate(0deg); }
+  20% { transform: scale(calc(1 + var(--chain) * .7)) translate(calc(var(--chain) * -3.4px), calc(var(--chain) * 2.2px)) rotate(calc(var(--chain) * -1.4deg)); }
+  45% { transform: scale(calc(1 + var(--chain) * .7)) translate(calc(var(--chain) * 3.4px), calc(var(--chain) * -2.4px)) rotate(calc(var(--chain) * 1.4deg)); }
+  70% { transform: scale(calc(1 + var(--chain) * .7)) translate(calc(var(--chain) * -2.6px), calc(var(--chain) * -2px)) rotate(calc(var(--chain) * .9deg)); }
+}
+/* OVERTIME skin on the round clock + bar (set in updateBar) */
+#clock.overtime { color: var(--gold); text-shadow: 0 0 10px var(--gold); }
+#roundfill.overtime { background: linear-gradient(90deg, var(--warn), var(--gold)); animation: cmOver .6s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { #comboglow.pulse { animation: none; } .floater { transition-duration: .5s; }
+  #combometer.shake .cmbody, #combometer.overtime .cmring, #combometer.pop .cmring, #roundfill.overtime { animation: none; } }
 /* low-HP vignette — ambient dread; transitions (not animations) so it survives the coaching pause */
 #ptint { position: fixed; inset: 0; pointer-events: none; z-index: 4; opacity: 0; background: transparent;
   transition: opacity .6s ease, background .6s ease; }
