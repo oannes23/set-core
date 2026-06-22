@@ -263,3 +263,475 @@ red_threes_omen:
   do:
     - effect: instant_attack
       chance: 0.35
+mana_sear_lesser:
+  name: Lesser Mana Sear
+  icon: 🔥
+  'on': match
+  when:
+    axis: color
+    mode: all_same
+    value: red
+  desc: 'all-red match → burn 2 Fire mana (a foretaste of the Emberlord''s sear)'
+  do:
+    - effect: drain_mana
+      color: red
+      amount: 2
+life_drain:
+  name: Life Drain
+  icon: 🩸
+  'on': match
+  when:
+    axis: color
+    mode: all_same
+    value: green
+  desc: all-green match → 4 dmg + the undead knits 4 HP whole
+  do:
+    - effect: damage
+      amount: 4
+    - effect: enemy_heal
+      amount: 4
+life_drain_lesser:
+  name: Lesser Life Drain
+  icon: 🩸
+  'on': match
+  when:
+    axis: color
+    mode: all_same
+    value: green
+  desc: 'all-green match → the undead leeches 4 HP (a foretaste of the crypt-lord)'
+  do:
+    - effect: enemy_heal
+      amount: 4
+bone_volley:
+  name: Bone Volley
+  icon: 🏹
+  'on': match
+  when:
+    axis: shape
+    mode: all_same
+    value: attack
+  desc: all-Attack match → a volley of bone shards, 5 dmg
+  do:
+    - effect: damage
+      amount: 5
+gnaw_swarm:
+  name: Gnawing Swarm
+  icon: 🐀
+  'on': match
+  when:
+    axis: shape
+    mode: all_same
+    value: attack
+  desc: all-Attack match → the swarm boils over you — 3 dmg + it strikes 2s sooner
+  do:
+    - effect: damage
+      amount: 3
+    - effect: advance_timer
+      seconds: 2
+fester:
+  name: Fester
+  icon: 🤢
+  'on': match
+  when:
+    axis: color
+    mode: all_same
+    value: green
+  desc: all-green match → 3 dmg + the bloat festers 3 HP whole
+  do:
+    - effect: damage
+      amount: 3
+    - effect: enemy_heal
+      amount: 3
+fester_lesser:
+  name: Lesser Fester
+  icon: 🤢
+  'on': match
+  when:
+    axis: color
+    mode: all_same
+    value: green
+  desc: 'all-green match → the plague knits 3 HP (a foretaste of the Ratking)'
+  do:
+    - effect: enemy_heal
+      amount: 3
+web_snare:
+  name: Web Snare
+  icon: 🕸️
+  'on': match
+  when:
+    axis: shape
+    mode: all_same
+    value: move
+  desc: all-Move match → silk binds 2 runes 6s and one warps to a useless shield
+  do:
+    - effect: lock
+      seconds: 6
+      select:
+        geometry: random
+        count: 2
+    - effect: transmute
+      count: 1
+      select:
+        axis: shape
+        mode: not_value
+        value: defend
+      bias:
+        axis: shape
+        value: defend
+        intensity: 1
+web_snare_lesser:
+  name: Lesser Web Snare
+  icon: 🕸️
+  'on': match
+  when:
+    axis: shape
+    mode: all_same
+    value: move
+  desc: 'all-Move match → silk binds a rune 5s (a foretaste of the Broodmother)'
+  do:
+    - effect: lock
+      seconds: 5
+      select:
+        geometry: random
+        count: 1
+venom_bite:
+  name: Venom Bite
+  icon: 🐍
+  'on': match
+  when:
+    axis: shape
+    mode: all_same
+    value: attack
+  desc: 'all-Attack match → venom by the set''s weight (1+2+3 → 2 · 3/3/3 → 5 dmg)'
+  do:
+    - effect: damage
+      scale: set_mag
+frost_sear:
+  name: Frost Sear
+  icon: 🧊
+  'on': match
+  when:
+    axis: color
+    mode: all_same
+    value: blue
+  desc: all-blue match → burn 3 Frost mana + 4 dmg
+  do:
+    - effect: drain_mana
+      color: blue
+      amount: 3
+    - effect: damage
+      amount: 4
+frost_sear_lesser:
+  name: Lesser Frost Sear
+  icon: 🧊
+  'on': match
+  when:
+    axis: color
+    mode: all_same
+    value: blue
+  desc: 'all-blue match → burn 3 Frost mana (a foretaste of the deep cold)'
+  do:
+    - effect: drain_mana
+      color: blue
+      amount: 3
+drowning_grip:
+  name: Drowning Grip
+  icon: 🌊
+  'on': match
+  when:
+    axis: shape
+    mode: all_same
+    value: move
+  desc: all-Move match → the black water drags 2 runes under 6s and floods the center column to Frost
+  do:
+    - effect: lock
+      seconds: 6
+      select:
+        geometry: random
+        count: 2
+    - effect: transmute
+      select:
+        geometry: column
+        which: center
+      bias:
+        axis: color
+        value: blue
+        intensity: 1
+entomb_trap:
+  name: Entomb
+  icon: 🧱
+  'on': match
+  when:
+    axis: shape
+    mode: all_same
+    value: defend
+  desc: all-Defend match → stone seals 2 runes away for 5s
+  do:
+    - effect: lock
+      seconds: 5
+      select:
+        geometry: random
+        count: 2
+sand_curse:
+  name: Sand Curse
+  icon: 𓂀
+  'on': match
+  when:
+    axis: number
+    mode: all_same
+    value: three
+  desc: all-Threes match → the old curse saps 3 Tactics + 3 dmg
+  do:
+    - effect: drain_tactics
+      amount: 3
+    - effect: damage
+      amount: 3
+sand_curse_lesser:
+  name: Lesser Sand Curse
+  icon: 𓂀
+  'on': match
+  when:
+    axis: shape
+    mode: all_same
+    value: defend
+  desc: 'all-Defend match → stone seals a rune 5s (a foretaste of the Scarab King)'
+  do:
+    - effect: lock
+      seconds: 5
+      select:
+        geometry: random
+        count: 1
+hex_drain:
+  name: Hex
+  icon: 🔮
+  'on': match
+  when:
+    axis: color
+    mode: all_same
+    value: blue
+  desc: all-blue match → the hex bleeds 4 mana from your pools
+  do:
+    - effect: drain_mana
+      amount: 4
+hex_lesser:
+  name: Lesser Hex
+  icon: 🔮
+  'on': match
+  when:
+    axis: color
+    mode: all_same
+    value: blue
+  desc: 'all-blue match → the hex bleeds 2 mana (a foretaste of the Serpent Lord)'
+  do:
+    - effect: drain_mana
+      amount: 2
+serpent_omen:
+  name: Serpent Omen
+  icon: 🐍
+  'on': match
+  when:
+    all:
+      - axis: color
+        mode: all_same
+        value: green
+      - axis: number
+        mode: all_same
+        value: three
+  desc: 'all-green + all-Threes match → 35%: the serpent strikes at once'
+  do:
+    - effect: instant_attack
+      chance: 0.35
+rime_blast:
+  name: Rime Blast
+  icon: 🌨️
+  'on': match
+  when:
+    axis: color
+    mode: all_same
+    value: blue
+  desc: all-blue match → 5 dmg + the center column freezes to Frost
+  do:
+    - effect: damage
+      amount: 5
+    - effect: transmute
+      select:
+        geometry: column
+        which: center
+      bias:
+        axis: color
+        value: blue
+        intensity: 1
+hellfire:
+  name: Hellfire
+  icon: 😈
+  'on': match
+  when:
+    axis: color
+    mode: all_same
+    value: red
+  desc: all-red match → 6 dmg + the center column erupts to Fire
+  do:
+    - effect: damage
+      amount: 6
+    - effect: transmute
+      select:
+        geometry: column
+        which: center
+      bias:
+        axis: color
+        value: red
+        intensity: 1
+chaos_surge:
+  name: Chaos Surge
+  icon: 🌀
+  'on': match
+  when:
+    axis: color
+    mode: all_different
+  desc: 'rainbow match → 3 dmg + the demon quickens by the set''s weight'
+  do:
+    - effect: damage
+      amount: 3
+    - effect: advance_timer
+      scale: set_mag
+brimstone_lesser:
+  name: Lesser Brimstone
+  icon: 🔥
+  'on': match
+  when:
+    axis: color
+    mode: all_same
+    value: red
+  desc: 'all-red match → 30%: 6 dmg (a foretaste of the Demon Lord)'
+  do:
+    - effect: damage
+      chance: 0.3
+      amount: 6
+dragon_breath:
+  name: Dragon Breath
+  icon: 🐉
+  'on': match
+  when:
+    axis: color
+    mode: all_same
+    value: red
+  desc: all-red match → a gout of flame, 7 dmg + the bottom row ignites to Fire
+  do:
+    - effect: damage
+      amount: 7
+    - effect: transmute
+      select:
+        geometry: row
+        which: bottom
+      bias:
+        axis: color
+        value: red
+        intensity: 1
+wing_buffet:
+  name: Wing Buffet
+  icon: 🪽
+  'on': match
+  when:
+    axis: shape
+    mode: all_same
+    value: move
+  desc: all-Move match → a wingbeat pins 2 runes 5s and it strikes 3s sooner
+  do:
+    - effect: lock
+      seconds: 5
+      select:
+        geometry: random
+        count: 2
+    - effect: advance_timer
+      seconds: 3
+hoard_greed:
+  name: Hoard Greed
+  icon: 💰
+  'on': match
+  when:
+    axis: number
+    mode: all_same
+    value: three
+  desc: all-Threes match → it snatches your heaviest rune and strikes 2s sooner
+  do:
+    - effect: transmute
+      count: 1
+      select:
+        pick: highest_mag
+    - effect: advance_timer
+      seconds: 2
+breath_lesser:
+  name: Lesser Breath
+  icon: 🐉
+  'on': match
+  when:
+    axis: color
+    mode: all_same
+    value: red
+  desc: 'all-red match → 30%: 6 dmg + a rune scorches to Fire (a foretaste of the Wyrm)'
+  do:
+    - effect: damage
+      chance: 0.3
+      amount: 6
+    - effect: transmute
+      count: 1
+      select:
+        axis: color
+        mode: not_value
+        value: red
+      bias:
+        axis: color
+        value: red
+        intensity: 1
+soul_chill:
+  name: Soul Chill
+  icon: 💀
+  'on': tick
+  every: 7
+  desc: 'every 7s: 4 unblockable dread damage + the lich knits 3 HP'
+  do:
+    - effect: damage
+      amount: 4
+    - effect: enemy_heal
+      amount: 3
+soul_siphon:
+  name: Soul Siphon
+  icon: 🔵
+  'on': match
+  when:
+    axis: color
+    mode: all_same
+    value: blue
+  desc: all-blue match → 5 dmg drained straight into the wraith (heals 5)
+  do:
+    - effect: damage
+      amount: 5
+    - effect: enemy_heal
+      amount: 5
+death_grip:
+  name: Death Grip
+  icon: ✊
+  'on': match
+  when:
+    axis: shape
+    mode: all_same
+    value: move
+  desc: all-Move match → cold hands seize 3 runes for 6s
+  do:
+    - effect: lock
+      seconds: 6
+      select:
+        geometry: random
+        count: 3
+annihilate:
+  name: Annihilate
+  icon: ☄️
+  'on': match
+  when:
+    axis: color
+    mode: all_same
+    value: red
+  desc: all-red match → a blast of ruin, 9 dmg
+  do:
+    - effect: damage
+      amount: 9

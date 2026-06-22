@@ -137,7 +137,7 @@ gate). *(Update 2026-06-17: the balance sim has since RUN and the rebalance is p
   sim** (firm the first-cut magnitudes). (Was "affix content pool".)
 - **Spec:** `CRAWL-DESIGN.md` §7 (gear + the affix design surface + thematic overlay) · numbers:
   `sim/progression-sim.mjs` §11 + `TUNING.md` "Gear + the coupled balance pass".
-- **State of play (live):** combat core (dread + selection-protection + ward cue) · Emberdeep (D2/L7) ·
+- **State of play (live):** combat core (dread + selection-protection + ward cue) · the Twelve Gates (D1–D10, L1→L21) ·
   +6/≤3 leveling · kit grows with level · **dev mode** (`ui/dev.ts` toggle + instruments + loot trace) ·
   **gear chunk ①** · the Heat dial + injury layer SETTLED (CRAWL §3, build pending).
 
@@ -161,11 +161,19 @@ Detailed specs live in CRAWL-DESIGN.md + the sections below; this is the master 
 ### Phase 3 — Progression tangible ← ACTIVE *(re-ordered ahead of Phase 2 — 2026-06-15, user pick: "give the game legs")*
 - `[x]` 3a. Level-up modal — **BUILT 2026-06-15.** Free **+6/≤3** allocation (per-stat ± steppers, "N left", confirm at
   exactly 6); was the rigid 3/2/1 picker. Data layer already supported it; UI enforces sum-6/≤3. tsc + build clean.
-- `[~]` 3b. Dungeon difficulty ladder — **FIRST RUNG BUILT 2026-06-15: The Emberdeep (D2, L7).** A deeper/hotter
-  descent below the warren — 7 new foes on the parity-22 line (HP level-invariant; stats carry the level), reusing
-  the ember drift + existing traps/variants. Auto-appears in dungeon-select; data-integrity test green. So the dread
-  depth-floor + the outlevel penalty now have a real stage (outgrow the warren → move to the Emberdeep). STILL OPEN:
-  D3–D5 rungs (the haunted_warren is labelled D3 but its foes are L3 — re-level or replace) + the procedural/ability↔trap path.
+- `[x]` 3b. Dungeon difficulty ladder — **FULL ROSTER BUILT 2026-06-21: THE TWELVE GATES (D1–D10, L1→L21).** The
+  ladder is now a complete spectrum of 12 archetypal dungeons, each with a DISTINCT mechanical identity (drift + foe
+  roster), not a stat reskin. ~72 new foes on the parity line, sharing families across dungeons (undead span
+  Crypt→Tomb→Citadel; cultists Serpent→Rift; fire Emberdeep→Rift→Wyrm) for roster breadth. Roster (ascending):
+  Goblin Warren (D1, theft/sabotage — re-themed off the ember drift to the new *scavenge* drift→Threes, feeding the
+  goblins' steal-triggers) · Ratking's Sewers (D1, plague-regen swarm) · Tangleweald (D2, web-lock + venom) ·
+  **The Crypt (D3, true undead — the haunted_warren goblin-reskin REPLACED with a real bone/grave roster: lifedrain,
+  dread-tick, paralysis)** · Sunken Temple (D4, drown-lock + frost mana-burn) · Emberdeep (D4, now DIFFERENTIATED from
+  the warren: *inferno* drift floods 2 runes/tick + mana-burn elites/boss) · Tomb of the Scarab King (D5, the sand
+  drift buries the board under Stone(Defend), then entomb-locks it) · Serpent Cult Catacombs (D6, hex mana-drain +
+  venom) · Frostspire Hold (D7, heavy freeze-lock + giant blows) · Abyssal Rift (D8, chaos/confusion + hellfire) ·
+  Wyrm's Lair (D9, breath + hoard-greed) · Obsidian Citadel (D10, capstone Lich-King — every threat at once). 8 new
+  drifts, ~31 new traps, 5 new variants. All auto-appear in dungeon-select; 300 tests + typecheck + build green.
 
 ### Phase 2 — Inventory loop — ✅ DONE 2026-06-16 (220 tests; tsc + build clean; full loop browser-verified)
 - `[x]` **Item valuation + sell** (`engine/value.ts`): `gearValue` (geometric rarity ladder × loot-tier ×

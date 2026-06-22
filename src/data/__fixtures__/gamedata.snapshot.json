@@ -376,6 +376,689 @@
           "chance": 0.35
         }
       ]
+    },
+    "mana_sear_lesser": {
+      "name": "Lesser Mana Sear",
+      "icon": "🔥",
+      "on": "match",
+      "when": {
+        "axis": "color",
+        "mode": "all_same",
+        "value": "red"
+      },
+      "desc": "all-red match → burn 2 Fire mana (a foretaste of the Emberlord's sear)",
+      "do": [
+        {
+          "effect": "drain_mana",
+          "color": "red",
+          "amount": 2
+        }
+      ]
+    },
+    "life_drain": {
+      "name": "Life Drain",
+      "icon": "🩸",
+      "on": "match",
+      "when": {
+        "axis": "color",
+        "mode": "all_same",
+        "value": "green"
+      },
+      "desc": "all-green match → 4 dmg + the undead knits 4 HP whole",
+      "do": [
+        {
+          "effect": "damage",
+          "amount": 4
+        },
+        {
+          "effect": "enemy_heal",
+          "amount": 4
+        }
+      ]
+    },
+    "life_drain_lesser": {
+      "name": "Lesser Life Drain",
+      "icon": "🩸",
+      "on": "match",
+      "when": {
+        "axis": "color",
+        "mode": "all_same",
+        "value": "green"
+      },
+      "desc": "all-green match → the undead leeches 4 HP (a foretaste of the crypt-lord)",
+      "do": [
+        {
+          "effect": "enemy_heal",
+          "amount": 4
+        }
+      ]
+    },
+    "bone_volley": {
+      "name": "Bone Volley",
+      "icon": "🏹",
+      "on": "match",
+      "when": {
+        "axis": "shape",
+        "mode": "all_same",
+        "value": "attack"
+      },
+      "desc": "all-Attack match → a volley of bone shards, 5 dmg",
+      "do": [
+        {
+          "effect": "damage",
+          "amount": 5
+        }
+      ]
+    },
+    "gnaw_swarm": {
+      "name": "Gnawing Swarm",
+      "icon": "🐀",
+      "on": "match",
+      "when": {
+        "axis": "shape",
+        "mode": "all_same",
+        "value": "attack"
+      },
+      "desc": "all-Attack match → the swarm boils over you — 3 dmg + it strikes 2s sooner",
+      "do": [
+        {
+          "effect": "damage",
+          "amount": 3
+        },
+        {
+          "effect": "advance_timer",
+          "seconds": 2
+        }
+      ]
+    },
+    "fester": {
+      "name": "Fester",
+      "icon": "🤢",
+      "on": "match",
+      "when": {
+        "axis": "color",
+        "mode": "all_same",
+        "value": "green"
+      },
+      "desc": "all-green match → 3 dmg + the bloat festers 3 HP whole",
+      "do": [
+        {
+          "effect": "damage",
+          "amount": 3
+        },
+        {
+          "effect": "enemy_heal",
+          "amount": 3
+        }
+      ]
+    },
+    "fester_lesser": {
+      "name": "Lesser Fester",
+      "icon": "🤢",
+      "on": "match",
+      "when": {
+        "axis": "color",
+        "mode": "all_same",
+        "value": "green"
+      },
+      "desc": "all-green match → the plague knits 3 HP (a foretaste of the Ratking)",
+      "do": [
+        {
+          "effect": "enemy_heal",
+          "amount": 3
+        }
+      ]
+    },
+    "web_snare": {
+      "name": "Web Snare",
+      "icon": "🕸️",
+      "on": "match",
+      "when": {
+        "axis": "shape",
+        "mode": "all_same",
+        "value": "move"
+      },
+      "desc": "all-Move match → silk binds 2 runes 6s and one warps to a useless shield",
+      "do": [
+        {
+          "effect": "lock",
+          "seconds": 6,
+          "select": {
+            "geometry": "random",
+            "count": 2
+          }
+        },
+        {
+          "effect": "transmute",
+          "count": 1,
+          "select": {
+            "axis": "shape",
+            "mode": "not_value",
+            "value": "defend"
+          },
+          "bias": {
+            "axis": "shape",
+            "value": "defend",
+            "intensity": 1
+          }
+        }
+      ]
+    },
+    "web_snare_lesser": {
+      "name": "Lesser Web Snare",
+      "icon": "🕸️",
+      "on": "match",
+      "when": {
+        "axis": "shape",
+        "mode": "all_same",
+        "value": "move"
+      },
+      "desc": "all-Move match → silk binds a rune 5s (a foretaste of the Broodmother)",
+      "do": [
+        {
+          "effect": "lock",
+          "seconds": 5,
+          "select": {
+            "geometry": "random",
+            "count": 1
+          }
+        }
+      ]
+    },
+    "venom_bite": {
+      "name": "Venom Bite",
+      "icon": "🐍",
+      "on": "match",
+      "when": {
+        "axis": "shape",
+        "mode": "all_same",
+        "value": "attack"
+      },
+      "desc": "all-Attack match → venom by the set's weight (1+2+3 → 2 · 3/3/3 → 5 dmg)",
+      "do": [
+        {
+          "effect": "damage",
+          "scale": "set_mag"
+        }
+      ]
+    },
+    "frost_sear": {
+      "name": "Frost Sear",
+      "icon": "🧊",
+      "on": "match",
+      "when": {
+        "axis": "color",
+        "mode": "all_same",
+        "value": "blue"
+      },
+      "desc": "all-blue match → burn 3 Frost mana + 4 dmg",
+      "do": [
+        {
+          "effect": "drain_mana",
+          "color": "blue",
+          "amount": 3
+        },
+        {
+          "effect": "damage",
+          "amount": 4
+        }
+      ]
+    },
+    "frost_sear_lesser": {
+      "name": "Lesser Frost Sear",
+      "icon": "🧊",
+      "on": "match",
+      "when": {
+        "axis": "color",
+        "mode": "all_same",
+        "value": "blue"
+      },
+      "desc": "all-blue match → burn 3 Frost mana (a foretaste of the deep cold)",
+      "do": [
+        {
+          "effect": "drain_mana",
+          "color": "blue",
+          "amount": 3
+        }
+      ]
+    },
+    "drowning_grip": {
+      "name": "Drowning Grip",
+      "icon": "🌊",
+      "on": "match",
+      "when": {
+        "axis": "shape",
+        "mode": "all_same",
+        "value": "move"
+      },
+      "desc": "all-Move match → the black water drags 2 runes under 6s and floods the center column to Frost",
+      "do": [
+        {
+          "effect": "lock",
+          "seconds": 6,
+          "select": {
+            "geometry": "random",
+            "count": 2
+          }
+        },
+        {
+          "effect": "transmute",
+          "select": {
+            "geometry": "column",
+            "which": "center"
+          },
+          "bias": {
+            "axis": "color",
+            "value": "blue",
+            "intensity": 1
+          }
+        }
+      ]
+    },
+    "entomb_trap": {
+      "name": "Entomb",
+      "icon": "🧱",
+      "on": "match",
+      "when": {
+        "axis": "shape",
+        "mode": "all_same",
+        "value": "defend"
+      },
+      "desc": "all-Defend match → stone seals 2 runes away for 5s",
+      "do": [
+        {
+          "effect": "lock",
+          "seconds": 5,
+          "select": {
+            "geometry": "random",
+            "count": 2
+          }
+        }
+      ]
+    },
+    "sand_curse": {
+      "name": "Sand Curse",
+      "icon": "𓂀",
+      "on": "match",
+      "when": {
+        "axis": "number",
+        "mode": "all_same",
+        "value": "three"
+      },
+      "desc": "all-Threes match → the old curse saps 3 Tactics + 3 dmg",
+      "do": [
+        {
+          "effect": "drain_tactics",
+          "amount": 3
+        },
+        {
+          "effect": "damage",
+          "amount": 3
+        }
+      ]
+    },
+    "sand_curse_lesser": {
+      "name": "Lesser Sand Curse",
+      "icon": "𓂀",
+      "on": "match",
+      "when": {
+        "axis": "shape",
+        "mode": "all_same",
+        "value": "defend"
+      },
+      "desc": "all-Defend match → stone seals a rune 5s (a foretaste of the Scarab King)",
+      "do": [
+        {
+          "effect": "lock",
+          "seconds": 5,
+          "select": {
+            "geometry": "random",
+            "count": 1
+          }
+        }
+      ]
+    },
+    "hex_drain": {
+      "name": "Hex",
+      "icon": "🔮",
+      "on": "match",
+      "when": {
+        "axis": "color",
+        "mode": "all_same",
+        "value": "blue"
+      },
+      "desc": "all-blue match → the hex bleeds 4 mana from your pools",
+      "do": [
+        {
+          "effect": "drain_mana",
+          "amount": 4
+        }
+      ]
+    },
+    "hex_lesser": {
+      "name": "Lesser Hex",
+      "icon": "🔮",
+      "on": "match",
+      "when": {
+        "axis": "color",
+        "mode": "all_same",
+        "value": "blue"
+      },
+      "desc": "all-blue match → the hex bleeds 2 mana (a foretaste of the Serpent Lord)",
+      "do": [
+        {
+          "effect": "drain_mana",
+          "amount": 2
+        }
+      ]
+    },
+    "serpent_omen": {
+      "name": "Serpent Omen",
+      "icon": "🐍",
+      "on": "match",
+      "when": {
+        "all": [
+          {
+            "axis": "color",
+            "mode": "all_same",
+            "value": "green"
+          },
+          {
+            "axis": "number",
+            "mode": "all_same",
+            "value": "three"
+          }
+        ]
+      },
+      "desc": "all-green + all-Threes match → 35%: the serpent strikes at once",
+      "do": [
+        {
+          "effect": "instant_attack",
+          "chance": 0.35
+        }
+      ]
+    },
+    "rime_blast": {
+      "name": "Rime Blast",
+      "icon": "🌨️",
+      "on": "match",
+      "when": {
+        "axis": "color",
+        "mode": "all_same",
+        "value": "blue"
+      },
+      "desc": "all-blue match → 5 dmg + the center column freezes to Frost",
+      "do": [
+        {
+          "effect": "damage",
+          "amount": 5
+        },
+        {
+          "effect": "transmute",
+          "select": {
+            "geometry": "column",
+            "which": "center"
+          },
+          "bias": {
+            "axis": "color",
+            "value": "blue",
+            "intensity": 1
+          }
+        }
+      ]
+    },
+    "hellfire": {
+      "name": "Hellfire",
+      "icon": "😈",
+      "on": "match",
+      "when": {
+        "axis": "color",
+        "mode": "all_same",
+        "value": "red"
+      },
+      "desc": "all-red match → 6 dmg + the center column erupts to Fire",
+      "do": [
+        {
+          "effect": "damage",
+          "amount": 6
+        },
+        {
+          "effect": "transmute",
+          "select": {
+            "geometry": "column",
+            "which": "center"
+          },
+          "bias": {
+            "axis": "color",
+            "value": "red",
+            "intensity": 1
+          }
+        }
+      ]
+    },
+    "chaos_surge": {
+      "name": "Chaos Surge",
+      "icon": "🌀",
+      "on": "match",
+      "when": {
+        "axis": "color",
+        "mode": "all_different"
+      },
+      "desc": "rainbow match → 3 dmg + the demon quickens by the set's weight",
+      "do": [
+        {
+          "effect": "damage",
+          "amount": 3
+        },
+        {
+          "effect": "advance_timer",
+          "scale": "set_mag"
+        }
+      ]
+    },
+    "brimstone_lesser": {
+      "name": "Lesser Brimstone",
+      "icon": "🔥",
+      "on": "match",
+      "when": {
+        "axis": "color",
+        "mode": "all_same",
+        "value": "red"
+      },
+      "desc": "all-red match → 30%: 6 dmg (a foretaste of the Demon Lord)",
+      "do": [
+        {
+          "effect": "damage",
+          "chance": 0.3,
+          "amount": 6
+        }
+      ]
+    },
+    "dragon_breath": {
+      "name": "Dragon Breath",
+      "icon": "🐉",
+      "on": "match",
+      "when": {
+        "axis": "color",
+        "mode": "all_same",
+        "value": "red"
+      },
+      "desc": "all-red match → a gout of flame, 7 dmg + the bottom row ignites to Fire",
+      "do": [
+        {
+          "effect": "damage",
+          "amount": 7
+        },
+        {
+          "effect": "transmute",
+          "select": {
+            "geometry": "row",
+            "which": "bottom"
+          },
+          "bias": {
+            "axis": "color",
+            "value": "red",
+            "intensity": 1
+          }
+        }
+      ]
+    },
+    "wing_buffet": {
+      "name": "Wing Buffet",
+      "icon": "🪽",
+      "on": "match",
+      "when": {
+        "axis": "shape",
+        "mode": "all_same",
+        "value": "move"
+      },
+      "desc": "all-Move match → a wingbeat pins 2 runes 5s and it strikes 3s sooner",
+      "do": [
+        {
+          "effect": "lock",
+          "seconds": 5,
+          "select": {
+            "geometry": "random",
+            "count": 2
+          }
+        },
+        {
+          "effect": "advance_timer",
+          "seconds": 3
+        }
+      ]
+    },
+    "hoard_greed": {
+      "name": "Hoard Greed",
+      "icon": "💰",
+      "on": "match",
+      "when": {
+        "axis": "number",
+        "mode": "all_same",
+        "value": "three"
+      },
+      "desc": "all-Threes match → it snatches your heaviest rune and strikes 2s sooner",
+      "do": [
+        {
+          "effect": "transmute",
+          "count": 1,
+          "select": {
+            "pick": "highest_mag"
+          }
+        },
+        {
+          "effect": "advance_timer",
+          "seconds": 2
+        }
+      ]
+    },
+    "breath_lesser": {
+      "name": "Lesser Breath",
+      "icon": "🐉",
+      "on": "match",
+      "when": {
+        "axis": "color",
+        "mode": "all_same",
+        "value": "red"
+      },
+      "desc": "all-red match → 30%: 6 dmg + a rune scorches to Fire (a foretaste of the Wyrm)",
+      "do": [
+        {
+          "effect": "damage",
+          "chance": 0.3,
+          "amount": 6
+        },
+        {
+          "effect": "transmute",
+          "count": 1,
+          "select": {
+            "axis": "color",
+            "mode": "not_value",
+            "value": "red"
+          },
+          "bias": {
+            "axis": "color",
+            "value": "red",
+            "intensity": 1
+          }
+        }
+      ]
+    },
+    "soul_chill": {
+      "name": "Soul Chill",
+      "icon": "💀",
+      "on": "tick",
+      "every": 7,
+      "desc": "every 7s: 4 unblockable dread damage + the lich knits 3 HP",
+      "do": [
+        {
+          "effect": "damage",
+          "amount": 4
+        },
+        {
+          "effect": "enemy_heal",
+          "amount": 3
+        }
+      ]
+    },
+    "soul_siphon": {
+      "name": "Soul Siphon",
+      "icon": "🔵",
+      "on": "match",
+      "when": {
+        "axis": "color",
+        "mode": "all_same",
+        "value": "blue"
+      },
+      "desc": "all-blue match → 5 dmg drained straight into the wraith (heals 5)",
+      "do": [
+        {
+          "effect": "damage",
+          "amount": 5
+        },
+        {
+          "effect": "enemy_heal",
+          "amount": 5
+        }
+      ]
+    },
+    "death_grip": {
+      "name": "Death Grip",
+      "icon": "✊",
+      "on": "match",
+      "when": {
+        "axis": "shape",
+        "mode": "all_same",
+        "value": "move"
+      },
+      "desc": "all-Move match → cold hands seize 3 runes for 6s",
+      "do": [
+        {
+          "effect": "lock",
+          "seconds": 6,
+          "select": {
+            "geometry": "random",
+            "count": 3
+          }
+        }
+      ]
+    },
+    "annihilate": {
+      "name": "Annihilate",
+      "icon": "☄️",
+      "on": "match",
+      "when": {
+        "axis": "color",
+        "mode": "all_same",
+        "value": "red"
+      },
+      "desc": "all-red match → a blast of ruin, 9 dmg",
+      "do": [
+        {
+          "effect": "damage",
+          "amount": 9
+        }
+      ]
     }
   },
   "drifts": {
@@ -398,6 +1081,198 @@
           "bias": {
             "axis": "color",
             "value": "red",
+            "intensity": 1
+          }
+        }
+      ]
+    },
+    "inferno": {
+      "name": "Inferno Drift",
+      "icon": "🌋",
+      "on": "tick",
+      "every": 6,
+      "quiet": true,
+      "desc": "the deep-fire floods the board — two runes turn to Fire",
+      "do": [
+        {
+          "effect": "transmute",
+          "count": 2,
+          "select": {
+            "axis": "color",
+            "mode": "not_value",
+            "value": "red"
+          },
+          "bias": {
+            "axis": "color",
+            "value": "red",
+            "intensity": 1
+          }
+        }
+      ]
+    },
+    "brimstone": {
+      "name": "Brimstone Drift",
+      "icon": "🔥",
+      "on": "tick",
+      "every": 6,
+      "quiet": true,
+      "desc": "hellfire boils two runes to Fire",
+      "do": [
+        {
+          "effect": "transmute",
+          "count": 2,
+          "select": {
+            "axis": "color",
+            "mode": "not_value",
+            "value": "red"
+          },
+          "bias": {
+            "axis": "color",
+            "value": "red",
+            "intensity": 1
+          }
+        }
+      ]
+    },
+    "scavenge": {
+      "name": "Scavenger Drift",
+      "icon": "🪙",
+      "on": "tick",
+      "every": 7,
+      "quiet": true,
+      "desc": "the warren hoards — a rune is dragged toward Three",
+      "do": [
+        {
+          "effect": "transmute",
+          "count": 1,
+          "select": {
+            "axis": "number",
+            "mode": "not_value",
+            "value": "three"
+          },
+          "bias": {
+            "axis": "number",
+            "value": "three",
+            "intensity": 1
+          }
+        }
+      ]
+    },
+    "rot": {
+      "name": "Rot Drift",
+      "icon": "🍄",
+      "on": "tick",
+      "every": 7,
+      "quiet": true,
+      "desc": "creeping rot greens the board",
+      "do": [
+        {
+          "effect": "transmute",
+          "count": 1,
+          "select": {
+            "axis": "color",
+            "mode": "not_value",
+            "value": "green"
+          },
+          "bias": {
+            "axis": "color",
+            "value": "green",
+            "intensity": 1
+          }
+        }
+      ]
+    },
+    "grave_chill": {
+      "name": "Grave Chill",
+      "icon": "🪦",
+      "on": "tick",
+      "every": 7,
+      "quiet": true,
+      "desc": "the cold of the tomb creeps over the board toward Frost",
+      "do": [
+        {
+          "effect": "transmute",
+          "count": 1,
+          "select": {
+            "axis": "color",
+            "mode": "not_value",
+            "value": "blue"
+          },
+          "bias": {
+            "axis": "color",
+            "value": "blue",
+            "intensity": 1
+          }
+        }
+      ]
+    },
+    "tide": {
+      "name": "Tide Drift",
+      "icon": "🌊",
+      "on": "tick",
+      "every": 6,
+      "quiet": true,
+      "desc": "the black water rises — runes drown into Frost",
+      "do": [
+        {
+          "effect": "transmute",
+          "count": 1,
+          "select": {
+            "axis": "color",
+            "mode": "not_value",
+            "value": "blue"
+          },
+          "bias": {
+            "axis": "color",
+            "value": "blue",
+            "intensity": 1
+          }
+        }
+      ]
+    },
+    "rime": {
+      "name": "Rime Drift",
+      "icon": "🧊",
+      "on": "tick",
+      "every": 6,
+      "quiet": true,
+      "desc": "frost rimes two runes toward Frost",
+      "do": [
+        {
+          "effect": "transmute",
+          "count": 2,
+          "select": {
+            "axis": "color",
+            "mode": "not_value",
+            "value": "blue"
+          },
+          "bias": {
+            "axis": "color",
+            "value": "blue",
+            "intensity": 1
+          }
+        }
+      ]
+    },
+    "entomb": {
+      "name": "Sand Drift",
+      "icon": "⏳",
+      "on": "tick",
+      "every": 7,
+      "quiet": true,
+      "desc": "drifting sand buries your runes under Stone (Defend)",
+      "do": [
+        {
+          "effect": "transmute",
+          "count": 1,
+          "select": {
+            "axis": "shape",
+            "mode": "not_value",
+            "value": "defend"
+          },
+          "bias": {
+            "axis": "shape",
+            "value": "defend",
             "intensity": 1
           }
         }
@@ -933,11 +1808,1963 @@
         "speed": 22
       },
       "hp": 400,
-      "desc": "The molten heart of the Emberdeep — a crowned giant of living fire, the warren’s King made small beside him.",
+      "desc": "The molten heart of the Emberdeep — a crowned giant of living fire, the warren’s King made small beside him. Where the Goblin King clubs, the Emberlord drinks the very magic from your veins.",
       "traps": [
-        "war_cry",
+        "mana_sear",
         "molten_veins",
         "confusion",
+        "dread_drums"
+      ],
+      "loot_tier": 5
+    },
+    "dire_rat": {
+      "name": "Dire Rat",
+      "tier": "minion",
+      "stats": {
+        "power": 13,
+        "endurance": 13,
+        "speed": 21
+      },
+      "hp": 60,
+      "desc": "A rat the size of a hound, red-eyed and rabid, leading the chittering tide.",
+      "voice": {
+        "hit": [
+          "bites",
+          "gnaws",
+          "savages"
+        ],
+        "zero": "skitters short, snapping"
+      },
+      "variants": [
+        "nimble",
+        "sneaky"
+      ],
+      "loot_tier": 1
+    },
+    "plague_rat": {
+      "name": "Plague Rat",
+      "tier": "minion",
+      "stats": {
+        "power": 14,
+        "endurance": 16,
+        "speed": 15
+      },
+      "hp": 85,
+      "desc": "A bloated, sore-ridden vermin trailing a haze of sickness.",
+      "voice": {
+        "hit": [
+          "infects",
+          "claws at",
+          "fouls"
+        ],
+        "heal": [
+          "festers whole"
+        ],
+        "zero": "hisses, weeping"
+      },
+      "variants": [
+        "rotting",
+        "plagued"
+      ],
+      "loot_tier": 1
+    },
+    "sewer_slime": {
+      "name": "Sewer Slime",
+      "tier": "minion",
+      "stats": {
+        "power": 12,
+        "endurance": 19,
+        "speed": 6
+      },
+      "hp": 115,
+      "desc": "A creeping ooze of refuse and rot — slow, but it mends every gash by drinking the filth.",
+      "voice": {
+        "hit": [
+          "engulfs",
+          "dissolves",
+          "smothers"
+        ],
+        "heal": [
+          "reforms from the muck"
+        ],
+        "zero": "sloshes short"
+      },
+      "traps": [
+        "plague"
+      ],
+      "variants": [
+        "rotting"
+      ],
+      "loot_tier": 2
+    },
+    "giant_centipede": {
+      "name": "Giant Centipede",
+      "tier": "minion",
+      "stats": {
+        "power": 16,
+        "endurance": 13,
+        "speed": 20
+      },
+      "hp": 65,
+      "desc": "A glistening length of chitin and legs, mandibles weeping venom.",
+      "voice": {
+        "hit": [
+          "envenoms",
+          "skewers",
+          "nips"
+        ],
+        "zero": "rears back, dripping"
+      },
+      "variants": [
+        "venomous",
+        "nimble"
+      ],
+      "loot_tier": 1
+    },
+    "plague_bloat": {
+      "name": "Plague Bloat",
+      "tier": "elite",
+      "stats": {
+        "power": 17,
+        "endurance": 21,
+        "speed": 10
+      },
+      "hp": 210,
+      "desc": "A swollen horror of the deep drains, splitting at the seams with contagion — the Ratking's herald.",
+      "voice": {
+        "hit": [
+          "retches over",
+          "bursts upon",
+          "drowns"
+        ],
+        "heal": [
+          "swells anew"
+        ],
+        "zero": "gurgles, bloated"
+      },
+      "traps": [
+        "fester"
+      ],
+      "variants": [
+        "rotting",
+        "cruel"
+      ],
+      "loot_tier": 3
+    },
+    "rat_ogre": {
+      "name": "Rat Ogre",
+      "tier": "elite",
+      "stats": {
+        "power": 21,
+        "endurance": 21,
+        "speed": 12
+      },
+      "hp": 250,
+      "desc": "A monstrous thing of stitched vermin and gristle, bred in the deep warrens to break men.",
+      "voice": {
+        "hit": [
+          "mauls",
+          "crushes",
+          "rends"
+        ],
+        "zero": "swings wide, shrieking"
+      },
+      "variants": [
+        "brutal",
+        "cruel"
+      ],
+      "loot_tier": 4
+    },
+    "the_ratking": {
+      "name": "The Ratking",
+      "tier": "boss",
+      "stats": {
+        "power": 18,
+        "endurance": 26,
+        "speed": 16
+      },
+      "hp": 380,
+      "desc": "A knot of a dozen rats fused tail-to-tail into one crowned, scheming mind — the filth made sovereign. Every wound it takes, the swarm simply knits closed.",
+      "voice": {
+        "hit": [
+          "swarms over",
+          "devours",
+          "overruns"
+        ],
+        "heal": [
+          "the swarm knits whole"
+        ],
+        "zero": "scatters, regrouping"
+      },
+      "traps": [
+        "fester",
+        "plague",
+        "gnaw_swarm",
+        "dread_drums"
+      ],
+      "loot_tier": 5
+    },
+    "giant_spider": {
+      "name": "Giant Spider",
+      "tier": "minion",
+      "stats": {
+        "power": 15,
+        "endurance": 16,
+        "speed": 20
+      },
+      "hp": 85,
+      "desc": "A horse-sized hunting spider that drops on silk from the black canopy.",
+      "voice": {
+        "hit": [
+          "bites",
+          "envenoms",
+          "skewers"
+        ],
+        "zero": "recoils on its silk"
+      },
+      "variants": [
+        "venomous",
+        "elusive"
+      ],
+      "loot_tier": 2
+    },
+    "spiderling_swarm": {
+      "name": "Spiderling Swarm",
+      "tier": "minion",
+      "stats": {
+        "power": 13,
+        "endurance": 12,
+        "speed": 22
+      },
+      "hp": 50,
+      "desc": "A boiling carpet of hatchlings, here and gone before you can stamp them out.",
+      "voice": {
+        "hit": [
+          "swarms over",
+          "skitters across",
+          "nips at"
+        ],
+        "zero": "scatters underfoot"
+      },
+      "variants": [
+        "nimble",
+        "frenetic"
+      ],
+      "loot_tier": 1
+    },
+    "venom_wasp": {
+      "name": "Venom Wasp",
+      "tier": "minion",
+      "stats": {
+        "power": 16,
+        "endurance": 13,
+        "speed": 22
+      },
+      "hp": 60,
+      "desc": "A wasp as long as your forearm, its sting a hot spike of poison.",
+      "voice": {
+        "hit": [
+          "stings",
+          "jabs",
+          "lances"
+        ],
+        "zero": "darts past"
+      },
+      "variants": [
+        "venomous",
+        "nimble"
+      ],
+      "loot_tier": 1
+    },
+    "forest_lurker": {
+      "name": "Forest Lurker",
+      "tier": "minion",
+      "stats": {
+        "power": 17,
+        "endurance": 16,
+        "speed": 17
+      },
+      "hp": 90,
+      "desc": "A lean, moss-furred predator that pads silent between the boles.",
+      "voice": {
+        "hit": [
+          "savages",
+          "pounces on",
+          "claws"
+        ],
+        "zero": "melts into the brush"
+      },
+      "variants": [
+        "bloodthirsty",
+        "sneaky"
+      ],
+      "loot_tier": 2
+    },
+    "ambush_vine": {
+      "name": "Ambush Vine",
+      "tier": "minion",
+      "stats": {
+        "power": 15,
+        "endurance": 19,
+        "speed": 6
+      },
+      "hp": 115,
+      "desc": "A coil of thorned creeper that lies still as deadwood — until it lashes out and drags you down.",
+      "voice": {
+        "hit": [
+          "constricts",
+          "lashes",
+          "throttles"
+        ],
+        "zero": "recoils, rustling"
+      },
+      "traps": [
+        "petrify"
+      ],
+      "variants": [
+        "grasping"
+      ],
+      "loot_tier": 2
+    },
+    "ettercap": {
+      "name": "Ettercap",
+      "tier": "elite",
+      "stats": {
+        "power": 18,
+        "endurance": 22,
+        "speed": 15
+      },
+      "hp": 230,
+      "desc": "A hunched, clawed spider-keeper that strings the Tangleweald with snares — the Broodmother's shepherd.",
+      "voice": {
+        "hit": [
+          "binds",
+          "envenoms",
+          "rends"
+        ],
+        "zero": "skitters back, hissing"
+      },
+      "traps": [
+        "web_snare"
+      ],
+      "variants": [
+        "venomous",
+        "cruel"
+      ],
+      "loot_tier": 4
+    },
+    "corrupt_treant": {
+      "name": "Corrupt Treant",
+      "tier": "elite",
+      "stats": {
+        "power": 20,
+        "endurance": 24,
+        "speed": 9
+      },
+      "hp": 280,
+      "desc": "A great tree gone black with blight, walking on root-claws, its hollow groan promising the deep wood's hunger.",
+      "voice": {
+        "hit": [
+          "smashes",
+          "crushes down on",
+          "flattens"
+        ],
+        "zero": "groans, swinging slow"
+      },
+      "variants": [
+        "brutal",
+        "grasping"
+      ],
+      "loot_tier": 4
+    },
+    "the_broodmother": {
+      "name": "The Broodmother",
+      "tier": "boss",
+      "stats": {
+        "power": 18,
+        "endurance": 26,
+        "speed": 18
+      },
+      "hp": 400,
+      "desc": "The vast pale spider at the heart of the web, her egg-sacs pulsing in the dark. Her silk binds you fast while her bite drinks you dry.",
+      "voice": {
+        "hit": [
+          "binds",
+          "drains",
+          "envenoms"
+        ],
+        "zero": "skitters on her web"
+      },
+      "traps": [
+        "web_snare",
+        "venom_bite",
+        "petrify",
+        "dread_drums"
+      ],
+      "loot_tier": 5
+    },
+    "skeleton": {
+      "name": "Skeleton",
+      "tier": "minion",
+      "stats": {
+        "power": 16,
+        "endurance": 16,
+        "speed": 16
+      },
+      "hp": 80,
+      "desc": "A rattling warrior of dry bone, sword still gripped in a fleshless hand.",
+      "voice": {
+        "hit": [
+          "hacks",
+          "cleaves",
+          "slashes"
+        ],
+        "zero": "clatters, missing"
+      },
+      "variants": [
+        "cruel",
+        "sneaky"
+      ],
+      "loot_tier": 2
+    },
+    "skeletal_archer": {
+      "name": "Skeletal Archer",
+      "tier": "minion",
+      "stats": {
+        "power": 16,
+        "endurance": 14,
+        "speed": 18
+      },
+      "hp": 70,
+      "desc": "A bowman of bone loosing shaft after shaft from the dark of the niches.",
+      "voice": {
+        "hit": [
+          "looses a shaft at",
+          "pelts",
+          "pierces"
+        ],
+        "zero": "rattles, the shot wide"
+      },
+      "traps": [
+        "bone_volley"
+      ],
+      "variants": [
+        "sneaky",
+        "frenetic"
+      ],
+      "loot_tier": 2
+    },
+    "rotting_zombie": {
+      "name": "Rotting Zombie",
+      "tier": "minion",
+      "stats": {
+        "power": 16,
+        "endurance": 20,
+        "speed": 6
+      },
+      "hp": 120,
+      "desc": "A shambling corpse, slow as grief — but the grave-rot mends it as fast as you cut.",
+      "voice": {
+        "hit": [
+          "gnaws at",
+          "claws at",
+          "mauls"
+        ],
+        "heal": [
+          "festers whole"
+        ],
+        "zero": "lurches short"
+      },
+      "traps": [
+        "life_drain"
+      ],
+      "variants": [
+        "rotting"
+      ],
+      "loot_tier": 1
+    },
+    "ghoul": {
+      "name": "Ghoul",
+      "tier": "minion",
+      "stats": {
+        "power": 17,
+        "endurance": 15,
+        "speed": 20
+      },
+      "hp": 80,
+      "desc": "A gaunt, loping eater of the dead whose touch leaves the limbs cold and still.",
+      "voice": {
+        "hit": [
+          "paralyzes",
+          "claws",
+          "savages"
+        ],
+        "zero": "snaps short, hungry"
+      },
+      "traps": [
+        "petrify"
+      ],
+      "variants": [
+        "nimble",
+        "cruel"
+      ],
+      "loot_tier": 2
+    },
+    "wight": {
+      "name": "Wight",
+      "tier": "minion",
+      "stats": {
+        "power": 18,
+        "endurance": 18,
+        "speed": 14
+      },
+      "hp": 110,
+      "desc": "A barrow-dead noble wreathed in cold, draining the warmth of the living to feed its hate.",
+      "voice": {
+        "hit": [
+          "drains",
+          "withers",
+          "leeches"
+        ],
+        "heal": [
+          "drinks your warmth"
+        ],
+        "zero": "reaches, falling short"
+      },
+      "traps": [
+        "life_drain"
+      ],
+      "variants": [
+        "spectral",
+        "cruel"
+      ],
+      "loot_tier": 3
+    },
+    "bone_knight": {
+      "name": "Bone Knight",
+      "tier": "elite",
+      "stats": {
+        "power": 18,
+        "endurance": 22,
+        "speed": 14
+      },
+      "hp": 250,
+      "desc": "A dead champion in rusted plate, still keeping a grave-cold vigil. Its volleys herald the crypt-lord.",
+      "voice": {
+        "hit": [
+          "cleaves",
+          "bludgeons",
+          "hacks"
+        ],
+        "zero": "clangs, swinging wide"
+      },
+      "traps": [
+        "bone_volley"
+      ],
+      "variants": [
+        "brutal",
+        "cruel"
+      ],
+      "loot_tier": 4
+    },
+    "crypt_wraith": {
+      "name": "Crypt Wraith",
+      "tier": "elite",
+      "stats": {
+        "power": 18,
+        "endurance": 20,
+        "speed": 20
+      },
+      "hp": 230,
+      "desc": "A hovering shroud of cold malice that drifts through stone and guard alike to drink the living dry.",
+      "voice": {
+        "hit": [
+          "withers",
+          "drains",
+          "chills"
+        ],
+        "heal": [
+          "feeds on your warmth"
+        ],
+        "zero": "passes through, missing"
+      },
+      "traps": [
+        "life_drain"
+      ],
+      "variants": [
+        "spectral",
+        "frostbitten"
+      ],
+      "loot_tier": 4
+    },
+    "the_barrow_wight": {
+      "name": "The Barrow-Wight",
+      "tier": "boss",
+      "stats": {
+        "power": 18,
+        "endurance": 26,
+        "speed": 18
+      },
+      "hp": 400,
+      "desc": "The crowned dead king of the barrow, risen on a tide of grave-cold. It paralyzes the living, drinks their warmth, and tolls the dread of the tomb without end.",
+      "voice": {
+        "hit": [
+          "withers",
+          "drains",
+          "binds"
+        ],
+        "heal": [
+          "drinks the grave-warmth"
+        ],
+        "zero": "reaches, the cold falling short"
+      },
+      "traps": [
+        "life_drain",
+        "petrify",
+        "soul_siphon",
+        "dread_drums"
+      ],
+      "loot_tier": 5
+    },
+    "deep_one": {
+      "name": "Deep One",
+      "tier": "minion",
+      "stats": {
+        "power": 22,
+        "endurance": 22,
+        "speed": 22
+      },
+      "hp": 95,
+      "desc": "A hunched fish-thing of the black depths, webbed claws and a mouthful of needles.",
+      "voice": {
+        "hit": [
+          "rends",
+          "drowns",
+          "claws"
+        ],
+        "zero": "gurgles, falling short"
+      },
+      "variants": [
+        "venomous",
+        "frostbitten"
+      ],
+      "loot_tier": 3
+    },
+    "fishman_raider": {
+      "name": "Fishman Raider",
+      "tier": "minion",
+      "stats": {
+        "power": 22,
+        "endurance": 20,
+        "speed": 26
+      },
+      "hp": 85,
+      "desc": "A wiry deep-dweller wielding a barbed coral spear, quick as a current.",
+      "voice": {
+        "hit": [
+          "spears",
+          "gores",
+          "lances"
+        ],
+        "zero": "darts back into the dark"
+      },
+      "variants": [
+        "sneaky",
+        "venomous"
+      ],
+      "loot_tier": 2
+    },
+    "drowned_thrall": {
+      "name": "Drowned Thrall",
+      "tier": "minion",
+      "stats": {
+        "power": 22,
+        "endurance": 26,
+        "speed": 12
+      },
+      "hp": 130,
+      "desc": "A sailor long dead and water-logged, dragging others down to share its grave.",
+      "voice": {
+        "hit": [
+          "drags down",
+          "throttles",
+          "drowns"
+        ],
+        "zero": "lurches, weed-tangled"
+      },
+      "traps": [
+        "drowning_grip"
+      ],
+      "variants": [
+        "spectral",
+        "rotting"
+      ],
+      "loot_tier": 2
+    },
+    "abyssal_eel": {
+      "name": "Abyssal Eel",
+      "tier": "minion",
+      "stats": {
+        "power": 20,
+        "endurance": 20,
+        "speed": 28
+      },
+      "hp": 70,
+      "desc": "A serpent of the lightless deep, jaws unhinging out of the murk.",
+      "voice": {
+        "hit": [
+          "bites",
+          "lashes",
+          "coils round"
+        ],
+        "zero": "whips past"
+      },
+      "variants": [
+        "nimble",
+        "elusive"
+      ],
+      "loot_tier": 2
+    },
+    "deep_one_priest": {
+      "name": "Deep One Priest",
+      "tier": "elite",
+      "stats": {
+        "power": 24,
+        "endurance": 26,
+        "speed": 18
+      },
+      "hp": 250,
+      "desc": "A robed elder of the deep, chanting the cold litany that freezes the warmth from a caster's veins — the drowned god's voice.",
+      "voice": {
+        "hit": [
+          "freezes",
+          "hexes",
+          "drowns"
+        ],
+        "heal": [
+          "draws the tide"
+        ],
+        "zero": "keens, the chant breaking"
+      },
+      "traps": [
+        "frost_sear"
+      ],
+      "variants": [
+        "frostbitten",
+        "hexer"
+      ],
+      "loot_tier": 4
+    },
+    "tide_horror": {
+      "name": "Tide Horror",
+      "tier": "elite",
+      "stats": {
+        "power": 26,
+        "endurance": 28,
+        "speed": 16
+      },
+      "hp": 290,
+      "desc": "A heaving mass of barnacled tentacles and drowned bone that surges up from the flooded nave.",
+      "voice": {
+        "hit": [
+          "engulfs",
+          "crushes",
+          "drags under"
+        ],
+        "zero": "recedes, missing"
+      },
+      "traps": [
+        "drowning_grip"
+      ],
+      "variants": [
+        "brutal",
+        "cruel"
+      ],
+      "loot_tier": 4
+    },
+    "the_drowned_god": {
+      "name": "The Drowned God",
+      "tier": "boss",
+      "stats": {
+        "power": 24,
+        "endurance": 32,
+        "speed": 22
+      },
+      "hp": 440,
+      "desc": "The thing the deep ones worship, dragged half-waking from the trench below the temple — an island of cold flesh and drinking dark. It floods the board, drowns your runes, and freezes the spell from your blood.",
+      "voice": {
+        "hit": [
+          "drowns",
+          "engulfs",
+          "freezes"
+        ],
+        "heal": [
+          "the tide answers"
+        ],
+        "zero": "subsides, the wave breaking short"
+      },
+      "traps": [
+        "frost_sear",
+        "drowning_grip",
+        "soul_siphon",
+        "dread_drums"
+      ],
+      "loot_tier": 5
+    },
+    "mummy": {
+      "name": "Mummy",
+      "tier": "minion",
+      "stats": {
+        "power": 28,
+        "endurance": 30,
+        "speed": 14
+      },
+      "hp": 140,
+      "desc": "A bandaged dead king's servant, shuffling on legs stiff with ten centuries of resin and curse.",
+      "voice": {
+        "hit": [
+          "throttles",
+          "smothers",
+          "curses"
+        ],
+        "heal": [
+          "the wrappings knit"
+        ],
+        "zero": "shuffles short"
+      },
+      "traps": [
+        "sand_curse"
+      ],
+      "variants": [
+        "rotting",
+        "brutal"
+      ],
+      "loot_tier": 3
+    },
+    "animated_statue": {
+      "name": "Animated Statue",
+      "tier": "minion",
+      "stats": {
+        "power": 26,
+        "endurance": 30,
+        "speed": 12
+      },
+      "hp": 150,
+      "desc": "A basalt tomb-warden that stands as still as art — until you turn your back, and it does not.",
+      "voice": {
+        "hit": [
+          "bludgeons",
+          "grinds",
+          "hammers"
+        ],
+        "zero": "grates to a halt"
+      },
+      "traps": [
+        "spiked_hide"
+      ],
+      "variants": [
+        "brutal"
+      ],
+      "loot_tier": 3
+    },
+    "scarab_swarm": {
+      "name": "Scarab Swarm",
+      "tier": "minion",
+      "stats": {
+        "power": 24,
+        "endurance": 22,
+        "speed": 30
+      },
+      "hp": 70,
+      "desc": "A glittering flood of carrion-beetles that pours from the cracked sarcophagi.",
+      "voice": {
+        "hit": [
+          "devours",
+          "swarms over",
+          "strips"
+        ],
+        "zero": "scatters across the stone"
+      },
+      "variants": [
+        "nimble",
+        "frenetic"
+      ],
+      "loot_tier": 2
+    },
+    "tomb_guardian": {
+      "name": "Tomb Guardian",
+      "tier": "minion",
+      "stats": {
+        "power": 28,
+        "endurance": 30,
+        "speed": 14
+      },
+      "hp": 150,
+      "desc": "An armored sentinel bound by old rites to seal the burial-ways behind walls of stone.",
+      "voice": {
+        "hit": [
+          "entombs",
+          "bludgeons",
+          "crushes"
+        ],
+        "zero": "stands, the blow short"
+      },
+      "traps": [
+        "entomb_trap"
+      ],
+      "variants": [
+        "brutal",
+        "cruel"
+      ],
+      "loot_tier": 3
+    },
+    "high_mummy": {
+      "name": "High Mummy",
+      "tier": "elite",
+      "stats": {
+        "power": 28,
+        "endurance": 32,
+        "speed": 16
+      },
+      "hp": 290,
+      "desc": "A vizier of the old dynasty, gold-masked and wrapped in cursed linen, who speaks the Scarab King's plagues.",
+      "voice": {
+        "hit": [
+          "curses",
+          "withers",
+          "throttles"
+        ],
+        "heal": [
+          "the old rites mend"
+        ],
+        "zero": "rasps, the hex unspoken"
+      },
+      "traps": [
+        "sand_curse"
+      ],
+      "variants": [
+        "rotting",
+        "brutal"
+      ],
+      "loot_tier": 4
+    },
+    "bone_colossus": {
+      "name": "Bone Colossus",
+      "tier": "elite",
+      "stats": {
+        "power": 32,
+        "endurance": 34,
+        "speed": 12
+      },
+      "hp": 340,
+      "desc": "A titan stitched from a hundred skeletons into one looming horror — a tomb-wall given fists.",
+      "voice": {
+        "hit": [
+          "smashes",
+          "crushes down on",
+          "flattens"
+        ],
+        "zero": "looms, the blow too slow"
+      },
+      "traps": [
+        "entomb_trap"
+      ],
+      "variants": [
+        "brutal"
+      ],
+      "loot_tier": 5
+    },
+    "the_scarab_king": {
+      "name": "The Scarab King",
+      "tier": "boss",
+      "stats": {
+        "power": 30,
+        "endurance": 36,
+        "speed": 22
+      },
+      "hp": 480,
+      "desc": "The deathless pharaoh on his beetle-throne, half man and half writhing scarab-host. He buries your board under sand and stone, saps the old curse from your spirit, and covets every rune you raise.",
+      "voice": {
+        "hit": [
+          "curses",
+          "entombs",
+          "devours"
+        ],
+        "heal": [
+          "the swarm restores him"
+        ],
+        "zero": "gestures, the curse falling short"
+      },
+      "traps": [
+        "sand_curse",
+        "entomb_trap",
+        "hoard_greed",
+        "dread_drums"
+      ],
+      "loot_tier": 5
+    },
+    "cultist": {
+      "name": "Cultist",
+      "tier": "minion",
+      "stats": {
+        "power": 28,
+        "endurance": 28,
+        "speed": 28
+      },
+      "hp": 100,
+      "desc": "A hooded fanatic of the Serpent, dagger raised and a prayer of poison on his lips.",
+      "voice": {
+        "hit": [
+          "stabs",
+          "slashes",
+          "cuts"
+        ],
+        "zero": "chants, the strike wild"
+      },
+      "variants": [
+        "bloodthirsty",
+        "cruel"
+      ],
+      "loot_tier": 3
+    },
+    "cult_zealot": {
+      "name": "Cult Zealot",
+      "tier": "minion",
+      "stats": {
+        "power": 28,
+        "endurance": 26,
+        "speed": 32
+      },
+      "hp": 90,
+      "desc": "A frothing true-believer who throws himself at you in an ecstasy of devotion.",
+      "voice": {
+        "hit": [
+          "flails at",
+          "slashes",
+          "hacks"
+        ],
+        "zero": "overreaches, raving"
+      },
+      "variants": [
+        "frenetic",
+        "bloodthirsty"
+      ],
+      "loot_tier": 2
+    },
+    "naga_warrior": {
+      "name": "Naga Warrior",
+      "tier": "minion",
+      "stats": {
+        "power": 30,
+        "endurance": 28,
+        "speed": 26
+      },
+      "hp": 110,
+      "desc": "A serpent-bodied warrior of the deep catacombs, four arms and four blades weeping venom.",
+      "voice": {
+        "hit": [
+          "envenoms",
+          "skewers",
+          "lashes"
+        ],
+        "zero": "coils back, hissing"
+      },
+      "traps": [
+        "venom_bite"
+      ],
+      "variants": [
+        "venomous",
+        "cruel"
+      ],
+      "loot_tier": 3
+    },
+    "serpent_acolyte": {
+      "name": "Serpent Acolyte",
+      "tier": "minion",
+      "stats": {
+        "power": 30,
+        "endurance": 28,
+        "speed": 22
+      },
+      "hp": 100,
+      "desc": "A scaled adept who unspools hexes that drink the magic straight from your pools.",
+      "voice": {
+        "hit": [
+          "hexes",
+          "curses",
+          "blights"
+        ],
+        "zero": "falters, the hex undone"
+      },
+      "traps": [
+        "hex_drain"
+      ],
+      "variants": [
+        "hexer",
+        "frostbitten"
+      ],
+      "loot_tier": 3
+    },
+    "naga_priest": {
+      "name": "Naga Priest",
+      "tier": "elite",
+      "stats": {
+        "power": 30,
+        "endurance": 34,
+        "speed": 22
+      },
+      "hp": 290,
+      "desc": "A high serpent of the cult, crowned in living vipers, whose omens foretell the Serpent Lord's strike.",
+      "voice": {
+        "hit": [
+          "hexes",
+          "envenoms",
+          "curses"
+        ],
+        "heal": [
+          "the Serpent restores"
+        ],
+        "zero": "hisses, the omen unspent"
+      },
+      "traps": [
+        "hex_drain",
+        "serpent_omen"
+      ],
+      "variants": [
+        "hexer",
+        "venomous"
+      ],
+      "loot_tier": 4
+    },
+    "cult_inquisitor": {
+      "name": "Cult Inquisitor",
+      "tier": "elite",
+      "stats": {
+        "power": 32,
+        "endurance": 34,
+        "speed": 24
+      },
+      "hp": 300,
+      "desc": "The cult's torturer-priest, who carves devotion into flesh with a venom-blackened blade.",
+      "voice": {
+        "hit": [
+          "flays",
+          "envenoms",
+          "rends"
+        ],
+        "zero": "circles, blade poised"
+      },
+      "traps": [
+        "venom_bite"
+      ],
+      "variants": [
+        "cruel",
+        "brutal"
+      ],
+      "loot_tier": 5
+    },
+    "the_serpent_lord": {
+      "name": "The Serpent Lord",
+      "tier": "boss",
+      "stats": {
+        "power": 30,
+        "endurance": 38,
+        "speed": 26
+      },
+      "hp": 500,
+      "desc": "The avatar of the cult's god — a vast serpent-man crowned in a halo of fanged shadow. He bleeds your magic with a glance, fills your veins with venom, and reads your doom in the threefold runes.",
+      "voice": {
+        "hit": [
+          "envenoms",
+          "hexes",
+          "constricts"
+        ],
+        "heal": [
+          "the Serpent feeds him"
+        ],
+        "zero": "sways, the strike held"
+      },
+      "traps": [
+        "hex_drain",
+        "serpent_omen",
+        "venom_bite",
+        "dread_drums"
+      ],
+      "loot_tier": 5
+    },
+    "frost_sprite": {
+      "name": "Frost Sprite",
+      "tier": "minion",
+      "stats": {
+        "power": 30,
+        "endurance": 30,
+        "speed": 38
+      },
+      "hp": 90,
+      "desc": "A darting mote of living cold, leaving rime wherever it touches.",
+      "voice": {
+        "hit": [
+          "freezes",
+          "nips",
+          "chills"
+        ],
+        "zero": "flits away on the wind"
+      },
+      "traps": [
+        "frost_sear"
+      ],
+      "variants": [
+        "frostbitten",
+        "nimble"
+      ],
+      "loot_tier": 3
+    },
+    "ice_wraith": {
+      "name": "Ice Wraith",
+      "tier": "minion",
+      "stats": {
+        "power": 32,
+        "endurance": 32,
+        "speed": 32
+      },
+      "hp": 110,
+      "desc": "A frozen ghost of some lost climber, drinking the heat from your blood to stave off its own cold death.",
+      "voice": {
+        "hit": [
+          "withers",
+          "freezes",
+          "drains"
+        ],
+        "heal": [
+          "drinks your warmth"
+        ],
+        "zero": "passes through, missing"
+      },
+      "traps": [
+        "soul_siphon"
+      ],
+      "variants": [
+        "spectral",
+        "frostbitten"
+      ],
+      "loot_tier": 3
+    },
+    "rime_thrall": {
+      "name": "Rime Thrall",
+      "tier": "minion",
+      "stats": {
+        "power": 34,
+        "endurance": 36,
+        "speed": 20
+      },
+      "hp": 150,
+      "desc": "A frost-blooded berserker of the Hold, ice-axe in hand and breath steaming in the killing cold.",
+      "voice": {
+        "hit": [
+          "cleaves",
+          "hacks",
+          "smashes"
+        ],
+        "zero": "swings, frost-stiff"
+      },
+      "traps": [
+        "frost_sear"
+      ],
+      "variants": [
+        "brutal",
+        "frostbitten"
+      ],
+      "loot_tier": 4
+    },
+    "frost_giant": {
+      "name": "Frost Giant",
+      "tier": "minion",
+      "stats": {
+        "power": 40,
+        "endurance": 38,
+        "speed": 20
+      },
+      "hp": 200,
+      "desc": "A two-storey jarl's-man of blue flesh and glacial muscle. Slow as winter — but every blow is an avalanche, and its tremors rattle your useless shields loose.",
+      "voice": {
+        "hit": [
+          "hammers",
+          "crushes down on",
+          "flattens"
+        ],
+        "zero": "misses — too slow by half"
+      },
+      "traps": [
+        "tremor",
+        "outmaneuvered"
+      ],
+      "variants": [
+        "brutal"
+      ],
+      "loot_tier": 4
+    },
+    "winter_hag": {
+      "name": "Winter Hag",
+      "tier": "elite",
+      "stats": {
+        "power": 34,
+        "endurance": 40,
+        "speed": 26
+      },
+      "hp": 320,
+      "desc": "A crone of the high passes who sings the blizzard down — her rimes herald the Jarl.",
+      "voice": {
+        "hit": [
+          "freezes",
+          "hexes",
+          "withers"
+        ],
+        "heal": [
+          "draws the storm"
+        ],
+        "zero": "cackles, the spell guttering"
+      },
+      "traps": [
+        "rime_blast",
+        "frost_sear"
+      ],
+      "variants": [
+        "hexer",
+        "frostbitten"
+      ],
+      "loot_tier": 5
+    },
+    "ice_troll": {
+      "name": "Ice Troll",
+      "tier": "elite",
+      "stats": {
+        "power": 40,
+        "endurance": 42,
+        "speed": 22
+      },
+      "hp": 360,
+      "desc": "A white-furred troll of the deep crevasses, regenerating, ravenous, and strong enough to shake the ice-floor.",
+      "voice": {
+        "hit": [
+          "mauls",
+          "rends",
+          "crushes"
+        ],
+        "heal": [
+          "knits whole in the cold"
+        ],
+        "zero": "lumbers, the swipe wide"
+      },
+      "traps": [
+        "tremor"
+      ],
+      "variants": [
+        "brutal",
+        "cruel"
+      ],
+      "loot_tier": 5
+    },
+    "the_frost_jarl": {
+      "name": "The Frost Jarl",
+      "tier": "boss",
+      "stats": {
+        "power": 38,
+        "endurance": 46,
+        "speed": 28
+      },
+      "hp": 560,
+      "desc": "The giant-king of the Frostspire, crowned in a glacier's worth of ice. He seals your runes in frost, blasts the warmth from the board, and grips you fast in cold dead hands while the killing winter tolls.",
+      "voice": {
+        "hit": [
+          "freezes",
+          "hammers",
+          "entombs in ice"
+        ],
+        "zero": "the great blow falls short"
+      },
+      "traps": [
+        "rime_blast",
+        "frost_sear",
+        "death_grip",
+        "dread_drums"
+      ],
+      "loot_tier": 5
+    },
+    "imp": {
+      "name": "Imp",
+      "tier": "minion",
+      "stats": {
+        "power": 34,
+        "endurance": 34,
+        "speed": 42
+      },
+      "hp": 90,
+      "desc": "A cackling barb-tailed devil that blinks across the board faster than the eye can hold it.",
+      "voice": {
+        "hit": [
+          "jabs",
+          "sears",
+          "claws"
+        ],
+        "zero": "blinks aside, jeering"
+      },
+      "variants": [
+        "frenetic",
+        "nimble"
+      ],
+      "loot_tier": 3
+    },
+    "hellhound": {
+      "name": "Hellhound",
+      "tier": "minion",
+      "stats": {
+        "power": 38,
+        "endurance": 36,
+        "speed": 40
+      },
+      "hp": 100,
+      "desc": "A coal-black mastiff of the pit, jaws venting flame, hunting in a red rush.",
+      "voice": {
+        "hit": [
+          "immolates",
+          "savages",
+          "sears"
+        ],
+        "zero": "snaps, flame guttering"
+      },
+      "traps": [
+        "war_cry"
+      ],
+      "variants": [
+        "bloodthirsty",
+        "brutal"
+      ],
+      "loot_tier": 3
+    },
+    "demon_brute": {
+      "name": "Demon Brute",
+      "tier": "minion",
+      "stats": {
+        "power": 42,
+        "endurance": 40,
+        "speed": 26
+      },
+      "hp": 160,
+      "desc": "A slab-muscled foot-soldier of the Abyss, horns lowered, hide smoking with hellfire.",
+      "voice": {
+        "hit": [
+          "immolates",
+          "crushes",
+          "gores"
+        ],
+        "zero": "bellows, the charge short"
+      },
+      "traps": [
+        "hellfire"
+      ],
+      "variants": [
+        "brutal",
+        "cruel"
+      ],
+      "loot_tier": 4
+    },
+    "demon_cultist": {
+      "name": "Demon Cultist",
+      "tier": "minion",
+      "stats": {
+        "power": 36,
+        "endurance": 36,
+        "speed": 34
+      },
+      "hp": 110,
+      "desc": "A pact-sworn sorcerer half-transformed by the powers he serves, weaving raw chaos from the rift.",
+      "voice": {
+        "hit": [
+          "warps",
+          "sears",
+          "blights"
+        ],
+        "zero": "miscasts, the chaos fizzling"
+      },
+      "traps": [
+        "chaos_surge"
+      ],
+      "variants": [
+        "bloodthirsty",
+        "hexer"
+      ],
+      "loot_tier": 4
+    },
+    "hell_knight": {
+      "name": "Hell Knight",
+      "tier": "elite",
+      "stats": {
+        "power": 40,
+        "endurance": 44,
+        "speed": 30
+      },
+      "hp": 360,
+      "desc": "A damned champion in molten armor, sworn blade of the Demon Lord, every strike a gout of fire.",
+      "voice": {
+        "hit": [
+          "immolates",
+          "cleaves",
+          "sears"
+        ],
+        "zero": "swings, the hellfire wide"
+      },
+      "traps": [
+        "hellfire"
+      ],
+      "variants": [
+        "brutal",
+        "cruel"
+      ],
+      "loot_tier": 5
+    },
+    "succubus": {
+      "name": "Succubus",
+      "tier": "elite",
+      "stats": {
+        "power": 38,
+        "endurance": 42,
+        "speed": 36
+      },
+      "hp": 330,
+      "desc": "A winged temptress of the pit who drinks your will and your magic in equal draughts, sowing chaos with a whisper.",
+      "voice": {
+        "hit": [
+          "beguiles",
+          "drains",
+          "warps"
+        ],
+        "heal": [
+          "feeds on your longing"
+        ],
+        "zero": "laughs, the charm slipping"
+      },
+      "traps": [
+        "hex_drain",
+        "chaos_surge"
+      ],
+      "variants": [
+        "hexer",
+        "spectral"
+      ],
+      "loot_tier": 5
+    },
+    "the_demon_lord": {
+      "name": "The Demon Lord",
+      "tier": "boss",
+      "stats": {
+        "power": 42,
+        "endurance": 48,
+        "speed": 34
+      },
+      "hp": 600,
+      "desc": "A towering archfiend of horn and hellfire dragged up through the Rift, wreathed in a storm of chaos. He burns the board to cinders, twists your runes against you, and ends the unready with a single annihilating word.",
+      "voice": {
+        "hit": [
+          "immolates",
+          "annihilates",
+          "warps"
+        ],
+        "zero": "the world-ending blow falls short"
+      },
+      "traps": [
+        "hellfire",
+        "chaos_surge",
+        "annihilate",
+        "dread_drums"
+      ],
+      "loot_tier": 5
+    },
+    "kobold": {
+      "name": "Kobold",
+      "tier": "minion",
+      "stats": {
+        "power": 36,
+        "endurance": 38,
+        "speed": 46
+      },
+      "hp": 100,
+      "desc": "A scaled dragon-servant, small and craven and quick, swarming the great hoard's approaches.",
+      "voice": {
+        "hit": [
+          "stabs",
+          "nicks",
+          "jabs"
+        ],
+        "zero": "yelps, scrambling back"
+      },
+      "variants": [
+        "frenetic",
+        "sneaky",
+        "grasping"
+      ],
+      "loot_tier": 3
+    },
+    "drake": {
+      "name": "Drake",
+      "tier": "minion",
+      "stats": {
+        "power": 42,
+        "endurance": 42,
+        "speed": 40
+      },
+      "hp": 130,
+      "desc": "A wingless cousin of the dragons, barrel-chested and venting fire from a furnace gut.",
+      "voice": {
+        "hit": [
+          "immolates",
+          "sears",
+          "bites"
+        ],
+        "zero": "belches smoke, missing"
+      },
+      "traps": [
+        "breath_lesser"
+      ],
+      "variants": [
+        "bloodthirsty",
+        "brutal"
+      ],
+      "loot_tier": 4
+    },
+    "wyvern": {
+      "name": "Wyvern",
+      "tier": "minion",
+      "stats": {
+        "power": 42,
+        "endurance": 40,
+        "speed": 46
+      },
+      "hp": 120,
+      "desc": "A two-legged winged terror with a sting-tipped tail, diving from the cavern roof.",
+      "voice": {
+        "hit": [
+          "stings",
+          "rakes",
+          "buffets"
+        ],
+        "zero": "wheels away on the wind"
+      },
+      "traps": [
+        "wing_buffet"
+      ],
+      "variants": [
+        "venomous",
+        "nimble"
+      ],
+      "loot_tier": 4
+    },
+    "wyrm_priest": {
+      "name": "Wyrm Priest",
+      "tier": "minion",
+      "stats": {
+        "power": 40,
+        "endurance": 42,
+        "speed": 38
+      },
+      "hp": 120,
+      "desc": "A draconic zealot who tends the hoard and curses any hand that reaches for a single coin.",
+      "voice": {
+        "hit": [
+          "hexes",
+          "blights",
+          "curses"
+        ],
+        "zero": "snarls, the curse misfiring"
+      },
+      "traps": [
+        "hoard_greed"
+      ],
+      "variants": [
+        "hexer",
+        "covetous"
+      ],
+      "loot_tier": 4
+    },
+    "young_dragon": {
+      "name": "Young Dragon",
+      "tier": "elite",
+      "stats": {
+        "power": 44,
+        "endurance": 48,
+        "speed": 42
+      },
+      "hp": 440,
+      "desc": "A dragon not yet in its full might but already a peerless killer — the Great Wyrm's get, jealous of the hoard.",
+      "voice": {
+        "hit": [
+          "immolates",
+          "buffets",
+          "rends"
+        ],
+        "zero": "roars, the breath gone wide"
+      },
+      "traps": [
+        "dragon_breath",
+        "wing_buffet"
+      ],
+      "variants": [
+        "brutal",
+        "covetous"
+      ],
+      "loot_tier": 5
+    },
+    "drake_lord": {
+      "name": "Drake Lord",
+      "tier": "elite",
+      "stats": {
+        "power": 46,
+        "endurance": 48,
+        "speed": 40
+      },
+      "hp": 440,
+      "desc": "The alpha of the lair's drake-pack, vast and fire-gutted, herald of the Wyrm's own flame.",
+      "voice": {
+        "hit": [
+          "immolates",
+          "crushes",
+          "sears"
+        ],
+        "zero": "the gout of fire falls short"
+      },
+      "traps": [
+        "dragon_breath"
+      ],
+      "variants": [
+        "brutal",
+        "bloodthirsty"
+      ],
+      "loot_tier": 5
+    },
+    "the_great_wyrm": {
+      "name": "The Great Wyrm",
+      "tier": "boss",
+      "stats": {
+        "power": 46,
+        "endurance": 52,
+        "speed": 44
+      },
+      "hp": 720,
+      "desc": "The ancient dragon coiled atop a mountain of plunder, old as the kingdom and twice as proud. Its breath turns the board to fire, its wings scatter your runes, and it covets every spark of treasure you dare to raise — then ends the greedy with a blast of pure ruin.",
+      "voice": {
+        "hit": [
+          "immolates",
+          "annihilates",
+          "buffets"
+        ],
+        "zero": "the world-burning breath falls short"
+      },
+      "traps": [
+        "dragon_breath",
+        "wing_buffet",
+        "hoard_greed",
+        "annihilate",
+        "dread_drums"
+      ],
+      "loot_tier": 5
+    },
+    "death_knight": {
+      "name": "Death Knight",
+      "tier": "minion",
+      "stats": {
+        "power": 48,
+        "endurance": 50,
+        "speed": 38
+      },
+      "hp": 200,
+      "desc": "A fallen paladin raised in black iron, the lich-king's sworn blade, every cut a hail of bone-shards.",
+      "voice": {
+        "hit": [
+          "cleaves",
+          "hacks",
+          "shatters"
+        ],
+        "zero": "the dread-blade swings wide"
+      },
+      "traps": [
+        "bone_volley"
+      ],
+      "variants": [
+        "brutal",
+        "cruel"
+      ],
+      "loot_tier": 5
+    },
+    "lich_acolyte": {
+      "name": "Lich Acolyte",
+      "tier": "minion",
+      "stats": {
+        "power": 46,
+        "endurance": 46,
+        "speed": 40
+      },
+      "hp": 160,
+      "desc": "A necromancer well along the road to lichdom, siphoning the living to feed his master's eternity.",
+      "voice": {
+        "hit": [
+          "withers",
+          "drains",
+          "blights"
+        ],
+        "heal": [
+          "drinks your soul-warmth"
+        ],
+        "zero": "the death-spell guts out"
+      },
+      "traps": [
+        "soul_siphon"
+      ],
+      "variants": [
+        "spectral",
+        "hexer"
+      ],
+      "loot_tier": 5
+    },
+    "wraith_lord": {
+      "name": "Wraith Lord",
+      "tier": "minion",
+      "stats": {
+        "power": 46,
+        "endurance": 46,
+        "speed": 46
+      },
+      "hp": 170,
+      "desc": "A greater wraith of the citadel's halls, cold enough to still a heart and strong enough to seize a hand mid-cast.",
+      "voice": {
+        "hit": [
+          "withers",
+          "binds",
+          "drains"
+        ],
+        "heal": [
+          "drinks your warmth"
+        ],
+        "zero": "passes through, the grasp short"
+      },
+      "traps": [
+        "life_drain",
+        "death_grip"
+      ],
+      "variants": [
+        "spectral",
+        "frostbitten"
+      ],
+      "loot_tier": 5
+    },
+    "skeletal_legionnaire": {
+      "name": "Skeletal Legionnaire",
+      "tier": "minion",
+      "stats": {
+        "power": 46,
+        "endurance": 48,
+        "speed": 40
+      },
+      "hp": 150,
+      "desc": "A soldier of the dead legions that garrison the obsidian walls, drilled in volley-fire across a thousand years.",
+      "voice": {
+        "hit": [
+          "looses a volley at",
+          "hacks",
+          "pierces"
+        ],
+        "zero": "rattles, the rank misfiring"
+      },
+      "traps": [
+        "bone_volley"
+      ],
+      "variants": [
+        "brutal",
+        "cruel"
+      ],
+      "loot_tier": 5
+    },
+    "death_knight_champion": {
+      "name": "Death Knight Champion",
+      "tier": "elite",
+      "stats": {
+        "power": 50,
+        "endurance": 54,
+        "speed": 42
+      },
+      "hp": 500,
+      "desc": "The first sword of the dead legions, a ruinous engine of black iron whose every blow lands like the lich-king's wrath.",
+      "voice": {
+        "hit": [
+          "annihilates",
+          "cleaves",
+          "shatters"
+        ],
+        "zero": "the ruin-blade falls short"
+      },
+      "traps": [
+        "annihilate"
+      ],
+      "variants": [
+        "brutal",
+        "cruel"
+      ],
+      "loot_tier": 5
+    },
+    "bone_dragon": {
+      "name": "Bone Dragon",
+      "tier": "elite",
+      "stats": {
+        "power": 50,
+        "endurance": 52,
+        "speed": 46
+      },
+      "hp": 520,
+      "desc": "A dragon's skeleton reanimated to guard the throne-approach, breathing not fire but the cold of the grave.",
+      "voice": {
+        "hit": [
+          "withers",
+          "immolates",
+          "drains"
+        ],
+        "heal": [
+          "drinks the grave-cold"
+        ],
+        "zero": "the death-breath falls short"
+      },
+      "traps": [
+        "dragon_breath",
+        "soul_siphon"
+      ],
+      "variants": [
+        "brutal"
+      ],
+      "loot_tier": 5
+    },
+    "the_lich_king": {
+      "name": "The Lich-King",
+      "tier": "boss",
+      "stats": {
+        "power": 50,
+        "endurance": 58,
+        "speed": 48
+      },
+      "hp": 900,
+      "desc": "The deathless tyrant on the obsidian throne, his phylactery a black star in his hollow chest. He tolls a chill that drinks your life while it heals his own, seizes your runes in dead-cold hands, and ends all things with a word of annihilation. The end of the road.",
+      "voice": {
+        "hit": [
+          "annihilates",
+          "withers",
+          "binds"
+        ],
+        "heal": [
+          "the phylactery answers"
+        ],
+        "zero": "the world-ending word falls short"
+      },
+      "traps": [
+        "soul_chill",
+        "death_grip",
+        "annihilate",
+        "life_drain",
         "dread_drums"
       ],
       "loot_tier": 5
@@ -1271,6 +4098,119 @@
           }
         ]
       }
+    },
+    "rotting": {
+      "name": "Rotting",
+      "icon": "🦠",
+      "desc": "all-green → the rot knits it whole: enemy heals 5",
+      "stat_mod": {
+        "hp": 10
+      },
+      "trap": {
+        "on": "match",
+        "when": {
+          "axis": "color",
+          "mode": "all_same",
+          "value": "green"
+        },
+        "do": [
+          {
+            "effect": "enemy_heal",
+            "amount": 5
+          }
+        ]
+      }
+    },
+    "venomous": {
+      "name": "Venomous",
+      "icon": "🐍",
+      "desc": "all-Attack → a venom-slick strike: 5 dmg",
+      "stat_mod": {
+        "power": 1
+      },
+      "trap": {
+        "on": "match",
+        "when": {
+          "axis": "shape",
+          "mode": "all_same",
+          "value": "attack"
+        },
+        "do": [
+          {
+            "effect": "damage",
+            "amount": 5
+          }
+        ]
+      }
+    },
+    "brutal": {
+      "name": "Brutal",
+      "icon": "💢",
+      "desc": "all-Attack → a crushing blow: 8 dmg",
+      "stat_mod": {
+        "power": 2,
+        "speed": -2
+      },
+      "trap": {
+        "on": "match",
+        "when": {
+          "axis": "shape",
+          "mode": "all_same",
+          "value": "attack"
+        },
+        "do": [
+          {
+            "effect": "damage",
+            "amount": 8
+          }
+        ]
+      }
+    },
+    "frostbitten": {
+      "name": "Frostbitten",
+      "icon": "❄️",
+      "desc": "all-blue → the chill bites: burn 3 Frost mana",
+      "trap": {
+        "on": "match",
+        "when": {
+          "axis": "color",
+          "mode": "all_same",
+          "value": "blue"
+        },
+        "do": [
+          {
+            "effect": "drain_mana",
+            "color": "blue",
+            "amount": 3
+          }
+        ]
+      }
+    },
+    "spectral": {
+      "name": "Spectral",
+      "icon": "👻",
+      "desc": "all-Move → it phases through your guard and grips a rune 5s",
+      "stat_mod": {
+        "speed": 2
+      },
+      "trap": {
+        "on": "match",
+        "when": {
+          "axis": "shape",
+          "mode": "all_same",
+          "value": "move"
+        },
+        "do": [
+          {
+            "effect": "lock",
+            "seconds": 5,
+            "select": {
+              "geometry": "random",
+              "count": 1
+            }
+          }
+        ]
+      }
     }
   },
   "templates": {
@@ -1352,7 +4292,7 @@
         "axis": "color",
         "value": "red"
       },
-      "drift": "ember",
+      "drift": "scavenge",
       "boss_mirror": "war_cry_lesser",
       "enemy_table": [
         {
@@ -1389,15 +4329,175 @@
       "boss": "goblin_king",
       "template": null
     },
+    "sewers": {
+      "name": "The Ratking's Sewers",
+      "difficulty": 1,
+      "theme": {
+        "axis": "color",
+        "value": "green"
+      },
+      "drift": "rot",
+      "boss_mirror": "fester_lesser",
+      "enemy_table": [
+        {
+          "foe": "dire_rat",
+          "weight": 30
+        },
+        {
+          "foe": "plague_rat",
+          "weight": 22
+        },
+        {
+          "foe": "warren_rat",
+          "weight": 18
+        },
+        {
+          "foe": "giant_centipede",
+          "weight": 15
+        },
+        {
+          "foe": "sewer_slime",
+          "weight": 10
+        },
+        {
+          "foe": "cave_bat",
+          "weight": 5
+        }
+      ],
+      "elite_pool": [
+        "plague_bloat",
+        "rat_ogre"
+      ],
+      "boss": "the_ratking",
+      "template": null
+    },
+    "tangleweald": {
+      "name": "The Tangleweald",
+      "difficulty": 2,
+      "theme": {
+        "axis": "color",
+        "value": "green"
+      },
+      "drift": "rot",
+      "boss_mirror": "web_snare_lesser",
+      "enemy_table": [
+        {
+          "foe": "giant_spider",
+          "weight": 28
+        },
+        {
+          "foe": "spiderling_swarm",
+          "weight": 22
+        },
+        {
+          "foe": "venom_wasp",
+          "weight": 16
+        },
+        {
+          "foe": "forest_lurker",
+          "weight": 14
+        },
+        {
+          "foe": "ambush_vine",
+          "weight": 12
+        },
+        {
+          "foe": "cave_bat",
+          "weight": 8
+        }
+      ],
+      "elite_pool": [
+        "ettercap",
+        "corrupt_treant"
+      ],
+      "boss": "the_broodmother",
+      "template": null
+    },
+    "crypt": {
+      "name": "The Crypt",
+      "difficulty": 3,
+      "theme": {
+        "axis": "color",
+        "value": "blue"
+      },
+      "drift": "grave_chill",
+      "boss_mirror": "life_drain_lesser",
+      "enemy_table": [
+        {
+          "foe": "skeleton",
+          "weight": 30
+        },
+        {
+          "foe": "skeletal_archer",
+          "weight": 22
+        },
+        {
+          "foe": "rotting_zombie",
+          "weight": 18
+        },
+        {
+          "foe": "ghoul",
+          "weight": 16
+        },
+        {
+          "foe": "wight",
+          "weight": 14
+        }
+      ],
+      "elite_pool": [
+        "bone_knight",
+        "crypt_wraith"
+      ],
+      "boss": "the_barrow_wight",
+      "template": null
+    },
+    "sunken_temple": {
+      "name": "The Sunken Temple",
+      "difficulty": 4,
+      "theme": {
+        "axis": "color",
+        "value": "blue"
+      },
+      "drift": "tide",
+      "boss_mirror": "frost_sear_lesser",
+      "enemy_table": [
+        {
+          "foe": "deep_one",
+          "weight": 28
+        },
+        {
+          "foe": "fishman_raider",
+          "weight": 22
+        },
+        {
+          "foe": "drowned_thrall",
+          "weight": 18
+        },
+        {
+          "foe": "abyssal_eel",
+          "weight": 16
+        },
+        {
+          "foe": "rotting_zombie",
+          "weight": 10
+        }
+      ],
+      "elite_pool": [
+        "deep_one_priest",
+        "tide_horror"
+      ],
+      "boss": "the_drowned_god",
+      "template": null
+    },
     "emberdeep": {
       "name": "The Emberdeep",
-      "difficulty": 2,
+      "difficulty": 4,
       "theme": {
         "axis": "color",
         "value": "red"
       },
-      "drift": "ember",
-      "boss_mirror": "war_cry_lesser",
+      "drift": "inferno",
+      "boss_mirror": "mana_sear_lesser",
       "enemy_table": [
         {
           "foe": "emberkin",
@@ -1423,50 +4523,221 @@
       "boss": "emberlord",
       "template": null
     },
-    "haunted_warren": {
-      "name": "The Haunted Warren",
-      "difficulty": 3,
-      "extends": "goblin_warren",
+    "tomb": {
+      "name": "Tomb of the Scarab King",
+      "difficulty": 5,
+      "theme": {
+        "axis": "shape",
+        "value": "defend"
+      },
+      "drift": "entomb",
+      "boss_mirror": "sand_curse_lesser",
+      "enemy_table": [
+        {
+          "foe": "mummy",
+          "weight": 24
+        },
+        {
+          "foe": "animated_statue",
+          "weight": 20
+        },
+        {
+          "foe": "scarab_swarm",
+          "weight": 20
+        },
+        {
+          "foe": "tomb_guardian",
+          "weight": 14
+        },
+        {
+          "foe": "skeleton",
+          "weight": 12
+        },
+        {
+          "foe": "skeletal_archer",
+          "weight": 10
+        }
+      ],
+      "elite_pool": [
+        "high_mummy",
+        "bone_colossus"
+      ],
+      "boss": "the_scarab_king",
+      "template": null
+    },
+    "serpent_cult": {
+      "name": "Serpent Cult Catacombs",
+      "difficulty": 6,
+      "theme": {
+        "axis": "color",
+        "value": "green"
+      },
+      "drift": "rot",
+      "boss_mirror": "hex_lesser",
+      "enemy_table": [
+        {
+          "foe": "cultist",
+          "weight": 26
+        },
+        {
+          "foe": "cult_zealot",
+          "weight": 20
+        },
+        {
+          "foe": "naga_warrior",
+          "weight": 20
+        },
+        {
+          "foe": "serpent_acolyte",
+          "weight": 18
+        }
+      ],
+      "elite_pool": [
+        "naga_priest",
+        "cult_inquisitor"
+      ],
+      "boss": "the_serpent_lord",
+      "template": null
+    },
+    "frostspire": {
+      "name": "The Frostspire Hold",
+      "difficulty": 7,
+      "theme": {
+        "axis": "color",
+        "value": "blue"
+      },
+      "drift": "rime",
+      "boss_mirror": "frost_sear_lesser",
+      "enemy_table": [
+        {
+          "foe": "frost_sprite",
+          "weight": 28
+        },
+        {
+          "foe": "ice_wraith",
+          "weight": 24
+        },
+        {
+          "foe": "rime_thrall",
+          "weight": 20
+        },
+        {
+          "foe": "frost_giant",
+          "weight": 16
+        }
+      ],
+      "elite_pool": [
+        "winter_hag",
+        "ice_troll"
+      ],
+      "boss": "the_frost_jarl",
+      "template": null
+    },
+    "abyssal_rift": {
+      "name": "The Abyssal Rift",
+      "difficulty": 8,
+      "theme": {
+        "axis": "color",
+        "value": "red"
+      },
+      "drift": "brimstone",
+      "boss_mirror": "brimstone_lesser",
+      "enemy_table": [
+        {
+          "foe": "imp",
+          "weight": 26
+        },
+        {
+          "foe": "hellhound",
+          "weight": 22
+        },
+        {
+          "foe": "demon_brute",
+          "weight": 20
+        },
+        {
+          "foe": "demon_cultist",
+          "weight": 18
+        },
+        {
+          "foe": "cultist",
+          "weight": 8
+        }
+      ],
+      "elite_pool": [
+        "hell_knight",
+        "succubus"
+      ],
+      "boss": "the_demon_lord",
+      "template": null
+    },
+    "wyrms_lair": {
+      "name": "The Wyrm's Lair",
+      "difficulty": 9,
       "theme": {
         "axis": "color",
         "value": "red"
       },
       "drift": "ember",
-      "boss_mirror": "war_cry_lesser",
+      "boss_mirror": "breath_lesser",
       "enemy_table": [
         {
-          "foe": "goblin",
-          "weight": 35
+          "foe": "kobold",
+          "weight": 28
         },
         {
-          "foe": "cave_bat",
+          "foe": "drake",
+          "weight": 22
+        },
+        {
+          "foe": "wyvern",
           "weight": 20
         },
         {
-          "foe": "goblin_shaman",
-          "weight": 15
-        },
-        {
-          "foe": "goblin_archer",
-          "weight": 12
-        },
-        {
-          "foe": "goblin_sapper",
-          "weight": 10
-        },
-        {
-          "foe": "warren_rat",
-          "weight": 8
+          "foe": "wyrm_priest",
+          "weight": 16
         }
       ],
       "elite_pool": [
-        "goblin_warlord",
-        "ember_shaman",
-        "warren_butcher",
-        "goblin_oracle"
+        "young_dragon",
+        "drake_lord"
       ],
-      "boss": "goblin_king",
-      "template": "undead"
+      "boss": "the_great_wyrm",
+      "template": null
+    },
+    "obsidian_citadel": {
+      "name": "The Obsidian Citadel",
+      "difficulty": 10,
+      "theme": {
+        "axis": "color",
+        "value": "blue"
+      },
+      "drift": "grave_chill",
+      "boss_mirror": "life_drain_lesser",
+      "enemy_table": [
+        {
+          "foe": "death_knight",
+          "weight": 26
+        },
+        {
+          "foe": "skeletal_legionnaire",
+          "weight": 24
+        },
+        {
+          "foe": "lich_acolyte",
+          "weight": 22
+        },
+        {
+          "foe": "wraith_lord",
+          "weight": 18
+        }
+      ],
+      "elite_pool": [
+        "death_knight_champion",
+        "bone_dragon"
+      ],
+      "boss": "the_lich_king",
+      "template": null
     }
   },
   "encounter": {

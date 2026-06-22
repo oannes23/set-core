@@ -430,10 +430,1588 @@ emberlord:
     endurance: 30
     speed: 22
   hp: 400
-  desc: The molten heart of the Emberdeep — a crowned giant of living fire, the warren’s King made small beside him.
+  desc: The molten heart of the Emberdeep — a crowned giant of living fire, the warren’s King made small beside him. Where the Goblin King clubs, the Emberlord drinks the very magic from your veins.
   traps:
-    - war_cry
+    - mana_sear
     - molten_veins
     - confusion
+    - dread_drums
+  loot_tier: 5
+
+# ============================================================================
+# VERMIN — the Ratking's Sewers (L2–4). A filth-and-disease crawl: fast cheap
+# swarmers that the plague keeps knitting whole. Shares warren_rat / cave_bat.
+# ============================================================================
+dire_rat:
+  name: Dire Rat
+  tier: minion
+  stats:
+    power: 13
+    endurance: 13
+    speed: 21
+  hp: 60
+  desc: A rat the size of a hound, red-eyed and rabid, leading the chittering tide.
+  voice:
+    hit:
+      - bites
+      - gnaws
+      - savages
+    zero: skitters short, snapping
+  variants:
+    - nimble
+    - sneaky
+  loot_tier: 1
+plague_rat:
+  name: Plague Rat
+  tier: minion
+  stats:
+    power: 14
+    endurance: 16
+    speed: 15
+  hp: 85
+  desc: A bloated, sore-ridden vermin trailing a haze of sickness.
+  voice:
+    hit:
+      - infects
+      - claws at
+      - fouls
+    heal:
+      - festers whole
+    zero: hisses, weeping
+  variants:
+    - rotting
+    - plagued
+  loot_tier: 1
+sewer_slime:
+  name: Sewer Slime
+  tier: minion
+  stats:
+    power: 12
+    endurance: 19
+    speed: 6
+  hp: 115
+  desc: A creeping ooze of refuse and rot — slow, but it mends every gash by drinking the filth.
+  voice:
+    hit:
+      - engulfs
+      - dissolves
+      - smothers
+    heal:
+      - reforms from the muck
+    zero: sloshes short
+  traps:
+    - plague
+  variants:
+    - rotting
+  loot_tier: 2
+giant_centipede:
+  name: Giant Centipede
+  tier: minion
+  stats:
+    power: 16
+    endurance: 13
+    speed: 20
+  hp: 65
+  desc: A glistening length of chitin and legs, mandibles weeping venom.
+  voice:
+    hit:
+      - envenoms
+      - skewers
+      - nips
+    zero: rears back, dripping
+  variants:
+    - venomous
+    - nimble
+  loot_tier: 1
+plague_bloat:
+  name: Plague Bloat
+  tier: elite
+  stats:
+    power: 17
+    endurance: 21
+    speed: 10
+  hp: 210
+  desc: A swollen horror of the deep drains, splitting at the seams with contagion — the Ratking's herald.
+  voice:
+    hit:
+      - retches over
+      - bursts upon
+      - drowns
+    heal:
+      - swells anew
+    zero: gurgles, bloated
+  traps:
+    - fester
+  variants:
+    - rotting
+    - cruel
+  loot_tier: 3
+rat_ogre:
+  name: Rat Ogre
+  tier: elite
+  stats:
+    power: 21
+    endurance: 21
+    speed: 12
+  hp: 250
+  desc: A monstrous thing of stitched vermin and gristle, bred in the deep warrens to break men.
+  voice:
+    hit:
+      - mauls
+      - crushes
+      - rends
+    zero: swings wide, shrieking
+  variants:
+    - brutal
+    - cruel
+  loot_tier: 4
+the_ratking:
+  name: The Ratking
+  tier: boss
+  stats:
+    power: 18
+    endurance: 26
+    speed: 16
+  hp: 380
+  desc: A knot of a dozen rats fused tail-to-tail into one crowned, scheming mind — the filth made sovereign. Every wound it takes, the swarm simply knits closed.
+  voice:
+    hit:
+      - swarms over
+      - devours
+      - overruns
+    heal:
+      - the swarm knits whole
+    zero: scatters, regrouping
+  traps:
+    - fester
+    - plague
+    - gnaw_swarm
+    - dread_drums
+  loot_tier: 5
+
+# ============================================================================
+# SPIDERS & WOOD — the Tangleweald (L3–5). Web-lock denial + venom. The forest
+# binds your board; the bite scales with the runes you spend. Shares cave_bat.
+# ============================================================================
+giant_spider:
+  name: Giant Spider
+  tier: minion
+  stats:
+    power: 15
+    endurance: 16
+    speed: 20
+  hp: 85
+  desc: A horse-sized hunting spider that drops on silk from the black canopy.
+  voice:
+    hit:
+      - bites
+      - envenoms
+      - skewers
+    zero: recoils on its silk
+  variants:
+    - venomous
+    - elusive
+  loot_tier: 2
+spiderling_swarm:
+  name: Spiderling Swarm
+  tier: minion
+  stats:
+    power: 13
+    endurance: 12
+    speed: 22
+  hp: 50
+  desc: A boiling carpet of hatchlings, here and gone before you can stamp them out.
+  voice:
+    hit:
+      - swarms over
+      - skitters across
+      - nips at
+    zero: scatters underfoot
+  variants:
+    - nimble
+    - frenetic
+  loot_tier: 1
+venom_wasp:
+  name: Venom Wasp
+  tier: minion
+  stats:
+    power: 16
+    endurance: 13
+    speed: 22
+  hp: 60
+  desc: A wasp as long as your forearm, its sting a hot spike of poison.
+  voice:
+    hit:
+      - stings
+      - jabs
+      - lances
+    zero: darts past
+  variants:
+    - venomous
+    - nimble
+  loot_tier: 1
+forest_lurker:
+  name: Forest Lurker
+  tier: minion
+  stats:
+    power: 17
+    endurance: 16
+    speed: 17
+  hp: 90
+  desc: A lean, moss-furred predator that pads silent between the boles.
+  voice:
+    hit:
+      - savages
+      - pounces on
+      - claws
+    zero: melts into the brush
+  variants:
+    - bloodthirsty
+    - sneaky
+  loot_tier: 2
+ambush_vine:
+  name: Ambush Vine
+  tier: minion
+  stats:
+    power: 15
+    endurance: 19
+    speed: 6
+  hp: 115
+  desc: A coil of thorned creeper that lies still as deadwood — until it lashes out and drags you down.
+  voice:
+    hit:
+      - constricts
+      - lashes
+      - throttles
+    zero: recoils, rustling
+  traps:
+    - petrify
+  variants:
+    - grasping
+  loot_tier: 2
+ettercap:
+  name: Ettercap
+  tier: elite
+  stats:
+    power: 18
+    endurance: 22
+    speed: 15
+  hp: 230
+  desc: A hunched, clawed spider-keeper that strings the Tangleweald with snares — the Broodmother's shepherd.
+  voice:
+    hit:
+      - binds
+      - envenoms
+      - rends
+    zero: skitters back, hissing
+  traps:
+    - web_snare
+  variants:
+    - venomous
+    - cruel
+  loot_tier: 4
+corrupt_treant:
+  name: Corrupt Treant
+  tier: elite
+  stats:
+    power: 20
+    endurance: 24
+    speed: 9
+  hp: 280
+  desc: A great tree gone black with blight, walking on root-claws, its hollow groan promising the deep wood's hunger.
+  voice:
+    hit:
+      - smashes
+      - crushes down on
+      - flattens
+    zero: groans, swinging slow
+  variants:
+    - brutal
+    - grasping
+  loot_tier: 4
+the_broodmother:
+  name: The Broodmother
+  tier: boss
+  stats:
+    power: 18
+    endurance: 26
+    speed: 18
+  hp: 400
+  desc: The vast pale spider at the heart of the web, her egg-sacs pulsing in the dark. Her silk binds you fast while her bite drinks you dry.
+  voice:
+    hit:
+      - binds
+      - drains
+      - envenoms
+    zero: skitters on her web
+  traps:
+    - web_snare
+    - venom_bite
+    - petrify
+    - dread_drums
+  loot_tier: 5
+
+# ============================================================================
+# UNDEAD — the Crypt (L4–7). The retheme: a true bone-and-grave crawl. Lifedrain
+# (greens heal them), dread-tick, paralysis-lock. This family is REUSED in the
+# Tomb and the Citadel, so the roster grows a shared undead spine.
+# ============================================================================
+skeleton:
+  name: Skeleton
+  tier: minion
+  stats:
+    power: 16
+    endurance: 16
+    speed: 16
+  hp: 80
+  desc: A rattling warrior of dry bone, sword still gripped in a fleshless hand.
+  voice:
+    hit:
+      - hacks
+      - cleaves
+      - slashes
+    zero: clatters, missing
+  variants:
+    - cruel
+    - sneaky
+  loot_tier: 2
+skeletal_archer:
+  name: Skeletal Archer
+  tier: minion
+  stats:
+    power: 16
+    endurance: 14
+    speed: 18
+  hp: 70
+  desc: A bowman of bone loosing shaft after shaft from the dark of the niches.
+  voice:
+    hit:
+      - looses a shaft at
+      - pelts
+      - pierces
+    zero: rattles, the shot wide
+  traps:
+    - bone_volley
+  variants:
+    - sneaky
+    - frenetic
+  loot_tier: 2
+rotting_zombie:
+  name: Rotting Zombie
+  tier: minion
+  stats:
+    power: 16
+    endurance: 20
+    speed: 6
+  hp: 120
+  desc: A shambling corpse, slow as grief — but the grave-rot mends it as fast as you cut.
+  voice:
+    hit:
+      - gnaws at
+      - claws at
+      - mauls
+    heal:
+      - festers whole
+    zero: lurches short
+  traps:
+    - life_drain
+  variants:
+    - rotting
+  loot_tier: 1
+ghoul:
+  name: Ghoul
+  tier: minion
+  stats:
+    power: 17
+    endurance: 15
+    speed: 20
+  hp: 80
+  desc: A gaunt, loping eater of the dead whose touch leaves the limbs cold and still.
+  voice:
+    hit:
+      - paralyzes
+      - claws
+      - savages
+    zero: snaps short, hungry
+  traps:
+    - petrify
+  variants:
+    - nimble
+    - cruel
+  loot_tier: 2
+wight:
+  name: Wight
+  tier: minion
+  stats:
+    power: 18
+    endurance: 18
+    speed: 14
+  hp: 110
+  desc: A barrow-dead noble wreathed in cold, draining the warmth of the living to feed its hate.
+  voice:
+    hit:
+      - drains
+      - withers
+      - leeches
+    heal:
+      - drinks your warmth
+    zero: reaches, falling short
+  traps:
+    - life_drain
+  variants:
+    - spectral
+    - cruel
+  loot_tier: 3
+bone_knight:
+  name: Bone Knight
+  tier: elite
+  stats:
+    power: 18
+    endurance: 22
+    speed: 14
+  hp: 250
+  desc: A dead champion in rusted plate, still keeping a grave-cold vigil. Its volleys herald the crypt-lord.
+  voice:
+    hit:
+      - cleaves
+      - bludgeons
+      - hacks
+    zero: clangs, swinging wide
+  traps:
+    - bone_volley
+  variants:
+    - brutal
+    - cruel
+  loot_tier: 4
+crypt_wraith:
+  name: Crypt Wraith
+  tier: elite
+  stats:
+    power: 18
+    endurance: 20
+    speed: 20
+  hp: 230
+  desc: A hovering shroud of cold malice that drifts through stone and guard alike to drink the living dry.
+  voice:
+    hit:
+      - withers
+      - drains
+      - chills
+    heal:
+      - feeds on your warmth
+    zero: passes through, missing
+  traps:
+    - life_drain
+  variants:
+    - spectral
+    - frostbitten
+  loot_tier: 4
+the_barrow_wight:
+  name: The Barrow-Wight
+  tier: boss
+  stats:
+    power: 18
+    endurance: 26
+    speed: 18
+  hp: 400
+  desc: The crowned dead king of the barrow, risen on a tide of grave-cold. It paralyzes the living, drinks their warmth, and tolls the dread of the tomb without end.
+  voice:
+    hit:
+      - withers
+      - drains
+      - binds
+    heal:
+      - drinks the grave-warmth
+    zero: reaches, the cold falling short
+  traps:
+    - life_drain
+    - petrify
+    - soul_siphon
+    - dread_drums
+  loot_tier: 5
+
+# ============================================================================
+# DEEP ONES — the Sunken Temple (L6–9). Drown-lock + frost mana-burn. Reuses
+# rotting_zombie (the drowned dead) as fodder.
+# ============================================================================
+deep_one:
+  name: Deep One
+  tier: minion
+  stats:
+    power: 22
+    endurance: 22
+    speed: 22
+  hp: 95
+  desc: A hunched fish-thing of the black depths, webbed claws and a mouthful of needles.
+  voice:
+    hit:
+      - rends
+      - drowns
+      - claws
+    zero: gurgles, falling short
+  variants:
+    - venomous
+    - frostbitten
+  loot_tier: 3
+fishman_raider:
+  name: Fishman Raider
+  tier: minion
+  stats:
+    power: 22
+    endurance: 20
+    speed: 26
+  hp: 85
+  desc: A wiry deep-dweller wielding a barbed coral spear, quick as a current.
+  voice:
+    hit:
+      - spears
+      - gores
+      - lances
+    zero: darts back into the dark
+  variants:
+    - sneaky
+    - venomous
+  loot_tier: 2
+drowned_thrall:
+  name: Drowned Thrall
+  tier: minion
+  stats:
+    power: 22
+    endurance: 26
+    speed: 12
+  hp: 130
+  desc: A sailor long dead and water-logged, dragging others down to share its grave.
+  voice:
+    hit:
+      - drags down
+      - throttles
+      - drowns
+    zero: lurches, weed-tangled
+  traps:
+    - drowning_grip
+  variants:
+    - spectral
+    - rotting
+  loot_tier: 2
+abyssal_eel:
+  name: Abyssal Eel
+  tier: minion
+  stats:
+    power: 20
+    endurance: 20
+    speed: 28
+  hp: 70
+  desc: A serpent of the lightless deep, jaws unhinging out of the murk.
+  voice:
+    hit:
+      - bites
+      - lashes
+      - coils round
+    zero: whips past
+  variants:
+    - nimble
+    - elusive
+  loot_tier: 2
+deep_one_priest:
+  name: Deep One Priest
+  tier: elite
+  stats:
+    power: 24
+    endurance: 26
+    speed: 18
+  hp: 250
+  desc: A robed elder of the deep, chanting the cold litany that freezes the warmth from a caster's veins — the drowned god's voice.
+  voice:
+    hit:
+      - freezes
+      - hexes
+      - drowns
+    heal:
+      - draws the tide
+    zero: keens, the chant breaking
+  traps:
+    - frost_sear
+  variants:
+    - frostbitten
+    - hexer
+  loot_tier: 4
+tide_horror:
+  name: Tide Horror
+  tier: elite
+  stats:
+    power: 26
+    endurance: 28
+    speed: 16
+  hp: 290
+  desc: A heaving mass of barnacled tentacles and drowned bone that surges up from the flooded nave.
+  voice:
+    hit:
+      - engulfs
+      - crushes
+      - drags under
+    zero: recedes, missing
+  traps:
+    - drowning_grip
+  variants:
+    - brutal
+    - cruel
+  loot_tier: 4
+the_drowned_god:
+  name: The Drowned God
+  tier: boss
+  stats:
+    power: 24
+    endurance: 32
+    speed: 22
+  hp: 440
+  desc: The thing the deep ones worship, dragged half-waking from the trench below the temple — an island of cold flesh and drinking dark. It floods the board, drowns your runes, and freezes the spell from your blood.
+  voice:
+    hit:
+      - drowns
+      - engulfs
+      - freezes
+    heal:
+      - the tide answers
+    zero: subsides, the wave breaking short
+  traps:
+    - frost_sear
+    - drowning_grip
+    - soul_siphon
+    - dread_drums
+  loot_tier: 5
+
+# ============================================================================
+# TOMB — the Tomb of the Scarab King (L8–11). Sword-and-sandal: mummies, living
+# statues, scarab swarms. The drift BURIES your board under Stone (Defend); the
+# tomb then locks those shields away. Reuses skeleton / skeletal_archer.
+# ============================================================================
+mummy:
+  name: Mummy
+  tier: minion
+  stats:
+    power: 28
+    endurance: 30
+    speed: 14
+  hp: 140
+  desc: A bandaged dead king's servant, shuffling on legs stiff with ten centuries of resin and curse.
+  voice:
+    hit:
+      - throttles
+      - smothers
+      - curses
+    heal:
+      - the wrappings knit
+    zero: shuffles short
+  traps:
+    - sand_curse
+  variants:
+    - rotting
+    - brutal
+  loot_tier: 3
+animated_statue:
+  name: Animated Statue
+  tier: minion
+  stats:
+    power: 26
+    endurance: 30
+    speed: 12
+  hp: 150
+  desc: A basalt tomb-warden that stands as still as art — until you turn your back, and it does not.
+  voice:
+    hit:
+      - bludgeons
+      - grinds
+      - hammers
+    zero: grates to a halt
+  traps:
+    - spiked_hide
+  variants:
+    - brutal
+  loot_tier: 3
+scarab_swarm:
+  name: Scarab Swarm
+  tier: minion
+  stats:
+    power: 24
+    endurance: 22
+    speed: 30
+  hp: 70
+  desc: A glittering flood of carrion-beetles that pours from the cracked sarcophagi.
+  voice:
+    hit:
+      - devours
+      - swarms over
+      - strips
+    zero: scatters across the stone
+  variants:
+    - nimble
+    - frenetic
+  loot_tier: 2
+tomb_guardian:
+  name: Tomb Guardian
+  tier: minion
+  stats:
+    power: 28
+    endurance: 30
+    speed: 14
+  hp: 150
+  desc: An armored sentinel bound by old rites to seal the burial-ways behind walls of stone.
+  voice:
+    hit:
+      - entombs
+      - bludgeons
+      - crushes
+    zero: stands, the blow short
+  traps:
+    - entomb_trap
+  variants:
+    - brutal
+    - cruel
+  loot_tier: 3
+high_mummy:
+  name: High Mummy
+  tier: elite
+  stats:
+    power: 28
+    endurance: 32
+    speed: 16
+  hp: 290
+  desc: A vizier of the old dynasty, gold-masked and wrapped in cursed linen, who speaks the Scarab King's plagues.
+  voice:
+    hit:
+      - curses
+      - withers
+      - throttles
+    heal:
+      - the old rites mend
+    zero: rasps, the hex unspoken
+  traps:
+    - sand_curse
+  variants:
+    - rotting
+    - brutal
+  loot_tier: 4
+bone_colossus:
+  name: Bone Colossus
+  tier: elite
+  stats:
+    power: 32
+    endurance: 34
+    speed: 12
+  hp: 340
+  desc: A titan stitched from a hundred skeletons into one looming horror — a tomb-wall given fists.
+  voice:
+    hit:
+      - smashes
+      - crushes down on
+      - flattens
+    zero: looms, the blow too slow
+  traps:
+    - entomb_trap
+  variants:
+    - brutal
+  loot_tier: 5
+the_scarab_king:
+  name: The Scarab King
+  tier: boss
+  stats:
+    power: 30
+    endurance: 36
+    speed: 22
+  hp: 480
+  desc: The deathless pharaoh on his beetle-throne, half man and half writhing scarab-host. He buries your board under sand and stone, saps the old curse from your spirit, and covets every rune you raise.
+  voice:
+    hit:
+      - curses
+      - entombs
+      - devours
+    heal:
+      - the swarm restores him
+    zero: gestures, the curse falling short
+  traps:
+    - sand_curse
+    - entomb_trap
+    - hoard_greed
+    - dread_drums
+  loot_tier: 5
+
+# ============================================================================
+# SERPENT CULT — the Catacombs (L9–12). Sword-and-sorcery cultists and naga who
+# hex your mana dry and bleed you with venom. Cultists are REUSED in the Rift.
+# ============================================================================
+cultist:
+  name: Cultist
+  tier: minion
+  stats:
+    power: 28
+    endurance: 28
+    speed: 28
+  hp: 100
+  desc: A hooded fanatic of the Serpent, dagger raised and a prayer of poison on his lips.
+  voice:
+    hit:
+      - stabs
+      - slashes
+      - cuts
+    zero: chants, the strike wild
+  variants:
+    - bloodthirsty
+    - cruel
+  loot_tier: 3
+cult_zealot:
+  name: Cult Zealot
+  tier: minion
+  stats:
+    power: 28
+    endurance: 26
+    speed: 32
+  hp: 90
+  desc: A frothing true-believer who throws himself at you in an ecstasy of devotion.
+  voice:
+    hit:
+      - flails at
+      - slashes
+      - hacks
+    zero: overreaches, raving
+  variants:
+    - frenetic
+    - bloodthirsty
+  loot_tier: 2
+naga_warrior:
+  name: Naga Warrior
+  tier: minion
+  stats:
+    power: 30
+    endurance: 28
+    speed: 26
+  hp: 110
+  desc: A serpent-bodied warrior of the deep catacombs, four arms and four blades weeping venom.
+  voice:
+    hit:
+      - envenoms
+      - skewers
+      - lashes
+    zero: coils back, hissing
+  traps:
+    - venom_bite
+  variants:
+    - venomous
+    - cruel
+  loot_tier: 3
+serpent_acolyte:
+  name: Serpent Acolyte
+  tier: minion
+  stats:
+    power: 30
+    endurance: 28
+    speed: 22
+  hp: 100
+  desc: A scaled adept who unspools hexes that drink the magic straight from your pools.
+  voice:
+    hit:
+      - hexes
+      - curses
+      - blights
+    zero: falters, the hex undone
+  traps:
+    - hex_drain
+  variants:
+    - hexer
+    - frostbitten
+  loot_tier: 3
+naga_priest:
+  name: Naga Priest
+  tier: elite
+  stats:
+    power: 30
+    endurance: 34
+    speed: 22
+  hp: 290
+  desc: A high serpent of the cult, crowned in living vipers, whose omens foretell the Serpent Lord's strike.
+  voice:
+    hit:
+      - hexes
+      - envenoms
+      - curses
+    heal:
+      - the Serpent restores
+    zero: hisses, the omen unspent
+  traps:
+    - hex_drain
+    - serpent_omen
+  variants:
+    - hexer
+    - venomous
+  loot_tier: 4
+cult_inquisitor:
+  name: Cult Inquisitor
+  tier: elite
+  stats:
+    power: 32
+    endurance: 34
+    speed: 24
+  hp: 300
+  desc: The cult's torturer-priest, who carves devotion into flesh with a venom-blackened blade.
+  voice:
+    hit:
+      - flays
+      - envenoms
+      - rends
+    zero: circles, blade poised
+  traps:
+    - venom_bite
+  variants:
+    - cruel
+    - brutal
+  loot_tier: 5
+the_serpent_lord:
+  name: The Serpent Lord
+  tier: boss
+  stats:
+    power: 30
+    endurance: 38
+    speed: 26
+  hp: 500
+  desc: The avatar of the cult's god — a vast serpent-man crowned in a halo of fanged shadow. He bleeds your magic with a glance, fills your veins with venom, and reads your doom in the threefold runes.
+  voice:
+    hit:
+      - envenoms
+      - hexes
+      - constricts
+    heal:
+      - the Serpent feeds him
+    zero: sways, the strike held
+  traps:
+    - hex_drain
+    - serpent_omen
+    - venom_bite
+    - dread_drums
+  loot_tier: 5
+
+# ============================================================================
+# FROST GIANTS — the Frostspire Hold (L11–14). Heavy freeze-lock + slow, ruinous
+# blows. The frost_giant reuses the behemoth grammar (tremor / outmaneuvered).
+# ============================================================================
+frost_sprite:
+  name: Frost Sprite
+  tier: minion
+  stats:
+    power: 30
+    endurance: 30
+    speed: 38
+  hp: 90
+  desc: A darting mote of living cold, leaving rime wherever it touches.
+  voice:
+    hit:
+      - freezes
+      - nips
+      - chills
+    zero: flits away on the wind
+  traps:
+    - frost_sear
+  variants:
+    - frostbitten
+    - nimble
+  loot_tier: 3
+ice_wraith:
+  name: Ice Wraith
+  tier: minion
+  stats:
+    power: 32
+    endurance: 32
+    speed: 32
+  hp: 110
+  desc: A frozen ghost of some lost climber, drinking the heat from your blood to stave off its own cold death.
+  voice:
+    hit:
+      - withers
+      - freezes
+      - drains
+    heal:
+      - drinks your warmth
+    zero: passes through, missing
+  traps:
+    - soul_siphon
+  variants:
+    - spectral
+    - frostbitten
+  loot_tier: 3
+rime_thrall:
+  name: Rime Thrall
+  tier: minion
+  stats:
+    power: 34
+    endurance: 36
+    speed: 20
+  hp: 150
+  desc: A frost-blooded berserker of the Hold, ice-axe in hand and breath steaming in the killing cold.
+  voice:
+    hit:
+      - cleaves
+      - hacks
+      - smashes
+    zero: swings, frost-stiff
+  traps:
+    - frost_sear
+  variants:
+    - brutal
+    - frostbitten
+  loot_tier: 4
+frost_giant:
+  name: Frost Giant
+  tier: minion
+  stats:
+    power: 40
+    endurance: 38
+    speed: 20
+  hp: 200
+  desc: A two-storey jarl's-man of blue flesh and glacial muscle. Slow as winter — but every blow is an avalanche, and its tremors rattle your useless shields loose.
+  voice:
+    hit:
+      - hammers
+      - crushes down on
+      - flattens
+    zero: misses — too slow by half
+  traps:
+    - tremor
+    - outmaneuvered
+  variants:
+    - brutal
+  loot_tier: 4
+winter_hag:
+  name: Winter Hag
+  tier: elite
+  stats:
+    power: 34
+    endurance: 40
+    speed: 26
+  hp: 320
+  desc: A crone of the high passes who sings the blizzard down — her rimes herald the Jarl.
+  voice:
+    hit:
+      - freezes
+      - hexes
+      - withers
+    heal:
+      - draws the storm
+    zero: cackles, the spell guttering
+  traps:
+    - rime_blast
+    - frost_sear
+  variants:
+    - hexer
+    - frostbitten
+  loot_tier: 5
+ice_troll:
+  name: Ice Troll
+  tier: elite
+  stats:
+    power: 40
+    endurance: 42
+    speed: 22
+  hp: 360
+  desc: A white-furred troll of the deep crevasses, regenerating, ravenous, and strong enough to shake the ice-floor.
+  voice:
+    hit:
+      - mauls
+      - rends
+      - crushes
+    heal:
+      - knits whole in the cold
+    zero: lumbers, the swipe wide
+  traps:
+    - tremor
+  variants:
+    - brutal
+    - cruel
+  loot_tier: 5
+the_frost_jarl:
+  name: The Frost Jarl
+  tier: boss
+  stats:
+    power: 38
+    endurance: 46
+    speed: 28
+  hp: 560
+  desc: The giant-king of the Frostspire, crowned in a glacier's worth of ice. He seals your runes in frost, blasts the warmth from the board, and grips you fast in cold dead hands while the killing winter tolls.
+  voice:
+    hit:
+      - freezes
+      - hammers
+      - entombs in ice
+    zero: the great blow falls short
+  traps:
+    - rime_blast
+    - frost_sear
+    - death_grip
+    - dread_drums
+  loot_tier: 5
+
+# ============================================================================
+# DEMONS — the Abyssal Rift (L13–16). Chaos and confusion, hellfire and instant
+# strikes. Reuses cultist (summoners) from the Serpent catacombs.
+# ============================================================================
+imp:
+  name: Imp
+  tier: minion
+  stats:
+    power: 34
+    endurance: 34
+    speed: 42
+  hp: 90
+  desc: A cackling barb-tailed devil that blinks across the board faster than the eye can hold it.
+  voice:
+    hit:
+      - jabs
+      - sears
+      - claws
+    zero: blinks aside, jeering
+  variants:
+    - frenetic
+    - nimble
+  loot_tier: 3
+hellhound:
+  name: Hellhound
+  tier: minion
+  stats:
+    power: 38
+    endurance: 36
+    speed: 40
+  hp: 100
+  desc: A coal-black mastiff of the pit, jaws venting flame, hunting in a red rush.
+  voice:
+    hit:
+      - immolates
+      - savages
+      - sears
+    zero: snaps, flame guttering
+  traps:
+    - war_cry
+  variants:
+    - bloodthirsty
+    - brutal
+  loot_tier: 3
+demon_brute:
+  name: Demon Brute
+  tier: minion
+  stats:
+    power: 42
+    endurance: 40
+    speed: 26
+  hp: 160
+  desc: A slab-muscled foot-soldier of the Abyss, horns lowered, hide smoking with hellfire.
+  voice:
+    hit:
+      - immolates
+      - crushes
+      - gores
+    zero: bellows, the charge short
+  traps:
+    - hellfire
+  variants:
+    - brutal
+    - cruel
+  loot_tier: 4
+demon_cultist:
+  name: Demon Cultist
+  tier: minion
+  stats:
+    power: 36
+    endurance: 36
+    speed: 34
+  hp: 110
+  desc: A pact-sworn sorcerer half-transformed by the powers he serves, weaving raw chaos from the rift.
+  voice:
+    hit:
+      - warps
+      - sears
+      - blights
+    zero: miscasts, the chaos fizzling
+  traps:
+    - chaos_surge
+  variants:
+    - bloodthirsty
+    - hexer
+  loot_tier: 4
+hell_knight:
+  name: Hell Knight
+  tier: elite
+  stats:
+    power: 40
+    endurance: 44
+    speed: 30
+  hp: 360
+  desc: A damned champion in molten armor, sworn blade of the Demon Lord, every strike a gout of fire.
+  voice:
+    hit:
+      - immolates
+      - cleaves
+      - sears
+    zero: swings, the hellfire wide
+  traps:
+    - hellfire
+  variants:
+    - brutal
+    - cruel
+  loot_tier: 5
+succubus:
+  name: Succubus
+  tier: elite
+  stats:
+    power: 38
+    endurance: 42
+    speed: 36
+  hp: 330
+  desc: A winged temptress of the pit who drinks your will and your magic in equal draughts, sowing chaos with a whisper.
+  voice:
+    hit:
+      - beguiles
+      - drains
+      - warps
+    heal:
+      - feeds on your longing
+    zero: laughs, the charm slipping
+  traps:
+    - hex_drain
+    - chaos_surge
+  variants:
+    - hexer
+    - spectral
+  loot_tier: 5
+the_demon_lord:
+  name: The Demon Lord
+  tier: boss
+  stats:
+    power: 42
+    endurance: 48
+    speed: 34
+  hp: 600
+  desc: A towering archfiend of horn and hellfire dragged up through the Rift, wreathed in a storm of chaos. He burns the board to cinders, twists your runes against you, and ends the unready with a single annihilating word.
+  voice:
+    hit:
+      - immolates
+      - annihilates
+      - warps
+    zero: the world-ending blow falls short
+  traps:
+    - hellfire
+    - chaos_surge
+    - annihilate
+    - dread_drums
+  loot_tier: 5
+
+# ============================================================================
+# DRAGONKIN — the Wyrm's Lair (L15–18). Breath-weapons, wing-buffets, and a
+# covetous hunger for your runes. Kobolds echo the goblins; drakes the emberkin.
+# ============================================================================
+kobold:
+  name: Kobold
+  tier: minion
+  stats:
+    power: 36
+    endurance: 38
+    speed: 46
+  hp: 100
+  desc: A scaled dragon-servant, small and craven and quick, swarming the great hoard's approaches.
+  voice:
+    hit:
+      - stabs
+      - nicks
+      - jabs
+    zero: yelps, scrambling back
+  variants:
+    - frenetic
+    - sneaky
+    - grasping
+  loot_tier: 3
+drake:
+  name: Drake
+  tier: minion
+  stats:
+    power: 42
+    endurance: 42
+    speed: 40
+  hp: 130
+  desc: A wingless cousin of the dragons, barrel-chested and venting fire from a furnace gut.
+  voice:
+    hit:
+      - immolates
+      - sears
+      - bites
+    zero: belches smoke, missing
+  traps:
+    - breath_lesser
+  variants:
+    - bloodthirsty
+    - brutal
+  loot_tier: 4
+wyvern:
+  name: Wyvern
+  tier: minion
+  stats:
+    power: 42
+    endurance: 40
+    speed: 46
+  hp: 120
+  desc: A two-legged winged terror with a sting-tipped tail, diving from the cavern roof.
+  voice:
+    hit:
+      - stings
+      - rakes
+      - buffets
+    zero: wheels away on the wind
+  traps:
+    - wing_buffet
+  variants:
+    - venomous
+    - nimble
+  loot_tier: 4
+wyrm_priest:
+  name: Wyrm Priest
+  tier: minion
+  stats:
+    power: 40
+    endurance: 42
+    speed: 38
+  hp: 120
+  desc: A draconic zealot who tends the hoard and curses any hand that reaches for a single coin.
+  voice:
+    hit:
+      - hexes
+      - blights
+      - curses
+    zero: snarls, the curse misfiring
+  traps:
+    - hoard_greed
+  variants:
+    - hexer
+    - covetous
+  loot_tier: 4
+young_dragon:
+  name: Young Dragon
+  tier: elite
+  stats:
+    power: 44
+    endurance: 48
+    speed: 42
+  hp: 440
+  desc: A dragon not yet in its full might but already a peerless killer — the Great Wyrm's get, jealous of the hoard.
+  voice:
+    hit:
+      - immolates
+      - buffets
+      - rends
+    zero: roars, the breath gone wide
+  traps:
+    - dragon_breath
+    - wing_buffet
+  variants:
+    - brutal
+    - covetous
+  loot_tier: 5
+drake_lord:
+  name: Drake Lord
+  tier: elite
+  stats:
+    power: 46
+    endurance: 48
+    speed: 40
+  hp: 440
+  desc: The alpha of the lair's drake-pack, vast and fire-gutted, herald of the Wyrm's own flame.
+  voice:
+    hit:
+      - immolates
+      - crushes
+      - sears
+    zero: the gout of fire falls short
+  traps:
+    - dragon_breath
+  variants:
+    - brutal
+    - bloodthirsty
+  loot_tier: 5
+the_great_wyrm:
+  name: The Great Wyrm
+  tier: boss
+  stats:
+    power: 46
+    endurance: 52
+    speed: 44
+  hp: 720
+  desc: The ancient dragon coiled atop a mountain of plunder, old as the kingdom and twice as proud. Its breath turns the board to fire, its wings scatter your runes, and it covets every spark of treasure you dare to raise — then ends the greedy with a blast of pure ruin.
+  voice:
+    hit:
+      - immolates
+      - annihilates
+      - buffets
+    zero: the world-burning breath falls short
+  traps:
+    - dragon_breath
+    - wing_buffet
+    - hoard_greed
+    - annihilate
+    - dread_drums
+  loot_tier: 5
+
+# ============================================================================
+# CAPSTONE UNDEAD — the Obsidian Citadel (L18–21). The lich-king's throne, where
+# every threat converges: lifedrain, dread, paralysis, and annihilating ruin.
+# Reuses bone_colossus from the Tomb.
+# ============================================================================
+death_knight:
+  name: Death Knight
+  tier: minion
+  stats:
+    power: 48
+    endurance: 50
+    speed: 38
+  hp: 200
+  desc: A fallen paladin raised in black iron, the lich-king's sworn blade, every cut a hail of bone-shards.
+  voice:
+    hit:
+      - cleaves
+      - hacks
+      - shatters
+    zero: the dread-blade swings wide
+  traps:
+    - bone_volley
+  variants:
+    - brutal
+    - cruel
+  loot_tier: 5
+lich_acolyte:
+  name: Lich Acolyte
+  tier: minion
+  stats:
+    power: 46
+    endurance: 46
+    speed: 40
+  hp: 160
+  desc: A necromancer well along the road to lichdom, siphoning the living to feed his master's eternity.
+  voice:
+    hit:
+      - withers
+      - drains
+      - blights
+    heal:
+      - drinks your soul-warmth
+    zero: the death-spell guts out
+  traps:
+    - soul_siphon
+  variants:
+    - spectral
+    - hexer
+  loot_tier: 5
+wraith_lord:
+  name: Wraith Lord
+  tier: minion
+  stats:
+    power: 46
+    endurance: 46
+    speed: 46
+  hp: 170
+  desc: A greater wraith of the citadel's halls, cold enough to still a heart and strong enough to seize a hand mid-cast.
+  voice:
+    hit:
+      - withers
+      - binds
+      - drains
+    heal:
+      - drinks your warmth
+    zero: passes through, the grasp short
+  traps:
+    - life_drain
+    - death_grip
+  variants:
+    - spectral
+    - frostbitten
+  loot_tier: 5
+skeletal_legionnaire:
+  name: Skeletal Legionnaire
+  tier: minion
+  stats:
+    power: 46
+    endurance: 48
+    speed: 40
+  hp: 150
+  desc: A soldier of the dead legions that garrison the obsidian walls, drilled in volley-fire across a thousand years.
+  voice:
+    hit:
+      - looses a volley at
+      - hacks
+      - pierces
+    zero: rattles, the rank misfiring
+  traps:
+    - bone_volley
+  variants:
+    - brutal
+    - cruel
+  loot_tier: 5
+death_knight_champion:
+  name: Death Knight Champion
+  tier: elite
+  stats:
+    power: 50
+    endurance: 54
+    speed: 42
+  hp: 500
+  desc: The first sword of the dead legions, a ruinous engine of black iron whose every blow lands like the lich-king's wrath.
+  voice:
+    hit:
+      - annihilates
+      - cleaves
+      - shatters
+    zero: the ruin-blade falls short
+  traps:
+    - annihilate
+  variants:
+    - brutal
+    - cruel
+  loot_tier: 5
+bone_dragon:
+  name: Bone Dragon
+  tier: elite
+  stats:
+    power: 50
+    endurance: 52
+    speed: 46
+  hp: 520
+  desc: A dragon's skeleton reanimated to guard the throne-approach, breathing not fire but the cold of the grave.
+  voice:
+    hit:
+      - withers
+      - immolates
+      - drains
+    heal:
+      - drinks the grave-cold
+    zero: the death-breath falls short
+  traps:
+    - dragon_breath
+    - soul_siphon
+  variants:
+    - brutal
+  loot_tier: 5
+the_lich_king:
+  name: The Lich-King
+  tier: boss
+  stats:
+    power: 50
+    endurance: 58
+    speed: 48
+  hp: 900
+  desc: The deathless tyrant on the obsidian throne, his phylactery a black star in his hollow chest. He tolls a chill that drinks your life while it heals his own, seizes your runes in dead-cold hands, and ends all things with a word of annihilation. The end of the road.
+  voice:
+    hit:
+      - annihilates
+      - withers
+      - binds
+    heal:
+      - the phylactery answers
+    zero: the world-ending word falls short
+  traps:
+    - soul_chill
+    - death_grip
+    - annihilate
+    - life_drain
     - dread_drums
   loot_tier: 5

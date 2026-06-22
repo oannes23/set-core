@@ -226,3 +226,81 @@ scorched:
       - effect: drain_mana
         color: red
         amount: 3
+rotting:
+  name: Rotting
+  icon: 🦠
+  desc: 'all-green → the rot knits it whole: enemy heals 5'
+  stat_mod:
+    hp: 10
+  trap:
+    'on': match
+    when:
+      axis: color
+      mode: all_same
+      value: green
+    do:
+      - effect: enemy_heal
+        amount: 5
+venomous:
+  name: Venomous
+  icon: 🐍
+  desc: 'all-Attack → a venom-slick strike: 5 dmg'
+  stat_mod:
+    power: 1
+  trap:
+    'on': match
+    when:
+      axis: shape
+      mode: all_same
+      value: attack
+    do:
+      - effect: damage
+        amount: 5
+brutal:
+  name: Brutal
+  icon: 💢
+  desc: 'all-Attack → a crushing blow: 8 dmg'
+  stat_mod:
+    power: 2
+    speed: -2
+  trap:
+    'on': match
+    when:
+      axis: shape
+      mode: all_same
+      value: attack
+    do:
+      - effect: damage
+        amount: 8
+frostbitten:
+  name: Frostbitten
+  icon: ❄️
+  desc: 'all-blue → the chill bites: burn 3 Frost mana'
+  trap:
+    'on': match
+    when:
+      axis: color
+      mode: all_same
+      value: blue
+    do:
+      - effect: drain_mana
+        color: blue
+        amount: 3
+spectral:
+  name: Spectral
+  icon: 👻
+  desc: 'all-Move → it phases through your guard and grips a rune 5s'
+  stat_mod:
+    speed: 2
+  trap:
+    'on': match
+    when:
+      axis: shape
+      mode: all_same
+      value: move
+    do:
+      - effect: lock
+        seconds: 5
+        select:
+          geometry: random
+          count: 1

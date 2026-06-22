@@ -35,13 +35,19 @@ training:
   elite_pool: []
   boss: null
   template: null
+# --- THE TWELVE GATES — ascending challenge, L1 through L21 (the parity line) ---
+# Each dungeon has a distinct MECHANICAL identity (drift + foe roster), not just a
+# stat reskin. Foes are shared across families (undead span Crypt→Tomb→Citadel;
+# cultists Serpent→Rift; fire Emberdeep→Rift→Wyrm) to give the roster real breadth.
 goblin_warren:
   name: The Goblin Warren
   difficulty: 1
   theme:
     axis: color
     value: red
-  drift: ember
+  # IDENTITY: theft & sabotage. The scavenge drift drags runes toward Threes,
+  # feeding the goblins' own grasping/covetous/greedy steal-triggers.
+  drift: scavenge
   boss_mirror: war_cry_lesser
   enemy_table:
     - foe: goblin
@@ -63,14 +69,120 @@ goblin_warren:
     - goblin_oracle
   boss: goblin_king
   template: null
-emberdeep:
-  name: The Emberdeep
+sewers:
+  name: The Ratking's Sewers
+  difficulty: 1
+  theme:
+    axis: color
+    value: green
+  # IDENTITY: a cheap, fast swarm the plague keeps knitting whole. Greens heal them.
+  drift: rot
+  boss_mirror: fester_lesser
+  enemy_table:
+    - foe: dire_rat
+      weight: 30
+    - foe: plague_rat
+      weight: 22
+    - foe: warren_rat
+      weight: 18
+    - foe: giant_centipede
+      weight: 15
+    - foe: sewer_slime
+      weight: 10
+    - foe: cave_bat
+      weight: 5
+  elite_pool:
+    - plague_bloat
+    - rat_ogre
+  boss: the_ratking
+  template: null
+tangleweald:
+  name: The Tangleweald
   difficulty: 2
   theme:
     axis: color
+    value: green
+  # IDENTITY: web-lock board denial + venom that scales with the runes you spend.
+  drift: rot
+  boss_mirror: web_snare_lesser
+  enemy_table:
+    - foe: giant_spider
+      weight: 28
+    - foe: spiderling_swarm
+      weight: 22
+    - foe: venom_wasp
+      weight: 16
+    - foe: forest_lurker
+      weight: 14
+    - foe: ambush_vine
+      weight: 12
+    - foe: cave_bat
+      weight: 8
+  elite_pool:
+    - ettercap
+    - corrupt_treant
+  boss: the_broodmother
+  template: null
+crypt:
+  name: The Crypt
+  difficulty: 3
+  theme:
+    axis: color
+    value: blue
+  # IDENTITY: true undead — lifedrain (greens heal them), dread-tick, paralysis-lock.
+  drift: grave_chill
+  boss_mirror: life_drain_lesser
+  enemy_table:
+    - foe: skeleton
+      weight: 30
+    - foe: skeletal_archer
+      weight: 22
+    - foe: rotting_zombie
+      weight: 18
+    - foe: ghoul
+      weight: 16
+    - foe: wight
+      weight: 14
+  elite_pool:
+    - bone_knight
+    - crypt_wraith
+  boss: the_barrow_wight
+  template: null
+sunken_temple:
+  name: The Sunken Temple
+  difficulty: 4
+  theme:
+    axis: color
+    value: blue
+  # IDENTITY: drown-lock (Moves bind + flood to Frost) + frost mana-burn.
+  drift: tide
+  boss_mirror: frost_sear_lesser
+  enemy_table:
+    - foe: deep_one
+      weight: 28
+    - foe: fishman_raider
+      weight: 22
+    - foe: drowned_thrall
+      weight: 18
+    - foe: abyssal_eel
+      weight: 16
+    - foe: rotting_zombie
+      weight: 10
+  elite_pool:
+    - deep_one_priest
+    - tide_horror
+  boss: the_drowned_god
+  template: null
+emberdeep:
+  name: The Emberdeep
+  difficulty: 4
+  theme:
+    axis: color
     value: red
-  drift: ember
-  boss_mirror: war_cry_lesser
+  # IDENTITY: elemental fire — the inferno drift floods the board to Fire (two
+  # runes / tick) and the deep-fire burns the magic from your veins (mana-burn).
+  drift: inferno
+  boss_mirror: mana_sear_lesser
   enemy_table:
     - foe: emberkin
       weight: 32
@@ -85,32 +197,150 @@ emberdeep:
     - ash_oracle
   boss: emberlord
   template: null
-haunted_warren:
-  name: The Haunted Warren
-  difficulty: 3
-  extends: goblin_warren
+tomb:
+  name: Tomb of the Scarab King
+  difficulty: 5
+  theme:
+    axis: shape
+    value: defend
+  # IDENTITY: the sand drift BURIES your board under Stone (Defend); the tomb then
+  # seals those useless shields away (entomb-lock) and saps the old curse.
+  drift: entomb
+  boss_mirror: sand_curse_lesser
+  enemy_table:
+    - foe: mummy
+      weight: 24
+    - foe: animated_statue
+      weight: 20
+    - foe: scarab_swarm
+      weight: 20
+    - foe: tomb_guardian
+      weight: 14
+    - foe: skeleton
+      weight: 12
+    - foe: skeletal_archer
+      weight: 10
+  elite_pool:
+    - high_mummy
+    - bone_colossus
+  boss: the_scarab_king
+  template: null
+serpent_cult:
+  name: Serpent Cult Catacombs
+  difficulty: 6
+  theme:
+    axis: color
+    value: green
+  # IDENTITY: hexes bleed your mana dry, venom bleeds your HP, omens strike at once.
+  drift: rot
+  boss_mirror: hex_lesser
+  enemy_table:
+    - foe: cultist
+      weight: 26
+    - foe: cult_zealot
+      weight: 20
+    - foe: naga_warrior
+      weight: 20
+    - foe: serpent_acolyte
+      weight: 18
+  elite_pool:
+    - naga_priest
+    - cult_inquisitor
+  boss: the_serpent_lord
+  template: null
+frostspire:
+  name: The Frostspire Hold
+  difficulty: 7
+  theme:
+    axis: color
+    value: blue
+  # IDENTITY: heavy freeze-lock (rime drift, death-grip) + slow, ruinous giant blows.
+  drift: rime
+  boss_mirror: frost_sear_lesser
+  enemy_table:
+    - foe: frost_sprite
+      weight: 28
+    - foe: ice_wraith
+      weight: 24
+    - foe: rime_thrall
+      weight: 20
+    - foe: frost_giant
+      weight: 16
+  elite_pool:
+    - winter_hag
+    - ice_troll
+  boss: the_frost_jarl
+  template: null
+abyssal_rift:
+  name: The Abyssal Rift
+  difficulty: 8
   theme:
     axis: color
     value: red
-  drift: ember
-  boss_mirror: war_cry_lesser
+  # IDENTITY: chaos & confusion (rainbow quickens them), hellfire, instant strikes.
+  drift: brimstone
+  boss_mirror: brimstone_lesser
   enemy_table:
-    - foe: goblin
-      weight: 35
-    - foe: cave_bat
+    - foe: imp
+      weight: 26
+    - foe: hellhound
+      weight: 22
+    - foe: demon_brute
       weight: 20
-    - foe: goblin_shaman
-      weight: 15
-    - foe: goblin_archer
-      weight: 12
-    - foe: goblin_sapper
-      weight: 10
-    - foe: warren_rat
+    - foe: demon_cultist
+      weight: 18
+    - foe: cultist
       weight: 8
   elite_pool:
-    - goblin_warlord
-    - ember_shaman
-    - warren_butcher
-    - goblin_oracle
-  boss: goblin_king
-  template: undead
+    - hell_knight
+    - succubus
+  boss: the_demon_lord
+  template: null
+wyrms_lair:
+  name: The Wyrm's Lair
+  difficulty: 9
+  theme:
+    axis: color
+    value: red
+  # IDENTITY: breath-weapons ignite the board, wing-buffets pin your runes, and the
+  # dragonkin covet every treasure-rune (Threes) you raise.
+  drift: ember
+  boss_mirror: breath_lesser
+  enemy_table:
+    - foe: kobold
+      weight: 28
+    - foe: drake
+      weight: 22
+    - foe: wyvern
+      weight: 20
+    - foe: wyrm_priest
+      weight: 16
+  elite_pool:
+    - young_dragon
+    - drake_lord
+  boss: the_great_wyrm
+  template: null
+obsidian_citadel:
+  name: The Obsidian Citadel
+  difficulty: 10
+  theme:
+    axis: color
+    value: blue
+  # IDENTITY: the capstone — every threat at once. Lifedrain, dread, paralysis,
+  # and annihilating ruin, presided over by the deathless Lich-King.
+  drift: grave_chill
+  boss_mirror: life_drain_lesser
+  enemy_table:
+    - foe: death_knight
+      weight: 26
+    - foe: skeletal_legionnaire
+      weight: 24
+    - foe: lich_acolyte
+      weight: 22
+    - foe: wraith_lord
+      weight: 18
+  elite_pool:
+    - death_knight_champion
+    - bone_dragon
+  boss: the_lich_king
+  template: null

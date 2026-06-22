@@ -17,3 +17,147 @@ ember:
         axis: color
         value: red
         intensity: 1
+inferno:
+  name: Inferno Drift
+  icon: 🌋
+  'on': tick
+  every: 6
+  quiet: true
+  desc: the deep-fire floods the board — two runes turn to Fire
+  do:
+    - effect: transmute
+      count: 2
+      select:
+        axis: color
+        mode: not_value
+        value: red
+      bias:
+        axis: color
+        value: red
+        intensity: 1
+brimstone:
+  name: Brimstone Drift
+  icon: 🔥
+  'on': tick
+  every: 6
+  quiet: true
+  desc: hellfire boils two runes to Fire
+  do:
+    - effect: transmute
+      count: 2
+      select:
+        axis: color
+        mode: not_value
+        value: red
+      bias:
+        axis: color
+        value: red
+        intensity: 1
+scavenge:
+  name: Scavenger Drift
+  icon: 🪙
+  'on': tick
+  every: 7
+  quiet: true
+  desc: the warren hoards — a rune is dragged toward Three
+  do:
+    - effect: transmute
+      count: 1
+      select:
+        axis: number
+        mode: not_value
+        value: three
+      bias:
+        axis: number
+        value: three
+        intensity: 1
+rot:
+  name: Rot Drift
+  icon: 🍄
+  'on': tick
+  every: 7
+  quiet: true
+  desc: creeping rot greens the board
+  do:
+    - effect: transmute
+      count: 1
+      select:
+        axis: color
+        mode: not_value
+        value: green
+      bias:
+        axis: color
+        value: green
+        intensity: 1
+grave_chill:
+  name: Grave Chill
+  icon: 🪦
+  'on': tick
+  every: 7
+  quiet: true
+  desc: the cold of the tomb creeps over the board toward Frost
+  do:
+    - effect: transmute
+      count: 1
+      select:
+        axis: color
+        mode: not_value
+        value: blue
+      bias:
+        axis: color
+        value: blue
+        intensity: 1
+tide:
+  name: Tide Drift
+  icon: 🌊
+  'on': tick
+  every: 6
+  quiet: true
+  desc: the black water rises — runes drown into Frost
+  do:
+    - effect: transmute
+      count: 1
+      select:
+        axis: color
+        mode: not_value
+        value: blue
+      bias:
+        axis: color
+        value: blue
+        intensity: 1
+rime:
+  name: Rime Drift
+  icon: 🧊
+  'on': tick
+  every: 6
+  quiet: true
+  desc: frost rimes two runes toward Frost
+  do:
+    - effect: transmute
+      count: 2
+      select:
+        axis: color
+        mode: not_value
+        value: blue
+      bias:
+        axis: color
+        value: blue
+        intensity: 1
+entomb:
+  name: Sand Drift
+  icon: ⏳
+  'on': tick
+  every: 7
+  quiet: true
+  desc: drifting sand buries your runes under Stone (Defend)
+  do:
+    - effect: transmute
+      count: 1
+      select:
+        axis: shape
+        mode: not_value
+        value: defend
+      bias:
+        axis: shape
+        value: defend
+        intensity: 1
