@@ -270,6 +270,32 @@ buy-side + sinks landed. All committed + pushed.
 
 ---
 
+## ⭐ EMBASSY / ONLINE SERVICE TRACK — (settled 2026-06-22; seed spec `SERVICE.md`)
+The opt-in online layer. **The backend is a SEPARATE repo** (`set-embassy`, FastAPI) seeded by
+`SERVICE.md` — that spec carries the full decision record + acceptance criteria + the requested
+`SERVICE-RESPONSE.md` handshake. The items below are the **client-side** companion work in THIS repo;
+do NOT start them until the service exists and `SERVICE-RESPONSE.md` lands (it carries the final
+contract + the OpenAPI→TS codegen command). Keep the **runtime-deps-empty** invariant — all of this
+lives behind one config-gated `net/` module; engine/core stay pure & offline-first.
+- `[ ]` **Account-level identity store** — a new save key (envelope `{v,...}`, mirroring `save.ts`'s
+  planned separate bank store; NOT on `SavedChar`): `fingerprint` (write-once `crypto.randomUUID()`,
+  never read by game logic), `handle`, recovery code, consent state.
+- `[ ]` **Local metrics outbox** — its own save key; append one replay-ready run record per run; prune
+  on server ack (idempotent `eventId`s). Avoids local bloat (the user's explicit goal).
+- `[ ]` **Replay-ready action recorder** (engine) — capture the ordered player action stream + seed +
+  versions so a run is deterministically replayable server-side. One corpus → balance analysis now,
+  leaderboard anti-cheat later. Builds on the existing dev instruments (`TUNING.md`).
+- `[ ]` **The `net/embassy.ts` module** — the ONLY network code; hard-gated by config (off = no request).
+- `[ ]` **OpenAPI→TS codegen step** in the client toolchain (types generated from the service schema).
+- `[ ]` **The Embassy town scene** — register/consent flow (+ recovery-code display), auto-upload on
+  visit, bests display, daily fetch+regenerate (version-mismatch → "update to play today"), and the
+  mod-detected disabled state (honor-system `modded` flag for now).
+- **Phase 2+ (deferred, server-side):** cross-player leaderboards, content/asset download, run
+  replay-verification, signed-content mod-gate. Daily-seed leaderboard is the hook the persisted
+  `combo.fightPeak` ("highest chain on today's seed") plugs into.
+
+---
+
 ## ⭐ POST-REVIEW HARDENING TRACK — (from `REVIEW-2026-06-16.md`; assembled 2026-06-16)
 The 4-agent state-of-project review confirmed the engine is healthy (178 green, all 6 invariants
 upheld, every concrete FABLE bug closed). The work below is the agreed follow-up. **Items are

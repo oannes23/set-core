@@ -117,3 +117,28 @@ The vocabulary of SET.crawl, grouped by layer. Mechanical constants live in `TUN
 - **elite sawtooth** — elite chance = `eliteStep × rooms-since-last-elite` (resets on an elite/flee).
 - **dread meter** — the boss-proximity surfaced as thematic bands (quiet → drums → … → throne).
 - **satchel** — the run's consumable inventory (the run bag, capped).
+
+## The Embassy (online layer — `SERVICE.md`)
+
+- **Embassy** — the opt-in, fully-disableable town building that houses all networked functionality;
+  the in-game face of the **Embassy service**. Closed if consent is declined or content is modded.
+- **Embassy service** — the separate, self-hostable FastAPI backend (working name `set-embassy`):
+  ingests run records, serves the daily challenge, returns personal bests. Ours is the default/official
+  instance; the client can point at any.
+- **fingerprint** — a client-generated UUID written once into player data, **never read by game
+  logic**; the anonymous server key for a player.
+- **handle** — the player's chosen display name; **globally unique, first-come claimed** on the
+  official instance.
+- **recovery code** — a one-time code issued at registration that re-binds a new install/device's
+  fingerprint to an existing identity (survives reinstall; no passwords).
+- **mod-gate** — the record-integrity rule: a modded game disables the Embassy entirely so modded runs
+  never enter the official corpus (MVP = honor-system `modded` flag; hash-based later).
+- **replay-ready event log** — a run's `seed + versions + ordered action stream + instrument summary`,
+  captured so the run is deterministically replayable server-side; one corpus for both balance analysis
+  and future leaderboard anti-cheat.
+- **daily challenge** — a deterministic `{date, seed, specRef, version-pin}` descriptor the client
+  regenerates locally; references only client-resident content.
+- **bests** — a player's server-computed best per criterion (fewest-terms / fastest-clear /
+  deepest-delve, per foe × class); the seed of the eventual leaderboards.
+- **outbox / ack** — the upload protocol: runs queue locally with stable `eventId`s, `/ingest` is an
+  idempotent batch, local records are pruned only after the server acks their IDs.
