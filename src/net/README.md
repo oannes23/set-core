@@ -14,6 +14,7 @@ at the repo root for the full contract and the open questions.
 | `record.ts` | Pure: assemble a replay-ready `RunRecord` + mint UUIDs (`eventId`, fingerprint). | `record.test.ts` |
 | `account.ts` | The account-level identity store (fingerprint write-once + handle/token/recovery/consent). | `account.test.ts` |
 | `outbox.ts` | The metrics outbox: idempotent enqueue, prune-on-accept, drop-terminal-rejects, FIFO batch. | `outbox.test.ts` |
+| `daily.ts` | Pure: resolve a `/daily` descriptor → available (seed-derived or authored-`spec`) / unavailable. | `daily.test.ts` |
 | `config.ts` | The runtime switches (enable flag, server URL, mod-gate) + the `isAvailable` predicate. | `config.test.ts` |
 | `embassy.ts` | The network client: thin endpoint wrappers + `flushOutbox`. The one place `fetch` is called. | (I/O glue) |
 
@@ -43,10 +44,19 @@ pnpm gen:embassy-types     # → src/net/embassy-types.ts (generated; do not han
 When that lands, keep `contract.ts` as the stable app-facing surface and adapt it to the generated
 shapes there — nothing outside `net/` should import the raw generated `paths`/`components`.
 
-## Deferred (blocked on `SERVICE-REPLY.md` §1–2)
+## Remaining (the contract is now fully answered — `SERVICE-REPLY-RESPONSE.md`)
 
-- The Embassy **scene** wiring (register/consent UI, daily fetch→regenerate, bests display) waits on
-  the daily-roll contract + the version-source answer.
-- The **action recorder** capture point in `ui/app.ts` (the engine already produces the
-  `CombatAction[]` replay log via `engine/session.ts`; `record.assembleRunRecord` packages it — the
-  remaining work is tapping the live run's action stream + outcome + instruments at run-end).
+All the **pure decision logic** is built (identity, outbox, daily resolution, the gated client). What's
+left is the **wiring into the live game** — UI + engine call sites, not new contract:
+
+- The Embassy **scene** (register/consent UI + recovery-code display, auto-flush on visit, bests
+  display, the daily card). `daily.resolveDaily` already decides available/unavailable + authored-vs-
+  seed; the scene calls it, then runs the seed→board generation for the available case and shows the
+  "update to play today" state otherwise.
+- The **seed→board generation** for a daily: feed `resolveDaily`'s `seed` + `fixed` selections into the
+  existing deterministic generator / `engine/session.ts` setup (path a derives the unfixed axes from
+  `seed`; authored axes are fixed).
+- The **action recorder** capture point in `ui/app.ts` — tap the live run's `CombatAction[]` stream +
+  outcome + instruments at run-end and `record.assembleRunRecord` → `outbox.enqueueRecord`.
+- Vendor the service's refreshed `openapi.json` + `pnpm gen:embassy-types` (picks up `DailySpec` and
+  `RejectedRecord.terminal`, both additive — already mirrored in `contract.ts`).

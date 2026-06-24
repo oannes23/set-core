@@ -40,15 +40,23 @@ describe('pruneAccepted', () => {
 })
 
 describe('partitionRejections', () => {
-  it('splits terminal (modded/missing-version/fingerprint-mismatch) from retryable', () => {
+  it('branches on the authoritative `terminal` boolean when present', () => {
     const rejections: IngestRejection[] = [
-      { eventId: 'a', reason: 'modded' },
-      { eventId: 'b', reason: 'rate-limited' }, // unknown → retryable? no: unknown is terminal-safe
-      { eventId: 'c', reason: 'missing-version' },
+      { eventId: 'a', reason: 'modded', terminal: true },
+      { eventId: 'b', reason: 'busy', terminal: false }, // a future soft reject → retryable
+      { eventId: 'c', reason: 'missing-version', terminal: true },
     ]
     const { terminal, retryable } = partitionRejections(rejections)
-    // 'modded' + 'missing-version' are terminal; an unknown reason is NOT in the terminal set → retryable.
     expect(terminal.map((r) => r.eventId).sort()).toEqual(['a', 'c'])
+    expect(retryable.map((r) => r.eventId)).toEqual(['b'])
+  })
+  it('falls back to the reason set for a flag-less (legacy) rejection', () => {
+    const rejections: IngestRejection[] = [
+      { eventId: 'a', reason: 'modded' }, // known-terminal reason → terminal
+      { eventId: 'b', reason: 'rate-limited' }, // unknown + no flag → retryable
+    ]
+    const { terminal, retryable } = partitionRejections(rejections)
+    expect(terminal.map((r) => r.eventId)).toEqual(['a'])
     expect(retryable.map((r) => r.eventId)).toEqual(['b'])
   })
 })

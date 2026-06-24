@@ -95,6 +95,11 @@ export interface IngestRequest {
 export interface IngestRejection {
   eventId: string
   reason: string
+  /** AUTHORITATIVE retryable-vs-terminal signal (SERVICE-REPLY-RESPONSE.md §4): true ⇒ drop, never
+   *  re-send; false ⇒ a soft per-record failure to retry next flush. Optional only for backward-compat
+   *  with a flag-less response — the current service always sets it; branch on the boolean, not the
+   *  reason string. */
+  terminal?: boolean
 }
 export interface IngestResponse {
   accepted: string[]
@@ -114,6 +119,18 @@ export interface BestsResponse {
   bests: BestEntry[]
 }
 
+/** OPTIONAL authored-daily selections (SERVICE-REPLY-RESPONSE.md §1, path b). Absent/null ⇒ the client
+ *  derives every selection from `seed` (path a, the default). Present ⇒ the listed ids are AUTHORITATIVE
+ *  and each must validate against the local content registry (an unknown id ⇒ the daily is unavailable,
+ *  same UX as a version mismatch — never a content fetch). Fields are individually optional: an axis the
+ *  author left out falls back to seed-derivation. `params` is an open per-daily object — ignore unknown keys. */
+export interface DailySpec {
+  classId?: string
+  foeId?: string | null
+  dungeonId?: string
+  params?: Record<string, unknown>
+}
+
 export interface DailyResponse {
   date: string
   seed: string
@@ -121,13 +138,13 @@ export interface DailyResponse {
   rulesetVersion: string
   contentVersion: string
   criteria: string[]
+  spec?: DailySpec | null // optional authored selections; absent ⇒ derive from seed
 }
 
-/** /ingest per-record reject reasons we treat as TERMINAL — the client drops these from the outbox
- *  rather than retrying forever (re-sending would never drain). Pending the service team's confirmation
- *  (SERVICE-REPLY.md §4) that these three are non-retryable; any future TRANSIENT reason must be named
- *  distinctly so we can branch instead of guessing from the string. Unknown reasons are treated as
- *  terminal too (safer than an infinite retry loop) — revisit if the team adds soft rejects. */
+/** FALLBACK terminal-reason set, used ONLY when a rejection carries no `terminal` boolean (a flag-less
+ *  / legacy response). The current service always sets `terminal` (SERVICE-REPLY-RESPONSE.md §4), which
+ *  is authoritative — see outbox.partitionRejections. These three reasons are the confirmed-terminal set
+ *  (modded / fingerprint-mismatch / missing-version); a flag-less reason outside it is treated retryable. */
 export const TERMINAL_REJECT_REASONS: ReadonlySet<string> = new Set([
   'modded',
   'fingerprint-mismatch',

@@ -296,9 +296,23 @@ wiring stays deferred (see below). Net imports engine TYPES only; engine never i
   instruments at run-end in `ui/app.ts` (the engine already produces the log via `engine/session.ts`).
 - `[~]` **OpenAPI→TS codegen step** — `pnpm gen:embassy-types` wired (→ `src/net/embassy-types.ts`);
   awaits vendoring the service's `openapi.json`. `net/contract.ts` is the hand-maintained mirror until.
+- `[x]` **Daily-resolution contract** (`net/daily.ts` + `daily.test.ts`, 2026-06-23) — `resolveDaily`
+  encodes the now-settled daily-roll contract (`SERVICE-REPLY-RESPONSE.md` §1): version-pin → unavailable;
+  authored `spec` validated against the local registry (unknown id → unavailable, never a fetch); no spec
+  → seed-derived. Pure (registry injected); the seed→board generation + UI scene call it.
+- `[x]` **Reply-followups absorbed** (2026-06-23) — `contract.ts` carries the two additive changes
+  (`DailySpec` optional `spec` on `/daily`; authoritative `RejectedRejection.terminal` boolean on ingest
+  rejects). `outbox.partitionRejections` now branches on the boolean (reason-set is the flag-less fallback).
+  Item 3 (recover re-issues a token for the original fingerprint) already matched `account.applyRecovery`.
+
+**REMAINING (contract fully answered — only live-game wiring left):**
 - `[ ]` **The Embassy town scene** — register/consent flow (+ recovery-code display), auto-upload on
-  visit, bests display, daily fetch+regenerate, mod-disabled state. **DEFERRED — blocked on
-  `SERVICE-REPLY.md` §1–2** (daily-roll contract + version source).
+  visit, bests display, the daily card (calls `resolveDaily` → seed→board for available, "update to play
+  today" otherwise), mod-disabled state.
+- `[ ]` **Daily seed→board generation** — feed `resolveDaily`'s seed + fixed selections into the
+  deterministic generator / `engine/session.ts` setup (unfixed axes derive from seed).
+- `[ ]` **Action-recorder capture point** in `ui/app.ts` — tap the live `CombatAction[]` + outcome +
+  instruments at run-end → `record.assembleRunRecord` → `outbox.enqueueRecord`.
 - **Phase 2+ (deferred, server-side):** cross-player leaderboards, content/asset download, run
   replay-verification, signed-content mod-gate. Daily-seed leaderboard is the hook the persisted
   `combo.fightPeak` ("highest chain on today's seed") plugs into.

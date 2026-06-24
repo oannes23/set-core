@@ -54,12 +54,18 @@ export function pruneAccepted(records: readonly RunRecord[], acceptedIds: readon
   return records.filter((r) => !done.has(r.eventId))
 }
 
-/** Split per-record rejections into TERMINAL (drop — retrying never succeeds) vs RETRYABLE (keep — try
- *  again next flush). See contract.TERMINAL_REJECT_REASONS; unknown reasons are treated as terminal. */
+/** Is a rejection terminal (drop — retrying never succeeds) vs retryable (keep — try next flush)?
+ *  The service's `terminal` boolean is AUTHORITATIVE (SERVICE-REPLY-RESPONSE.md §4); only when it's
+ *  absent (a flag-less/legacy response) do we fall back to the confirmed-terminal reason set. */
+function isTerminal(r: IngestRejection): boolean {
+  return typeof r.terminal === 'boolean' ? r.terminal : TERMINAL_REJECT_REASONS.has(r.reason)
+}
+
+/** Split per-record rejections into TERMINAL (drop) vs RETRYABLE (keep) — branch on the boolean. */
 export function partitionRejections(rejections: readonly IngestRejection[]): { terminal: IngestRejection[]; retryable: IngestRejection[] } {
   const terminal: IngestRejection[] = []
   const retryable: IngestRejection[] = []
-  for (const r of rejections) (TERMINAL_REJECT_REASONS.has(r.reason) ? terminal : retryable).push(r)
+  for (const r of rejections) (isTerminal(r) ? terminal : retryable).push(r)
   return { terminal, retryable }
 }
 
