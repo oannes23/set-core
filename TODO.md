@@ -277,19 +277,28 @@ The opt-in online layer. **The backend is a SEPARATE repo** (`set-embassy`, Fast
 do NOT start them until the service exists and `SERVICE-RESPONSE.md` lands (it carries the final
 contract + the OpenAPI→TS codegen command). Keep the **runtime-deps-empty** invariant — all of this
 lives behind one config-gated `net/` module; engine/core stay pure & offline-first.
-- `[ ]` **Account-level identity store** — a new save key (envelope `{v,...}`, mirroring `save.ts`'s
-  planned separate bank store; NOT on `SavedChar`): `fingerprint` (write-once `crypto.randomUUID()`,
-  never read by game logic), `handle`, recovery code, consent state.
-- `[ ]` **Local metrics outbox** — its own save key; append one replay-ready run record per run; prune
-  on server ack (idempotent `eventId`s). Avoids local bloat (the user's explicit goal).
-- `[ ]` **Replay-ready action recorder** (engine) — capture the ordered player action stream + seed +
-  versions so a run is deterministically replayable server-side. One corpus → balance analysis now,
-  leaderboard anti-cheat later. Builds on the existing dev instruments (`TUNING.md`).
-- `[ ]` **The `net/embassy.ts` module** — the ONLY network code; hard-gated by config (off = no request).
-- `[ ]` **OpenAPI→TS codegen step** in the client toolchain (types generated from the service schema).
+**SCAFFOLDED 2026-06-23** — the `src/net/` layer landed (333 tests green; tsc + build clean). The
+pure, testable pieces that DON'T depend on the service-team answers are built; the scene + daily
+wiring stays deferred (see below). Net imports engine TYPES only; engine never imports net.
+- `[x]` **Account-level identity store** (`net/account.ts` + `account.test.ts`) — own save key
+  `setcore.embassy.account.v1` (envelope `{v,...}`, NOT on `SavedChar`): `fingerprint` (write-once,
+  `crypto.randomUUID`, never read by game logic), `handle`, `token`, recovery code, consent state +
+  the lifecycle transforms (register / decline / acknowledge-recovery / recover).
+- `[x]` **Local metrics outbox** (`net/outbox.ts` + `outbox.test.ts`) — own key
+  `setcore.embassy.outbox.v1`; idempotent enqueue (eventId dedupe), prune-on-accepted, drop-terminal-
+  rejects (keep retryables), FIFO batch capped at `MAX_BATCH=100`. Avoids local bloat.
+- `[x]` **The `net/embassy.ts` module** — the ONLY network code; every call gated by
+  `config.isAvailable` (off / no URL / modded ⇒ no fetch). Endpoint wrappers + `flushOutbox` glue.
+  Plus `net/config.ts` (enable flag · server URL · mod-gate) + `net/contract.ts` (wire types mirror).
+- `[~]` **Replay-ready action recorder** — the **assembly** is built + tested (`net/record.ts`:
+  `assembleRunRecord` packages seed + setup + the `CombatAction[]` log + outcome + instruments; maps
+  engine `lose`→wire `loss`; mints `eventId`). REMAINING: tap the live run's action stream + outcome +
+  instruments at run-end in `ui/app.ts` (the engine already produces the log via `engine/session.ts`).
+- `[~]` **OpenAPI→TS codegen step** — `pnpm gen:embassy-types` wired (→ `src/net/embassy-types.ts`);
+  awaits vendoring the service's `openapi.json`. `net/contract.ts` is the hand-maintained mirror until.
 - `[ ]` **The Embassy town scene** — register/consent flow (+ recovery-code display), auto-upload on
-  visit, bests display, daily fetch+regenerate (version-mismatch → "update to play today"), and the
-  mod-detected disabled state (honor-system `modded` flag for now).
+  visit, bests display, daily fetch+regenerate, mod-disabled state. **DEFERRED — blocked on
+  `SERVICE-REPLY.md` §1–2** (daily-roll contract + version source).
 - **Phase 2+ (deferred, server-side):** cross-player leaderboards, content/asset download, run
   replay-verification, signed-content mod-gate. Daily-seed leaderboard is the hook the persisted
   `combo.fightPeak` ("highest chain on today's seed") plugs into.

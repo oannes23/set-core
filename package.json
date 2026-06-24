@@ -12,7 +12,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
-    "gen:schema": "node scripts/gen-schema.ts"
+    "gen:schema": "node scripts/gen-schema.ts",
+    "gen:embassy-types": "openapi-typescript ./src/net/openapi.json -o ./src/net/embassy-types.ts"
   },
   "devDependencies": {
     "@modyfi/vite-plugin-yaml": "^1.1.1",
