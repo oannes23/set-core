@@ -46,6 +46,13 @@ import { isDev, toggleDev, onDevChange, displayName } from './dev'
 import { $ } from './dom'
 import { setRoot, setSceneTeardown, goScene, sceneTimeout, remountScene, initTooltips } from './router'
 import { recordRun } from '../net/run-capture'
+import { loadAccount, updateAccount, markRegistered, markDeclined, acknowledgeRecovery, applyRecovery } from '../net/account'
+import { getConfig, setEnabled, setServerUrl } from '../net/config'
+import { register as embassyRegister, recover as embassyRecover, bests as embassyBests, flushOutbox, EmbassyHttpError } from '../net/embassy'
+import { pendingCount } from '../net/outbox'
+import { embassyView, canRegister, canViewRecords, type EmbassyView } from '../net/embassy-status'
+import { CONSENT_VERSION, type BestEntry } from '../net/contract'
+import { CLIENT_RULESET_VERSION, CLIENT_CONTENT_VERSION } from '../net/version'
 
 const GEN: GenConfig = COMBAT_GEN
 /** one shared reduced-motion query — card feel (tilt/flights/staggers) falls back to fades */
@@ -321,6 +328,7 @@ function townScene(root: HTMLElement): void {
     { icon: '🔮', name: 'Enchanter', desc: 'Imbue affixes · brew potions · scribe scrolls', onClick: () => goScene(enchanterScene) },
     { icon: '🏛️', name: 'Merchant House', desc: 'Upgrades: buy prices · loot quality · rare wares', onClick: () => goScene(merchantScene) },
     { icon: '⚜️', name: 'Guild District', desc: 'The class halls — spellbooks, trainers, bounties', onClick: () => goScene(guildDistrictScene) },
+    { icon: '🌐', name: 'Embassy', desc: 'The foreign quarter — registry, records, the daily dispatch', onClick: () => goScene(embassyScene), badge: embassyBadge() },
   ])
 }
 
@@ -340,6 +348,194 @@ function guildDistrictScene(root: HTMLElement): void {
   back.addEventListener('click', () => goScene(townScene))
   footer.appendChild(back)
   wrap.appendChild(footer)
+}
+
+/* ===== The EMBASSY — the online quarter (the net/* layer is the seam; SERVICE.md). A nested hub like
+   the Guild District: the Registry (identity · consent · connection), the Hall of Records (your bests +
+   the upload queue), and STUBBED future quarters — the Daily Dispatch (opens with daily generation), the
+   Consulate (friends · visiting other cities · shared shops), the Mercenary Post (hire heroes out for
+   gold · the hero-of-the-day). All networking is gated + best-effort: offline, the quarter is a local-only
+   archive (runs record to the outbox and sync on a connected, registered visit). ===== */
+
+const CONSENT_BLURB =
+  'Registering uploads your run records — anonymous: a random device fingerprint, your chosen handle, and gameplay stats — to the Embassy for balance analysis and leaderboards. Only your best per category is shown back. You can decline and play fully offline, or disable the Embassy any time.'
+
+/** Town-tile badge: runs waiting to upload (only shows once the quarter has been used). */
+function embassyBadge(): string | undefined {
+  const n = pendingCount()
+  return n > 0 ? `📤${n}` : undefined
+}
+
+function embassyStatusLine(v: EmbassyView): string {
+  if (v.gate === 'modded') return 'closed — modded archive'
+  const conn = v.gate === 'open' ? 'connected' : 'offline (local only)'
+  const who = v.status === 'registered' && v.handle ? `📋 <b>${v.handle}</b>` : v.status === 'declined' ? 'not registered (declined)' : 'not registered'
+  return `${who} &nbsp;·&nbsp; ${conn} &nbsp;·&nbsp; ${v.pendingUploads} queued`
+}
+
+function embassyFooter(wrap: HTMLElement, onBack: () => void, label: string): void {
+  const footer = $(`<div class="hubfoot"></div>`)
+  const back = $<HTMLButtonElement>(`<button class="cta ghost">${label}</button>`)
+  back.addEventListener('click', onBack)
+  footer.appendChild(back)
+  wrap.appendChild(footer)
+}
+
+function embassyScene(root: HTMLElement): void {
+  DELVE = null // any road back through town ends the run
+  void flushOutbox().catch(() => {}) // auto-sync on arrival (no-op offline / unregistered / modded)
+  const v = embassyView(loadAccount(), getConfig(), pendingCount())
+  const wrap = $(`<div class="wrap"></div>`)
+  wrap.appendChild($(`<h1>set.core</h1>`))
+  wrap.appendChild($(`<div class="sub" style="text-transform:none;letter-spacing:0">🌐 <b>Embassy</b> &nbsp;·&nbsp; ${embassyStatusLine(v)}</div>`))
+  root.appendChild(wrap)
+
+  if (v.gate === 'modded') {
+    wrap.appendChild($(`<div class="panel"><div class="sheet-soon">🚫 The Embassy does not accept modded archives. Disable mods to use online features — your local play is unaffected.</div></div>`))
+  } else {
+    hubGrid(wrap, [
+      { icon: '📋', name: 'Registry', desc: v.status === 'registered' ? `Registered as ${v.handle}` : 'Claim a handle · consent · connection', onClick: () => goScene(registryScene), badge: v.hasRecoveryToShow ? '🔑' : undefined },
+      { icon: '📖', name: 'Hall of Records', desc: 'Your bests + the upload queue', onClick: () => goScene(hallOfRecordsScene), badge: v.pendingUploads > 0 ? `📤${v.pendingUploads}` : undefined },
+      { icon: '📅', name: 'Daily Dispatch', desc: 'The challenge of the day — opens with daily generation', dim: true },
+      { icon: '🤝', name: 'Consulate', desc: 'Friends · visiting other cities · shared shops (future)', dim: true },
+      { icon: '🗡️', name: 'Mercenary Post', desc: 'Hire your heroes out for gold · the hero of the day (future)', dim: true },
+    ])
+  }
+  embassyFooter(wrap, () => goScene(townScene), '◂ Back to town')
+}
+
+function registryScene(root: HTMLElement): void {
+  const cfg = getConfig()
+  const acc = loadAccount()
+  const v = embassyView(acc, cfg, pendingCount())
+  const wrap = $(`<div class="wrap"></div>`)
+  wrap.appendChild($(`<h1>set.core</h1>`))
+  wrap.appendChild($(`<div class="sub" style="text-transform:none;letter-spacing:0">📋 <b>Registry</b> &nbsp;·&nbsp; identity &amp; consent</div>`))
+  root.appendChild(wrap)
+
+  const note = $(`<div class="sm-note"></div>`)
+  const setNote = (m: string): void => { note.textContent = m }
+
+  // --- connection (the master enable + the server URL — official default or a self-host) ---
+  const conn = $(`<div class="panel"></div>`)
+  conn.appendChild($(`<div class="sm-hd">Connection</div>`))
+  conn.appendChild($(`<div class="cc">This device: <b>#${v.fingerprintShort}</b> &nbsp;·&nbsp; ${v.gate === 'open' ? '🟢 connected' : '⚪ offline (local only)'}</div>`))
+  const enableLabel = $(`<label style="display:flex;gap:8px;align-items:center;margin:8px 0"><input type="checkbox"${cfg.enabled ? ' checked' : ''}> Enable the Embassy (online features)</label>`)
+  const enableBox = enableLabel.querySelector('input') as HTMLInputElement
+  const urlIn = $<HTMLInputElement>(`<input class="nameinput" placeholder="Embassy server URL…" value="${cfg.serverUrl}">`)
+  const saveBtn = $<HTMLButtonElement>(`<button class="cta">Save connection</button>`)
+  saveBtn.addEventListener('click', () => { setEnabled(enableBox.checked); setServerUrl(urlIn.value.trim()); goScene(registryScene) })
+  conn.append(enableLabel, urlIn, saveBtn)
+  wrap.appendChild(conn)
+
+  // --- identity ---
+  const idp = $(`<div class="panel"></div>`)
+  if (v.status === 'registered') {
+    idp.appendChild($(`<div class="sm-hd">Registered</div>`))
+    idp.appendChild($(`<div class="cc">Handle: <b>${acc.handle}</b></div>`))
+    if (v.hasRecoveryToShow && acc.recoveryCode) {
+      idp.appendChild($(`<div class="cc" style="margin-top:8px">🔑 Recovery code — <b>write this down</b>. It re-links your records on a new device:</div>`))
+      idp.appendChild($(`<div style="font-family:ui-monospace,monospace;font-size:1.15em;padding:8px 10px;margin:6px 0;background:var(--panel-2,#0002);border-radius:6px"><b>${acc.recoveryCode}</b></div>`))
+      const ack = $<HTMLButtonElement>(`<button class="cta">I've saved it</button>`)
+      ack.addEventListener('click', () => { updateAccount(acknowledgeRecovery); goScene(registryScene) })
+      idp.appendChild(ack)
+    } else {
+      idp.appendChild($(`<div class="cc" style="margin-top:8px">Moving devices? Enter a recovery code to re-link this device to your records:</div>`))
+      const recIn = $<HTMLInputElement>(`<input class="nameinput" placeholder="Recovery code…">`)
+      const recBtn = $<HTMLButtonElement>(`<button class="cta ghost">Re-link device</button>`)
+      recBtn.addEventListener('click', () => void doRecover(recIn.value.trim(), setNote))
+      idp.append(recIn, recBtn)
+    }
+  } else {
+    idp.appendChild($(`<div class="sm-hd">Register</div>`))
+    idp.appendChild($(`<div class="cc">${CONSENT_BLURB}</div>`))
+    const nameIn = $<HTMLInputElement>(`<input class="nameinput" maxlength="18" placeholder="Choose a handle…">`)
+    const regBtn = $<HTMLButtonElement>(`<button class="cta">Register &amp; consent</button>`)
+    const declineBtn = $<HTMLButtonElement>(`<button class="cta ghost">Maybe later</button>`)
+    if (!canRegister(v)) {
+      regBtn.disabled = true
+      regBtn.title = 'Enable the Embassy + set a server URL above first'
+    }
+    regBtn.addEventListener('click', () => void doRegister(nameIn.value.trim(), setNote))
+    declineBtn.addEventListener('click', () => { updateAccount(markDeclined); goScene(registryScene) })
+    idp.append(nameIn, regBtn, declineBtn)
+  }
+  wrap.appendChild(idp)
+  wrap.appendChild(note)
+  embassyFooter(wrap, () => goScene(embassyScene), '◂ Back to Embassy')
+}
+
+async function doRegister(handle: string, setNote: (m: string) => void): Promise<void> {
+  if (handle.length < 2) { setNote('Pick a handle of at least 2 characters.'); return }
+  setNote('Registering…')
+  try {
+    const acc = loadAccount()
+    const res = await embassyRegister({ fingerprint: acc.fingerprint, handle, consentVersion: CONSENT_VERSION, client: { rulesetVersion: CLIENT_RULESET_VERSION, contentVersion: CLIENT_CONTENT_VERSION } })
+    updateAccount((a) => markRegistered(a, { handle: res.handle, token: res.token, recoveryCode: res.recoveryCode, at: Date.now() }))
+    goScene(registryScene)
+  } catch (e) {
+    setNote(e instanceof EmbassyHttpError ? (e.status === 409 ? 'That handle is taken — try another.' : `The Embassy refused the registration (${e.status}).`) : 'Could not reach the Embassy — check the connection above.')
+  }
+}
+
+async function doRecover(code: string, setNote: (m: string) => void): Promise<void> {
+  if (!code) { setNote('Enter your recovery code.'); return }
+  setNote('Re-linking…')
+  try {
+    const acc = loadAccount()
+    const res = await embassyRecover({ recoveryCode: code, fingerprint: acc.fingerprint })
+    updateAccount((a) => applyRecovery(a, res.token, res.handle))
+    goScene(registryScene)
+  } catch (e) {
+    setNote(e instanceof EmbassyHttpError && e.status === 404 ? 'That recovery code was not recognized.' : 'Could not reach the Embassy.')
+  }
+}
+
+function hallOfRecordsScene(root: HTMLElement): void {
+  const v = embassyView(loadAccount(), getConfig(), pendingCount())
+  const wrap = $(`<div class="wrap"></div>`)
+  wrap.appendChild($(`<h1>set.core</h1>`))
+  wrap.appendChild($(`<div class="sub" style="text-transform:none;letter-spacing:0">📖 <b>Hall of Records</b> &nbsp;·&nbsp; your bests &amp; the upload queue</div>`))
+  root.appendChild(wrap)
+
+  const q = $(`<div class="panel"></div>`)
+  q.appendChild($(`<div class="sm-hd">Upload queue</div>`))
+  q.appendChild($(`<div class="cc">${v.pendingUploads} run${v.pendingUploads === 1 ? '' : 's'} recorded locally${v.gate === 'open' && v.status === 'registered' ? '' : ' — they sync once you connect &amp; register'}.</div>`))
+  if (v.gate === 'open' && v.status === 'registered') {
+    const sync = $<HTMLButtonElement>(`<button class="cta">Sync now</button>`)
+    sync.addEventListener('click', () => void flushOutbox().finally(() => goScene(hallOfRecordsScene)))
+    q.appendChild(sync)
+  }
+  wrap.appendChild(q)
+
+  const b = $(`<div class="panel"></div>`)
+  b.appendChild($(`<div class="sm-hd">Your bests</div>`))
+  if (!canViewRecords(v)) {
+    b.appendChild($(`<div class="sheet-soon">Register at the Registry &amp; connect to view your records.</div>`))
+  } else {
+    const list = $(`<div class="baglist"><div class="cc">Loading…</div></div>`)
+    b.appendChild(list)
+    void loadBests(list)
+  }
+  wrap.appendChild(b)
+  embassyFooter(wrap, () => goScene(embassyScene), '◂ Back to Embassy')
+}
+
+async function loadBests(list: HTMLElement): Promise<void> {
+  try {
+    const acc = loadAccount()
+    if (!acc.token) return
+    const res = await embassyBests(acc.token)
+    if (res.bests.length === 0) { list.replaceChildren($(`<div class="sheet-soon">No records yet — play a few runs, then sync.</div>`)); return }
+    list.replaceChildren(...res.bests.map((e) => $(`<div class="gp-row">${bestLine(e)}</div>`)))
+  } catch {
+    list.replaceChildren($(`<div class="sheet-soon">Could not reach the Embassy.</div>`))
+  }
+}
+
+function bestLine(e: BestEntry): string {
+  const where = e.dailyDate ? `daily ${e.dailyDate}` : `${e.classId}${e.foeId ? ` vs ${e.foeId}` : ''}`
+  return `<b>${e.criterion}</b> &nbsp;·&nbsp; ${where} &nbsp;·&nbsp; <b>${e.value}</b>`
 }
 
 function characterSelectScene(root: HTMLElement): void {

@@ -17,6 +17,7 @@ at the repo root for the full contract and the open questions.
 | `daily.ts` | Pure: resolve a `/daily` descriptor → available (seed-derived or authored-`spec`) / unavailable. | `daily.test.ts` |
 | `capture.ts` | Pure: map a finished run's facts → a wire `RunRecord` (context/outcome/instruments). | `capture.test.ts` |
 | `run-capture.ts` | Glue: `recordRun` fills fingerprint/versions/mod-flag, builds the record, queues it (gated). | (thin glue) |
+| `embassy-status.ts` | Pure: the Embassy scene's view-state (gate modded/no-server/open · status · pending). | `embassy-status.test.ts` |
 | `version.ts` | The client `rulesetVersion` / `contentVersion` tokens (placeholders until real versioning). | — |
 | `config.ts` | The runtime switches (enable flag, server URL, mod-gate) + the `isAvailable` predicate. | `config.test.ts` |
 | `embassy.ts` | The network client: thin endpoint wrappers + `flushOutbox`. The one place `fetch` is called. | (I/O glue) |
@@ -51,20 +52,28 @@ pnpm gen:embassy-types     # → src/net/embassy-types.ts (generated; do not han
 When that lands, keep `contract.ts` as the stable app-facing surface and adapt it to the generated
 shapes there — nothing outside `net/` should import the raw generated `paths`/`components`.
 
-## Remaining (the contract is now fully answered — `SERVICE-REPLY-RESPONSE.md`)
+## The Embassy scene (built — `ui/app.ts`)
 
-All the **pure decision logic** is built (identity, outbox, daily resolution, the gated client). What's
-left is the **wiring into the live game** — UI + engine call sites, not new contract:
+A nested town hub (the `guildDistrictScene` pattern): **Embassy → Registry / Hall of Records**, plus
+dim future-quarter stubs (Daily Dispatch, Consulate, Mercenary Post). `embassy-status.embassyView`
+drives the branching:
+- **Registry** — connection (enable toggle + server URL), register-with-consent (→ `embassy.register`
+  → `markRegistered`, surfaces the recovery code), decline, and recover-on-new-device (→
+  `embassy.recover` → `applyRecovery`). Register is gated on `canRegister` (server reachable).
+- **Hall of Records** — the local upload-queue depth, a **Sync now** (`flushOutbox`), and the player's
+  bests (`embassy.bests`) when registered + connected.
+- Arriving at the Embassy auto-flushes the outbox (best-effort). A **modded** game shows the closed
+  state; **offline** is a local-only archive (runs still record; nothing syncs).
 
-- The Embassy **scene** (register/consent UI + recovery-code display, auto-flush on visit, bests
-  display, the daily card). `daily.resolveDaily` already decides available/unavailable + authored-vs-
-  seed; the scene calls it, then runs the seed→board generation for the available case and shows the
-  "update to play today" state otherwise.
-- The **seed→board generation** for a daily: feed `resolveDaily`'s `seed` + `fixed` selections into the
-  existing deterministic generator / `engine/session.ts` setup (path a derives the unfixed axes from
-  `seed`; authored axes are fixed).
-- Vendor the service's refreshed `openapi.json` + `pnpm gen:embassy-types` (picks up `DailySpec` and
-  `RejectedRecord.terminal`, both additive — already mirrored in `contract.ts`).
+## Remaining
+
+- **Daily seed→board generation + the Daily Dispatch quarter** — `daily.resolveDaily` already decides
+  available/unavailable + authored-vs-seed; what's left is feeding its `seed` + `fixed` selections into
+  the deterministic generator / `engine/session.ts` and lighting up the (currently dim) Daily card.
+- **Wire real client versions** (`version.ts`) + vendor `openapi.json` → `pnpm gen:embassy-types`.
+- **Browser smoke-test** the Embassy scene + the recorder (no e2e harness in the repo).
+- **Future quarters** (stubbed + dim): Consulate (friends · visiting cities · shared shops),
+  Mercenary Post (hire heroes out for gold · hero-of-the-day). Documented in `SERVICE.md` phase-2.
 
 ### Known limitations / follow-ups
 

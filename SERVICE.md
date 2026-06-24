@@ -274,3 +274,26 @@ When the service exists and meets §8, **write `SERVICE-RESPONSE.md` into the `s
 
 Keep it terse and factual in the house style of this repo's docs. That document is the handshake that
 lets the client work (§6) begin.
+
+## 11. Future quarters — the Embassy's far-future hooks (stubbed, NOT in scope)
+
+The Embassy is a **nested hub** (town → Embassy → sub-quarters), built to grow into neighborhoods. The
+MVP ships the **Registry** (identity/consent/connection) and the **Hall of Records** (bests + upload
+queue). The following quarters are **stubbed as dim placeholders** in the scene and recorded here so the
+data model + UI leave room for them — they are deep-multiplayer, built far-future, and require new
+service surface (NOT the MVP):
+
+- **Daily Dispatch** — the daily challenge card. Nearest-term: lights up when daily seed→board
+  generation lands (the `/daily` contract + `net/daily.resolveDaily` already exist). The rest below are
+  much later.
+- **Consulate** — social: friends lists, **visiting other players' cities/shops**, shared/visible
+  storefronts. Needs server-side social graph + a "visit" read model (another player's town state).
+- **Mercenary Post** — **hire your heroes out for gold** (another player pays to field your character
+  for ~24h), and the **hero-of-the-day** (a free, daily, server-published pregenerated character — the
+  same publish channel as the daily challenge). Needs a character-publish/lease surface + an escrow/gold
+  bridge, and ties into the daily-content publish workflow (§2 version source).
+
+Design guidance: these reuse the **seed-not-payload** + **publish-by-version** patterns already settled
+(a leased hero or hero-of-the-day is a published character descriptor the client reconstructs, exactly
+like the daily). None should require a run-record schema break — keep them additive, the way `actions` /
+`manifestHash` / `DailySpec` were. When any of these is picked up, spec it as its own SERVICE-REPLY round.

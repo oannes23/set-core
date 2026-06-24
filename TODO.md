@@ -313,13 +313,22 @@ wiring stays deferred (see below). Net imports engine TYPES only; engine never i
   finished fight (practice + delve) → outbox. ⚠ Live-combat RNG change — wants a browser smoke-test (no
   e2e harness). Full server-side re-sim still needs the foe/stat/gear session seam (deferred).
 
+- `[x]` **The Embassy town scene** (2026-06-23, 360 tests; tsc + build clean) — a nested hub (the
+  `guildDistrictScene` pattern) in `ui/app.ts`: **Embassy → Registry / Hall of Records** + dim future
+  stubs. Registry = connection (enable + server URL) · register-with-consent (surfaces the recovery
+  code) · decline · recover-on-new-device. Hall of Records = upload-queue depth · Sync now (`flushOutbox`)
+  · bests (`embassy.bests`). Auto-flush on arrival; modded → closed state; offline → local-only archive.
+  Pure view-state in `net/embassy-status.ts` (10 tests). ⚠ Not yet browser-smoke-tested (no e2e harness)
+  + needs a running service to exercise the network paths.
+
 **REMAINING (contract fully answered — only live-game wiring left):**
-- `[ ]` **The Embassy town scene** — register/consent flow (+ recovery-code display), auto-upload on
-  visit (`embassy.flushOutbox`), bests display, the daily card (calls `resolveDaily` → seed→board for
-  available, "update to play today" otherwise), mod-disabled state.
-- `[ ]` **Daily seed→board generation** — feed `resolveDaily`'s seed + fixed selections into the
-  deterministic generator / `engine/session.ts` setup (unfixed axes derive from seed).
+- `[ ]` **Daily seed→board generation + the Daily Dispatch quarter** — feed `resolveDaily`'s seed +
+  fixed selections into the deterministic generator / `engine/session.ts` setup (unfixed axes derive
+  from seed); light up the (currently dim) Daily card.
 - `[ ]` **Wire real client versions** (`net/version.ts`) + vendor `openapi.json` → `pnpm gen:embassy-types`.
+- `[ ]` **Future quarters (stubbed + dim — documented `SERVICE.md` §11):** Consulate (friends · visiting
+  other cities · shared shops) · Mercenary Post (hire heroes out for gold · the hero-of-the-day). Deep
+  multiplayer — hooks present, build far-future.
 - **Phase 2+ (deferred, server-side):** cross-player leaderboards, content/asset download, run
   replay-verification, signed-content mod-gate. Daily-seed leaderboard is the hook the persisted
   `combo.fightPeak` ("highest chain on today's seed") plugs into.
