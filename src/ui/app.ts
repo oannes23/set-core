@@ -8,7 +8,7 @@
    wheel queues next round's stance. The exchange plays on a real duel axis: swing bottom→top,
    counter top→bottom. */
 
-import { systemRng, type Rng } from '../core/rng'
+import { systemRng, mulberry32, type Rng } from '../core/rng'
 import { type Card, isSet, third, keyOf } from '../core/affine'
 import { findSets, kOfSet } from '../core/sets'
 import type { GenConfig } from '../core/generate'
@@ -45,6 +45,7 @@ import { type SavedChar, type StatAlloc, loadRoster, upsertChar, deleteChar, mak
 import { isDev, toggleDev, onDevChange, displayName } from './dev'
 import { $ } from './dom'
 import { setRoot, setSceneTeardown, goScene, sceneTimeout, remountScene, initTooltips } from './router'
+import { recordRun } from '../net/run-capture'
 
 const GEN: GenConfig = COMBAT_GEN
 /** one shared reduced-motion query — card feel (tilt/flights/staggers) falls back to fades */
@@ -102,6 +103,9 @@ interface View {
   char: SavedChar
   /** the session action log — every mutation goes through here (the step-6 seam) */
   actions: CombatAction[]
+  /** the run's RNG seed — drives board-gen + tick RNG, so {seed, actions} replays the in-combat run.
+   *  Captured into the metrics record at run-end (net/run-capture). */
+  seed: number
   classId: string
   loadout: string[] // the chosen class's ability ids (the active grid)
   coach: boolean // affordance arrows on (Training / Tutorial dungeons)
@@ -1288,7 +1292,12 @@ function delveRoom(root: HTMLElement, char: SavedChar): void {
 
 /** Mount the combat scene for one assembled foe (shared by the practice path and the delve). */
 function startCombat(root: HTMLElement, char: SavedChar, dungeonId: string, foe: FoeRuntime, sequence: string[] | null, consumables: string[]): void {
-  const rng: Rng = systemRng
+  // Seed the run's RNG from the system source: the seed now DRIVES board-gen + the tick RNG, so the
+  // run is deterministically replayable from {seed, actions} (the metrics replay substrate). The foe
+  // was already assembled upstream; it's snapshotted on combat state, so replay reads it rather than
+  // re-rolling. (Full server-side re-sim also needs the stat/gear context — deferred to the session seam.)
+  const seed = (systemRng() * 0x1_0000_0000) >>> 0
+  const rng: Rng = mulberry32(seed)
   const dg: Dungeon = GAMEDATA.dungeons[dungeonId]
   const cls = classById(char.classId)
   // §3 loadout cadence: your kit GROWS with level — equip the first N class abilities/passives by level.
@@ -1303,7 +1312,7 @@ function startCombat(root: HTMLElement, char: SavedChar, dungeonId: string, foe:
   const stats: StatBlock = { power: base.power + gb.power, endurance: base.endurance + gb.endurance, speed: base.speed + gb.speed }
   const run = createRun({ foe, gen: GEN, playerMax: char.maxHp, stats, riders: gearRiders(char.equipped), mods: gearMods(char.equipped), procs: gearProcs(char.equipped), passives: pass, consumables, sequence, dungeonId, dreadFloor, coach: !!dg.coach }, rng)
   run.combat.playerHP = Math.max(0, Math.min(char.maxHp, char.hp)) // the hero enters at their persisted HP, not full
-  V = { root, deps: { data: GAMEDATA, rng }, run, state: run.combat, char, actions: [], classId: cls.id, loadout: acts, coach: !!dg.coach, coachCue: null, manaColor: dominantManaColor(acts), paused: true, userPaused: false, hitstopUntil: 0, holdHud: false, preview: null, selected: [], raf: 0, lastT: 0, boardSig: '', refs: {}, stats: { dealt: 0, taken: 0, blocked: 0, healed: 0, sets: 0, traps: 0, xp: 0, gearDmg: 0, gearBlock: 0, gearMana: 0 }, roundFx: emptyRoundFx(), morphSrc: new Map(), dev: { reshapeYou: 0, reshapeFoe: 0, matches: 0, springs: 0, k1: 0, wards: 0, churns: 0 }, lastDread: 0 }
+  V = { root, deps: { data: GAMEDATA, rng }, run, state: run.combat, char, actions: [], seed, classId: cls.id, loadout: acts, coach: !!dg.coach, coachCue: null, manaColor: dominantManaColor(acts), paused: true, userPaused: false, hitstopUntil: 0, holdHud: false, preview: null, selected: [], raf: 0, lastT: 0, boardSig: '', refs: {}, stats: { dealt: 0, taken: 0, blocked: 0, healed: 0, sets: 0, traps: 0, xp: 0, gearDmg: 0, gearBlock: 0, gearMana: 0 }, roundFx: emptyRoundFx(), morphSrc: new Map(), dev: { reshapeYou: 0, reshapeFoe: 0, matches: 0, springs: 0, k1: 0, wards: 0, churns: 0 }, lastDread: 0 }
   buildPlay()
   renderBoard()
   updateBar()
@@ -3516,6 +3525,22 @@ function loop(t: number): void {
 // ---- end ----
 function endScreen(result: 'win' | 'lose' | 'flee'): void {
   if (!V) return
+  // METRICS (net/run-capture): queue this finished run for the Embassy outbox before any teardown, so
+  // the tallies/state are still fresh. Best-effort + gated (a modded game records nothing); never throws.
+  recordRun({
+    seed: V.seed,
+    classId: V.classId,
+    foeId: V.state.foe?.id ?? null,
+    dungeonId: V.run.dungeonId ?? DELVE?.d.dungeonId ?? null,
+    mode: DELVE ? 'delve' : 'practice',
+    result,
+    rounds: V.state.round,
+    elapsedMs: V.state.now,
+    depthReached: DELVE ? DELVE.d.room : 1,
+    actions: V.actions.slice(),
+    dev: { ...V.dev },
+    stats: { ...V.stats },
+  })
   coachFinish() // close any open guided step before the end banner
   V.paused = false // a flee-confirm pause must not survive onto the end card (frozen animations)
   V.holdHud = false // a mid-choreography end must not leave the HUD frozen on stale numbers…

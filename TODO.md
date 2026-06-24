@@ -305,14 +305,21 @@ wiring stays deferred (see below). Net imports engine TYPES only; engine never i
   rejects). `outbox.partitionRejections` now branches on the boolean (reason-set is the flag-less fallback).
   Item 3 (recover re-issues a token for the original fingerprint) already matched `account.applyRecovery`.
 
+- `[x]` **Action-recorder capture point** (2026-06-23, 350 tests; tsc + build clean) — `net/capture.ts`
+  (pure: run facts → wire RunRecord, instruments derived from the action log + dev/stat tallies) +
+  `net/run-capture.ts` (`recordRun` glue: fills fingerprint/versions/mod-flag, gated, never throws) +
+  `net/version.ts` (client version tokens, placeholders). Wired in `ui/app.ts`: `startCombat` now SEEDS
+  the run RNG (so `{seed, actions}` replays the in-combat run); `endScreen` calls `recordRun` for every
+  finished fight (practice + delve) → outbox. ⚠ Live-combat RNG change — wants a browser smoke-test (no
+  e2e harness). Full server-side re-sim still needs the foe/stat/gear session seam (deferred).
+
 **REMAINING (contract fully answered — only live-game wiring left):**
 - `[ ]` **The Embassy town scene** — register/consent flow (+ recovery-code display), auto-upload on
-  visit, bests display, the daily card (calls `resolveDaily` → seed→board for available, "update to play
-  today" otherwise), mod-disabled state.
+  visit (`embassy.flushOutbox`), bests display, the daily card (calls `resolveDaily` → seed→board for
+  available, "update to play today" otherwise), mod-disabled state.
 - `[ ]` **Daily seed→board generation** — feed `resolveDaily`'s seed + fixed selections into the
   deterministic generator / `engine/session.ts` setup (unfixed axes derive from seed).
-- `[ ]` **Action-recorder capture point** in `ui/app.ts` — tap the live `CombatAction[]` + outcome +
-  instruments at run-end → `record.assembleRunRecord` → `outbox.enqueueRecord`.
+- `[ ]` **Wire real client versions** (`net/version.ts`) + vendor `openapi.json` → `pnpm gen:embassy-types`.
 - **Phase 2+ (deferred, server-side):** cross-player leaderboards, content/asset download, run
   replay-verification, signed-content mod-gate. Daily-seed leaderboard is the hook the persisted
   `combo.fightPeak` ("highest chain on today's seed") plugs into.

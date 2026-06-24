@@ -15,8 +15,15 @@ at the repo root for the full contract and the open questions.
 | `account.ts` | The account-level identity store (fingerprint write-once + handle/token/recovery/consent). | `account.test.ts` |
 | `outbox.ts` | The metrics outbox: idempotent enqueue, prune-on-accept, drop-terminal-rejects, FIFO batch. | `outbox.test.ts` |
 | `daily.ts` | Pure: resolve a `/daily` descriptor → available (seed-derived or authored-`spec`) / unavailable. | `daily.test.ts` |
+| `capture.ts` | Pure: map a finished run's facts → a wire `RunRecord` (context/outcome/instruments). | `capture.test.ts` |
+| `run-capture.ts` | Glue: `recordRun` fills fingerprint/versions/mod-flag, builds the record, queues it (gated). | (thin glue) |
+| `version.ts` | The client `rulesetVersion` / `contentVersion` tokens (placeholders until real versioning). | — |
 | `config.ts` | The runtime switches (enable flag, server URL, mod-gate) + the `isAvailable` predicate. | `config.test.ts` |
 | `embassy.ts` | The network client: thin endpoint wrappers + `flushOutbox`. The one place `fetch` is called. | (I/O glue) |
+
+The action recorder is **live**: `ui/app.ts` seeds the run's RNG in `startCombat` (so `{seed, actions}`
+replays the in-combat run) and calls `recordRun(...)` at the top of `endScreen` — every finished fight
+(practice or delve) queues to the outbox, gated so a modded game records nothing.
 
 The interesting **decisions** live in the pure modules (record/outbox/account/config) and are
 unit-tested; `embassy.ts` is deliberately thin I/O glue so the untested surface stays minimal.
@@ -56,7 +63,17 @@ left is the **wiring into the live game** — UI + engine call sites, not new co
 - The **seed→board generation** for a daily: feed `resolveDaily`'s `seed` + `fixed` selections into the
   existing deterministic generator / `engine/session.ts` setup (path a derives the unfixed axes from
   `seed`; authored axes are fixed).
-- The **action recorder** capture point in `ui/app.ts` — tap the live run's `CombatAction[]` stream +
-  outcome + instruments at run-end and `record.assembleRunRecord` → `outbox.enqueueRecord`.
 - Vendor the service's refreshed `openapi.json` + `pnpm gen:embassy-types` (picks up `DailySpec` and
   `RejectedRecord.terminal`, both additive — already mirrored in `contract.ts`).
+
+### Known limitations / follow-ups
+
+- **Replay depth:** the captured `seed` drives board-gen + tick RNG, so the *in-combat* run replays from
+  `{seed, actions}` given the same initial combat state. FULL server-side re-simulation also needs the
+  foe snapshot + stat/gear context threaded through an extended `engine/session.ts` seam (deferred — TODO
+  §A step 6). The action log + seed are captured now so that work needs no re-instrumentation.
+- **`startCombat` now seeds the run RNG** (was the shared global `systemRng`). Distribution-identical, but
+  it's a live-combat behavior change with **no e2e harness in the repo** — wants a browser smoke-test.
+- **Client versions are placeholders** (`version.ts` = `'0'`) until wired to real content/build versioning.
+- **Practice fights** fold to a `delve`-kind record disambiguated by `instruments.mode` — a possible
+  first-class `kind: 'practice'` is flagged for the service team.
