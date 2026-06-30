@@ -48,11 +48,13 @@ import { setRoot, setSceneTeardown, goScene, sceneTimeout, remountScene, initToo
 import { recordRun } from '../net/run-capture'
 import { loadAccount, updateAccount, markRegistered, markDeclined, acknowledgeRecovery, applyRecovery } from '../net/account'
 import { getConfig, setEnabled, setServerUrl } from '../net/config'
-import { register as embassyRegister, recover as embassyRecover, bests as embassyBests, flushOutbox, EmbassyHttpError } from '../net/embassy'
+import { register as embassyRegister, recover as embassyRecover, bests as embassyBests, daily as embassyDaily, flushOutbox, EmbassyHttpError } from '../net/embassy'
 import { pendingCount } from '../net/outbox'
 import { embassyView, canRegister, canViewRecords, type EmbassyView } from '../net/embassy-status'
 import { CONSENT_VERSION, type BestEntry } from '../net/contract'
 import { CLIENT_RULESET_VERSION, CLIENT_CONTENT_VERSION } from '../net/version'
+import { resolveDaily, type DailyFixed, type DailyResolution } from '../net/daily'
+import { deriveDailySetup, type DailySetup } from '../net/daily-select'
 
 const GEN: GenConfig = COMBAT_GEN
 /** one shared reduced-motion query — card feel (tilt/flights/staggers) falls back to fades */
@@ -272,6 +274,11 @@ let selectedCharId: string | null = null // persists the chosen hero across scen
  *  minus what you drank, plus what you looted — HP-only attrition's sibling) + the current tier. */
 let DELVE: DelveRun | null = null
 
+/** The active DAILY challenge context (set only while a daily run is live, like DELVE for delves). Its
+ *  presence routes the run's capture to kind:'daily' with this UTC date, and keeps the ephemeral
+ *  standardized daily hero out of the persisted roster. Null for every free practice/delve. */
+let DAILY: { date: string } | null = null
+
 /** The town MARKET + rare-vendor stocks (B4 buy-side). Module-held (NOT persisted) → regenerate on a
  *  fresh reload; cleared at delve start (restock after a run) + when a quality upgrade is bought. */
 let MARKET: Array<{ label: string; items: GearInstance[] }> | null = null
@@ -396,7 +403,7 @@ function embassyScene(root: HTMLElement): void {
     hubGrid(wrap, [
       { icon: '📋', name: 'Registry', desc: v.status === 'registered' ? `Registered as ${v.handle}` : 'Claim a handle · consent · connection', onClick: () => goScene(registryScene), badge: v.hasRecoveryToShow ? '🔑' : undefined },
       { icon: '📖', name: 'Hall of Records', desc: 'Your bests + the upload queue', onClick: () => goScene(hallOfRecordsScene), badge: v.pendingUploads > 0 ? `📤${v.pendingUploads}` : undefined },
-      { icon: '📅', name: 'Daily Dispatch', desc: 'The challenge of the day — opens with daily generation', dim: true },
+      { icon: '📅', name: 'Daily Dispatch', desc: "The challenge of the day — one standardized fight, same for everyone", onClick: () => goScene(dailyDispatchScene) },
       { icon: '🤝', name: 'Consulate', desc: 'Friends · visiting other cities · shared shops (future)', dim: true },
       { icon: '🗡️', name: 'Mercenary Post', desc: 'Hire your heroes out for gold · the hero of the day (future)', dim: true },
     ])
@@ -536,6 +543,121 @@ async function loadBests(list: HTMLElement): Promise<void> {
 function bestLine(e: BestEntry): string {
   const where = e.dailyDate ? `daily ${e.dailyDate}` : `${e.classId}${e.foeId ? ` vs ${e.foeId}` : ''}`
   return `<b>${e.criterion}</b> &nbsp;·&nbsp; ${where} &nbsp;·&nbsp; <b>${e.value}</b>`
+}
+
+/* ===== The DAILY DISPATCH — one standardized fight, the same for every player who shares the seed +
+   versions. The server ships only a tiny seed (+ optional authored spec); net/daily.resolveDaily gates it
+   on the version pin + local content, and net/daily-select derives the (class · dungeon) deterministically.
+   The hero is EPHEMERAL + standardized (a fresh level-1 of the derived class, no gear) so the leaderboard
+   measures play, not your roster's power. The board RNG is seeded from the daily seed, so everyone reads
+   the identical board. A single fight: depth is always 1; the competition is fewest-terms / fastest-clear. ===== */
+
+/** Daily-eligible dungeons cap at this difficulty so the standardized level-1 hero gets a fair, winnable
+ *  fight. Raising it (or scaling the daily hero's level to the dungeon) is the natural next tuning step. */
+const DAILY_MAX_DIFFICULTY = 1
+
+/** The local content registry as resolveDaily's predicate (an authored id the client lacks ⇒ unavailable). */
+const DAILY_CONTENT = {
+  hasClass: (id: string) => CLASSES.some((c) => c.id === id),
+  hasFoe: (id: string) => !!GAMEDATA.creatures[id],
+  hasDungeon: (id: string) => !!GAMEDATA.dungeons[id],
+}
+
+/** The daily-eligible candidate pools (stable order — part of the ruleset; reordering re-rolls history). */
+function dailyCandidates(): { classIds: string[]; dungeonIds: string[] } {
+  const dungeonIds = Object.keys(GAMEDATA.dungeons).filter((id) => {
+    const d = GAMEDATA.dungeons[id]
+    return !d.coach && d.difficulty <= DAILY_MAX_DIFFICULTY
+  })
+  return { classIds: CLASSES.map((c) => c.id), dungeonIds }
+}
+
+/** The foe for a derived setup: an authored pin, else the dungeon's weighted table drawn from the seed.
+ *  MUST mirror beginDaily's first draw (fresh mulberry32(seedInt)) so the previewed foe IS the fought foe. */
+function dailyFoeId(setup: DailySetup, fixed: DailyFixed): string {
+  if (fixed.foeId) return fixed.foeId
+  return pickWeightedFoe(GAMEDATA.dungeons[setup.dungeonId].enemy_table, mulberry32(setup.seedInt))
+}
+
+function dailyDispatchScene(root: HTMLElement): void {
+  DELVE = null
+  DAILY = null
+  const v = embassyView(loadAccount(), getConfig(), pendingCount())
+  const wrap = $(`<div class="wrap"></div>`)
+  wrap.appendChild($(`<h1>set.core</h1>`))
+  wrap.appendChild($(`<div class="sub" style="text-transform:none;letter-spacing:0">📅 <b>Daily Dispatch</b> &nbsp;·&nbsp; the challenge of the day</div>`))
+  root.appendChild(wrap)
+
+  const panel = $(`<div class="panel"></div>`)
+  if (v.gate !== 'open') {
+    panel.appendChild($(`<div class="sheet-soon">Connect to the Embassy (enable it + set a server URL at the Registry) to fetch today's challenge. Your daily run still saves locally and uploads on a connected, registered visit.</div>`))
+  } else {
+    panel.appendChild($(`<div class="cc">Fetching today's dispatch…</div>`))
+    void renderDaily(panel, v)
+  }
+  wrap.appendChild(panel)
+  embassyFooter(wrap, () => goScene(embassyScene), '◂ Back to Embassy')
+}
+
+async function renderDaily(panel: HTMLElement, v: EmbassyView): Promise<void> {
+  // gated 'open' upstream, so embassyDaily won't throw EmbassyUnavailableError — only a network/HTTP miss.
+  const desc = await embassyDaily().then((d) => d, () => null)
+  if (!desc) {
+    panel.replaceChildren($(`<div class="sheet-soon">Could not reach the Embassy to fetch today's challenge.</div>`))
+    return
+  }
+
+  const res: DailyResolution = resolveDaily(desc, { rulesetVersion: CLIENT_RULESET_VERSION, contentVersion: CLIENT_CONTENT_VERSION }, DAILY_CONTENT)
+  if (res.status === 'unavailable') {
+    const why = res.reason === 'version'
+      ? "Your game version doesn't match today's challenge — update the game to play today's daily."
+      : `Today's challenge needs content this client doesn't have${res.detail ? ` (${res.detail})` : ''}.`
+    panel.replaceChildren($(`<div class="sheet-soon">📅 ${desc.date} — ${why}</div>`))
+    return
+  }
+
+  const fixed: DailyFixed = res.fixed
+  let setup: DailySetup
+  try {
+    setup = deriveDailySetup(res.seed, fixed, dailyCandidates())
+  } catch {
+    panel.replaceChildren($(`<div class="sheet-soon">📅 ${desc.date} — today's challenge can't be built on this client (no eligible content).</div>`))
+    return
+  }
+
+  const foeId = dailyFoeId(setup, fixed)
+  const cls = classById(setup.classId)
+  const dg = GAMEDATA.dungeons[setup.dungeonId]
+  const foeName = GAMEDATA.creatures[foeId]?.name ?? foeId
+
+  panel.replaceChildren(
+    $(`<div class="sm-hd">${desc.date}${res.authored ? ' · authored' : ''}</div>`),
+    $(`<div class="cc" style="margin-bottom:6px">Today everyone fights the same standardized challenge — a fresh level-1 hero, no gear, the same board.</div>`),
+    $(`<div class="cc">${cls.icon} <b>${cls.name}</b> &nbsp;vs&nbsp; <b>${foeName}</b> &nbsp;·&nbsp; ${dg.name}</div>`),
+    $(`<div class="cc" style="margin-top:6px">Scored on: <b>${desc.criteria.join(', ')}</b></div>`),
+  )
+  const note = v.status === 'registered'
+    ? 'Your result uploads to the board when you sync.'
+    : 'Register at the Registry to put your name on the board — until then the run saves locally and uploads on your first connected, registered visit.'
+  panel.appendChild($(`<div class="cc" style="margin-top:6px;opacity:.8">${note}</div>`))
+  const play = $<HTMLButtonElement>(`<button class="cta" style="margin-top:10px">▶ Play today's daily</button>`)
+  play.addEventListener('click', () => beginDaily(setup, fixed, desc.date))
+  panel.appendChild(play)
+}
+
+/** Launch the daily as a single standardized fight: ephemeral level-1 hero of the derived class, the foe +
+ *  board seeded from the shared daily seed (so every player's run is identical). Captured as kind:'daily'. */
+function beginDaily(setup: DailySetup, fixed: DailyFixed, date: string): void {
+  DELVE = null
+  DAILY = { date }
+  const dg = GAMEDATA.dungeons[setup.dungeonId]
+  if (!dg) { DAILY = null; goScene(townScene); return }
+  const rng: Rng = mulberry32(setup.seedInt)
+  const foeId = fixed.foeId ?? pickWeightedFoe(dg.enemy_table, rng)
+  const foe = assembleFoe(foeId, dg, GAMEDATA, rng)
+  if (!foe) { DAILY = null; goScene(townScene); return }
+  const hero = makeChar('Daily Challenger', setup.classId, freshId())
+  goScene((r) => startCombat(r, hero, setup.dungeonId, foe, null, hero.consumables, setup.seedInt))
 }
 
 function characterSelectScene(root: HTMLElement): void {
@@ -1436,6 +1558,7 @@ function openLevelUp(c: SavedChar, onComplete: (c: SavedChar) => void): void {
 /** The practice path: one chosen fight (or the authored gauntlet), no room chain. */
 function begin(root: HTMLElement, char: SavedChar, dungeonId: string, foeVal: string): void {
   DELVE = null
+  DAILY = null
   const rng: Rng = systemRng
   const dg: Dungeon = GAMEDATA.dungeons[dungeonId]
   let foeId: string
@@ -1457,6 +1580,7 @@ function begin(root: HTMLElement, char: SavedChar, dungeonId: string, foeVal: st
  *  consumables are COMMITTED out of Storage into the run satchel (depletes inventory; survivors return via
  *  the loot scene on a safe exit, lost on death). */
 function beginDelve(char: SavedChar, dungeonId: string): void {
+  DAILY = null
   const sel = char.consumables.filter((id) => !!id && !!CONSUMABLES[id])
   const { taken, account } = takeConsumablesByRef(loadBank(), sel) // pull the loadout out of the vault
   saveBank(account)
@@ -1487,12 +1611,14 @@ function delveRoom(root: HTMLElement, char: SavedChar): void {
 }
 
 /** Mount the combat scene for one assembled foe (shared by the practice path and the delve). */
-function startCombat(root: HTMLElement, char: SavedChar, dungeonId: string, foe: FoeRuntime, sequence: string[] | null, consumables: string[]): void {
-  // Seed the run's RNG from the system source: the seed now DRIVES board-gen + the tick RNG, so the
-  // run is deterministically replayable from {seed, actions} (the metrics replay substrate). The foe
-  // was already assembled upstream; it's snapshotted on combat state, so replay reads it rather than
-  // re-rolling. (Full server-side re-sim also needs the stat/gear context — deferred to the session seam.)
-  const seed = (systemRng() * 0x1_0000_0000) >>> 0
+function startCombat(root: HTMLElement, char: SavedChar, dungeonId: string, foe: FoeRuntime, sequence: string[] | null, consumables: string[], explicitSeed?: number): void {
+  // Seed the run's RNG: the seed now DRIVES board-gen + the tick RNG, so the run is deterministically
+  // replayable from {seed, actions} (the metrics replay substrate). Free play seeds from the system
+  // source; a DAILY passes an explicitSeed derived from the shared daily seed, so every player's board
+  // sequence is identical (the leaderboard's fairness substrate). The foe was already assembled upstream;
+  // it's snapshotted on combat state, so replay reads it rather than re-rolling. (Full server-side re-sim
+  // also needs the stat/gear context — deferred to the session seam.)
+  const seed = explicitSeed !== undefined ? explicitSeed >>> 0 : (systemRng() * 0x1_0000_0000) >>> 0
   const rng: Rng = mulberry32(seed)
   const dg: Dungeon = GAMEDATA.dungeons[dungeonId]
   const cls = classById(char.classId)
@@ -3728,7 +3854,8 @@ function endScreen(result: 'win' | 'lose' | 'flee'): void {
     classId: V.classId,
     foeId: V.state.foe?.id ?? null,
     dungeonId: V.run.dungeonId ?? DELVE?.d.dungeonId ?? null,
-    mode: DELVE ? 'delve' : 'practice',
+    mode: DAILY ? 'daily' : DELVE ? 'delve' : 'practice',
+    dailyDate: DAILY?.date ?? null,
     result,
     rounds: V.state.round,
     elapsedMs: V.state.now,
@@ -3745,9 +3872,13 @@ function endScreen(result: 'win' | 'lose' | 'flee'): void {
   cancelAnimationFrame(V.raf)
   if (V.refs.fleebtn) V.refs.fleebtn.style.display = 'none' // no fleeing a finished fight
   document.getElementById('ptint')?.classList.remove('low', 'crit') // drop the low-HP vignette on the end card
-  // persist the hero's HP across the hub↔combat boundary (the seed of the run-attrition layer)
-  V.char.hp = Math.max(0, Math.min(V.char.maxHp, V.state.playerHP))
-  upsertChar(V.char)
+  // persist the hero's HP across the hub↔combat boundary (the seed of the run-attrition layer) — EXCEPT
+  // the daily's standardized hero, which is ephemeral (built fresh from the seed each play) and must never
+  // enter the persisted roster.
+  if (!DAILY) {
+    V.char.hp = Math.max(0, Math.min(V.char.maxHp, V.state.playerHP))
+    upsertChar(V.char)
+  }
   if (DELVE) { delveFork(result); return } // the delve owns its own end beat (the between-rooms fork)
   const again = $<HTMLButtonElement>(`<button class="cta" style="display:block;margin:0 auto">▶ Back to town</button>`)
   again.addEventListener('click', () => goScene(townScene))
