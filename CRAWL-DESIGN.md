@@ -238,13 +238,14 @@ budget-conformance sim; constants tabled in `TUNING.md` "Progression & loot — 
 > onboarding curve. STILL OPEN from §3: the **loot tables** (gold/gear/spellbook drops).
 - **Cap: level 21** — numeric to 20; the 21st renders as a **★** (the cap badge).
 - **Per level: +5 max HP** (base 100 → **200 at cap**; gear/passives can add ~+100 more for a
-  practical ~300 ceiling on a dedicated build) **+ 6 stat points, freely distributed, ≤3 per stat**
-  (REVISED 2026-06-14 — was a rigid +3/+2/+1 permutation; now any split summing to 6 with each ≤3:
-  **3/3/0 · 2/2/2 · 3/2/1**). → +6/level, **+120 over the arc**. The freedom adds **two-stat-focus**
-  builds (3/3/0 → two stats +60, the third dumped to base) alongside the old focused-main (+60) and
-  balanced (+40 each). Totals + bounds are **unchanged** (max one stat is still +3/level → +60; the
-  contest clamp [2,20] binds at ±60), so the sim's parity line + conformance hold — dumping a stat is
-  the real cost. Pre-gear build identity lives here (classes start stat-uniform).
+  practical ~300 ceiling on a dedicated build) **+ 4 stat points, freely distributed, ≤3 per stat**
+  (`LU_POINTS` 4 — REVISED 2026-06-14 to free allocation, then TEMPERED 6→4 with the 2026-06-17 rebalance
+  (BALANCE §8 dec.7 — gear now closes the gap to parity); any split summing to 4 with each ≤3:
+  **2/2/0 · 3/1/0 · 2/1/1**). → +4/level, **+80 over the arc**. The freedom keeps **two-stat-focus** builds
+  (2/2/0 → two stats +40) alongside focused-main (3/1/0 → one stat +60, ≤3/stat-capped) and balanced.
+  Bounds hold (max one stat still +3/level → +60; the contest clamp [2,20] binds at ±60), so the sim's
+  parity line + conformance hold — dumping a stat is the real cost. Pre-gear build identity lives here
+  (classes start stat-uniform).
 - **The re-denomination corollary (SIM-DERIVED 2026-06-12 — `sim/progression-sim.mjs`,
   constants in `TUNING.md`):** contests are DIFFERENCE-based, so the wide point arc re-derives
   the per-point constants — `RATE_K` 0.8 → **0.2**, `MOVE_RATE_K` 0.1 → **0.025**; the
@@ -256,8 +257,9 @@ budget-conformance sim; constants tabled in `TUNING.md` "Progression & loot — 
   trivial — returning to the warren at 15 and flattening goblins is a real reward.
 - **XP is COMPUTED from the foe statline, never authored** (the wounds/tempo-law aesthetic —
   new foes self-price): `XP = (hp/10 + P + E + S) × (1 + 0.15·trapCount) × tierMult`, with
-  **tierMult ×1 / ×2 / ×4** (minion/elite/boss) — deliberately ABOVE the stat ladder's
-  ×1/×1.5/×2, so harder targets always beat grinding per minute (the economic anti-stall).
+  **tierMult ×1 / ×2 / ×4** (minion/elite/boss) — deliberately ABOVE the stat/output ladder's
+  ×1/×1.7/×2.4 (`TIER_BUDGET_MULT`, rebalanced 2026-06-17), so harder targets always beat grinding
+  per minute (the economic anti-stall).
   The authored `xp` field retires with the data rebase.
 - **Curve anchors (shape SIM-DERIVED 2026-06-12; base STEEPENED 2026-06-14 — sim §8):** **polynomial —
   `need(L→L+1) = 110 × L^1.7`** (geometric REJECTED by the sim: XP income grows ~linearly with the
@@ -439,7 +441,7 @@ levels optional). HP mirrors the share. (Full model: §7.)
   one). It's also what carries the bosses' growth feel now that ability picks moved to the level
   cadence (§ loadout) — you beat the boss FOR the marquee item.
 - Each drop rolls a **CATEGORY** (per-tier weights — minion **60/30/10**
-  gold/consumable/gear · elite **45/35/20** · boss **30/40/30**), then a sub-table within it.
+  gold/consumable/gear · elite **45/35/20** · boss **30/40/20/+10 spellbook**), then a sub-table within it.
   Elites/bosses also roll **quality with advantage** (roll twice, keep better). *(Rejected:
   "roll N, keep highest" across categories — there's no natural cross-category ordering;
   shifted weights buy the same skew transparently.)*
@@ -995,10 +997,11 @@ The per-room combat model. ~~Values below are prototyped and live in
 `src/engine/resolve.ts`, `tactics.ts`; live constants in `TUNING.md`.)* Treat
 numbers as tuning defaults.
 
-> ⚠ **SUPERSEDED IN PART by ROUNDS v3 (§5.6, settled 2026-06-11, next combat build):**
-> the continuous clock (approach→windup→strike), the swap-spin-up rule, excess-timer
-> income, Adaptive Tactics, `DMG_REGEN_MS`, and the speed bands all restructure under
-> the round grammar. This section remains the SHIPPED baseline until v3 lands.
+> ⚠ **SUPERSEDED by ROUNDS v3 (§5.6) — SHIPPED 2026-06-11 (revised since).** This is the pre-v3
+> HISTORICAL baseline; read §5.6 for what actually shipped. Restructured under the round grammar:
+> the continuous clock (approach→windup→strike), the swap-spin-up rule, excess-timer income, Adaptive
+> Tactics, `DMG_REGEN_MS`, the **base 2/2/2 statline (now `BASE_STATS` 10/10/10 — the decimal rebase)**,
+> and the **speed bands** (foe tempo now DERIVES from S−P via the tempo law, not a cadence band).
 
 **Per-card resolution — RESOLUTION v2, "sets steer, stats carry" (SETTLED & BUILT
 2026-06-10; Model B from the pacing design session).** The character sheet carries the
@@ -1215,6 +1218,11 @@ The beat order (the engine emit order the popover narrates):
 1. **Player swing** — the Attack total lands. **Lethal cancels the enemy swing** (the
    kill-race: rushing lethal under a big telegraph is valid play, rewarded via passives/
    gear). Symmetric: a player who would die but banked lethal wins the exchange.
+   - **A dying foe never retaliates (SETTLED 2026-07-01).** The instant a foe reaches 0 HP by *any*
+     means — banked swing, match-time trick, or a reactive proc like thorns (§7) on the desperate
+     all-defend round — the fight ends as a win immediately; there is NO last-gasp strike. (Enforced in
+     `combat.ts` rollover, FABLE §3 E1.) If a dying-blow is ever wanted, it must be an explicit,
+     *telegraphed* foe ability — never an emergent artifact of resolution order.
 2. **Enemy swing** — telegraph minus the Defend total; damage *suffered* computes wounds.
    *(No "Maneuver dump" beat — §5.7 made Maneuver burn LIVE each tick, not at the rollover.)*
 3. **The deal** — gaps fill, one wound reforms, churned cards settle.
@@ -1345,9 +1353,9 @@ magnitude-6 set per verb per round (~a match every 6–7s; measured experienced 
 4–6 sets/round, so competent ≈ ×2). At stat parity and baseline play the exchange is
 even: a mag-6 Defend set neutralizes the average telegraph, a mag-6 Attack set deals the
 baseline quantum (~25). **Tiers are output multipliers** — minion balanced at ×1.0
-baseline output, elite ×1.5, boss ×2.0 — so skill and gear are interchangeable
-currencies against the ladder. First-cut foe stats are tier-anchored (TUNING.md);
-kill budgets per tier are the open derivation-sheet item.
+baseline output, elite **×1.7**, boss **×2.4** (`TIER_BUDGET_MULT`, rebalanced 2026-06-17 from
+1.5/2.0) — so skill and gear are interchangeable currencies against the ladder. Foe stats are
+tier-anchored (TUNING.md); kill budgets ~100/250/400 (minion/elite/boss, A6 — SETTLED + BUILT 2026-06-17).
 
 **The feel target (user, 2026-06-11 — keep verbatim):** "you play the round in a quick
 frantic pace making matches, resisting the drift, using spells. You probably bias toward

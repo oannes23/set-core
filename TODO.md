@@ -52,10 +52,12 @@ typecheck clean, deploy now gated. **Only the "remaining doc drift" sub-item (La
     body rows fixed — ward-cost (1→2), foe-HP anchors (60/110/200→~100/250/400), `LU_POINTS` (+6→+4),
     `LOOTTIER_K` (0.02→0.12), dread constant names, room-loot/`rollDelveLoot`, the `EXCHANGE_BEATS`
     table, and the PLANNED/DISABLED status labels. FABLE §10.
-  - `[ ]` **Doc triage — remaining drift (FABLE §10 rest-of-table).** Not the worst offenders, but still
-    stale: `CRAWL-DESIGN.md` (§3 +6/level, §5.5 retired-mechanics body, §5.6 elite/boss mults);
-    `TRAPS.md` §7.2's retired speed-band cadence table presented as "(live)"; `docs/yaml-tuning.md`'s
-    loot section documents fields that don't exist (`marketTier`/`rarityWeights`) + omits the real dials.
+  - `[x]` **Doc triage — remaining drift (DONE 2026-07-01, FABLE §10 rest-of-table).** `CRAWL-DESIGN.md`
+    (§3 +6→+4/level; §5.5 banner now marks v3 SHIPPED + annotates the retired base-2/2/2 + speed bands;
+    §5.6 elite/boss ×1.5/2.0→×1.7/2.4; boss loot 30/40/30→30/40/20/+10); `TRAPS.md` §7.2 speed-band table
+    marked RETIRED (tempo derives from S−P); `docs/yaml-tuning.md` loot fields fixed (`marketTier`/
+    `rarityWeights` → the real `rarityBands`/`depthTierRate`); `docs/yaml-catalogs.md` + `schema.ts` base
+    2/2/2→10/10/10. **Phase 0 fully complete.**
 
 ### Phase 1 — The daily-integrity batch (FABLE §14 items 7–12) — FIX AS ONE UNIT before the Embassy leaves localhost
 Rationale (FABLE §13, §11): the corpus being collected now is the future leaderboard's anti-cheat
@@ -157,9 +159,17 @@ FABLE product items that are the same work:
   combat re-sim (the type layer cut weapon uptime → `gearFactor` over-credits gear) + **validate C2** (the
   enchant-transfer exploit — FABLE §4 C2 explicitly defers its fix-validation to this pass). Precedes the
   leaderboard.
-- `[ ]` **Daily leaderboard** — server `/daily/board` + results panel + retry policy — ONLY after Phase 1
+- `[ ]` **Daily leaderboard(s)** — server `/daily/board` + results panel + retry policy — ONLY after Phase 1
   makes the corpus trustworthy. (`combo.fightPeak` "highest chain on today's seed" plugs in here — persist/
   capture it during Phase 1, retroactive-only.) FABLE §11 P4 / §14 item 21.
+  **Daily design (settled 2026-07-01):**
+  - The **standardized daily character** (ephemeral, roster-neutral) earns **NO XP/progression** — its
+    reward is the leaderboard, not levels (`awardXP` early-returns on `DAILY`; done 2026-07-01).
+  - **TWO leaderboards, separate:** (a) the **standardized** daily (everyone the same hero/board — pure
+    skill) and (b) an **OPEN daily** running your **OWN character** against the daily dungeon (your build vs
+    the challenge). The open run awards XP normally (it's your real hero).
+  - Once the **Tavern + quests** ship, running the daily becomes a **quest with its own reward** (the
+    persistent-progression hook — separate from the leaderboard placement).
 
 ### Phase 6 — Hygiene (FABLE §14 items 22–23) — ride-alongs, fold into adjacent work
 - `[ ]` **Test the untested boundary** (FABLE §12): extract dispatch as pure `stepWithSelection(run,

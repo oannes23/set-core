@@ -55,7 +55,7 @@
             "speed"
           ],
           "additionalProperties": false,
-          "description": "Resolution v2 statline (Power/Endurance/Speed); omitted = BASE_STATS 2/2/2 parity. A future class-identity lever — ship uniform first, differentiate with gear/levels (B3+)."
+          "description": "Resolution v3 statline (Power/Endurance/Speed); omitted = BASE_STATS 10/10/10 parity (the decimal rebase). A future class-identity lever — ship uniform first, differentiate with gear/levels (B3+)."
         }
       },
       "required": [

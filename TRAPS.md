@@ -493,11 +493,15 @@ free to add stat-mods and traps. Stat-mods stack additively; trap resolution ord
 > stacked trigger-bundles is already a *build*, the same shape as the player's
 > class + passive + gear.
 
-### 7.2 Speed vocabulary (foe attack cadence)
-Cadence is "seconds to next attack" (lower = more dangerous), so named bands let design
+### 7.2 Speed vocabulary (foe attack cadence) — ⚠ RETIRED by ROUNDS v3
+> ⚠ **RETIRED (ROUNDS v3, 2026-06-11).** Foes no longer carry a fixed cadence band — **tempo now DERIVES
+> from the foe's S−P** (the tempo law, `foe.ts tempoFromStats`; `TUNING.md`). The `SpeedBand`/`Speed` schema
+> exports are dead code. The table below is kept only as *feel* vocabulary (the words, not the numbers).
+
+Cadence was "seconds to next attack" (lower = more dangerous), so named bands let design
 talk *feel* not numbers:
 
-| Band | Cadence (live — `src/data/game-data.ts`, see `TUNING.md`) | Feel (actions between hits) |
+| Band | Cadence (HISTORICAL — retired by v3) | Feel (actions between hits) |
 |---|---|---|
 | **Lumbering** | 20s | many — a slow siege, big punish-windows |
 | **Slow** | 15s | comfortable |

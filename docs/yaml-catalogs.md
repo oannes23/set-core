@@ -21,7 +21,7 @@ requires every class to spend all three mana colours.
 | `blurb` | string | one-line pitch |
 | `abilities` | string[] (exactly 3) | active ability ids (→ engine `ABILITIES`) |
 | `passives` | string[] (≥1) | passive ids (→ engine `PASSIVES`) |
-| `stats?` | `{ power, endurance, speed }` | optional class statline (omitted → base 2/2/2) |
+| `stats?` | `{ power, endurance, speed }` | optional class statline (omitted → `BASE_STATS` 10/10/10) |
 
 ```yaml
 - id: pyromancer

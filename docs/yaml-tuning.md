@@ -17,12 +17,12 @@ their inputs.
 | `goldK` | number | the faucet: `gold ≈ foeValue × goldK × depth` |
 | `goldVar` | number | ± fraction per gold roll |
 | `depthRate` | number | per-room lift to gold + loot quality |
+| `depthTierRate` | number | how much depth lifts a drop's loot-tier: `tier = foeLevelEquiv + round(depth × depthTierRate)` |
 | `gearPityStep` | number | gear-less drop adds this to the gear weight; a gear hit resets it |
 | `marketPerSlot` | number | town Market: pieces stocked per slot group |
 | `rarePerTab` | number | Merchant-House rare vendor: pieces stocked |
-| `marketTier` | `{ elite, boss }` | char-level thresholds → vendor rarity band |
 | `tables` | `Record<tier, LootTable>` | per-tier drop tables (see below) |
-| `rarityWeights` | `Record<tier, [rarity, weight][]>` | per-tier gear-rarity drop weights |
+| `rarityBands` | `[{ maxLevel, weights: [rarity, weight][] }]` | gear-rarity drop weights, banded by char/dungeon level (drops climb white→orange as you level; first band whose `maxLevel ≥ level` wins) |
 | `rareWeights` | `[rarity, weight][]` | rare vendor (epic/legendary only) |
 | `marqueeWeights` | `[rarity, weight][]` | boss-clear guaranteed rare+ piece |
 | `marketGroups` | `[{ label, slot }]` | slot groups the Market stocks |
@@ -39,8 +39,9 @@ their inputs.
 ```yaml
 tables:
   minion: { drops: [1, 1], guaranteedGold: 0, qualityAdvantage: false, weights: { gold: 60, consumable: 30, gear: 10, spellbook: 0 } }
-rarityWeights:
-  minion: [[white, 60], [green, 28], [blue, 10], [purple, 2]]
+rarityBands:
+  - { maxLevel: 5, weights: [[white, 65], [green, 28], [blue, 7]] }                # ≤5: mostly white
+  - { maxLevel: 99, weights: [[green, 15], [blue, 50], [purple, 28], [orange, 7]] } # 19+: mostly blue+
 ```
 
 ---

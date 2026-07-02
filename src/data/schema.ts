@@ -208,7 +208,7 @@ export interface ClassDef {
   blurb: string
   abilities: string[] // ability ids (3) drawn into the active loadout
   passives: string[] // passive id(s) — always-on
-  /** Resolution v2 statline (Power/Endurance/Speed); omitted = BASE_STATS 2/2/2 parity.
+  /** Resolution v3 statline (Power/Endurance/Speed); omitted = BASE_STATS 10/10/10 parity (the decimal rebase).
    *  A future class-identity lever — ship uniform first, differentiate with gear/levels (B3+). */
   stats?: { power: number; endurance: number; speed: number }
 }
