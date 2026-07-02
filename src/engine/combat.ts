@@ -286,6 +286,7 @@ function onWin(s: CombatState, rng: Rng, sink: EventSink): void {
 function completeSet(s: CombatState, slots: [number, number, number], deps: Deps, sink: EventSink): void {
   if (!s.running) return // a settled fight accepts no more sets (replayed/stray actions are no-ops)
   const [a, b, c] = slots
+  if (a === b || b === c || a === c) return // §E4 (FABLE §3): reject non-distinct slots — isSet(c,c,c) is ALWAYS true (3aᵢ ≡ 0 mod 3), so [i,i,i] would bank a full set's value off ONE card. The UI can't emit it, but the reducer is the server-authority / replay anti-cheat seam.
   const ca = s.board[a]
   const cb = s.board[b]
   const cc = s.board[c]
@@ -476,6 +477,11 @@ function rollover(s: CombatState, deps: Deps, sink: EventSink): void {
       sink.emit({ type: 'playerBlocked' })
     }
   }
+  // §E1 (FABLE §3) — the ZOMBIE-FOE guard: rollover proc damage (Barbed thorns on-wound, §7) can drop the
+  // foe to 0 HP with NO win check — every other damage path checks, this one fell through, so a dead foe
+  // would roll a fresh telegraph and still kill you at the next exchange (a loss to an empty HP bar). Claim
+  // the win the instant its HP hits 0 — BEFORE the dread bleed / next telegraph run below.
+  if (s.running && s.enemyHP <= 0) { onWin(s, deps.rng, sink); return }
   // BLOCK NO-CARRY (BALANCE.md §2.1): the guard resets EVERY rollover — Defend mitigates only the round the
   // hit lands; it never banks across windup rounds. (Was: carried through windups. The complement is the
   // banked Dodge pool, which DOES persist — Block is the in-the-moment lever, Dodge the planned one.)
@@ -490,6 +496,9 @@ function rollover(s: CombatState, deps: Deps, sink: EventSink): void {
   }
   // §7 on-lowHP procs (Cornered): a defensive surge while cornered (fires each rollover below the floor)
   if (s.running && s.playerHP < LOW_HP_FRAC * s.playerMax) fireProcs(s, 'lowHP', null, deps.rng, sink)
+  // §E1 (FABLE §3) — mirror the zombie-foe guard for the lowHP proc family: Cornered is block-only today,
+  // but the affix DSL allows a damage-dealing lowHP proc, which would otherwise re-zombie the foe here.
+  if (s.running && s.enemyHP <= 0) { onWin(s, deps.rng, sink); return }
   // ⑤ the deal — one wound knits shut as the cards settle (stances are live; nothing to lock)
   let knit: number | null = null
   for (const [slot, p] of s.pending) if (p.wound) { knit = knit == null || slot < knit ? slot : knit }
