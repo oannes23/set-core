@@ -1,7 +1,7 @@
 /* The pure roster transforms behind the character-persistence layer (no localStorage I/O here). */
 
 import { test, expect } from 'vitest'
-import { upsert, remove, makeChar, sanitizeEquipped } from './save'
+import { upsert, remove, makeChar, sanitizeEquipped, freshId } from './save'
 
 test('makeChar starts a hero at level 1, full HP, no allocated points, no gear', () => {
   expect(makeChar('Rook', 'sentinel', 'id1')).toMatchObject({
@@ -41,6 +41,20 @@ test('upsert adds then updates by id (no duplicates, order preserved)', () => {
 test('remove drops a hero by id', () => {
   const r = [makeChar('A', 'sentinel', 'id1'), makeChar('B', 'rogue', 'id2')]
   expect(remove(r, 'id1').map((c) => c.id)).toEqual(['id2'])
+})
+
+// C1 (FABLE §4): the daily builds an EPHEMERAL standardized hero with a FRESH id each play. If awardXP /
+// endScreen persisted it, upsert would APPEND it (unknown id) — one phantom "Daily Challenger" per won
+// daily. This pins the pollution mechanism the `if (!DAILY) upsertChar(...)` guards in app.ts prevent.
+test('C1: a fresh-id daily hero WOULD grow the roster if persisted; a known id never does', () => {
+  const roster = [makeChar('Rook', 'sentinel', 'real1')]
+  const daily1 = makeChar('Daily Challenger', 'sentinel', freshId())
+  const daily2 = makeChar('Daily Challenger', 'sentinel', freshId())
+  expect(freshId()).not.toBe(freshId()) // each daily play mints a distinct id → each would append
+  const grown = upsert(upsert(roster, daily1), daily2)
+  expect(grown).toHaveLength(3) // two phantoms leaked — exactly what the !DAILY guard suppresses
+  // re-persisting an EXISTING id (a real hero's normal save) is in-place — id novelty is the vector
+  expect(upsert(grown, { ...daily1, xp: 50 })).toHaveLength(3)
 })
 
 // ---- the parse/migrate path (the part that grows into the migration chain) ----

@@ -3899,8 +3899,11 @@ function awardXP(foe: CombatState['foe']): void {
   const x = computeXP(foe, V.char.level) // the outlevel penalty applies (sim §8 — farming trivial content doesn't pay)
   if (x <= 0) return
   V.stats.xp += x
-  V.char = addXP(V.char, x) // pure: banks XP, capped at LEVEL_CAP
-  upsertChar(V.char)
+  V.char = addXP(V.char, x) // pure: banks XP, capped at LEVEL_CAP (harmless on the ephemeral daily hero)
+  // §C1 (FABLE §4): the daily's standardized hero is EPHEMERAL — never persist it, or every won daily
+  // appends a fresh phantom "Daily Challenger" to the roster (upsert appends unknown ids). Mirrors the
+  // endScreen HP-write gate. The float + tally still fire, so the daily keeps its dopamine.
+  if (!DAILY) upsertChar(V.char)
   floatBoard(`+${x} XP`, 'var(--gold)', 'enemy')
 }
 
