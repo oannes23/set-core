@@ -23,7 +23,7 @@ import {
   type RegisterResponse,
   type RunRecord,
 } from './contract'
-import { applyIngestResult, loadOutbox, partitionRejections, peekBatch, saveOutbox } from './outbox'
+import { applyIngestResult, loadOutbox, partitionRejections, peekBatchByBytes, saveOutbox } from './outbox'
 import { isRegistered, loadAccount } from './account'
 
 /** Thrown when a request is attempted while the Embassy is unavailable (disabled / no URL / modded).
@@ -110,21 +110,49 @@ export interface FlushResult {
   retryable: number
   dropped: number // terminally rejected
   remaining: number
+  /** N3 — set when the flush FAILED to make progress (nothing pruned): 'auth' = token rotated/revoked
+   *  (401/403 — the device must re-link), 'http' = another non-2xx (see status), 'network' = fetch threw.
+   *  Absent on success. Lets the UI surface a real error instead of a silent perpetual stall. */
+  error?: 'auth' | 'http' | 'network'
+  status?: number
 }
 
-/** Flush the outbox to /ingest in one batch (capped at MAX_BATCH), then prune accepted + terminally
- *  rejected, keeping retryables for next time. Safe no-op when the Embassy is unavailable or the
- *  account isn't registered. Idempotent: re-running after a lost ack converges (eventId dedupe). */
+/** Stay under a reverse-proxy request-body limit (nginx defaults to 1 MB; each record is ~0.5 MB), so a
+ *  full batch can't 413 forever. On a 413 anyway we bisect down to a single record. */
+const INGEST_MAX_BYTES = 900_000
+
+/** Flush the outbox to /ingest (batch bounded by count AND bytes), then prune accepted + terminally
+ *  rejected, keeping retryables for next time. Safe no-op when the Embassy is unavailable or the account
+ *  isn't registered. Idempotent: re-running after a lost ack converges (eventId dedupe).
+ *
+ *  N3 recovery: a deterministic non-2xx used to throw past both callers and re-send the identical batch
+ *  forever (a silent permanent stall). Now: a 413 bisects the batch; a 401/403 (token rotated by /recover
+ *  on another device) returns `error:'auth'` so the UI can prompt a re-link; any other failure returns an
+ *  error result instead of throwing. */
 export async function flushOutbox(): Promise<FlushResult> {
   const empty: FlushResult = { attempted: 0, accepted: 0, retryable: 0, dropped: 0, remaining: 0 }
   const acc = loadAccount()
   if (!isAvailable() || !isRegistered(acc) || !acc.token) return empty
 
   const queued = loadOutbox()
-  const batch = peekBatch(queued)
+  let batch = peekBatchByBytes(queued, INGEST_MAX_BYTES)
   if (batch.length === 0) return empty
 
-  const res = await ingest(batch, acc.token)
+  let res
+  for (;;) {
+    try {
+      res = await ingest(batch, acc.token)
+      break
+    } catch (e) {
+      if (e instanceof EmbassyHttpError) {
+        if (e.status === 413 && batch.length > 1) { batch = batch.slice(0, Math.floor(batch.length / 2)); continue } // too large → bisect
+        const error = e.status === 401 || e.status === 403 ? 'auth' : 'http'
+        return { ...empty, remaining: queued.length, error, status: e.status }
+      }
+      return { ...empty, remaining: queued.length, error: 'network' }
+    }
+  }
+
   const next = applyIngestResult(queued, res.accepted, res.rejected)
   saveOutbox(next)
 
