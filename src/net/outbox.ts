@@ -13,6 +13,14 @@ import { type IngestRejection, type RunRecord, TERMINAL_REJECT_REASONS } from '.
  *  sends at most this many records; the rest flush on the next pass. */
 export const MAX_BATCH = 100
 
+/** N1 — hard caps on the LOCAL outbox. A record carries the whole per-fight tick log (~0.3–0.5 MB), and
+ *  the default (offline/unregistered) player NEVER flushes, so an uncapped queue exhausts the ~5 MB origin
+ *  quota within an evening — after which new records are silently dropped AND roster/bank saves start
+ *  failing (shared quota). Bound BOTH count and total bytes, evicting OLDEST-first (the least likely to
+ *  still matter). */
+export const OUTBOX_MAX_RECORDS = 50
+export const OUTBOX_MAX_BYTES = 2_000_000 // ~2 MB — well under quota, leaving headroom for roster/bank/career
+
 const KEY = 'setcore.embassy.outbox.v1' // stable — versioning lives in the payload envelope
 const SCHEMA_V = 1
 
@@ -87,6 +95,43 @@ export function peekBatch(records: readonly RunRecord[], max = MAX_BATCH): RunRe
   return records.slice(0, Math.max(0, max))
 }
 
+/** Rough serialized size of a record (the tick log dominates it). Best-effort; 0 on failure. */
+export function recordBytes(rec: RunRecord): number {
+  try {
+    return JSON.stringify(rec).length
+  } catch {
+    return 0
+  }
+}
+
+/** N1 — trim the queue to BOTH caps, evicting OLDEST-first (FIFO). Always keeps at least the newest
+ *  record (a single over-cap record is the server's to reject, not ours to lose silently). Returns the
+ *  trimmed queue; compare lengths to know how many were evicted. */
+export function capOutbox(records: readonly RunRecord[], maxRecords = OUTBOX_MAX_RECORDS, maxBytes = OUTBOX_MAX_BYTES): RunRecord[] {
+  let kept = records.length > maxRecords ? records.slice(records.length - maxRecords) : records.slice()
+  let total = kept.reduce((n, r) => n + recordBytes(r), 0)
+  while (kept.length > 1 && total > maxBytes) {
+    total -= recordBytes(kept[0])
+    kept = kept.slice(1)
+  }
+  return kept
+}
+
+/** N3 — the next flush batch bounded by cumulative BYTES as well as count, so a reverse-proxy body limit
+ *  (nginx defaults to 1 MB; each record is ~0.5 MB) can't 413 the whole batch forever. Always includes at
+ *  least the first record. */
+export function peekBatchByBytes(records: readonly RunRecord[], maxBytes: number, maxCount = MAX_BATCH): RunRecord[] {
+  const out: RunRecord[] = []
+  let total = 0
+  for (const r of records.slice(0, Math.max(0, maxCount))) {
+    const b = recordBytes(r)
+    if (out.length > 0 && total + b > maxBytes) break
+    out.push(r)
+    total += b
+  }
+  return out
+}
+
 /** Parse a raw stored payload → a clean record list (envelope → migrate → filter). Never throws. */
 export function parseOutbox(raw: string | null): RunRecord[] {
   if (!raw) return []
@@ -115,13 +160,15 @@ export function saveOutbox(records: readonly RunRecord[]): void {
   try {
     localStorage.setItem(KEY, JSON.stringify({ v: SCHEMA_V, records }))
   } catch {
-    /* private mode / quota — records stay in memory this session and re-queue next run */
+    /* private mode / quota exceeded: this write is LOST (enqueue is load→append→save — there is no live
+       in-memory queue to fall back to). capOutbox keeps us under quota so this stays rare; nothing to do here. */
   }
 }
 
-/** Queue one record (load → enqueue → save). The per-run entry point from the run glue. */
+/** Queue one record (load → enqueue → CAP → save). The per-run entry point from the run glue. The cap
+ *  (N1) bounds the local queue so a never-flushing player can't exhaust the origin quota. */
 export function enqueueRecord(rec: RunRecord): void {
-  saveOutbox(enqueue(loadOutbox(), rec))
+  saveOutbox(capOutbox(enqueue(loadOutbox(), rec)))
 }
 
 /** How many records are waiting to upload. */
