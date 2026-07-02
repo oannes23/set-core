@@ -43,7 +43,7 @@ import { skipAction, rollClicks } from './splash'
 import { bumpTurn, pick, strikeWord, healWord, drainWord, magicLead, tierOf, joinClauses, voiceOf, ABILITY_FLAVOR } from './flavor'
 import { type SavedChar, type StatAlloc, loadRoster, upsertChar, deleteChar, makeChar, freshId, CONSUMABLE_SLOTS, effectiveStats, xpForLevel, pendingLevels, applyLevelUp, addXP, LEVEL_CAP, activeSlotsAt, passiveSlotsAt, activeUnlockLevel } from './save'
 import { isDev, toggleDev, onDevChange, displayName } from './dev'
-import { $ } from './dom'
+import { $, esc } from './dom'
 import { setRoot, setSceneTeardown, goScene, sceneTimeout, remountScene, initTooltips } from './router'
 import { recordRun } from '../net/run-capture'
 import { loadAccount, updateAccount, markRegistered, markDeclined, acknowledgeRecovery, applyRecovery } from '../net/account'
@@ -376,7 +376,7 @@ function embassyBadge(): string | undefined {
 function embassyStatusLine(v: EmbassyView): string {
   if (v.gate === 'modded') return 'closed — modded archive'
   const conn = v.gate === 'open' ? 'connected' : 'offline (local only)'
-  const who = v.status === 'registered' && v.handle ? `📋 <b>${v.handle}</b>` : v.status === 'declined' ? 'not registered (declined)' : 'not registered'
+  const who = v.status === 'registered' && v.handle ? `📋 <b>${esc(v.handle)}</b>` : v.status === 'declined' ? 'not registered (declined)' : 'not registered'
   return `${who} &nbsp;·&nbsp; ${conn} &nbsp;·&nbsp; ${v.pendingUploads} queued`
 }
 
@@ -401,7 +401,7 @@ function embassyScene(root: HTMLElement): void {
     wrap.appendChild($(`<div class="panel"><div class="sheet-soon">🚫 The Embassy does not accept modded archives. Disable mods to use online features — your local play is unaffected.</div></div>`))
   } else {
     hubGrid(wrap, [
-      { icon: '📋', name: 'Registry', desc: v.status === 'registered' ? `Registered as ${v.handle}` : 'Claim a handle · consent · connection', onClick: () => goScene(registryScene), badge: v.hasRecoveryToShow ? '🔑' : undefined },
+      { icon: '📋', name: 'Registry', desc: v.status === 'registered' ? `Registered as ${esc(v.handle)}` : 'Claim a handle · consent · connection', onClick: () => goScene(registryScene), badge: v.hasRecoveryToShow ? '🔑' : undefined },
       { icon: '📖', name: 'Hall of Records', desc: 'Your bests + the upload queue', onClick: () => goScene(hallOfRecordsScene), badge: v.pendingUploads > 0 ? `📤${v.pendingUploads}` : undefined },
       { icon: '📅', name: 'Daily Dispatch', desc: "The challenge of the day — one standardized fight, same for everyone", onClick: () => goScene(dailyDispatchScene) },
       { icon: '🤝', name: 'Consulate', desc: 'Friends · visiting other cities · shared shops (future)', dim: true },
@@ -429,7 +429,7 @@ function registryScene(root: HTMLElement): void {
   conn.appendChild($(`<div class="cc">This device: <b>#${v.fingerprintShort}</b> &nbsp;·&nbsp; ${v.gate === 'open' ? '🟢 connected' : '⚪ offline (local only)'}</div>`))
   const enableLabel = $(`<label style="display:flex;gap:8px;align-items:center;margin:8px 0"><input type="checkbox"${cfg.enabled ? ' checked' : ''}> Enable the Embassy (online features)</label>`)
   const enableBox = enableLabel.querySelector('input') as HTMLInputElement
-  const urlIn = $<HTMLInputElement>(`<input class="nameinput" placeholder="Embassy server URL…" value="${cfg.serverUrl}">`)
+  const urlIn = $<HTMLInputElement>(`<input class="nameinput" placeholder="Embassy server URL…" value="${esc(cfg.serverUrl)}">`)
   const saveBtn = $<HTMLButtonElement>(`<button class="cta">Save connection</button>`)
   saveBtn.addEventListener('click', () => { setEnabled(enableBox.checked); setServerUrl(urlIn.value.trim()); goScene(registryScene) })
   conn.append(enableLabel, urlIn, saveBtn)
@@ -439,10 +439,10 @@ function registryScene(root: HTMLElement): void {
   const idp = $(`<div class="panel"></div>`)
   if (v.status === 'registered') {
     idp.appendChild($(`<div class="sm-hd">Registered</div>`))
-    idp.appendChild($(`<div class="cc">Handle: <b>${acc.handle}</b></div>`))
+    idp.appendChild($(`<div class="cc">Handle: <b>${esc(acc.handle)}</b></div>`))
     if (v.hasRecoveryToShow && acc.recoveryCode) {
       idp.appendChild($(`<div class="cc" style="margin-top:8px">🔑 Recovery code — <b>write this down</b>. It re-links your records on a new device:</div>`))
-      idp.appendChild($(`<div style="font-family:ui-monospace,monospace;font-size:1.15em;padding:8px 10px;margin:6px 0;background:var(--panel-2,#0002);border-radius:6px"><b>${acc.recoveryCode}</b></div>`))
+      idp.appendChild($(`<div style="font-family:ui-monospace,monospace;font-size:1.15em;padding:8px 10px;margin:6px 0;background:var(--panel-2,#0002);border-radius:6px"><b>${esc(acc.recoveryCode)}</b></div>`))
       const ack = $<HTMLButtonElement>(`<button class="cta">I've saved it</button>`)
       ack.addEventListener('click', () => { updateAccount(acknowledgeRecovery); goScene(registryScene) })
       idp.appendChild(ack)
@@ -541,8 +541,9 @@ async function loadBests(list: HTMLElement): Promise<void> {
 }
 
 function bestLine(e: BestEntry): string {
-  const where = e.dailyDate ? `daily ${e.dailyDate}` : `${e.classId}${e.foeId ? ` vs ${e.foeId}` : ''}`
-  return `<b>${e.criterion}</b> &nbsp;·&nbsp; ${where} &nbsp;·&nbsp; <b>${e.value}</b>`
+  // §U3 (FABLE §6): every field here is SERVER-controlled (the /me/bests response) → escape before innerHTML.
+  const where = e.dailyDate ? `daily ${esc(e.dailyDate)}` : `${esc(e.classId)}${e.foeId ? ` vs ${esc(e.foeId)}` : ''}`
+  return `<b>${esc(e.criterion)}</b> &nbsp;·&nbsp; ${where} &nbsp;·&nbsp; <b>${esc(e.value)}</b>`
 }
 
 /* ===== The DAILY DISPATCH — one standardized fight, the same for every player who shares the seed +
@@ -611,8 +612,8 @@ async function renderDaily(panel: HTMLElement, v: EmbassyView): Promise<void> {
   if (res.status === 'unavailable') {
     const why = res.reason === 'version'
       ? "Your game version doesn't match today's challenge — update the game to play today's daily."
-      : `Today's challenge needs content this client doesn't have${res.detail ? ` (${res.detail})` : ''}.`
-    panel.replaceChildren($(`<div class="sheet-soon">📅 ${desc.date} — ${why}</div>`))
+      : `Today's challenge needs content this client doesn't have${res.detail ? ` (${esc(res.detail)})` : ''}.` // §U3: res.detail is server-controlled
+    panel.replaceChildren($(`<div class="sheet-soon">📅 ${esc(desc.date)} — ${why}</div>`))
     return
   }
 
@@ -621,7 +622,7 @@ async function renderDaily(panel: HTMLElement, v: EmbassyView): Promise<void> {
   try {
     setup = deriveDailySetup(res.seed, fixed, dailyCandidates())
   } catch {
-    panel.replaceChildren($(`<div class="sheet-soon">📅 ${desc.date} — today's challenge can't be built on this client (no eligible content).</div>`))
+    panel.replaceChildren($(`<div class="sheet-soon">📅 ${esc(desc.date)} — today's challenge can't be built on this client (no eligible content).</div>`))
     return
   }
 
@@ -631,10 +632,10 @@ async function renderDaily(panel: HTMLElement, v: EmbassyView): Promise<void> {
   const foeName = GAMEDATA.creatures[foeId]?.name ?? foeId
 
   panel.replaceChildren(
-    $(`<div class="sm-hd">${desc.date}${res.authored ? ' · authored' : ''}</div>`),
+    $(`<div class="sm-hd">${esc(desc.date)}${res.authored ? ' · authored' : ''}</div>`),
     $(`<div class="cc" style="margin-bottom:6px">Today everyone fights the same standardized challenge — a fresh level-1 hero, no gear, the same board.</div>`),
     $(`<div class="cc">${cls.icon} <b>${cls.name}</b> &nbsp;vs&nbsp; <b>${foeName}</b> &nbsp;·&nbsp; ${dg.name}</div>`),
-    $(`<div class="cc" style="margin-top:6px">Scored on: <b>${desc.criteria.join(', ')}</b></div>`),
+    $(`<div class="cc" style="margin-top:6px">Scored on: <b>${esc(desc.criteria.join(', '))}</b></div>`), // §U3: server-controlled criteria
   )
   const note = v.status === 'registered'
     ? 'Your result uploads to the board when you sync.'
