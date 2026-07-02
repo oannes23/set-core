@@ -4,8 +4,10 @@
 Design docs should cite `TUNING.md` instead of inlining numbers — when a
 constant changes in code, update it here (one place) rather than chasing prose
 across the design docs. Verified against `src/` on 2026-06-11 (the ROUNDS v3 +
-Resolution v3 contests build). ⚠ Every contest/tier constant is a **first cut**
-pending the derivation-sheet sim — directionally settled, numerically sim-fodder.
+Resolution v3 contests build); **body rows re-reconciled 2026-07-01 (the FABLE §10
+sweep — ward cost, foe-HP anchors, `LU_POINTS`, `LOOTTIER_K`, the dread constant
+names + PLANNED/DISABLED status labels all corrected to HEAD).** ⚠ Every contest/tier
+constant is a **first cut** pending the sim — directionally settled, numerically sim-fodder.
 
 > **⚠ YAML relocation (2026-06-17, MODDING.md Phases 1–2).** Many constants cited below now live in
 > external YAML under `src/data/content/` (the modules named are the loaders that read them):
@@ -49,11 +51,11 @@ pending the derivation-sheet sim — directionally settled, numerically sim-fodd
 | Constant / law | Value | File | Meaning |
 |---|---|---|---|
 | `ROUND_MS` | 20 000 | `src/engine/state.ts` | Round length (A1) |
-| Rollover order | swing → counter (strike round only) → deal → telegraph | `src/engine/combat.ts` (`rollover`) | Player swing FIRST; **lethal cancels** (the kill-race, symmetric). The Maneuver dump is gone (live-burn); the strike fires only on the strike round; **block resets every rollover (no carry — 2026-06-17)** + banked Dodge rolls at the strike. UI plays it as the `EXCHANGE_BEATS` table (`src/ui/app.ts`): entry thunk 0 · swing drain 800 · counter drain 1950 · tide+knit 3150 · release/stamp 4150, hitstop 4500 (reduced-motion: 2250) |
+| Rollover order | swing → counter (strike round only) → deal → telegraph | `src/engine/combat.ts` (`rollover`) | Player swing FIRST; **lethal cancels** (the kill-race, symmetric). The Maneuver dump is gone (live-burn); the strike fires only on the strike round; **block resets every rollover (no carry — 2026-06-17)** + banked Dodge rolls at the strike. UI plays it as an on-field diegetic beat, never a modal — the old fixed-timing `EXCHANGE_BEATS` table was **retired for the data-driven breakdown-popover ledger** (the popover is canon, Stage 2 2026-06-16); `EXCHANGE_BEATS` in `app.ts` now holds only `knitHold` 750 + `releasePad` 400 (reduced-motion: 0 / 250) around that popover |
 | Wound inflict | `floor(bite / (maxHP/10))` per EXCHANGE, cap 5 | `src/engine/triggers.ts` (`inflictWounds`) | Computed, never authored; Defend is the primary prevention |
 | Wound repair | `ceil(heal / (maxHP/10))` | `src/engine/ops.ts` (`healPlayer`) | Any heal knits wounds; keyed to the heal's SIZE (full-HP heals still repair) |
 | Wound recovery | 1 per draw phase; all at combat end | `src/engine/combat.ts` | Wound pendings never time-reform |
-| Ward cost (SG, live) | board verb 1 · wound `WOUND_WARD_COST` 3 | `src/engine/ops.ts` (`tryWard`) | Stand Ground intercepts live; bank carries across rollovers |
+| Ward cost (SG, live) | board verb `BOARD_WARD_COST` **2** · wound `WOUND_WARD_COST` 3 | `src/engine/state.ts` (consts) · `src/engine/ops.ts` (`tryWard`) | Stand Ground intercepts live; bank carries across rollovers. Board-verb cost raised 1→2 (2026-06-14) so the stance can't trivialize a heavy trap kit for free |
 | `CHARGE_CAP` | 15 | `src/engine/state.ts` | Exact both ways: a max 5-wound haymaker (5×3) or a whole-board dump |
 | Maneuver LIVE-BURN | `MANEUVER_GATHER_MS` 1800 · `MANEUVER_BURN_MS` 1000 | `src/engine/state.ts` · `tactics.ts` (`liveBurn`) · `combat.ts` (tick) | §5.7: enter Maneuver → gather, then burn ~1 charge/s, each churning the single deadest NOT-matching card → bias. No-bias / no-target holds the bank. Replaced the rollover dump |
 | Stance switching | LIVE (no queue) — `setTactic`/`setBias` apply instantly | `src/engine/tactics.ts` | §5.7: entering Maneuver pays the gather (damps wheel-drumming); bailing to Stand Ground is INSTANT and keeps the bank. The round-lock/queue retired |
@@ -80,7 +82,7 @@ Per card: `rate(yourStat, theirOpposed) × QUALITY[mag]`, QUALITY = ①×0.7 ②
 | `MOVE_RATE_*` | base 1 · k **0.025** · clamp 0.2–3 | `src/engine/resolve.ts` | Move lane, in charge POINTS (fractional; gauge floors into pips). Re-denominated 0.1→0.025 |
 | Telegraph law | `telegraphRoundBudget = rate(P_foe, parityE(L)) × TELEGRAPH_QSUM 3.1 × TIER_BUDGET_MULT` (minion 1 / elite **1.7** / boss **2.4**) | `src/engine/resolve.ts` · `combat.ts` (`createCombat`) | **DECOUPLED from player E (BALANCE §2.2, 2026-06-17):** anchored to the foe's LEVEL-PARITY E (10+2·(L−1)) → still parity→25×tier LEVEL-INVARIANT, but stacking E no longer shrinks it (E scales Block only; zero Defend = full damage). Tier mults raised. **Replaced `DMG_BUDGET_K`** |
 | Tempo law | diff = S−P: ≥+4 → 3 swings · −1..+3 → 2 · −4..−2 → 1 · −7..−5 → every 2nd ×2 · ≤−8 → every 3rd ×3 | `src/engine/foe.ts` (`tempoFromStats`) | UNCHANGED (sim-confirmed); reads the foe's OWN S−P. Per-foe `tempo` override available |
-| Foe authoring | P/E/S authored on the parity line `10+2(L−1)` + role spreads (swift −2P/+5S · steady · heavy +2P/−5S · giant +4P/−9S) + tier E bumps (elite +4 / boss +8) | `src/data/game-data.ts` | The data rebase: stats are DATA now, not derived. HP authored ~60/110/200; XP computed (`foe.ts computeXP`) |
+| Foe authoring | P/E/S authored on the parity line `10+2(L−1)` + role spreads (swift −2P/+5S · steady · heavy +2P/−5S · giant +4P/−9S) + tier E bumps (elite +4 / boss +8) | `src/data/content/creatures.yaml` | The data rebase: stats are DATA now, not derived. HP re-anchored to *Typical* play ~**100/250/400** (minion/elite/boss; 2026-06-17, was 60/110/200); XP computed (`foe.ts computeXP`) |
 | Player numbers sweep | abilities/potions/passives ×3 | `abilities.ts` / `consumables.ts` / `passives.ts` | ⚠ Mechanical first cut for HP-100 — re-derive in the sim (still open) |
 
 ## Board generation (unchanged)
@@ -94,7 +96,7 @@ Per card: `rate(yourStat, theirOpposed) × QUALITY[mag]`, QUALITY = ①×0.7 ②
 | `COMBAT_GEN.floor` | 1 | `src/engine/combat.ts` | Minimum makeable sets, always (⚠ assert vs worst-case wounds+locks in the sim) |
 | `BIAS_W` | 8 | `src/engine/select.ts` | Transmute favour weight (mid-round regen is NEUTRAL — bias expresses only via the dump) |
 
-## Progression & loot — PLANNED (settled 2026-06-12; **SIM-DERIVED same day**, NOT yet in code)
+## Progression & loot — LIVE (settled 2026-06-12; **SIM-DERIVED same day**; SHIPPED 2026-06-13 — rows below marked ✅)
 
 The full design: `CRAWL-DESIGN.md` §3 (progression/loot) + §5.7 (combat amendments). The
 budget-conformance sim (**`sim/progression-sim.mjs`** — deterministic, run `node sim/progression-sim.mjs`)
@@ -134,26 +136,26 @@ blow, a deferred B2 item; `GOLD_K` recalibrates once the shop sink lands.)
 |---|---|---|
 | ✅ Level cap (LIVE) | **21** (numeric to 20, then ★) | `LEVEL_CAP` in `save.ts`; the cap badge |
 | ✅ HP / level (LIVE) | **+5** (`HP_PER_LEVEL`) | 100 → 200 at cap (`maxHpForLevel`); gear/passives ~+100 → ~300 ceiling |
-| ✅ Stat points / level (LIVE) | **+3/+2/+1, player-allocated** (level-up modal) | +6/level, +120 arc; effective stats = BASE + alloc (`effectiveStats`) |
+| ✅ Stat points / level (LIVE) | **+4, freely player-allocated (≤3/stat)** (level-up modal; `LU_POINTS` 4) | +4/level (tempered 6→4, BALANCE §8 dec.7 — gear closes the gap to parity), +80 arc; effective stats = BASE + alloc (`effectiveStats`) |
 | ✅ Re-denomination (LIVE) | `RATE_K` **0.2** (was 0.8) · `MOVE_RATE_K` **0.025** (was 0.1) · tempo bands **UNCHANGED** · clamps keep [2,20] / [0.2,3] | +1 main-stat level = +7.5% lane at parity · focused-vs-balanced (±20) = +48% · full kit (+12/stat) = +30% · clamp binds at ±60 diff |
 | ✅ Parity line (LIVE) | foe parity stat = **10 + 2·(intended level − 1)** → L3=14 · L12=32 · L20=48 | endgame foes 40–80 ✓; the data rebase authors against this line |
 | ✅ Role spreads (LIVE) | swift −2P/+5S · steady 0 · heavy +2P/−5S · giant +4P/−9S, **level-invariant** · elite/boss E bump **+4/+8** | spreads land each tempo band; never widen with level (that's why the bands survive) |
 | ✅ Telegraph law (LIVE) | foe budget = `rate(P_f, E_p) × 3.1 × tierOut` (parity → 25×tier at every level) | replaces raw `P × DMG_BUDGET_K` (which breaks A4 over the arc) |
-| ✅ Foe HP (LIVE) | minion **60** · elite **110** · boss **200** — level-invariant, derived from A6 | the live rebased warren minions already sit on this line |
+| ✅ Foe HP (LIVE) | minion **~100** · elite **~250** · boss **~400** — level-invariant, re-anchored to *Typical* play (A6, 2026-06-17; was 60/110/200) | per-creature in `creatures.yaml` (~×1.67/2.27/2.0 over the old anchors); teaching/puzzle foes exempt |
 | Trap severity *(sim)* | author ∝ intended-level HP: ≈ **6% · tierOut of expected maxHP** per hit | flat numbers let bulk eat the threat layer (boss row drifted 37→90% before this) |
 | ✅ XP law (LIVE) | `(hp/10 + P + E + S) × (1 + 0.15·traps) × tierMult` | `foe.ts computeXP`; computed — except a teaching-foe `xp` override (dummy/gauntlet, for the onboarding curve) |
 | ✅ XP tier mult (LIVE) | **×1 / ×2 / ×4** | deliberately above the stat ladder (×1/×1.5/×2) — risk beats grinding |
 | ✅ XP curve (LIVE; base STEEPENED 2026-06-14, sim §8) | **polynomial: need(L→L+1) = 110 × L^1.7** (`xpForLevel`) — base 55→80→**110** to hit **~50–60 level-matched dungeon clears to ★** (110→~56; base rises because foe XP rises w/ dungeon level). need(1→2)=110 · (2→3)=355 · (3→4)=710 | anchored dummy→L2 · gauntlet→L3 (teaching `xp` overrides: dummy 110, gauntlet 95/170/90=355) · first clear still ≈ 1 level · XP always banks |
-| Dungeon difficulty 1–5 *(PLANNED, sim §8)* | **dungeon LEVEL = 3 + 4(D−1)** → D1 L3 · D2 L7 · D3 L11 · D4 L15 · **D5 L19 ("18+")**, ±2 ramp | the parity-authoring level of a dungeon's foes; you climb D1→D5 as you level. `schema.ts` already has `difficulty` |
-| Foe level-equivalent *(PLANNED, sim §8)* | **`L_foe ≈ 1 + (avgStat − 10)/2`** (self-rated, inverts parity) | no authoring — strength IS level; elites/bosses read ~1 higher via the E-bump (within the grace band) |
-| Outlevel XP penalty *(PLANNED, sim §8)* | **`clamp(1 − 0.15·max(0, L_player − L_foe − 2), 0.1, 1)`** | full XP within 2 levels; one tier down (gap~4) ×0.70; two tiers (gap~8) floors ×0.1. Makes "level-matched clears" real (anti-backtrack-farm). Above-level ×1.0 (bonus = a lever). Engine wiring: `computeXP(foe, playerLevel?)` |
+| Dungeon difficulty ladder *(authoring principle; LIVE roster is the Twelve Gates)* | **parity level ≈ 3 + 4(D−1)** as the authoring anchor; the **shipped ladder is 14 dungeons across difficulty 0–10** (the Twelve Gates D1→D10 L1→L21 + tutorial/training), not the old D1–D5 plan | the parity-authoring level of a dungeon's foes; you climb the ladder as you level. `schema.ts` `difficulty` drives dungeon-select ordering |
+| ✅ Foe level-equivalent (LIVE) | **`L_foe ≈ 1 + (avgStat − 10)/2`** (self-rated, inverts parity) | no authoring — strength IS level; elites/bosses read ~1 higher via the E-bump (within the grace band). `foe.ts foeLevelEquiv` |
+| ✅ Outlevel XP penalty (LIVE) | **`clamp(1 − 0.15·max(0, L_player − L_foe − 2), 0.1, 1)`** | full XP within 2 levels; one tier down (gap~4) ×0.70; two tiers (gap~8) floors ×0.1. Makes "level-matched clears" real (anti-backtrack-farm). Above-level ×1.0 (bonus = a lever). `foe.ts computeXP(foe, playerLevel)` |
 | Gear stat share | **~25%** of endgame stats (~+30–40 pts/kit, ≈+5–7/slot) | gear's identity = per-card riders + slot mechanics (§7), not stats |
 | ✅ Drop count (LIVE) | minion **1** · elite **2–3** · boss **5** | `loot.ts` TABLES; plus a guaranteed gold WAGE ×2 / ×4 (elite/boss) |
-| ✅ Category weights (LIVE) | minion **60/30/10** · elite **45/35/20** · boss **30/40/30** (gold/cons/gear) | elites+bosses roll consumable quality with ADVANTAGE; **gear/spellbook DISABLED (B3/B4)** → their weight redistributes to the live categories (`ENABLED`) |
+| ✅ Category weights (LIVE) | minion **60/30/10/0** · elite **45/35/20/0** · boss **30/40/20/10** (gold/cons/gear/spellbook) | elites+bosses roll consumable quality with ADVANTAGE; **gear is LIVE (B3 shipped)**; only **spellbook waits on B4** → its weight redistributes to the live categories (`ENABLED`) |
 | ✅ Consumable sub-table (LIVE) | ~60% tiered potion (tier by depth, advantage keeps the better roll) · ~20% special potion · ~20% scroll | `loot.ts rollConsumable`; spellbooks (the 5% slice) wait on B4 |
 | ✅ Gold scale (LIVE) | `gold = foeValue × GOLD_K 0.12 × depth × ±30%` (minion drop ~4–8g) · **full warren clear ≈ 210g** (depth-inflated) | `loot.ts`; foeValue shared with XP (`foe.ts`). Moderate player banks hundreds; ⚠ runs ~40% over the 100–150 first-cut — recalibrate `GOLD_K` once the shop sink exists |
 | ✅ Depth scaling (LIVE) | **+7%/room** (`DEPTH_RATE`) gold + consumable tier | greed aligns with dread; kills shallow cash-out farming |
-| Gear pity | gear weight ticks up per gear-less drop, resets on hit | ⏳ lands WITH gear (B3) — inert while gear is disabled |
+| ✅ Gear pity (LIVE) | gear weight ticks up per gear-less drop (`gearPityStep` 8), resets on hit | LIVE with the loot flip (B3 shipped) — `DELVE.gearPity` sawtooth in `loot.ts` |
 | ✅ Death tithe (LIVE) | **12%** of banked gold (`bank.ts DEATH_TITHE`) | a run-ending death also loses the run's carried gold |
 | ✅ Dodge (LIVE, REWORKED 2026-06-17) | Speed floor (base **10%** · `DODGE_K` **0.015**/pt · clamp **[3%, 40%]**) **+ a banked pool** from Move (`DODGE_PER_CHARGE` 0.04) capped by foe cadence (`dodgeCapForFoe` 0.6–1.0); rolled per swing **AT THE STRIKE**, resets on a dodge | BALANCE §2.3 — Move·Speed→dodge; stack it on a slow foe's windup to slip a haymaker. Strikes only; 💨 meter live |
 | ❌ Guard carry (RETIRED 2026-06-17) | Block NO longer persists through windups — resets every rollover | BALANCE §2.1: Block is the in-the-moment lever (mitigates only the landing round), banked Dodge is the planned one — together they tile the tempo spectrum |
@@ -180,9 +182,9 @@ blow, a deferred B2 item; `GOLD_K` recalibrates once the shop sink lands.)
 | `ELITE_STEP` | 0.10 | `src/engine/delve.ts` | Elite sawtooth: chance = step × rooms since last elite; resets on an elite AND on a flee |
 | `RUN_BAG_CAP` | 10 | `src/engine/delve.ts` | The run consumable satchel (the 10-slot run inventory's seed) |
 | dread bands | 15 / 45 / 80 (% cum, next room) | `src/engine/delve.ts` (`dreadBand`) | quiet → drums → throne stirs → he is near → throne room found |
-| room loot | 1 random consumable (¾ potion / ¼ scroll) | `src/engine/delve.ts` (`rollDelveLoot`) | ⚠ PLACEHOLDER — real loot tables (gold/XP/gear by loot_tier) replace it |
+| room loot | real category-first tables (gold/consumable/gear by loot-tier) | `src/engine/loot.ts` (`rollRoomLoot`) | ✅ SHIPPED 2026-06-13 — the placeholder `rollDelveLoot` was DELETED (Stage 0, 2026-06-16). See the Progression & loot rows above |
 
-## Dread escalation — PLANNED (settled 2026-06-13; the structural anti-stall; CRAWL §5.8)
+## Dread escalation — LIVE (settled 2026-06-13; BUILT 2026-06-14; the structural anti-stall; CRAWL §5.8)
 
 The unified `dread` meter (1–10) drives two lanes: **drift = soft tension** (can't touch HP),
 **a two-way damage multiplier = the hard anti-stall**. **SIM-VALIDATED 2026-06-13**
@@ -193,14 +195,14 @@ UNGUARDABLE lane** (trap/tick), not the telegraph — sated guard neutralizes a 
 
 | Constant | Value (first cut) | Meaning |
 |---|---|---|
-| `DREAD_SCALE` | **1 – 10** | the meter; extends the existing dread bands (§2) into a numeric driver |
-| Depth floor `D₀` | bands → **1 / 2.5 / 4 / 5**, **cap 5** | from the cumulative boss-total; set per room, resets at Town. Capped at 5 so depth never reaches the damage band alone |
-| `DREAD_RISE` | **~0.5 / round** | within-fight climb: `dread = clamp(D₀ + RISE×round, 1, 10)`; resets to `D₀` at fight end |
-| `DREAD_KNEE` | **5** | below = near-flat gentle drift; above = drift steepens toward the ceiling |
+| `DREAD_MAX` | **10** (meter 1–10) | the meter ceiling; extends the existing dread bands (§2) into a numeric driver |
+| Depth floor `D₀` | bands → **1 / 2.5 / 4 / 5**, `DREAD_DEPTH_CAP` **5** | from the cumulative boss-total; set per room, resets at Town. Capped at 5 so depth never reaches the damage band alone |
+| `DREAD_RISE` | **0.5 / round** | within-fight climb: `dread = clamp(D₀ + RISE×round, 1, 10)`; resets to `D₀` at fight end |
+| Drift knee | **~5** (concept; keyed off the meter, no separate export) | below = near-flat gentle drift; above = drift steepens toward the ceiling |
 | Drift ceiling | **≤ ~0.3–0.4 c/s** (TRAPS §6) | even max dread respects the net-transmute budget → the makeable-FLOOR holds; drift quantized to the **rollover** (no continuous clock) |
-| `DMG_ONSET` | **dread 7** | the two-way damage multiplier is OFF below this; ramps linearly to max at dread 10 |
-| `DREAD_DMG_FOE_MAX` | **×2.0** at dread 10 | foe damage scale at max |
-| `DREAD_DMG_PLAYER_MAX` | **×1.5** at dread 10 | player damage **+ healing** scale at max — sustain scales 1.5 vs incoming 2.0 → equilibrium breaks to the house |
+| `DREAD_ONSET` | **dread 7** | the two-way damage multiplier is OFF below this; ramps linearly to max at `DREAD_MAX` (10) |
+| `DREAD_FOE_MAX` | **×2.0** at dread 10 | foe damage scale at max |
+| `DREAD_PLAYER_MAX` | **×1.5** at dread 10 | player damage **+ healing** scale at max — sustain scales 1.5 vs incoming 2.0 → equilibrium breaks to the house |
 | `DREAD_BLEED_MAX` *(generic, split out 2026-06-13)* | **6%·maxHP/round** at dread 10 (0 below onset) | a foe-INDEPENDENT unguardable drain so the anti-stall doesn't depend on the foe's trap kit; authored traps/ticks ride on top. This is the clean primitive (a universal dread bleed, not a per-foe DoT) |
 | Multiplier scope | foe ×: **all foe DAMAGE incl. unguardable trap/tick + the bleed** · player ×: **damage + heals**; NEITHER touches **drift** (the transmute, no HP) | the unguardable lane is what bites (sated guard caps a pure telegraph ×); folds in AT REVEAL so the ⚔ stays honest; dodge/guard/SG still apply to the bigger numbers |
 | Goal / cap behavior *(reframed 2026-06-13)* | **capped at dread 10**; goal = ACCELERATE to a resolution + the dread swing-moment, NOT force-kill the turtle | sim §7: breaks realistic sustain ≤~20%/rnd, normal fights inert (ON≈OFF). An indefinite-heal build wins nothing → needs no force-kill; absurd out-healing is a sustain-NUMBER cap, fix at source |
@@ -243,13 +245,13 @@ Affixes are **NOT** in foe tuning (unpriced upside) → they push winrate ABOVE 
 | Per-affix power (inverse budget) | white **×1.4** · green ×1.0 · blue ×0.7 · purple ×0.6 · orange **×0.5** | fewer affixes hit harder; the avg TOTAL stays ~FLAT (1.4–1.5 units) → cross-rarity affix PARITY (white's 1 strong ≈ blue's 3 diluted). Rarity's edge = base rider + affix COUNT, not affix power |
 | Max affixes / rarity | white 1 · green 1–2 · blue 1–3 · purple 1–4 · orange 1–5 (**random count**) | the random count is the per-drop variance — same-rarity drops aren't fungible |
 | Affix magnitude (`AFFIX_DMG`) | **≈ 0.55 dmg-equiv / round per 1.0 per-affix-power-unit** (best-case proc) | a FULL kit ≈ +6–7 dmg/round → boss **36%→~56% (baseline) / ~82% (skilled)**; elites/minions stay fodder; bare holds the §11 ~36% gate (REWARD, not auto-win) |
-| Loot-tier scalar (`LOOTTIER_K`) | **0.02** — affix magnitude × `(1 + lootTier·k)`, lootTier ≈ foe L + dungeon L | a deep drop's affixes ≈ ×1.3 a shallow one's — chase depth, bounded |
+| Loot-tier scalar (`LOOTTIER_K`) | **0.12** (raised 6× from the 0.02 first cut — BALANCE §5.4 / balance-sim §G) — affix magnitude × `(1 + lootTier·k)`, `lootTier = max(1, round(foeLevelEquiv + depth·0.34))` (`loot.ts lootTierFor`) | a deep/high-foe drop's affixes hit meaningfully harder — chase depth + tier, bounded |
 | Off-stat patch amount | **+2 to +3** to a stat (≈ +3.4 / +5.8 pp on the ref boss) | a real patch but a rider out-values it (raw stat bounded by the rate clamp — §7 intent) |
 | Curse severity | **−2 / −3 to a stat** (offsets a ~fatter proc) | "strong+curse ≈ clean+weaker" — the cursed item competes, never dominates; identified + rerollable |
 
 **On-match proc magnitudes — FIRST-CUT (the affix-proc engine, BUILT 2026-06-15; ⚠ a §13 proc-value sim
 is the tuning gate).** `data/affixes.ts` procs: amount = `max(1, round(magUnit × k))`, magUnit =
-`perAffixPower × (1 + lootTier·0.02)`; k = 1.0 dmg (Savage/Searing) · 0.7 mana (Attuned) · 1.5 heal
+`perAffixPower × (1 + lootTier·0.12)`; k = 1.0 dmg (Savage/Searing) · 0.7 mana (Attuned) · 1.5 heal
 (Renewing) · Time-Eater = +1s. All **conditioned** (all-Attack / all-Fire / mono-colour / all-Defend /
 rainbow) to bound the per-round value — §12 flagged procs run hot (a per-match damage proc ≈ 4× a stat
 affix). Sim them before widening the pool or raising magnitudes.

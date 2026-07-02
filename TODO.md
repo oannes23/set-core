@@ -16,6 +16,166 @@ Traffic-light: green = pursue · yellow = consequence · red = wounded.
 
 ---
 
+## ▶▶ NEXT SESSION — START HERE (handoff 2026-07-01 — THE FABLE ROADMAP)
+**Source: `FABLE.md`** (the 2026-07-01 ten-track review — 44 findings adversarially verified; §14 is
+its own prioritized list, §§3–11 the detail). This section **reorganizes FABLE §14 into phases + parallel
+lanes** so a session can pick a lane and go; each item carries its FABLE ID + `file:line` + the doc it
+touches. The 2026-06-17 balance-pass handoff below is now **historical context**. Pre-push gate (until D1
+lands): `pnpm typecheck && pnpm test` (~4 s).
+
+**The shape of the work** (FABLE §1, §13): the engine is healthy — the debt clusters in (a) a handful of
+correctness holes, (b) the **record/corpus layer, which shipped its write path before its integrity path**
+(N1/E7/N2/N4/P5/P6/P7/D2 are all one theme — fix as a batch, cheaper before public data exists), and (c)
+the **first-minute product funnel**. Sequence rationale in FABLE §11 "Highest-leverage next build".
+
+### Phase 0 — Correctness quick-hits (FABLE §14 items 1–6) — SHIP FIRST, mostly one-liners
+Small, high-payoff, low-risk. **4 parallel lanes** (conflicts noted). Each ships with a test.
+- **Lane A — engine (`src/engine/combat.ts`)** *(two funcs, same file — sequence within the lane)*:
+  - `[ ]` **E1 — the zombie foe** (HIGH). Add `enemyHP<=0 → onWin+return` after the wound/lowHP proc
+    blocks in `rollover()` (`combat.ts:472,492`); consider gating tick-triggers on `enemyHP>0` to match
+    the match path. FABLE §3 E1.
+  - `[ ]` **E4 — `[i,i,i]` distinctness guard** (MEDIUM). One line at `completeSet` (`combat.ts:288`) —
+    reject non-distinct slot indices (the declared anti-cheat seam). FABLE §3 E4.
+- **Lane B — UI (`src/ui/app.ts`)** *(different regions — safe to interleave)*:
+  - `[ ]` **C1/U1 — phantom "Daily Challenger" roster pollution** (HIGH). `if (!DAILY) upsertChar(…)`
+    in `awardXP` (`app.ts:3902`/:2447); add a save-level test that a daily-shaped flow never grows the
+    roster. FABLE §4 C1 / §6 U1.
+  - `[ ]` **U3 — `esc()` at Embassy/name interpolation sites** (MEDIUM). One `esc()` helper (or
+    `textContent`) over server-echoed handles / bests / daily fields / user serverUrl (`app.ts:543-546,
+    613-637, 442, 432`) — before any foreign handle renders. FABLE §6 U3.
+- **Lane C — CI (`.github/workflows/deploy.yml`)** *(independent)*:
+  - `[ ]` **D1 — the ship gate** (MEDIUM, biggest process hole). `pnpm typecheck && pnpm test` before
+    `build` in deploy.yml (or a prebuild hook). FABLE §9 D1.
+- **Lane D — docs (independent; the "other documents" ask)**:
+  - `[x]` **Doc triage — worst offenders (DONE 2026-07-01).** `CLAUDE.md` reconciled against HEAD
+    (`bc3ca53`, verified accurate); TODO's Daily Dispatch item ticked (shipped `a57cc32`); `TUNING.md`
+    body rows fixed — ward-cost (1→2), foe-HP anchors (60/110/200→~100/250/400), `LU_POINTS` (+6→+4),
+    `LOOTTIER_K` (0.02→0.12), dread constant names, room-loot/`rollDelveLoot`, the `EXCHANGE_BEATS`
+    table, and the PLANNED/DISABLED status labels. FABLE §10.
+  - `[ ]` **Doc triage — remaining drift (FABLE §10 rest-of-table).** Not the worst offenders, but still
+    stale: `CRAWL-DESIGN.md` (§3 +6/level, §5.5 retired-mechanics body, §5.6 elite/boss mults);
+    `TRAPS.md` §7.2's retired speed-band cadence table presented as "(live)"; `docs/yaml-tuning.md`'s
+    loot section documents fields that don't exist (`marketTier`/`rarityWeights`) + omits the real dials.
+
+### Phase 1 — The daily-integrity batch (FABLE §14 items 7–12) — FIX AS ONE UNIT before the Embassy leaves localhost
+Rationale (FABLE §13, §11): the corpus being collected now is the future leaderboard's anti-cheat
+substrate; every fix here is retroactive-only-if-added-before-public-data. **4 parallel lanes.**
+- **Lane A — outbox/volume (`src/net/outbox.ts`, `run-capture.ts`, `app.ts`)**:
+  - `[ ]` **N1 — unbounded outbox × 60 fps tick logs** (HIGH; the convergence finding). Cap the outbox
+    (count/bytes, evict-oldest, surface "queue full"); quantize/coalesce ticks at capture (round `dtMs`);
+    consider not queueing until the Embassy is enabled; fix the false "records stay in memory" comment
+    (`outbox.ts:114-120`). ⚠ **Lossless tick-coalesce needs an ENGINE change** (rollover-loop +
+    large-tick sub-step + a "big tick == N small ticks" equivalence test — see the parked U5 note below);
+    rounding `dtMs` alone is safe and cheap. FABLE §5 N1.
+  - `[ ]` **N3 — flushOutbox has no recovery path** (MEDIUM). Halve the batch on 413 / peek by cumulative
+    bytes; surface "re-link this device" on 401/403; report flush failures in the Hall of Records
+    (`embassy.ts:118-139`). FABLE §5 N3.
+- **Lane B — daily determinism (`src/net/daily-select.ts`, `net/version.ts`, `app.ts`, build)**:
+  - `[ ]` **N2 — daily RNG stream reuse** (MEDIUM). Domain-separated sub-seeds (`seedToInt(seed+':foe')`
+    / `':board'`) or thread one Rng — several foes can currently NEVER be the daily foe. **Do it before
+    real version tokens** (re-rolls historical dailies). FABLE §5 N2.
+  - `[ ]` **P7/D2 — vacuous version pins over order-dependent candidates** (LOW now, HIGH at deploy).
+    Wire `CLIENT_CONTENT_VERSION` to a build-time hash of the YAML registry (a Vite `define`); **extract
+    `dailyCandidates()` pure** and pin its ordered output with a snapshot test (`app.ts:567-573`). FABLE
+    §9 D2 / §11 P7.
+- **Lane C — capture/instruments (`src/net/capture.ts`, `run-capture.ts`, `app.ts`, `ui/dev.ts`)**:
+  - `[ ]` **P5 — pause-cheesable "fastest clear"** (MEDIUM). Capture wall-clock elapsed + pause
+    count/duration into `instruments`; cap/disable pause in daily mode when the board lands. FABLE §11 P5.
+  - `[ ]` **P6 — dev-mode cheat runs upload as unmodded** (MEDIUM). Emit `instruments.devMode` (open
+    object, no schema bump) and/or gate grant-gear out of prod builds. FABLE §11 P6.
+- **Lane D — replay + copy (`src/engine/session.ts`, `app.ts`)**:
+  - `[ ]` **E7 — selection not in the action log breaks replay** (MEDIUM; cross-filed §5). Add a
+    `setSelection` action (or embed the snapshot in tick/completeSet) so rule-6 shielding replays
+    (`session.ts:47`). FABLE §3 E7 / §5 N4. *(N4 non-daily replay debt is documented — thread the
+    extended-session snapshot before any anti-cheat relies on the corpus.)*
+  - `[ ]` **P4 — soften the "leaderboard" copy** until a board exists (the wire is per-player bests
+    only). FABLE §11 P4.
+
+### Phase 2 — Engine / design debt (FABLE §14 items 13–16) — the next combat pass
+Group by module; mostly parallel. Playtest E2 first (the new №1 degenerate line — FABLE §13).
+- **Lane A — combat balance (`src/engine/combat.ts`, `state.ts`, `tactics.ts`, `triggers.ts`)**:
+  - `[ ]` **E2 — uncapped COMBO OVERTIME freezes the anti-stall** (MEDIUM). Set a real
+    `COMBO_OVERTIME_CAP_MS`, or derive dread from elapsed time, or escalate the grace as overtime
+    stretches (`combat.ts:399-406`, `state.ts:225`). FABLE §3 E2.
+  - `[ ]` **E3 — soak skips `instant_attack`/trap damage** (MEDIUM). Subtract `soak` in `enemyAttack`
+    (decide the flat-`damage` case), or document the exemption beside dodge's (`triggers.ts:348-357`).
+  - `[ ]` **E5 — Maneuver `liveBurn` spends into the rule-6 shield + spuriously Primes** (MEDIUM).
+    Filter the pool by `protectedSlots`, or have `transmute` report affected slots and only spend/prime
+    on success; clear `primed[i]` on non-match turnover (`tactics.ts:56-65`). FABLE §3 E5.
+  - `[ ]` **E6 — match-fired traps vs the matched trio** (MEDIUM; old-E4). Fire match triggers after the
+    clear+refill, or pass the matched slots as an exclusion set for that firing (`combat.ts:310,317-321`).
+- **Lane B — content semantics + BALANCE.md**:
+  - `[ ]` **C2 — enchant-on-white → transfer games the affix budget (~3×)** (MEDIUM). Flag in
+    **BALANCE.md now** for the gated sim pass; fix = re-mint to the destination's rarity unit on transfer
+    (`smith.ts:99-119`). FABLE §4 C2.
+  - `[ ]` **C3 — `drain_mana` omitted color drains RED, docs say "spread"** (MEDIUM; the D6 identity).
+    Implement spread OR require `color` + set the hexes to blue; reconcile desc/doc/code
+    (`triggers.ts:224`). FABLE §4 C3.
+- **Lane C — UI robustness (`src/ui/app.ts`)**:
+  - `[ ]` **U2 — live delve is unpersisted module state** (MEDIUM). Persist `DELVE` under its own
+    envelope key with restore-or-forfeit on boot (a PWA process kill silently deletes committed
+    consumables + gold + gear today) (`app.ts:275,1584-1586`). FABLE §6 U2.
+  - `[ ]` **U4 — async goScene races** (MEDIUM). Scene-token guard the three settled-request `goScene`
+    sites (`app.ts:513,482,495`) — the `view===V` idiom already exists. FABLE §6 U4.
+  - `[ ]` **Gate the Data Wipe button** on `isDev()` (ships un-gated on character select). FABLE §6.
+
+### Phase 3 — Product funnel + accessibility (FABLE §14 items 17–18) — pre-content prep, STRICTLY ORDERED
+Each unblocks the next; external players are currently zero precisely because these are unmet.
+- `[ ]` **P1 — the fresh-save funnel** (MEDIUM; highest-leverage build in the repo). Boot → no roster →
+  name+class → auto-launch the (built) guided tutorial → land in town with a "▶ next: Goblin Warren"
+  cue; persist "tutorial seen". Routing + a flag, not new systems. FABLE §11 P1.
+- `[ ]` **Colorblind redundant encoding + CVD triad + relaxed/round-length option** (HIGH; third review
+  running; the *mechanical* external-playtest unblock). Per-color fill style in `cardSVG`
+  (solid/outline/hatched or a corner pip) + a CVD-safer `CARD_HEX`; add the settings surface. FABLE §11 /
+  §14 item 18. *(Supersedes the "Deferred" colorblind park below + the balance-log settings item.)*
+
+### Phase 4 — Content re-authoring (NEW 2026-07-01; USER-OWNED, by hand) — the final gate before external playtest
+**All current classes / abilities / enemies / dungeons / affixes are TEST PLACEHOLDER data.** This phase
+replaces them with real, hand-authored names + flavor — the *content* external players will actually see.
+Runs **after the FABLE review work items** (Phases 0–3 + any hygiene ride-alongs that fit). Bundles the two
+FABLE product items that are the same work:
+- `[ ]` **Re-author the content** (classes · abilities · enemies · dungeons · affix names) → real authored
+  identity, replacing placeholders. *User-owned, by hand.* ⚠ **Scope note:** names/flavor are pure YAML
+  data (edit freely now); ability/passive/consumable *effect behavior* is still TS closures until MODDING
+  **Phase 3 (the effect-DSL)** — so re-authoring ability NAMES is a data edit, but NEW ability behavior
+  needs a TS edit (or Phase 3) until then.
+- `[ ]` **P2 — class-kit expansion (folds in here)** — ~6 actives / 3 passives per class; the machinery +
+  the `gearAbilities()` hook exist. You're authoring abilities by hand anyway → do breadth + naming in one
+  pass (kits exhaust at L3 today — the biggest retention hole). FABLE §11 P2.
+- `[ ]` **The rename (folds in here)** — `set.core` → the real product name; centralize the display
+  string; keep "SET-like" as descriptive copy only. Must land before the Embassy/playtest leaves
+  localhost. FABLE §14 item 20.
+- **→ External playtest opens after this phase** (accessible + real content + named).
+
+### Phase 5 — Post-playtest tuning + the meta (folds in real feel data)
+- `[ ]` **Playtest-feel tuning** (carryover from the 2026-06-17 balance handoff below): Novice/under-geared
+  survivability · Dodge feel · the rush. Needs real feel data → **rides the external playtest.** Levers in
+  BALANCE.md §8 (base-stat floor / `gearFactor` extension / A5 boss mult / `DODGE_*` / lean on dread depth).
+- `[ ]` **The gated balance/economy sim pass** — now **UNBLOCKED** (the shop sinks shipped in Phase 2.5, so
+  the CLAUDE.md gate condition is met). Process: extend `sim/balance-sim.mjs` → settle in BALANCE.md → port
+  (don't hand-tune). Covers: `GOLD_K` faucet recalibration + reward-coupling decouple (§8 dec.1) + the
+  combat re-sim (the type layer cut weapon uptime → `gearFactor` over-credits gear) + **validate C2** (the
+  enchant-transfer exploit — FABLE §4 C2 explicitly defers its fix-validation to this pass). Precedes the
+  leaderboard.
+- `[ ]` **Daily leaderboard** — server `/daily/board` + results panel + retry policy — ONLY after Phase 1
+  makes the corpus trustworthy. (`combo.fightPeak` "highest chain on today's seed" plugs in here — persist/
+  capture it during Phase 1, retroactive-only.) FABLE §11 P4 / §14 item 21.
+
+### Phase 6 — Hygiene (FABLE §14 items 22–23) — ride-alongs, fold into adjacent work
+- `[ ]` **Test the untested boundary** (FABLE §12): extract dispatch as pure `stepWithSelection(run,
+  action, selected, deps)` + the rule-6 end-to-end test (U5 — one untested line at `app.ts:2434` holds
+  hard-rule 6); test `flushOutbox` / `recordRun` with stubbed fetch/localStorage; add a coverage provider.
+- `[ ]` **Contract drift guard**: vendor `openapi.json` + actually wire `pnpm gen:embassy-types` (add the
+  missing `openapi-typescript` devDep — the codegen is broken as committed); add the sim-constants
+  equality test (the ~15 hand-copied constants have no drift guard).
+- `[ ]` **A1 — event `{id,params}` migration** when combat-log is next touched (lift English+emoji out of
+  engine events); **sw.js** cache-name rotation + self-hosted fonts.
+- `[ ]` **Delete dead surfaces** (FABLE §13): `bankGold`/`bankTithe`, `resolveDelveExit` 'safe' branch,
+  `Dungeon.extends` (or implement), `Selector.center`; schema tightenings (`gap` maximum, mode-union
+  narrowing, starter-consumable link test).
+
+---
+
 ## ▶ NEXT SESSION — START HERE (handoff 2026-06-17 — THE BALANCE PASS)
 **⭐ THE BALANCE PASS IS BUILT + PORTED.** The full rebalance from `BALANCE.md` (planned + proven in the
 `sim/balance-sim.mjs` workshop) is now live in `src/` across these shipped chunks — all tested green (268
@@ -322,9 +482,10 @@ wiring stays deferred (see below). Net imports engine TYPES only; engine never i
   + needs a running service to exercise the network paths.
 
 **REMAINING (contract fully answered — only live-game wiring left):**
-- `[ ]` **Daily seed→board generation + the Daily Dispatch quarter** — feed `resolveDaily`'s seed +
-  fixed selections into the deterministic generator / `engine/session.ts` setup (unfixed axes derive
-  from seed); light up the (currently dim) Daily card.
+- `[x]` **Daily seed→board generation + the Daily Dispatch quarter** — SHIPPED 2026-07-01 (`a57cc32`):
+  `resolveDaily`'s seed + fixed selections feed the deterministic generator; the Daily card launches a
+  standardized, deterministic-to-the-card daily fight. ⚠ Integrity follow-ups (N2 sub-seed decorrelation,
+  P5 pause capture, P7 version hash, P6 dev flag) tracked in the FABLE roadmap Phase 1 up top.
 - `[ ]` **Wire real client versions** (`net/version.ts`) + vendor `openapi.json` → `pnpm gen:embassy-types`.
 - `[ ]` **Future quarters (stubbed + dim — documented `SERVICE.md` §11):** Consulate (friends · visiting
   other cities · shared shops) · Mercenary Post (hire heroes out for gold · the hero-of-the-day). Deep
