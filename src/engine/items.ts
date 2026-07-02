@@ -106,9 +106,12 @@ export const NO_RIDERS: Riders = { atkDamagePerCard: 0, blockPerDefendCard: 0, m
 export const COLOR_SCOPE: Record<string, number> = { red: 0, green: 1, blue: 2, rainbow: 3 }
 
 /** A fresh instance id. UI/persistence-side, so plain Date/Math is fine (engine determinism lives
- *  in the seeded combat rng, not here). Mirrors save.ts `freshId`. */
+ *  in the seeded combat rng, not here). Mirrors save.ts `freshId`. The monotonic `uidSeq` GUARANTEES
+ *  intra-session uniqueness (Date.now() is constant in a tight loop, so Math.random() alone birthday-
+ *  collides — a real item-dupe hazard); the random suffix keeps cross-tab/session collision unlikely. */
+let uidSeq = 0
 export function freshUid(): string {
-  return `i_${Date.now().toString(36)}_${Math.floor(Math.random() * 1e6).toString(36)}`
+  return `i_${Date.now().toString(36)}_${Math.floor(Math.random() * 1e6).toString(36)}_${(uidSeq++).toString(36)}`
 }
 
 export function makeItem(kind: ItemKind, refId: string, uid: string = freshUid()): Item {

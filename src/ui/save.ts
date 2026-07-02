@@ -222,4 +222,7 @@ export function makeChar(name: string, classId: string, id: string): SavedChar {
 export function upsertChar(c: SavedChar): void { saveRoster(upsert(loadRoster(), c)) }
 export function deleteChar(id: string): void { saveRoster(remove(loadRoster(), id)) }
 /** A fresh id — UI-side, so plain Date/Math is fine (the engine's determinism lives elsewhere). */
-export function freshId(): string { return `c_${Date.now().toString(36)}_${Math.floor(Math.random() * 1e6).toString(36)}` }
+// the monotonic `idSeq` GUARANTEES intra-session uniqueness (Date.now() is constant in a tight loop, so
+// Math.random() alone birthday-collides); the random suffix keeps cross-tab/session collision unlikely.
+let idSeq = 0
+export function freshId(): string { return `c_${Date.now().toString(36)}_${Math.floor(Math.random() * 1e6).toString(36)}_${(idSeq++).toString(36)}` }
