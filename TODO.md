@@ -59,39 +59,42 @@ typecheck clean, deploy now gated. **Only the "remaining doc drift" sub-item (La
     `rarityWeights` → the real `rarityBands`/`depthTierRate`); `docs/yaml-catalogs.md` + `schema.ts` base
     2/2/2→10/10/10. **Phase 0 fully complete.**
 
-### Phase 1 — The daily-integrity batch (FABLE §14 items 7–12) — FIX AS ONE UNIT before the Embassy leaves localhost
+### Phase 1 — The daily-integrity batch (FABLE §14 items 7–12) — ✅ CODE DONE 2026-07-01 (pushed; QA'd by 2 subagents)
 Rationale (FABLE §13, §11): the corpus being collected now is the future leaderboard's anti-cheat
-substrate; every fix here is retroactive-only-if-added-before-public-data. **4 parallel lanes.**
-- **Lane A — outbox/volume (`src/net/outbox.ts`, `run-capture.ts`, `app.ts`)**:
-  - `[ ]` **N1 — unbounded outbox × 60 fps tick logs** (HIGH; the convergence finding). Cap the outbox
-    (count/bytes, evict-oldest, surface "queue full"); quantize/coalesce ticks at capture (round `dtMs`);
-    consider not queueing until the Embassy is enabled; fix the false "records stay in memory" comment
-    (`outbox.ts:114-120`). ⚠ **Lossless tick-coalesce needs an ENGINE change** (rollover-loop +
-    large-tick sub-step + a "big tick == N small ticks" equivalence test — see the parked U5 note below);
-    rounding `dtMs` alone is safe and cheap. FABLE §5 N1.
-  - `[ ]` **N3 — flushOutbox has no recovery path** (MEDIUM). Halve the batch on 413 / peek by cumulative
-    bytes; surface "re-link this device" on 401/403; report flush failures in the Hall of Records
-    (`embassy.ts:118-139`). FABLE §5 N3.
-- **Lane B — daily determinism (`src/net/daily-select.ts`, `net/version.ts`, `app.ts`, build)**:
-  - `[ ]` **N2 — daily RNG stream reuse** (MEDIUM). Domain-separated sub-seeds (`seedToInt(seed+':foe')`
-    / `':board'`) or thread one Rng — several foes can currently NEVER be the daily foe. **Do it before
-    real version tokens** (re-rolls historical dailies). FABLE §5 N2.
-  - `[ ]` **P7/D2 — vacuous version pins over order-dependent candidates** (LOW now, HIGH at deploy).
-    Wire `CLIENT_CONTENT_VERSION` to a build-time hash of the YAML registry (a Vite `define`); **extract
-    `dailyCandidates()` pure** and pin its ordered output with a snapshot test (`app.ts:567-573`). FABLE
-    §9 D2 / §11 P7.
-- **Lane C — capture/instruments (`src/net/capture.ts`, `run-capture.ts`, `app.ts`, `ui/dev.ts`)**:
-  - `[ ]` **P5 — pause-cheesable "fastest clear"** (MEDIUM). Capture wall-clock elapsed + pause
-    count/duration into `instruments`; cap/disable pause in daily mode when the board lands. FABLE §11 P5.
-  - `[ ]` **P6 — dev-mode cheat runs upload as unmodded** (MEDIUM). Emit `instruments.devMode` (open
-    object, no schema bump) and/or gate grant-gear out of prod builds. FABLE §11 P6.
-- **Lane D — replay + copy (`src/engine/session.ts`, `app.ts`)**:
-  - `[ ]` **E7 — selection not in the action log breaks replay** (MEDIUM; cross-filed §5). Add a
-    `setSelection` action (or embed the snapshot in tick/completeSet) so rule-6 shielding replays
-    (`session.ts:47`). FABLE §3 E7 / §5 N4. *(N4 non-daily replay debt is documented — thread the
-    extended-session snapshot before any anti-cheat relies on the corpus.)*
-  - `[ ]` **P4 — soften the "leaderboard" copy** until a board exists (the wire is per-player bests
-    only). FABLE §11 P4.
+substrate; every fix here is retroactive-only-if-added-before-public-data. Shipped +18 tests (399 total),
+typecheck clean, deploy gated. **Only P7's content-hash WIRING is deferred (see below).**
+- **Lane A — outbox/volume**:
+  - `[x]` **N1 — unbounded outbox × 60 fps tick logs** (HIGH). `capOutbox` bounds the local queue (50
+    records / 2 MB, evict-oldest); `enqueueRecord` applies it; the rAF loop rounds `dtMs` (replay-safe,
+    ~15% smaller log); false quota comment fixed. Kept ALWAYS-queue (the cap makes it safe) rather than
+    "don't queue until enabled" (would lose the offline→enable backlog). `outbox.ts` (+tests). FABLE §5 N1.
+  - `[x]` **N3 — flushOutbox recovery** (MEDIUM). `peekBatchByBytes` byte-bounds the batch; `flushOutbox`
+    bisects on 413, returns `error:'auth'` on 401/403 (surfaced as a **re-link** message in the Hall of
+    Records) and `'http'/'network'` otherwise — no more silent perpetual stall. `embassy.ts` (+embassy.test). FABLE §5 N3.
+- **Lane B — daily determinism**:
+  - `[x]` **N2 — daily RNG stream reuse** (MEDIUM). Domain-separated `foeSeed`/`boardSeed`
+    (`seedToInt(seed+':foe'|':board')`) — foe/variant/board decorrelated from the dungeon/class draws;
+    previously-unreachable foes now reachable. `daily-select.ts` (+tests). FABLE §5 N2.
+  - `[x]` **D2 — pinned candidate order** — `dailyCandidatesFrom` extracted pure + `DAILY_MAX_DIFFICULTY`
+    moved to `daily-select.ts`; a snapshot test pins the load-bearing order. FABLE §9 D2.
+  - `[ ]` **P7 — content-hash version tokens — DEFERRED (deploy-gated).** Tokens stay `0.0.0-dev` (equal,
+    so the daily resolves); the Embassy is undeployed so nothing has split. D2's order-pin is the CI safety
+    net until this lands. Wire `CLIENT_CONTENT_VERSION` to a build-time YAML-registry hash **as part of the
+    Embassy deploy** (a Vite `define`, guarded so vitest keeps the placeholder). FABLE §11 P7.
+- **Lane C — capture/instruments**:
+  - `[x]` **P5 — pause-cheesable "fastest clear"** (MEDIUM). Player pause **disabled on the daily** (with a
+    hint overlay); the flee-dialog freeze (the one remaining clock-freeze) is now **accounted** into
+    `pausedMs`/`pauseCount`; wall-clock (from Engage) + pause telemetry captured into instruments.
+    `app.ts`/`capture.ts` (+tests). FABLE §11 P5.
+  - `[x]` **P6 — dev-mode runs indistinguishable** (MEDIUM). `instruments.devMode` from `isDev()`. FABLE §11 P6.
+- **Lane D — replay + copy**:
+  - `[x]` **E7 — selection not in the action log** (MEDIUM). New `setSelection` CombatAction + reducer case;
+    `dispatch` logs selection changes (deduped) so `{seed,actions}` replays rule-6 shielding. Live path
+    unchanged. `combat.ts`/`app.ts` (+seam test). FABLE §3 E7.
+  - `[x]` **P4 — softened "leaderboard" copy** — personal bests today, cross-player boards coming. FABLE §11 P4.
+- **Phase 1 follow-ups (noted by QA, deferred):** a stronger E7 end-to-end shield-replay test (mechanism is
+  proven + verified-by-reading); a dev-mode eviction counter (`floorCanary` style) on `capOutbox`; a
+  per-record size guard for a pathologically long single fight (true fix = the deferred tick-coalescing).
 
 ### Phase 2 — Engine / design debt (FABLE §14 items 13–16) — the next combat pass
 Group by module; mostly parallel. Playtest E2 first (the new №1 degenerate line — FABLE §13).
