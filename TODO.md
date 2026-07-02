@@ -28,24 +28,24 @@ correctness holes, (b) the **record/corpus layer, which shipped its write path b
 (N1/E7/N2/N4/P5/P6/P7/D2 are all one theme — fix as a batch, cheaper before public data exists), and (c)
 the **first-minute product funnel**. Sequence rationale in FABLE §11 "Highest-leverage next build".
 
-### Phase 0 — Correctness quick-hits (FABLE §14 items 1–6) — SHIP FIRST, mostly one-liners
-Small, high-payoff, low-risk. **4 parallel lanes** (conflicts noted). Each ships with a test.
-- **Lane A — engine (`src/engine/combat.ts`)** *(two funcs, same file — sequence within the lane)*:
-  - `[ ]` **E1 — the zombie foe** (HIGH). Add `enemyHP<=0 → onWin+return` after the wound/lowHP proc
-    blocks in `rollover()` (`combat.ts:472,492`); consider gating tick-triggers on `enemyHP>0` to match
-    the match path. FABLE §3 E1.
-  - `[ ]` **E4 — `[i,i,i]` distinctness guard** (MEDIUM). One line at `completeSet` (`combat.ts:288`) —
-    reject non-distinct slot indices (the declared anti-cheat seam). FABLE §3 E4.
-- **Lane B — UI (`src/ui/app.ts`)** *(different regions — safe to interleave)*:
-  - `[ ]` **C1/U1 — phantom "Daily Challenger" roster pollution** (HIGH). `if (!DAILY) upsertChar(…)`
-    in `awardXP` (`app.ts:3902`/:2447); add a save-level test that a daily-shaped flow never grows the
-    roster. FABLE §4 C1 / §6 U1.
-  - `[ ]` **U3 — `esc()` at Embassy/name interpolation sites** (MEDIUM). One `esc()` helper (or
-    `textContent`) over server-echoed handles / bests / daily fields / user serverUrl (`app.ts:543-546,
-    613-637, 442, 432`) — before any foreign handle renders. FABLE §6 U3.
-- **Lane C — CI (`.github/workflows/deploy.yml`)** *(independent)*:
-  - `[ ]` **D1 — the ship gate** (MEDIUM, biggest process hole). `pnpm typecheck && pnpm test` before
-    `build` in deploy.yml (or a prebuild hook). FABLE §9 D1.
+### Phase 0 — Correctness quick-hits (FABLE §14 items 1–6) — ✅ CODE DONE 2026-07-01 (pushed; QA'd by 2 subagents)
+Small, high-payoff, low-risk. Shipped as 5 logical commits (`cd85130`..`f8830d9`); +11 tests (381 total),
+typecheck clean, deploy now gated. **Only the "remaining doc drift" sub-item (Lane D) is left.**
+- **Lane A — engine (`src/engine/combat.ts`)**:
+  - `[x]` **E1 — the zombie foe** (HIGH). Win-check the instant `enemyHP<=0` after the wound-proc section
+    (before the dread bleed) AND after the lowHP proc block (the QA-added second guard closes the modding
+    surface). `combat-guards.test.ts` (fails without the fix). FABLE §3 E1.
+  - `[x]` **E4 — `[i,i,i]` distinctness guard** (MEDIUM). Reject non-distinct slots in `completeSet` (the
+    anti-cheat/replay seam). FABLE §3 E4.
+- **Lane B — UI (`src/ui/app.ts`)**:
+  - `[x]` **C1/U1 — phantom "Daily Challenger" roster pollution** (HIGH). `if (!DAILY) upsertChar(…)` in
+    `awardXP`; `save.test.ts` pins the fresh-id→roster-growth mechanism. FABLE §4 C1 / §6 U1.
+  - `[x]` **U3 — `esc()` at Embassy/name interpolation sites** (MEDIUM). Pure `esc()` in `dom.ts` over every
+    server-/user-controlled sink (incl. 2 handle sinks the QA pass caught); `dom.test.ts`. FABLE §6 U3.
+- **Lane C — CI (`.github/workflows/deploy.yml`)**:
+  - `[x]` **D1 — the ship gate** (MEDIUM). `pnpm typecheck && pnpm test` before `build`. FABLE §9 D1.
+- **Ride-along (QA-surfaced):** `[x]` collision-free `freshUid`/`freshId` (monotonic counter — killed a
+  latent dupe-id hazard + a flaky test that would have destabilized the new gate). `cd85130`.
 - **Lane D — docs (independent; the "other documents" ask)**:
   - `[x]` **Doc triage — worst offenders (DONE 2026-07-01).** `CLAUDE.md` reconciled against HEAD
     (`bc3ca53`, verified accurate); TODO's Daily Dispatch item ticked (shipped `a57cc32`); `TUNING.md`
