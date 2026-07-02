@@ -54,7 +54,7 @@ import { embassyView, canRegister, canViewRecords, type EmbassyView } from '../n
 import { CONSENT_VERSION, type BestEntry } from '../net/contract'
 import { CLIENT_RULESET_VERSION, CLIENT_CONTENT_VERSION } from '../net/version'
 import { resolveDaily, type DailyFixed, type DailyResolution } from '../net/daily'
-import { deriveDailySetup, type DailySetup } from '../net/daily-select'
+import { deriveDailySetup, dailyCandidatesFrom, DAILY_MAX_DIFFICULTY, type DailySetup, type DailyCandidates } from '../net/daily-select'
 
 const GEN: GenConfig = COMBAT_GEN
 /** one shared reduced-motion query — card feel (tilt/flights/staggers) falls back to fades */
@@ -122,10 +122,17 @@ interface View {
   manaColor: number // the colour the loadout needs most (dominant total cost) — glowed in the mana stage
   paused: boolean // freeze gate (coaching/briefing/flee-dialog AND the player pause) — stops ticks + input
   userPaused: boolean // the pause is PLAYER-initiated (spacebar) → toggleable; distinguishes it from a coaching freeze
+  // P5 — wall-clock + player-pause telemetry (captured into instruments; engine `state.now` excludes paused
+  // time, so a paused-planning "fastest clear" leaves no trace in {seed,actions} without this).
+  wallStart: number // performance.now() at combat mount
+  pausedMs: number // accumulated PLAYER-pause duration
+  pauseCount: number // how many times the player paused
+  pauseStart: number // performance.now() of the current player pause (0 = not currently player-paused)
   hitstopUntil: number // performance.now() until which ticks are frozen (impact freeze)
   holdHud: boolean // rollover choreography: HP/exchange/round HUD holds its pre-exchange read until the deal beat
   preview: number[] | null // board slots currently ringed by an ability hover
   selected: number[]
+  lastLoggedSel: string // E7: the last selection written to the action log (so we only log real changes)
   raf: number
   lastT: number
   boardSig: string
@@ -498,6 +505,8 @@ async function doRecover(code: string, setNote: (m: string) => void): Promise<vo
   }
 }
 
+let syncNote: string | null = null // N3: a one-shot Sync outcome message (re-link needed / retry / synced N)
+
 function hallOfRecordsScene(root: HTMLElement): void {
   const v = embassyView(loadAccount(), getConfig(), pendingCount())
   const wrap = $(`<div class="wrap"></div>`)
@@ -510,9 +519,19 @@ function hallOfRecordsScene(root: HTMLElement): void {
   q.appendChild($(`<div class="cc">${v.pendingUploads} run${v.pendingUploads === 1 ? '' : 's'} recorded locally${v.gate === 'open' && v.status === 'registered' ? '' : ' — they sync once you connect &amp; register'}.</div>`))
   if (v.gate === 'open' && v.status === 'registered') {
     const sync = $<HTMLButtonElement>(`<button class="cta">Sync now</button>`)
-    sync.addEventListener('click', () => void flushOutbox().finally(() => goScene(hallOfRecordsScene)))
+    sync.addEventListener('click', () => void flushOutbox().then((r) => {
+      // N3: surface the outcome — a token rotated on another device (401/403) otherwise leaves records
+      // stuck forever while the sync looks like it "worked".
+      syncNote = r.error === 'auth'
+        ? '⚠ This device could not authenticate — your records are safe locally. Re-link it at the Registry with your recovery code to resume syncing.'
+        : r.error
+          ? '⚠ Could not reach the Embassy — your records are safe and will retry on the next sync.'
+          : r.accepted > 0 ? `✓ Synced ${r.accepted} run${r.accepted === 1 ? '' : 's'}.` : null
+      goScene(hallOfRecordsScene)
+    }))
     q.appendChild(sync)
   }
+  if (syncNote) { q.appendChild($(`<div class="cc" style="margin-top:8px">${syncNote}</div>`)); syncNote = null }
   wrap.appendChild(q)
 
   const b = $(`<div class="panel"></div>`)
@@ -553,10 +572,6 @@ function bestLine(e: BestEntry): string {
    measures play, not your roster's power. The board RNG is seeded from the daily seed, so everyone reads
    the identical board. A single fight: depth is always 1; the competition is fewest-terms / fastest-clear. ===== */
 
-/** Daily-eligible dungeons cap at this difficulty so the standardized level-1 hero gets a fair, winnable
- *  fight. Raising it (or scaling the daily hero's level to the dungeon) is the natural next tuning step. */
-const DAILY_MAX_DIFFICULTY = 1
-
 /** The local content registry as resolveDaily's predicate (an authored id the client lacks ⇒ unavailable). */
 const DAILY_CONTENT = {
   hasClass: (id: string) => CLASSES.some((c) => c.id === id),
@@ -564,20 +579,17 @@ const DAILY_CONTENT = {
   hasDungeon: (id: string) => !!GAMEDATA.dungeons[id],
 }
 
-/** The daily-eligible candidate pools (stable order — part of the ruleset; reordering re-rolls history). */
-function dailyCandidates(): { classIds: string[]; dungeonIds: string[] } {
-  const dungeonIds = Object.keys(GAMEDATA.dungeons).filter((id) => {
-    const d = GAMEDATA.dungeons[id]
-    return !d.coach && d.difficulty <= DAILY_MAX_DIFFICULTY
-  })
-  return { classIds: CLASSES.map((c) => c.id), dungeonIds }
+/** The daily-eligible candidate pools (stable order — part of the ruleset; reordering re-rolls history).
+ *  Pure logic + the order-pin snapshot live in net/daily-select (D2). */
+function dailyCandidates(): DailyCandidates {
+  return dailyCandidatesFrom(GAMEDATA.dungeons, CLASSES.map((c) => c.id), DAILY_MAX_DIFFICULTY)
 }
 
-/** The foe for a derived setup: an authored pin, else the dungeon's weighted table drawn from the seed.
- *  MUST mirror beginDaily's first draw (fresh mulberry32(seedInt)) so the previewed foe IS the fought foe. */
+/** The foe for a derived setup: an authored pin, else the dungeon's weighted table drawn from the
+ *  DOMAIN-SEPARATED foe sub-seed (N2). MUST mirror beginDaily's foe draw so the previewed foe IS fought. */
 function dailyFoeId(setup: DailySetup, fixed: DailyFixed): string {
   if (fixed.foeId) return fixed.foeId
-  return pickWeightedFoe(GAMEDATA.dungeons[setup.dungeonId].enemy_table, mulberry32(setup.seedInt))
+  return pickWeightedFoe(GAMEDATA.dungeons[setup.dungeonId].enemy_table, mulberry32(setup.foeSeed))
 }
 
 function dailyDispatchScene(root: HTMLElement): void {
@@ -638,8 +650,8 @@ async function renderDaily(panel: HTMLElement, v: EmbassyView): Promise<void> {
     $(`<div class="cc" style="margin-top:6px">Scored on: <b>${esc(desc.criteria.join(', '))}</b></div>`), // §U3: server-controlled criteria
   )
   const note = v.status === 'registered'
-    ? 'Your result uploads to the board when you sync.'
-    : 'Register at the Registry to put your name on the board — until then the run saves locally and uploads on your first connected, registered visit.'
+    ? 'Your result uploads to your Embassy record when you sync — personal bests for now; cross-player boards are coming.'
+    : 'Register at the Registry to save your result — until then it saves locally and uploads on your first connected, registered visit. (Personal bests for now; cross-player boards are coming.)'
   panel.appendChild($(`<div class="cc" style="margin-top:6px;opacity:.8">${note}</div>`))
   const play = $<HTMLButtonElement>(`<button class="cta" style="margin-top:10px">▶ Play today's daily</button>`)
   play.addEventListener('click', () => beginDaily(setup, fixed, desc.date))
@@ -653,12 +665,13 @@ function beginDaily(setup: DailySetup, fixed: DailyFixed, date: string): void {
   DAILY = { date }
   const dg = GAMEDATA.dungeons[setup.dungeonId]
   if (!dg) { DAILY = null; goScene(townScene); return }
-  const rng: Rng = mulberry32(setup.seedInt)
+  // N2 — foe + variant roll off the foe sub-seed (decorrelated from dungeon/class); board off boardSeed.
+  const rng: Rng = mulberry32(setup.foeSeed)
   const foeId = fixed.foeId ?? pickWeightedFoe(dg.enemy_table, rng)
   const foe = assembleFoe(foeId, dg, GAMEDATA, rng)
   if (!foe) { DAILY = null; goScene(townScene); return }
   const hero = makeChar('Daily Challenger', setup.classId, freshId())
-  goScene((r) => startCombat(r, hero, setup.dungeonId, foe, null, hero.consumables, setup.seedInt))
+  goScene((r) => startCombat(r, hero, setup.dungeonId, foe, null, hero.consumables, setup.boardSeed))
 }
 
 function characterSelectScene(root: HTMLElement): void {
@@ -1635,7 +1648,7 @@ function startCombat(root: HTMLElement, char: SavedChar, dungeonId: string, foe:
   const stats: StatBlock = { power: base.power + gb.power, endurance: base.endurance + gb.endurance, speed: base.speed + gb.speed }
   const run = createRun({ foe, gen: GEN, playerMax: char.maxHp, stats, riders: gearRiders(char.equipped), mods: gearMods(char.equipped), procs: gearProcs(char.equipped), passives: pass, consumables, sequence, dungeonId, dreadFloor, coach: !!dg.coach }, rng)
   run.combat.playerHP = Math.max(0, Math.min(char.maxHp, char.hp)) // the hero enters at their persisted HP, not full
-  V = { root, deps: { data: GAMEDATA, rng }, run, state: run.combat, char, actions: [], seed, classId: cls.id, loadout: acts, coach: !!dg.coach, coachCue: null, manaColor: dominantManaColor(acts), paused: true, userPaused: false, hitstopUntil: 0, holdHud: false, preview: null, selected: [], raf: 0, lastT: 0, boardSig: '', refs: {}, stats: { dealt: 0, taken: 0, blocked: 0, healed: 0, sets: 0, traps: 0, xp: 0, gearDmg: 0, gearBlock: 0, gearMana: 0 }, roundFx: emptyRoundFx(), morphSrc: new Map(), dev: { reshapeYou: 0, reshapeFoe: 0, matches: 0, springs: 0, k1: 0, wards: 0, churns: 0 }, lastDread: 0 }
+  V = { root, deps: { data: GAMEDATA, rng }, run, state: run.combat, char, actions: [], seed, classId: cls.id, loadout: acts, coach: !!dg.coach, coachCue: null, manaColor: dominantManaColor(acts), paused: true, userPaused: false, wallStart: performance.now(), pausedMs: 0, pauseCount: 0, pauseStart: 0, hitstopUntil: 0, holdHud: false, preview: null, selected: [], lastLoggedSel: '', raf: 0, lastT: 0, boardSig: '', refs: {}, stats: { dealt: 0, taken: 0, blocked: 0, healed: 0, sets: 0, traps: 0, xp: 0, gearDmg: 0, gearBlock: 0, gearMana: 0 }, roundFx: emptyRoundFx(), morphSrc: new Map(), dev: { reshapeYou: 0, reshapeFoe: 0, matches: 0, springs: 0, k1: 0, wards: 0, churns: 0 }, lastDread: 0 }
   buildPlay()
   renderBoard()
   updateBar()
@@ -1644,6 +1657,7 @@ function startCombat(root: HTMLElement, char: SavedChar, dungeonId: string, foe:
     if (!V) return
     V.paused = false
     V.lastT = 0
+    V.wallStart = performance.now() // P5: start the wall-clock at ENGAGE (exclude briefing-read time) so wallClockMs tracks the actual fight
     hitstop(graceMs()) // freeze the clock for a beat after Engage — read the fresh board (Speed-stretched, §5.7)
     loop(performance.now())
     // let the player SEE the board for a beat before the guided intro freezes it ("read the board").
@@ -2265,9 +2279,19 @@ function confirmModal(opts: { title: string; body?: string; confirmLabel?: strin
  *  briefing pause is left alone). Blocked mid-rollover (holdHud) so it can't strand the choreography. */
 function togglePause(): void {
   if (!V || !V.state.running || V.holdHud) return
+  if (DAILY) { // P5: no player pause on the daily — but say WHY (a silent dead key is worse than the answer)
+    document.getElementById('pauseoverlay')?.remove()
+    document.body.appendChild($(`<div id="pauseoverlay"><div class="po-card">⏸ <b>No pausing on the daily</b><div class="po-sub">it's scored on a fair, uninterrupted clear</div></div></div>`))
+    sceneTimeout(() => document.getElementById('pauseoverlay')?.remove(), 1500)
+    return
+  }
   if (V.paused && !V.userPaused) return // a coaching/briefing/flee freeze owns the gate — don't fight it
-  if (V.userPaused) { V.paused = false; V.userPaused = false; V.lastT = 0 } // resume (lastT=0 → no dt jump)
-  else { V.paused = true; V.userPaused = true }
+  if (V.userPaused) { // resume (lastT=0 → no dt jump); bank the pause duration
+    V.paused = false; V.userPaused = false; V.lastT = 0
+    if (V.pauseStart) { V.pausedMs += performance.now() - V.pauseStart; V.pauseStart = 0 }
+  } else { // enter pause
+    V.paused = true; V.userPaused = true; V.pauseStart = performance.now(); V.pauseCount++
+  }
   renderPauseOverlay()
   updateBar() // refresh the .frozen dim immediately (don't wait a frame)
 }
@@ -2295,6 +2319,11 @@ function initCombatKeys(): void {
 function onFlee(): void {
   if (!V || !V.state.running || V.paused) return
   V.paused = true // freeze the clock while the dialog is open (a custom modal doesn't block like confirm())
+  // P5: the flee-dialog freeze is the ONE remaining clock-freeze on the daily (pause is disabled there),
+  // so account it like a pause — otherwise repeatedly open→cancel would freeze-plan invisibly. Captured in
+  // pausedMs/pauseCount, so wallClockMs−pausedMs stays honest and the behavior is visible in the corpus.
+  V.pauseStart = performance.now()
+  V.pauseCount++
   confirmModal({
     title: 'Flee combat?',
     body: (DELVE
@@ -2302,8 +2331,8 @@ function onFlee(): void {
       : 'You forfeit this encounter and retreat to town.')
       + ' <b>⚠ The foe gets one parting strike as you turn to run</b> — your Speed may let you dodge it, and a lethal blow still kills.',
     confirmLabel: '🏃 Flee', danger: true,
-    onConfirm: () => { if (V) dispatch({ type: 'flee' }) },
-    onCancel: () => { if (V) V.paused = false },
+    onConfirm: () => { if (V) dispatch({ type: 'flee' }) }, // endScreen banks the open pauseStart into pausedMs
+    onCancel: () => { if (V) { V.paused = false; if (V.pauseStart) { V.pausedMs += performance.now() - V.pauseStart; V.pauseStart = 0 } } },
   })
 }
 
@@ -2432,6 +2461,11 @@ function setCoachArrow(el: HTMLElement | undefined, on: boolean): void {
 // ---- dispatch + event interpretation ----
 function dispatch(action: CombatAction): void {
   if (!V) return
+  // E7 (FABLE §3): record a selection CHANGE into the action log right before the action that will read it,
+  // so hard-rule-6 shielding is reproducible on replay (runSession has no V.selected). One central site —
+  // every tick/completeSet is preceded by the current selection, no matter which tap mutated it.
+  const selKey = V.selected.join(',')
+  if (selKey !== V.lastLoggedSel) { V.actions.push({ type: 'setSelection', slots: V.selected.slice() }); V.lastLoggedSel = selKey }
   V.state.selected = V.selected // hard rule #6: hand the live selection to the engine before it can transmute (tick/trap)
   // U6: snapshot each selected slot's CARD KEY before the reduce — a deliberate player cast is exempt
   // from #6 and can rewrite a selected card in place; we drop those (stale-glow) slots afterward.
@@ -3840,7 +3874,10 @@ function loop(t: number): void {
   V.lastT = t
   // freeze the engine clock during a coaching/briefing pause or a brief impact hitstop
   const frozen = V.paused || t < V.hitstopUntil
-  if (!frozen && dt > 0 && dt < 500) dispatch({ type: 'tick', dtMs: dt })
+  // N1: round dtMs to an integer — the tick log is the outbox's dominant cost (unrounded floats are ~40
+  // chars each). Replay stays exact: the engine consumes the SAME recorded integer. (Lossless tick
+  // COALESCING is a deeper engine change — deferred; see TODO Phase 1 / the parked U5 note.)
+  if (!frozen && dt > 0 && dt < 500) dispatch({ type: 'tick', dtMs: Math.round(dt) })
   updateBar()
   V.raf = requestAnimationFrame(loop)
 }
@@ -3861,6 +3898,10 @@ function endScreen(result: 'win' | 'lose' | 'flee'): void {
     rounds: V.state.round,
     elapsedMs: V.state.now,
     depthReached: DELVE ? DELVE.d.room : 1,
+    wallClockMs: performance.now() - V.wallStart,
+    pausedMs: V.pausedMs + (V.pauseStart ? performance.now() - V.pauseStart : 0),
+    pauseCount: V.pauseCount,
+    devMode: isDev(),
     actions: V.actions.slice(),
     dev: { ...V.dev },
     stats: { ...V.stats },

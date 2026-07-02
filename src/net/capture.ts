@@ -64,6 +64,11 @@ export interface CapturedRun {
   rounds: number
   elapsedMs: number
   depthReached: number
+  // integrity telemetry (open object — no schema bump)
+  wallClockMs: number // P5 — real elapsed wall time (engine `elapsedMs` excludes paused time)
+  pausedMs: number // P5 — accumulated player-pause duration
+  pauseCount: number // P5 — how many times the player paused (0 on the daily — pause is disabled there)
+  devMode: boolean // P6 — was dev mode on? (dev grants real gear, so its runs must be distinguishable)
   // the replay substrate
   actions: readonly CombatAction[]
   // the live tallies the UI accumulated (V.dev + V.stats)
@@ -139,6 +144,11 @@ export function buildInstruments(c: CapturedRun): Record<string, unknown> {
     tacticsUsage: t.tacticsUsage,
     consumablesUsed: t.consumablesUsed,
     setsAttempted: t.setsAttempted,
+    // integrity telemetry (P5 pause/wall-clock, P6 dev mode)
+    wallClockMs: Math.round(c.wallClockMs),
+    pausedMs: Math.round(c.pausedMs),
+    pauseCount: c.pauseCount,
+    devMode: c.devMode,
     // raw combat tallies
     damageDealt: c.stats.dealt,
     damageTaken: c.stats.taken,

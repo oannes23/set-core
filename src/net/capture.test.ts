@@ -31,6 +31,10 @@ const captured = (over: Partial<CapturedRun> = {}): CapturedRun => ({
   rounds: 5,
   elapsedMs: 184210.7,
   depthReached: 6,
+  wallClockMs: 200500.4,
+  pausedMs: 12000.6,
+  pauseCount: 2,
+  devMode: false,
   actions,
   dev: { reshapeYou: 7, reshapeFoe: 3, matches: 10, springs: 3, k1: 2, wards: 1, churns: 4 },
   stats: { dealt: 200, taken: 50, blocked: 30, healed: 10, sets: 10, traps: 2, xp: 120, gearDmg: 40, gearBlock: 5, gearMana: 3 },
@@ -62,6 +66,14 @@ describe('buildInstruments', () => {
     expect(inst.abilityActivations).toEqual({ ember: 2, frost: 1 })
     expect(inst.mode).toBe('delve')
     expect(inst.damageDealt).toBe(200)
+  })
+  it('captures the integrity telemetry (P5 wall-clock/pause, P6 dev flag), rounded', () => {
+    const inst = buildInstruments(captured())
+    expect(inst.wallClockMs).toBe(200500) // rounded
+    expect(inst.pausedMs).toBe(12001) // rounded
+    expect(inst.pauseCount).toBe(2)
+    expect(inst.devMode).toBe(false)
+    expect(buildInstruments(captured({ devMode: true })).devMode).toBe(true)
   })
   it('returns null ratios (not 0%) when the denominator is empty', () => {
     const inst = buildInstruments(captured({ dev: { reshapeYou: 0, reshapeFoe: 0, matches: 0, springs: 0, k1: 0, wards: 0, churns: 0 } }))
