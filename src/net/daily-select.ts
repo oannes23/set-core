@@ -24,11 +24,33 @@ export interface DailyCandidates {
 }
 
 /** The derived, version-stable selections. `foeId` is left to the caller (it needs the dungeon's
- *  enemy_table); the caller resolves it from `seedInt` (or the authored `fixed.foeId`). */
+ *  enemy_table); the caller resolves it from `foeSeed` (or the authored `fixed.foeId`), and seeds the
+ *  board from `boardSeed`. `seedInt` is kept for the setup draws only. */
 export interface DailySetup {
   seedInt: number
   classId: string
   dungeonId: string
+  /** N2 — DOMAIN-SEPARATED sub-seeds so the foe roll, variant pick, and board gen are DECORRELATED from
+   *  the dungeon/class draws. Reusing one `seedInt` across all three streams made whole foes unreachable
+   *  (warren chosen ⇒ its foe roll confined to [0,0.5)) and pinned the variant to the class draw. */
+  foeSeed: number
+  boardSeed: number
+}
+
+/** The standardized daily hero is a fresh level-1 with no gear, so only low-difficulty dungeons are fair.
+ *  (Raising this — a hero-scaled daily — is the "daily depth" follow-up.) */
+export const DAILY_MAX_DIFFICULTY = 1
+
+/** D2 — the daily-eligible candidate pools, derived PURELY so their ORDER (load-bearing: a reorder
+ *  re-rolls every historical daily) can be pinned by a snapshot test. Dungeon order follows the dungeons
+ *  object's key order; classes follow the given order. The single source of the candidate lists. */
+export function dailyCandidatesFrom(
+  dungeons: Record<string, { coach?: boolean; difficulty: number }>,
+  classIds: readonly string[],
+  maxDifficulty: number = DAILY_MAX_DIFFICULTY,
+): DailyCandidates {
+  const dungeonIds = Object.keys(dungeons).filter((id) => !dungeons[id].coach && dungeons[id].difficulty <= maxDifficulty)
+  return { classIds: classIds.slice(), dungeonIds }
 }
 
 /** Hash an opaque daily seed string → a uint32 PRNG seed (FNV-1a, 32-bit). Stable across platforms —
@@ -65,5 +87,7 @@ export function deriveDailySetup(seed: string, fixed: DailyFixed, cand: DailyCan
     classId = cand.classIds[pickIndex(cand.classIds.length, rng)]
   }
 
-  return { seedInt, classId, dungeonId }
+  // N2 — the foe roll + variant pick and the board gen each get their OWN stream (domain-separated by
+  // suffix), so no dungeon/class draw correlates with them. Append-only: never reuse these for new axes.
+  return { seedInt, classId, dungeonId, foeSeed: seedToInt(seed + ':foe'), boardSeed: seedToInt(seed + ':board') }
 }

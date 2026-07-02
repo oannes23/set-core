@@ -1,7 +1,9 @@
 /* The pure daily-setup derivation: same seed ⇒ same selections (fairness substrate); authored axes win
    and don't shift the others; everything stays inside the offered candidate lists. */
 import { describe, it, expect } from 'vitest'
-import { seedToInt, deriveDailySetup, type DailyCandidates } from './daily-select'
+import { seedToInt, deriveDailySetup, dailyCandidatesFrom, DAILY_MAX_DIFFICULTY, type DailyCandidates } from './daily-select'
+import { GAMEDATA } from '../data/game-data'
+import { CLASSES } from '../data/classes'
 
 const CAND: DailyCandidates = {
   classIds: ['pyromancer', 'chronomancer', 'cryomancer', 'geomancer'],
@@ -61,6 +63,43 @@ describe('deriveDailySetup — authored spec (path b)', () => {
     // class is now authored; dungeon must be unchanged (authored axes consume no draw)
     expect(pinnedClass.classId).toBe('cryomancer')
     expect(pinnedClass.dungeonId).toBe(free.dungeonId)
+  })
+})
+
+describe('deriveDailySetup — N2 domain-separated sub-seeds', () => {
+  it('foeSeed and boardSeed are distinct from each other and from seedInt', () => {
+    const s = deriveDailySetup('day-42', {}, CAND)
+    expect(s.foeSeed).not.toBe(s.seedInt)
+    expect(s.boardSeed).not.toBe(s.seedInt)
+    expect(s.foeSeed).not.toBe(s.boardSeed)
+  })
+  it('the sub-seeds are deterministic and match the :foe/:board derivation', () => {
+    const s = deriveDailySetup('day-42', {}, CAND)
+    expect(s.foeSeed).toBe(seedToInt('day-42:foe'))
+    expect(s.boardSeed).toBe(seedToInt('day-42:board'))
+  })
+  it('the foe sub-seed does NOT track the dungeon pick (decorrelation — no unreachable foes)', () => {
+    // Across seeds, group foeSeed parity by which dungeon was chosen; both dungeons must see BOTH parities.
+    const byDungeon: Record<string, Set<number>> = {}
+    for (let i = 0; i < 60; i++) {
+      const s = deriveDailySetup(`corr-${i}`, {}, CAND)
+      ;(byDungeon[s.dungeonId] ??= new Set()).add(s.foeSeed % 2)
+    }
+    for (const d of CAND.dungeonIds) expect(byDungeon[d]?.size).toBe(2) // both foe-parities occur under each dungeon
+  })
+})
+
+describe('dailyCandidatesFrom (D2 — order pin)', () => {
+  it('filters out coach dungeons and those above the difficulty cap, preserving key order', () => {
+    const dungeons = { a: { difficulty: 0 }, coachy: { coach: true, difficulty: 0 }, b: { difficulty: 1 }, hard: { difficulty: 5 } }
+    expect(dailyCandidatesFrom(dungeons, ['x', 'y'], 1)).toEqual({ classIds: ['x', 'y'], dungeonIds: ['a', 'b'] })
+  })
+  it('PINS the live daily candidate order (a reorder re-rolls every historical daily — see daily-select.ts)', () => {
+    const cand = dailyCandidatesFrom(GAMEDATA.dungeons, CLASSES.map((c) => c.id), DAILY_MAX_DIFFICULTY)
+    // If this snapshot changes, a content/class reorder shifted the daily derivation — bump the version token.
+    expect(cand.dungeonIds).toEqual(['goblin_warren', 'sewers'])
+    expect(cand.classIds).toEqual(CLASSES.map((c) => c.id))
+    expect(cand.classIds.length).toBeGreaterThan(0)
   })
 })
 
