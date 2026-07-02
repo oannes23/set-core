@@ -59,6 +59,16 @@ test('replay is deterministic (same session → identical state AND events)', ()
   expect(a.events).toEqual(b.events)
 })
 
+test('E7 — selection rides the log: replay reconstructs s.selected (rule-6 shielding is reproducible)', () => {
+  // Before E7, selection was UI-ephemeral and absent from the log, so runSession always replayed with
+  // selected:[] — any sourced transmute that a live selection had shielded diverged on replay. Now a
+  // setSelection action carries it: a hand-built log must leave the replayed state selecting those slots.
+  const sel = [0, 2]
+  const session: Session = { setup: SETUP, actions: [{ type: 'setSelection', slots: sel }, { type: 'tick', dtMs: 100 }] }
+  const server = runSession(session, GAMEDATA)
+  expect(server.run.combat.selected).toEqual(sel)
+})
+
 test('runReduce does not mutate the input state (clone semantics — safe to keep history)', () => {
   const { run, rng } = startSession(SETUP, GAMEDATA)
   const before = snap(run.combat)

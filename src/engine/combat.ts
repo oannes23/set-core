@@ -29,6 +29,7 @@ export type CombatAction =
   | { type: 'setBias'; bias: ManeuverBias | null } // QUEUE Maneuver's dial (part of the locked stance)
   | { type: 'useConsumable'; slot: number } // spend a carried potion/scroll
   | { type: 'flee' } // forfeit the encounter — available any time (not gated by Tactics)
+  | { type: 'setSelection'; slots: number[] } // E7: the live UI selection, so hard-rule-6 shielding is in the log → replay-deterministic
 
 export interface Deps {
   data: GameData
@@ -549,6 +550,9 @@ export function reduce(state: CombatState, action: CombatAction, deps: Deps): { 
       break
     case 'setBias':
       setBias(s, action.bias, sink)
+      break
+    case 'setSelection':
+      s.selected = action.slots.slice() // E7: the reducer owns selection now, so {seed,actions} replays rule-6 shielding
       break
     case 'useConsumable':
       if (useConsumable(s, action.slot, deps.rng, sink) && s.running && s.enemyHP <= 0) onWin(s, deps.rng, sink)
