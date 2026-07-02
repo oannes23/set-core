@@ -37,6 +37,11 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      # D1 (FABLE §9): GATE the deploy — Vite doesn't typecheck and YAML content enters as unknown+cast, so
+      # without this a dangling ref white-screens prod at boot and a schema error ships silently. The suite is
+      # ~4s; run it (and typecheck) BEFORE build so a red commit never reaches Pages.
+      - run: pnpm typecheck
+      - run: pnpm test
       - run: pnpm build # -> dist/ (compiled index.html = the live app + assets, base-prefixed for /set-core/)
       # The built dist/index.html IS the live client now. Fold in the archived prototype (oracle)
       # alongside it at /prototype/ (it carries its own launcher index.html).
