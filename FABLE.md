@@ -1012,10 +1012,29 @@ Durable facts surfaced in this review that aren't (yet) in any doc:
 21. Daily leaderboard (server `/daily/board` + results panel + retry policy) — only after
     7–12 make the corpus trustworthy.
 
+**Post-FABLE feature — cautious/risky encounter stance (designed 2026-07-04; ships after 17–21):**
+22. Encounter-start meta-stance chosen on the enemy-overview screen, **locked for the
+    encounter**. Same rollover-exchange engine, two resolution triggers calibrated to
+    cross at the sim balance anchor (~5 sets/round): **cautious** resolves per-N-sets-found
+    (untimed, **capped** at N ⇒ zero-variance floor; N scales with the foe's S−P so fast
+    foes stay tight; the cap doubles as the anti-stall — no per-second dread needed);
+    **risky** is today's 20 s timer (uncapped, mean-with-variance). One tuning knob: set
+    cautious's cap a hair *below* the anchor so it's zero-variance-but-slightly-EV-negative,
+    else nobody rational picks risky (a single number in balance-sim, **not** a second sim
+    arm). **Dual leaderboard categories** — cautious/risky are separate boards (speedrun-
+    category model; they measure incomparable skills), and lock-per-encounter + one daily
+    encounter ⇒ one board/day, so mode is a strategic meta-bet on the daily. Supersedes the
+    item-18 relaxed-mode parenthetical. **Forward-compat pre-req — land with 7–12:** stamp
+    `mode` on every run record now (a server-legible field, **not** the opaque blob — seam
+    inv. 4; `contract.py`→`contract.ts`, defaults `risky`) so today's corpus is retro-
+    bucketable when the board (21) ships; otherwise every run recorded until then is
+    stranded. Engine risk to retire first: confirm the exchange-resolution trigger is
+    cleanly swappable timer→count before estimating.
+
 **Hygiene (ride-alongs):**
-22. U5/tests — extract dispatch as a pure `stepWithSelection` + the rule-6 end-to-end
+23. U5/tests — extract dispatch as a pure `stepWithSelection` + the rule-6 end-to-end
     test; test `flushOutbox`/`recordRun`; add the coverage provider; sim-constants drift
     guard; vendor openapi.json + actually wire `gen:embassy-types` (add the missing dep).
-23. sw.js cache rotation + self-hosted fonts; A1 event `{id, params}` migration when
+24. sw.js cache rotation + self-hosted fonts; A1 event `{id, params}` migration when
     combat-log next gets touched; delete the dead surfaces (§13); schema tightenings
     (`gap` maximum, `Selector.center`, mode union, starter-consumable link test).

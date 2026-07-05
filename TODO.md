@@ -173,8 +173,26 @@ FABLE product items that are the same work:
     the challenge). The open run awards XP normally (it's your real hero).
   - Once the **Tavern + quests** ship, running the daily becomes a **quest with its own reward** (the
     persistent-progression hook — separate from the leaderboard placement).
+- `[ ]` **Cautious/risky encounter stance** (designed 2026-07-04; ships AFTER the daily leaderboard) — FABLE
+  §14 item 22. An encounter-start **meta-stance** picked on the enemy-overview screen and **locked for the
+  encounter**. Same rollover-exchange engine, two resolution triggers calibrated to cross at the sim balance
+  anchor (~5 sets/round): **cautious** resolves per-N-sets-found (untimed, **capped** at N ⇒ zero-variance
+  floor; N scales with the foe's S−P; the cap doubles as the anti-stall — no per-second dread); **risky** is
+  today's 20 s timer (uncapped, mean+variance). **One tuning knob:** cautious's cap sits a hair *below* the
+  anchor (zero-variance-but-slightly-EV-negative) so risky stays worth picking — a single number in
+  `balance-sim`, not a second sim arm. **Dual, separate leaderboard categories** (speedrun-category model —
+  incomparable skills); lock-per-encounter + one daily encounter ⇒ one board/day (mode = strategic meta-bet
+  on the daily). Supersedes the Phase 3 relaxed-mode item as the chosen shape.
+  - `[ ]` **Forward-compat pre-req — do this NOW, with the Phase 1 integrity batch** (retroactive-only if
+    added now, like P5's instruments): stamp `mode` on every run record so today's corpus is retro-bucketable
+    when the board ships. Must be a **server-legible** field, NOT the opaque blob (seam inv. 4) — server-first
+    `contract.py` → mirror `contract.ts`, defaults `risky` for back-compat. Otherwise every run recorded
+    until the board lands is stranded as un-bucketable.
+  - `[ ]` **Engine de-risk before estimating:** confirm the exchange-resolution trigger is cleanly swappable
+    timer→count (rollover accumulation already separated from resolution?) — the one place this could be
+    secretly expensive.
 
-### Phase 6 — Hygiene (FABLE §14 items 22–23) — ride-alongs, fold into adjacent work
+### Phase 6 — Hygiene (FABLE §14 items 23–24) — ride-alongs, fold into adjacent work
 - `[ ]` **Test the untested boundary** (FABLE §12): extract dispatch as pure `stepWithSelection(run,
   action, selected, deps)` + the rule-6 end-to-end test (U5 — one untested line at `app.ts:2434` holds
   hard-rule 6); test `flushOutbox` / `recordRun` with stubbed fetch/localStorage; add a coverage provider.

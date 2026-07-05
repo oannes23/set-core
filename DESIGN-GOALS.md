@@ -48,7 +48,10 @@ a feature we're *already* building gives a clean hook-in point (noted in parens)
   persist `fightPeak` through the run/`save.ts` layer, then key achievements / special abilities / gear
   affixes on it. Pairs naturally with the daily-seed leaderboard above: "highest chain on today's seed".)*
 - **A relaxed / no-timer (or tunable-clock) mode** — widens the audience, de-risks the timer for the
-  deliberate-RPG crowd, and is the accessibility entry point. *(Hook-in: the pause / clock work.)*
+  deliberate-RPG crowd, and is the accessibility entry point. *(Hook-in: the pause / clock work.
+  Chosen shape as of 2026-07-04: the **cautious/risky encounter stance** — reframed from a difficulty
+  toggle into an encounter-start risk/reward bet (untimed capped-floor vs. timed run), with dual
+  leaderboard categories. Spec in `FABLE.md` §14 item 22.)*
 - **Clock-starts-on-first-action** (Puzzle Quest 3 lesson) — let players read the board before the
   timer bites. *(Hook-in: Rounds v3 UI.)*
 - **Graceful miss-degradation** — a missed/late match degrades rather than hard-fails (Paper Mario

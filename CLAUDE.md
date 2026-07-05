@@ -185,8 +185,12 @@ quick-hits (zombie foe, phantom hero, CI gate, `[i,i,i]` guard, esc()); then the
 coalescing, wall-clock/pause capture, content-hash version tokens + candidate-order
 pin, daily sub-seed decorrelation, dev-mode flag); then the product sequence
 (fresh-save funnel → colorblind + relaxed mode → class-kit expansion → daily
-leaderboard). Cross-repo follow-ups (real version tokens, vendored openapi codegen,
-daily depth) are tracked in the workspace `../CLAUDE.md`.
+leaderboard → **cautious/risky encounter stance**, §14 item 22 — an encounter-start
+meta-stance (untimed capped-floor vs. today's timed run) with dual leaderboard
+categories, calibrated to cross at the sim balance anchor; land its forward-compat
+run-record `mode` stamp with the daily-integrity batch). Cross-repo follow-ups (real
+version tokens, vendored openapi codegen, daily depth) are tracked in the workspace
+`../CLAUDE.md`.
 
 **Still-open design questions** (see `TRAPS.md` §8 / `CRAWL-DESIGN.md` §6): per-foe
 transmute *numbers* (framework set, tune in play); ability slots vs. learned
