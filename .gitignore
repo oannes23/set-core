@@ -15,3 +15,7 @@ coverage/
 
 # scratch / external scaffolds
 tmp/
+
+# Local env overrides (personal, never committed). `.env` itself IS committed.
+.env.local
+.env.*.local

@@ -4,10 +4,11 @@
    requests at all (the mod-gate); when disabled the same. localStorage-backed + listener-driven like
    ui/dev.ts. This is UI/runtime state — the engine/core never see it (offline-first invariant). */
 
-/** The default OFFICIAL instance base URL. TBD — the service team hasn't picked a host yet
- *  (SERVICE-REPLY.md / SERVICE-RESPONSE.md §7). Empty ⇒ "no server configured" ⇒ Embassy unavailable
- *  until a URL is set (self-hosters point this at their own instance). Set at deploy/build. */
-export const DEFAULT_OFFICIAL_URL = ''
+/** The default OFFICIAL instance base URL, baked in at BUILD TIME from `VITE_EMBASSY_URL` (see the
+ *  repo's `.env` files). Empty ⇒ "no server configured" ⇒ Embassy unavailable until the player sets a
+ *  URL in the Registry (self-hosters point this at their own instance). A per-device override typed
+ *  into the Registry persists in localStorage and WINS over this default (see setServerUrl / read()). */
+export const DEFAULT_OFFICIAL_URL = import.meta.env.VITE_EMBASSY_URL ?? ''
 
 export interface EmbassyConfig {
   /** master switch — OFF until the player consents at the Embassy (SERVICE.md consent gate). */

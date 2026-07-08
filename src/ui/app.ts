@@ -524,9 +524,11 @@ function hallOfRecordsScene(root: HTMLElement): void {
       // stuck forever while the sync looks like it "worked".
       syncNote = r.error === 'auth'
         ? '⚠ This device could not authenticate — your records are safe locally. Re-link it at the Registry with your recovery code to resume syncing.'
-        : r.error
-          ? '⚠ Could not reach the Embassy — your records are safe and will retry on the next sync.'
-          : r.accepted > 0 ? `✓ Synced ${r.accepted} run${r.accepted === 1 ? '' : 's'}.` : null
+        : r.error === 'network'
+          ? '⚠ Could not reach the Embassy — your records are safe locally and will retry. If this keeps happening, check the server URL in Embassy → Registry.'
+          : r.error === 'http'
+            ? `⚠ The Embassy returned an error${r.status ? ` (${r.status})` : ''} — your records are safe locally and will retry on the next sync.`
+            : r.accepted > 0 ? `✓ Synced ${r.accepted} run${r.accepted === 1 ? '' : 's'}.` : null
       goScene(hallOfRecordsScene)
     }))
     q.appendChild(sync)
@@ -555,7 +557,7 @@ async function loadBests(list: HTMLElement): Promise<void> {
     if (res.bests.length === 0) { list.replaceChildren($(`<div class="sheet-soon">No records yet — play a few runs, then sync.</div>`)); return }
     list.replaceChildren(...res.bests.map((e) => $(`<div class="gp-row">${bestLine(e)}</div>`)))
   } catch {
-    list.replaceChildren($(`<div class="sheet-soon">Could not reach the Embassy.</div>`))
+    list.replaceChildren($(`<div class="sheet-soon">Could not reach the Embassy — check the server URL in Embassy → Registry.</div>`))
   }
 }
 
