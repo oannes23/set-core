@@ -98,17 +98,21 @@ typecheck clean, deploy gated. **Only P7's content-hash WIRING is deferred (see 
 
 ### Phase 2 — Engine / design debt (FABLE §14 items 13–16) — the next combat pass
 Group by module; mostly parallel. Playtest E2 first (the new №1 degenerate line — FABLE §13).
+**Safe-fixes batch DONE 2026-07-07** (E3/E5/E6 + U2/U4 + Data Wipe gate; commits `b15874b`+`5d11b78`;
+QA'd by 2 subagents incl. a mid-combat consumable-dupe caught+fixed; +7 tests → 406; typecheck+build clean).
+**Remaining: E2 (playtest-first), C2, C3.**
 - **Lane A — combat balance (`src/engine/combat.ts`, `state.ts`, `tactics.ts`, `triggers.ts`)**:
   - `[ ]` **E2 — uncapped COMBO OVERTIME freezes the anti-stall** (MEDIUM). Set a real
     `COMBO_OVERTIME_CAP_MS`, or derive dread from elapsed time, or escalate the grace as overtime
-    stretches (`combat.ts:399-406`, `state.ts:225`). FABLE §3 E2.
-  - `[ ]` **E3 — soak skips `instant_attack`/trap damage** (MEDIUM). Subtract `soak` in `enemyAttack`
-    (decide the flat-`damage` case), or document the exemption beside dodge's (`triggers.ts:348-357`).
-  - `[ ]` **E5 — Maneuver `liveBurn` spends into the rule-6 shield + spuriously Primes** (MEDIUM).
-    Filter the pool by `protectedSlots`, or have `transmute` report affected slots and only spend/prime
-    on success; clear `primed[i]` on non-match turnover (`tactics.ts:56-65`). FABLE §3 E5.
-  - `[ ]` **E6 — match-fired traps vs the matched trio** (MEDIUM; old-E4). Fire match triggers after the
-    clear+refill, or pass the matched slots as an exclusion set for that firing (`combat.ts:310,317-321`).
+    stretches (`combat.ts:399-406`, `state.ts:225`). FABLE §3 E2. **← next; has a design choice to settle.**
+  - `[x]` **E3 — soak skips `instant_attack`/trap damage** — `enemyAttack` now subtracts soak flat
+    pre-Block (like the exchange strike / parting blow); the flat-`damage` DoT lane stays soak-exempt by
+    design (documented beside dodge's). `soak.test.ts`. FABLE §3 E3.
+  - `[x]` **E5 — Maneuver `liveBurn` spends into the rule-6 shield + spuriously Primes** — `liveBurn`
+    filters the pool by `protectedSlots` before picking; `transmute`/`inflictWounds` clear a turned-over
+    slot's stale primed mark. `tactics.test.ts`. FABLE §3 E5.
+  - `[x]` **E6 — match-fired traps vs the matched trio** — foe match-triggers now fire AFTER the
+    clear+refill (settled board); passive→refill-bias + win-check ordering preserved. FABLE §3 E6.
 - **Lane B — content semantics + BALANCE.md**:
   - `[ ]` **C2 — enchant-on-white → transfer games the affix budget (~3×)** (MEDIUM). Flag in
     **BALANCE.md now** for the gated sim pass; fix = re-mint to the destination's rarity unit on transfer
@@ -117,12 +121,13 @@ Group by module; mostly parallel. Playtest E2 first (the new №1 degenerate lin
     Implement spread OR require `color` + set the hexes to blue; reconcile desc/doc/code
     (`triggers.ts:224`). FABLE §4 C3.
 - **Lane C — UI robustness (`src/ui/app.ts`)**:
-  - `[ ]` **U2 — live delve is unpersisted module state** (MEDIUM). Persist `DELVE` under its own
-    envelope key with restore-or-forfeit on boot (a PWA process kill silently deletes committed
-    consumables + gold + gear today) (`app.ts:275,1584-1586`). FABLE §6 U2.
-  - `[ ]` **U4 — async goScene races** (MEDIUM). Scene-token guard the three settled-request `goScene`
-    sites (`app.ts:513,482,495`) — the `view===V` idiom already exists. FABLE §6 U4.
-  - `[ ]` **Gate the Data Wipe button** on `isDev()` (ships un-gated on character select). FABLE §6.
+  - `[x]` **U2 — live delve is unpersisted module state** — `DELVE` persisted under its own envelope key
+    (`delve-persist.ts`); checkpointed at beginDelve/delveRoom/delveFork + on every mid-fight consumable
+    use, cleared at every run-end; `recoverStrandedDelve()` on boot forfeits found gold/gear
+    (non-exploitable) but returns the committed satchel consumables (overflow auto-sells). FABLE §6 U2.
+  - `[x]` **U4 — async goScene races** — router `sceneToken()`/`isCurrentScene()` guard the three
+    settled-request `goScene` sites (doRegister/doRecover/Sync). FABLE §6 U4.
+  - `[x]` **Gate the Data Wipe button** on `isDev()` (was un-gated on character select). FABLE §6.
 
 ### Phase 3 — Product funnel + accessibility (FABLE §14 items 17–18) — pre-content prep, STRICTLY ORDERED
 Each unblocks the next; external players are currently zero precisely because these are unmet.
