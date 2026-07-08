@@ -140,6 +140,7 @@ export function transmute(s: CombatState, slots: number[], opts: { bias?: FavorB
   if (!live.length) return
   for (const i of live) {
     s.board[i] = null
+    delete s.primed[i] // E5-related: the reform is a NEW card — don't let it inherit a stale Primed mark
     const p: Pending = { reformAt: s.now + (opts.gapMs ?? 0) }
     if (opts.bias) p.bias = opts.bias
     s.pending.set(i, p)
@@ -184,6 +185,9 @@ function runEffect(s: CombatState, e: Effect, desc: MatchDescriptor, rng: Rng, s
   if (e.chance != null && rng() >= e.chance) return null
   switch (e.effect) {
     case 'damage': {
+      // Authored trap damage (thorns/poison/hellfire) — the DoT/environmental lane. Block applies
+      // (via hurtPlayer) but Soak does NOT: soak/dodge mitigate the foe's SWING (see enemyAttack),
+      // not the threat layer's own damage. Reducing this by soak would silently nerf every DoT foe.
       const raw = e.scale === 'set_mag' ? scaledBySetMag(desc) : e.amount != null ? e.amount : weightedRoll(e.max ?? 4, rng)
       const amt = Math.round(legacyDmg(raw) * dreadFoeMult(s)) // §5.8: trap/tick damage rides the foe dread ramp
       hurtPlayer(s, amt, s.foe.name, sink)
@@ -336,6 +340,7 @@ export function inflictWounds(s: CombatState, hpDamage: number, rng: Rng, sink: 
     if (i == null) i = pickRandom(live, 1, rng)[0]
     if (i == null) break
     s.board[i] = null
+    delete s.primed[i] // E5-related: a shattered slot's reform is a new card — clear any stale Primed mark
     s.pending.set(i, { reformAt: 0, wound: true }) // never time-reforms (the reducer skips wound pendings)
     shattered.push(i)
   }
@@ -343,10 +348,16 @@ export function inflictWounds(s: CombatState, hpDamage: number, rng: Rng, sink: 
 }
 
 /** An INSTANT attack (trap `instant_attack` effects) — lands mid-round, outside the exchange.
- *  Rolls fresh (traps stay surprising; the telegraph stays honest), consumes Block, and wounds
- *  by the law against its own bite. 0-damage foes (the dummy) can't hurt you. */
+ *  Rolls fresh (traps stay surprising; the telegraph stays honest), applies Soak then Block, and
+ *  wounds by the law against its own bite. 0-damage foes (the dummy) can't hurt you.
+ *  §7 Soak (Ironhide): this IS the foe's swing, diegetically — so soak mitigates it flat pre-Block,
+ *  exactly like the exchange strike (combat.ts) and the flee parting blow (E3 — soak was skipped
+ *  here, so Soak 4 vs a roll of 10 wrongly took 10). The authored trap `damage` effect (thorns/
+ *  poison/hellfire — the DoT/environmental lane) is soak-EXEMPT by design, the way Dodge is
+ *  trap-exempt: soak/dodge mitigate the foe's bite, not the threat layer's own damage. */
 export function enemyAttack(s: CombatState, rng: Rng, sink: EventSink): void {
-  const raw = s.foe.damage > 0 ? weightedRoll(s.foe.damage, rng) : 0
+  const raw0 = s.foe.damage > 0 ? weightedRoll(s.foe.damage, rng) : 0
+  const raw = Math.max(0, raw0 - s.mods.soak)
   if (raw === 0) {
     sink.emit({ type: 'playerBlocked' })
     return

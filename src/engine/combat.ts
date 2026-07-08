@@ -308,19 +308,26 @@ function completeSet(s: CombatState, slots: [number, number, number], deps: Deps
   firePassives(s, 'match', res.desc, deps.rng, sink)
   // ...and the gear AFFIX procs fire on the same match (the affix-proc engine — player-favourable)
   if (s.running) fireProcs(s, 'match', res.desc, deps.rng, sink)
-  // ...and the FOE prices this match (traps + tricks fire on the same bus)
-  if (s.running && s.enemyHP > 0) fireTriggers(s, 'match', res.desc, deps.rng, sink)
   if (!s.running) return
-  if (s.enemyHP <= 0) {
-    // a passive/trick (not the banked swing) finished the foe mid-round — the battle ends on the spot
-    onWin(s, deps.rng, sink)
-    return
-  }
-  // clear the matched slots and refill (keeps ≥ FLOOR sets); a passive may bias this refill
+  if (s.enemyHP <= 0) { onWin(s, deps.rng, sink); return } // a proc/passive finished the foe — end before the refill
+  // §E6 (FABLE §3): clear + refill the matched trio BEFORE the foe reacts. Firing the foe's match
+  // triggers while the matched cards were still on the board let a trap's board verb target one of
+  // them — a gap-transmute's hole was then silently erased by this very refill (reformSlots deletes
+  // the pending), and a lock pre-locked the brand-new reform card the player never saw. Refilling
+  // first means the foe prices the match against the SETTLED, visible board. A match passive
+  // (Momentum) still steers this refill (it ran above, setting pendingRegenBias).
   const bias = s.pendingRegenBias
   s.pendingRegenBias = null
   for (const i of slots) s.board[i] = null
   reformSlots(s, slots, bias ?? undefined, deps.rng)
+  // ...NOW the FOE prices this match (traps + tricks fire on the same bus) — post-refill (E6)
+  if (s.running && s.enemyHP > 0) fireTriggers(s, 'match', res.desc, deps.rng, sink)
+  if (!s.running) return
+  if (s.enemyHP <= 0) {
+    // a trick (not the banked swing) finished the foe mid-round — the battle ends on the spot
+    onWin(s, deps.rng, sink)
+    return
+  }
 }
 
 function tick(s: CombatState, dtMs: number, deps: Deps, sink: EventSink): void {

@@ -15,7 +15,7 @@ import type { CombatState, TacticKind, ManeuverBias } from './state'
 import { MANEUVER_GATHER_MS } from './state'
 import type { EventSink } from './events'
 import { transmute } from './triggers'
-import { BIAS_W, cardColor, cardShape, cardMag, liveSlots, comboCounts } from './select'
+import { BIAS_W, cardColor, cardShape, cardMag, liveSlots, comboCounts, protectedSlots } from './select'
 
 /** Maneuver's bias → the generator's favour weights. */
 export function biasToFavor(b: ManeuverBias): FavorBias {
@@ -53,7 +53,11 @@ export function liveBurn(s: CombatState, rng: Rng, sink: EventSink): boolean {
   const bias = s.maneuverBias
   if (!bias) return false
   const get = axisValue(bias)
-  const pool = liveSlots(s, (c) => get(c) !== bias.value)
+  // E5: exclude rule-6-shielded slots (a selected card or its set-mate) up front. `transmute` would
+  // silently skip them (source:'churn' is shield-filtered) — so without this we'd spend a charge and
+  // spuriously mark the card Primed for a churn that never happened. Empty pool ⇒ hold the ammo.
+  const shield = protectedSlots(s)
+  const pool = liveSlots(s, (c) => get(c) !== bias.value).filter((i) => !shield.has(i))
   if (!pool.length) return false
   const counts = comboCounts(s)
   const cost = (i: number) => counts[i] * 100 + cardMag(s.board[i]!)

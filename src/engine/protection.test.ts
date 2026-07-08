@@ -11,7 +11,7 @@ import type { CombatEvent } from './events'
 const C = (a: number, b: number, c: number, d = 0): Card => [a, b, c, d]
 // slots 0,1,2 form a SET (each coordinate sums to 0 mod 3); slot 3 is in no set.
 const mkState = (selected: number[]): CombatState =>
-  ({ board: [C(0, 0, 0), C(1, 1, 1), C(2, 2, 2), C(0, 1, 2)], pending: new Map(), locked: new Map(), selected, now: 0 } as unknown as CombatState)
+  ({ board: [C(0, 0, 0), C(1, 1, 1), C(2, 2, 2), C(0, 1, 2)], pending: new Map(), locked: new Map(), primed: {}, selected, now: 0 } as unknown as CombatState)
 const sink = () => { const events: CombatEvent[] = []; return { events, emit: (e: CombatEvent) => events.push(e) } }
 
 test('protectedSlots: nothing selected → empty (pre-selection turnover is unprotected)', () => {
