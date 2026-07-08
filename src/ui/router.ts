@@ -10,6 +10,7 @@ let ROOT: HTMLElement | null = null
 let lastSceneMount: ((root: HTMLElement) => void) | null = null
 let sceneTimers: number[] = []
 let onSceneLeave: (() => void) | null = null
+let sceneEpoch = 0 // bumped on every scene change; async handlers capture it to detect "user navigated away"
 
 /* Body-level singleton overlays swept on every scene change (their own cleanup timers die with the
    scene). Anything appended to <body> (not ROOT) belongs here, and any scene-scoped delay must use
@@ -29,6 +30,16 @@ export function remountScene(): void {
   if (lastSceneMount) goScene(lastSceneMount)
 }
 
+/** A token identifying the currently-mounted scene. Capture it before an `await`; if `isCurrentScene`
+   still holds when the promise settles, the user hasn't navigated away and it's safe to `goScene`. */
+export function sceneToken(): number {
+  return sceneEpoch
+}
+/** True iff no scene change has happened since `token` was captured (see `sceneToken`). */
+export function isCurrentScene(token: number): boolean {
+  return token === sceneEpoch
+}
+
 /** A setTimeout scoped to the current scene — cleared automatically on the next scene change. */
 export function sceneTimeout(fn: () => void, ms: number): number {
   const id = window.setTimeout(fn, ms)
@@ -40,6 +51,7 @@ export function sceneTimeout(fn: () => void, ms: number): number {
    modal listener, coaching, body singletons, stray FX), then mount fresh. Order preserved. */
 export function goScene(mount: (root: HTMLElement) => void): void {
   if (!ROOT) return
+  sceneEpoch++
   lastSceneMount = mount
   onSceneLeave?.() // app: stop the combat loop (cancel raf, drop V) + coachTeardown — before its DOM goes away
   for (const id of sceneTimers) clearTimeout(id)

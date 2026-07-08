@@ -34,6 +34,7 @@ import { sellValue, itemValue, consumableValue, sellValueOfConsumable, buyPrice,
 import { gearTipTitle, gearTipBody, consumableTipTitle, consumableTipBody } from './item-desc'
 import { type SmithOp, smithCost, nextRarity, canUpgrade, openSlots, enchantOptions, canEnchant, canReroll, canReceiveAffix, upgradeRarity, enchant, rerollAffixes, transferAffix } from '../engine/smith'
 import { type DelveRun, type DelveLoot, applyRoomLoot, resolveDelveExit, resolveLootKeep } from './delve-run'
+import { loadDelve, saveDelve, clearDelve } from './delve-persist'
 import type { CombatState, FoeRuntime, StatBlock } from '../engine/state'
 import { CHARGE_CAP, MANA_CAP, START_GRACE_MS, ROUND_MS, WOUND_WARD_COST, BOARD_WARD_COST, WOUND_CAP_PER_EXCHANGE, woundQuantum, dreadLevel, dreadFoeMult, dreadPlayerMult, DREAD_ONSET, DREAD_MAX, PRIMED_WINDOW_MS, CRIT_GRACE_MS } from '../engine/state'
 import type { CombatEvent } from '../engine/events'
@@ -44,7 +45,7 @@ import { bumpTurn, pick, strikeWord, healWord, drainWord, magicLead, tierOf, joi
 import { type SavedChar, type StatAlloc, loadRoster, upsertChar, deleteChar, makeChar, freshId, CONSUMABLE_SLOTS, effectiveStats, xpForLevel, pendingLevels, applyLevelUp, addXP, LEVEL_CAP, activeSlotsAt, passiveSlotsAt, activeUnlockLevel } from './save'
 import { isDev, toggleDev, onDevChange, displayName } from './dev'
 import { $, esc } from './dom'
-import { setRoot, setSceneTeardown, goScene, sceneTimeout, remountScene, initTooltips } from './router'
+import { setRoot, setSceneTeardown, goScene, sceneTimeout, remountScene, initTooltips, sceneToken, isCurrentScene } from './router'
 import { recordRun } from '../net/run-capture'
 import { loadAccount, updateAccount, markRegistered, markDeclined, acknowledgeRecovery, applyRecovery } from '../net/account'
 import { getConfig, setEnabled, setServerUrl } from '../net/config'
@@ -172,7 +173,26 @@ export function mountApp(root: HTMLElement): void {
     // (its dev row is CSS-gated), so re-mounting it — which would reset the live fight — is skipped.
     if (!V) remountScene()
   })
+  recoverStrandedDelve() // U2: a delve killed by a process/refresh left committed consumables stranded — recover them
   goScene(townScene)
+}
+
+/** U2 (FABLE §6): resolve a delve that was interrupted by a PWA process kill / accidental refresh. There
+ *  is no mid-combat resume (CombatState isn't serialisable), and banking an interrupted run's found gold/
+ *  gear would be exploitable (close-to-keep-loot) — so the run FORFEITS its spoils but RETURNS the
+ *  committed satchel consumables to the vault (already paid for; not farmable). Overflow past a full vault
+ *  auto-sells to gold, so nothing is silently lost (mirrors the loot triage). Runs once, on boot. */
+function recoverStrandedDelve(): void {
+  const run = loadDelve()
+  clearDelve() // resolve it exactly once — whatever we do below, the stranded record is now spent
+  if (!run || !run.bag.length) return
+  let acc = loadBank()
+  for (const id of run.bag) {
+    if (!CONSUMABLES[id]) continue
+    const r = addToStorage(acc, makeItem('consumable', id))
+    acc = r.ok ? r.account : addGold(acc, sellValueOfConsumable(id)) // full vault → auto-sell rather than lose it
+  }
+  saveBank(acc)
 }
 
 /** The always-present, subtle dev-mode switch (a tiny corner chip on <body>, survives scene swaps). */
@@ -314,7 +334,7 @@ function hubGrid(host: HTMLElement, entries: HubEntry[]): void {
 }
 
 function townScene(root: HTMLElement): void {
-  DELVE = null // any road back to town ends the run
+  DELVE = null; clearDelve() // any road back to town ends the run — drop any recovery checkpoint
   const roster = loadRoster()
   if (selectedCharId && !roster.some((c) => c.id === selectedCharId)) selectedCharId = null
   if (!selectedCharId) selectedCharId = roster[0]?.id ?? null
@@ -396,7 +416,7 @@ function embassyFooter(wrap: HTMLElement, onBack: () => void, label: string): vo
 }
 
 function embassyScene(root: HTMLElement): void {
-  DELVE = null // any road back through town ends the run
+  DELVE = null; clearDelve() // any road back through town ends the run — drop any recovery checkpoint
   void flushOutbox().catch(() => {}) // auto-sync on arrival (no-op offline / unregistered / modded)
   const v = embassyView(loadAccount(), getConfig(), pendingCount())
   const wrap = $(`<div class="wrap"></div>`)
@@ -482,12 +502,14 @@ function registryScene(root: HTMLElement): void {
 async function doRegister(handle: string, setNote: (m: string) => void): Promise<void> {
   if (handle.length < 2) { setNote('Pick a handle of at least 2 characters.'); return }
   setNote('Registering…')
+  const tok = sceneToken() // U4: don't yank navigation if the user left the Registry while this settled
   try {
     const acc = loadAccount()
     const res = await embassyRegister({ fingerprint: acc.fingerprint, handle, consentVersion: CONSENT_VERSION, client: { rulesetVersion: CLIENT_RULESET_VERSION, contentVersion: CLIENT_CONTENT_VERSION } })
     updateAccount((a) => markRegistered(a, { handle: res.handle, token: res.token, recoveryCode: res.recoveryCode, at: Date.now() }))
-    goScene(registryScene)
+    if (isCurrentScene(tok)) goScene(registryScene)
   } catch (e) {
+    if (!isCurrentScene(tok)) return // the user navigated away — don't stomp on their new scene with a stale note
     setNote(e instanceof EmbassyHttpError ? (e.status === 409 ? 'That handle is taken — try another.' : `The Embassy refused the registration (${e.status}).`) : 'Could not reach the Embassy — check the connection above.')
   }
 }
@@ -495,12 +517,14 @@ async function doRegister(handle: string, setNote: (m: string) => void): Promise
 async function doRecover(code: string, setNote: (m: string) => void): Promise<void> {
   if (!code) { setNote('Enter your recovery code.'); return }
   setNote('Re-linking…')
+  const tok = sceneToken() // U4: see doRegister
   try {
     const acc = loadAccount()
     const res = await embassyRecover({ recoveryCode: code, fingerprint: acc.fingerprint })
     updateAccount((a) => applyRecovery(a, res.token, res.handle))
-    goScene(registryScene)
+    if (isCurrentScene(tok)) goScene(registryScene)
   } catch (e) {
+    if (!isCurrentScene(tok)) return
     setNote(e instanceof EmbassyHttpError && e.status === 404 ? 'That recovery code was not recognized.' : 'Could not reach the Embassy.')
   }
 }
@@ -519,7 +543,7 @@ function hallOfRecordsScene(root: HTMLElement): void {
   q.appendChild($(`<div class="cc">${v.pendingUploads} run${v.pendingUploads === 1 ? '' : 's'} recorded locally${v.gate === 'open' && v.status === 'registered' ? '' : ' — they sync once you connect &amp; register'}.</div>`))
   if (v.gate === 'open' && v.status === 'registered') {
     const sync = $<HTMLButtonElement>(`<button class="cta">Sync now</button>`)
-    sync.addEventListener('click', () => void flushOutbox().then((r) => {
+    sync.addEventListener('click', () => { const tok = sceneToken(); void flushOutbox().then((r) => {
       // N3: surface the outcome — a token rotated on another device (401/403) otherwise leaves records
       // stuck forever while the sync looks like it "worked".
       syncNote = r.error === 'auth'
@@ -529,8 +553,10 @@ function hallOfRecordsScene(root: HTMLElement): void {
           : r.error === 'http'
             ? `⚠ The Embassy returned an error${r.status ? ` (${r.status})` : ''} — your records are safe locally and will retry on the next sync.`
             : r.accepted > 0 ? `✓ Synced ${r.accepted} run${r.accepted === 1 ? '' : 's'}.` : null
-      goScene(hallOfRecordsScene)
-    }))
+      // U4: only re-render if the user is still in the Hall — a settled sync must not yank a live daily fight.
+      // syncNote is set regardless, so it surfaces next time they open the Hall.
+      if (isCurrentScene(tok)) goScene(hallOfRecordsScene)
+    }) })
     q.appendChild(sync)
   }
   if (syncNote) { q.appendChild($(`<div class="cc" style="margin-top:8px">${syncNote}</div>`)); syncNote = null }
@@ -595,7 +621,7 @@ function dailyFoeId(setup: DailySetup, fixed: DailyFixed): string {
 }
 
 function dailyDispatchScene(root: HTMLElement): void {
-  DELVE = null
+  DELVE = null; clearDelve()
   DAILY = null
   const v = embassyView(loadAccount(), getConfig(), pendingCount())
   const wrap = $(`<div class="wrap"></div>`)
@@ -663,7 +689,7 @@ async function renderDaily(panel: HTMLElement, v: EmbassyView): Promise<void> {
 /** Launch the daily as a single standardized fight: ephemeral level-1 hero of the derived class, the foe +
  *  board seeded from the shared daily seed (so every player's run is identical). Captured as kind:'daily'. */
 function beginDaily(setup: DailySetup, fixed: DailyFixed, date: string): void {
-  DELVE = null
+  DELVE = null; clearDelve()
   DAILY = { date }
   const dg = GAMEDATA.dungeons[setup.dungeonId]
   if (!dg) { DAILY = null; goScene(townScene); return }
@@ -677,7 +703,7 @@ function beginDaily(setup: DailySetup, fixed: DailyFixed, date: string): void {
 }
 
 function characterSelectScene(root: HTMLElement): void {
-  DELVE = null // any road back to town ends the run
+  DELVE = null; clearDelve() // any road back to town ends the run — drop any recovery checkpoint
   const wrap = $(`<div class="wrap"></div>`)
   wrap.appendChild($(`<h1>set.core</h1>`))
   wrap.appendChild($(`<div class="sub">town · choose your hero &nbsp;·&nbsp; <span class="vault" data-tip-title="The vault" data-tip="Your shared account gold — banked on any safe exit from a delve, dented by the death tithe. Spends at the Smithy; earned back by selling gear/consumables in Storage.">🪙 ${loadBank().gold} vault</span></div>`))
@@ -690,15 +716,17 @@ function characterSelectScene(root: HTMLElement): void {
   wrap.appendChild(footer)
   wrap.appendChild($(`<div class="sub" style="margin-top:18px">Click cards to build a set (same-or-all-different on every trait). Set-mates flutter — the easier the set, the harder they flap; a rattling card completes one.</div>`))
   wrap.appendChild($(`<div class="sub" style="margin-top:10px;text-transform:none;letter-spacing:0;color:var(--ink-faint)">Archived single-file prototypes (the migration oracle): <a href="${import.meta.env.BASE_URL}prototype/" style="color:var(--phos);text-decoration:none">▸ /prototype/</a></div>`))
-  const wipeRow = $(`<div class="sub" style="margin-top:8px;text-transform:none;letter-spacing:0"></div>`)
-  const wipeBtn = $<HTMLButtonElement>(`<button class="wipebtn" data-tip-title="Data Wipe" data-tip="Erase ALL saved data — every hero, the vault, gear, consumables, and settings — back to a pristine first-launch state. For testing fresh starts / beginner balance.">⟲ Data Wipe (reset everything)</button>`)
-  wipeBtn.addEventListener('click', () => confirmModal({
-    title: 'Wipe ALL data?', danger: true, confirmLabel: 'Wipe everything',
-    body: 'This permanently erases <b>every hero</b>, your <b>vault gold</b>, all <b>gear &amp; consumables</b>, and settings — a clean first-launch state. This cannot be undone.',
-    onConfirm: () => { wipeAllData(); location.reload() },
-  }))
-  wipeRow.appendChild(wipeBtn)
-  wrap.appendChild(wipeRow)
+  if (isDev()) { // gated: one mis-tap+confirm from total loss — a dev-only testing affordance (FABLE §6, like grantTestGear)
+    const wipeRow = $(`<div class="sub" style="margin-top:8px;text-transform:none;letter-spacing:0"></div>`)
+    const wipeBtn = $<HTMLButtonElement>(`<button class="wipebtn" data-tip-title="Data Wipe" data-tip="Erase ALL saved data — every hero, the vault, gear, consumables, and settings — back to a pristine first-launch state. For testing fresh starts / beginner balance.">⟲ Data Wipe (reset everything)</button>`)
+    wipeBtn.addEventListener('click', () => confirmModal({
+      title: 'Wipe ALL data?', danger: true, confirmLabel: 'Wipe everything',
+      body: 'This permanently erases <b>every hero</b>, your <b>vault gold</b>, all <b>gear &amp; consumables</b>, and settings — a clean first-launch state. This cannot be undone.',
+      onConfirm: () => { wipeAllData(); location.reload() },
+    }))
+    wipeRow.appendChild(wipeBtn)
+    wrap.appendChild(wipeRow)
+  }
   root.appendChild(wrap)
 
   let roster = loadRoster()
@@ -1573,7 +1601,7 @@ function openLevelUp(c: SavedChar, onComplete: (c: SavedChar) => void): void {
 // ---- begin combat ----
 /** The practice path: one chosen fight (or the authored gauntlet), no room chain. */
 function begin(root: HTMLElement, char: SavedChar, dungeonId: string, foeVal: string): void {
-  DELVE = null
+  DELVE = null; clearDelve()
   DAILY = null
   const rng: Rng = systemRng
   const dg: Dungeon = GAMEDATA.dungeons[dungeonId]
@@ -1609,6 +1637,7 @@ function beginDelve(char: SavedChar, dungeonId: string): void {
     gearFound: [], // gear drops accrue here; banked to Storage on a SAFE exit, lost on death (like the satchel)
     gearPity: 0, // the gear-drop sawtooth, carried across rooms
   }
+  saveDelve(DELVE) // U2: checkpoint the committed satchel so a process kill can recover it
   goScene((r) => delveRoom(r, char))
 }
 
@@ -1623,6 +1652,7 @@ function delveRoom(root: HTMLElement, char: SavedChar): void {
   DELVE.tier = enc.tier
   const foe = assembleFoe(enc.foeId, dg, GAMEDATA, rng)
   if (!foe) return
+  saveDelve(DELVE) // U2: checkpoint the room + satchel entering this fight (recovery restores the stake)
   startCombat(root, char, DELVE.d.dungeonId, foe, null, DELVE.bag)
 }
 
@@ -2487,7 +2517,12 @@ function dispatch(action: CombatAction): void {
   V.selected = revalidateSelection(V.selected, wasKeys, state.board, state.locked)
   const choreographed = interpret(events) // a rollover batch sequences its own beats + board render
   if (!choreographed && boardSignature(state) !== V.boardSig) renderBoard(verbsFromEvents(events))
-  if (events.some((e) => e.type === 'consumableUsed')) renderConsumables() // a slot was spent
+  if (events.some((e) => e.type === 'consumableUsed')) {
+    renderConsumables() // a slot was spent
+    // U2: a consumable drunk mid-fight mutates V.state.consumables directly — re-sync DELVE.bag and
+    // re-checkpoint so a "drink then quit mid-fight" can't recover (and thus DUPE) the drunk items.
+    if (DELVE) { DELVE.bag = V.state.consumables.slice(); saveDelve(DELVE) }
+  }
   updateBar()
 }
 
@@ -4140,7 +4175,7 @@ function lootManageScene(root: HTMLElement, char: SavedChar): void {
       banked = true
       const res = resolveLootKeep(loadBank(), runGold, saleGold, keepGear, keepCons)
       saveBank(res.account)
-      DELVE = null
+      DELVE = null; clearDelve() // spoils banked via triage — drop the recovery checkpoint before town
       goScene(townScene)
     })
     footer.appendChild(confirm)
@@ -4159,10 +4194,10 @@ function delveFork(result: 'win' | 'lose' | 'flee'): void {
   // DEATH — the run ends: the satchel + the run's carried gold are lost, and a tithe bites the bank
   if (result === 'lose') {
     const { account, outcome } = resolveDelveExit(loadBank(), DELVE, 'death')
+    DELVE = null; clearDelve() // resolve the checkpoint the instant death forfeits the satchel — recovery must never return it
     saveBank(account)
     const lost = outcome.goldLost
     const tithe = outcome.tithe // 12% of BANKED gold forfeit (the exit ladder, §6)
-    DELVE = null
     const home = $<HTMLButtonElement>(`<button class="cta" style="display:block;margin:0 auto">🏠 Back to town</button>`)
     home.addEventListener('click', () => goScene(townScene))
     const tolls = [`Your satchel${lost > 0 ? ` and ${lost}🪙 carried` : ''} is lost where you fell.`, tithe > 0 ? `The recovery tithe takes ${tithe}🪙 from your vault.` : ''].filter(Boolean).join(' ')
@@ -4179,6 +4214,7 @@ function delveFork(result: 'win' | 'lose' | 'flee'): void {
   const loot = result === 'win' ? applyRoomLoot(DELVE, V.state.foe, systemRng) : null
   const marquee = isBoss ? rollMarqueeGear(V.state.foe, DELVE.d.room, systemRng) : undefined // §3 dungeon-clear MARQUEE
   if (marquee) DELVE.gearFound.push(marquee)
+  saveDelve(DELVE) // U2: checkpoint the between-rooms rest (survivors reconciled above) for recovery
 
   // the screen builder — runs directly for a flee, or as the ledger-reveal's release for a win
   const render = (): void => {
