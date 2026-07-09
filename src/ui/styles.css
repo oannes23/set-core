@@ -4,10 +4,14 @@
   --phos: #5eead4; --red: #f0565b; --green: #46c46a; --blue: #5b94f5;
   --warn: #f5a524; --gold: #f5c542; --trick: #34d399;
   --c0: #f0565b; --c1: #46c46a; --c2: #5b94f5; /* card colours: red/green/blue */
+
   /* a dark "moat" ring placed between a card's COLOUR border (identity) and any STATE ring (feedback),
      so a glow never sits flush against a same-hue border — a red ring stays readable on a red card. */
   --moat: 0 0 0 3px var(--bg);
 }
+/* colour-blind mode: swap the card-colour vars to the CVD-safe (Okabe-Ito) triad so tints/glows/borders
+   match the cardSVG palette (which reads the same triad in JS). Set via body.cvd (ui/prefs). */
+body.cvd { --c0: #d55e00; --c1: #009e73; --c2: #0072b2; }
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { background: var(--bg); color: var(--ink); font-family: "Spline Sans Mono", ui-monospace, monospace; }
 .wrap { max-width: 1000px; margin: 0 auto; padding: 22px 18px 60px; }
@@ -416,6 +420,11 @@ button.cta.bob { animation: ctabob 1.6s ease-in-out infinite; }
 .questcue .qc-x { background: transparent; border: none; color: var(--ink-faint); cursor: pointer; font-size: 15px; padding: 4px 6px; }
 .questcue .qc-x:hover { color: var(--ink); }
 @media (max-width: 640px) { .questcue { flex-wrap: wrap; } .questcue .qc-body { flex-basis: 100%; } }
+
+/* Settings — a preference row (checkbox + label + note) */
+.setrow { display: flex; gap: 12px; align-items: flex-start; cursor: pointer; padding: 10px 0; line-height: 1.45; }
+.setrow input { margin-top: 3px; width: 16px; height: 16px; accent-color: var(--phos); cursor: pointer; }
+.setrow .setnote { color: var(--ink-dim); font-size: 12px; }
 
 /* character sheet (right panel of character select) */
 .sheet-hd { display: flex; align-items: center; gap: 12px; }

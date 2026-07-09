@@ -8,14 +8,15 @@ const KEY = 'setcore.prefs.v1'
 export interface Prefs {
   tutorialSeen: boolean // the guided intro has launched at least once → don't auto-funnel again
   questCueSeen: boolean // the one-time "▶ next: the Goblin Warren" town cue has been shown/dismissed
+  colorblind: boolean // redundant card encoding: CVD-safe palette + a hue-independent shape pip per colour
 }
 
-const DEFAULTS: Prefs = { tutorialSeen: false, questCueSeen: false }
+const DEFAULTS: Prefs = { tutorialSeen: false, questCueSeen: false, colorblind: false }
 
 function read(): Prefs {
   try {
     const p = JSON.parse(localStorage.getItem(KEY) ?? '{}') as Record<string, unknown>
-    return { tutorialSeen: p.tutorialSeen === true, questCueSeen: p.questCueSeen === true }
+    return { tutorialSeen: p.tutorialSeen === true, questCueSeen: p.questCueSeen === true, colorblind: p.colorblind === true }
   } catch {
     return { ...DEFAULTS }
   }

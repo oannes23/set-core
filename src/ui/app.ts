@@ -45,6 +45,7 @@ import { bumpTurn, pick, strikeWord, healWord, drainWord, magicLead, tierOf, joi
 import { type SavedChar, type StatAlloc, loadRoster, upsertChar, deleteChar, makeChar, freshId, CONSUMABLE_SLOTS, effectiveStats, xpForLevel, pendingLevels, applyLevelUp, addXP, LEVEL_CAP, activeSlotsAt, passiveSlotsAt, activeUnlockLevel } from './save'
 import { isDev, toggleDev, onDevChange, displayName } from './dev'
 import { getPrefs, setPref, bootRoute, showQuestCue } from './prefs'
+import { cardHex, cardPipSVG } from './card-style'
 import { $, esc } from './dom'
 import { setRoot, setSceneTeardown, goScene, sceneTimeout, remountScene, initTooltips, sceneToken, isCurrentScene } from './router'
 import { recordRun } from '../net/run-capture'
@@ -63,7 +64,6 @@ const GEN: GenConfig = COMBAT_GEN
 const REDUCED = matchMedia('(prefers-reduced-motion: reduce)')
 
 // ---- card glyphs: Lucide line icons (MIT) — Attack=swords, Defend=shield, Move=footprints ----
-const CARD_HEX = ['#f0565b', '#46c46a', '#5b94f5'] // red / green / blue (matches --c0/c1/c2)
 interface SvgPart { tag: string; attr: Record<string, string | number>; fill?: boolean }
 const SHAPE_PARTS: SvgPart[][] = [
   [ // swords (Attack)
@@ -91,16 +91,19 @@ function partMarkup(p: SvgPart, hex: string): string {
     ? `<${p.tag} ${attrs} fill="${hex}"/>`
     : `<${p.tag} ${attrs} fill="none" stroke="${hex}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>`
 }
-/** A card as inline SVG: number+1 stacked shape glyphs (count = the number trait), recoloured by colour. */
+/** A card as inline SVG: number+1 stacked shape glyphs (count = the number trait), recoloured by colour.
+ *  In colour-blind mode the palette switches to the CVD-safe triad and a hue-independent shape pip is added
+ *  (redundant encoding — colour stops being the one imperceptible match axis). */
 function cardSVG(card: Card): string {
-  const hex = CARD_HEX[card[0]]
+  const cvd = getPrefs().colorblind
+  const hex = cardHex(card[0], cvd)
   const inner = SHAPE_PARTS[card[1]].map((p) => partMarkup(p, hex)).join('')
   const n = card[3] + 1
   const gap = 52
   const startY = 80 - (n * gap) / 2 + gap / 2
   let glyphs = ''
   for (let s = 0; s < n; s++) glyphs += `<g transform="translate(10,${startY + s * gap - 22})"><g transform="${GLYPH_T}">${inner}</g></g>`
-  return `<svg class="cardsvg" viewBox="0 0 120 160" preserveAspectRatio="xMidYMid meet">${glyphs}</svg>`
+  return `<svg class="cardsvg" viewBox="0 0 120 160" preserveAspectRatio="xMidYMid meet">${glyphs}${cardPipSVG(card[0], cvd)}</svg>`
 }
 
 interface View {
@@ -168,6 +171,7 @@ export function mountApp(root: HTMLElement): void {
   })
   mountDevToggle()
   document.body.classList.toggle('dev', isDev())
+  document.body.classList.toggle('cvd', getPrefs().colorblind) // colour-blind palette override for card tints/glows
   onDevChange((on) => {
     document.body.classList.toggle('dev', on)
     // Static scenes re-mount so their dev panels / names re-resolve; combat repaints live every frame
@@ -377,6 +381,7 @@ function townScene(root: HTMLElement): void {
     { icon: '🏛️', name: 'Merchant House', desc: 'Upgrades: buy prices · loot quality · rare wares', onClick: () => goScene(merchantScene) },
     { icon: '⚜️', name: 'Guild District', desc: 'The class halls — spellbooks, trainers, bounties', onClick: () => goScene(guildDistrictScene) },
     { icon: '🌐', name: 'Embassy', desc: 'The foreign quarter — registry, records, the daily dispatch', onClick: () => goScene(embassyScene), badge: embassyBadge() },
+    { icon: '⚙️', name: 'Settings', desc: 'Accessibility and options', onClick: () => goScene(settingsScene) },
   ])
 }
 
@@ -391,6 +396,31 @@ function guildDistrictScene(root: HTMLElement): void {
   hubGrid(wrap, CLASSES.map((c) => ({
     icon: c.icon, name: `${c.name} Hall`, desc: 'Spellbooks · trainers · bounties — opens with the ability system', dim: true,
   })))
+  const footer = $(`<div class="hubfoot"></div>`)
+  const back = $<HTMLButtonElement>(`<button class="cta ghost">◂ Back to town</button>`)
+  back.addEventListener('click', () => goScene(townScene))
+  footer.appendChild(back)
+  wrap.appendChild(footer)
+}
+
+/* Player-facing settings — accessibility today (the colour-blind unblock), the home for future options
+   (round length / relaxed mode when the cautious stance lands). Prefs persist via ui/prefs. */
+function settingsScene(root: HTMLElement): void {
+  const wrap = $(`<div class="wrap"></div>`)
+  wrap.appendChild($(`<h1>set.core</h1>`))
+  wrap.appendChild($(`<div class="sub" style="text-transform:none;letter-spacing:0">⚙ <b>Settings</b></div>`))
+  const panel = $(`<div class="panel"></div>`)
+  panel.appendChild($(`<label>Accessibility</label>`))
+  const cb = getPrefs().colorblind
+  const row = $(`<label class="setrow"><input type="checkbox"${cb ? ' checked' : ''}><span><b>Colour-blind friendly cards</b><br><span class="setnote">Adds a shape pip to each card (● red · ▲ green · ■ blue) and switches to a colour-blind-safe palette, so colour isn't the only way to read a match.</span></span></label>`)
+  row.querySelector('input')!.addEventListener('change', (e) => {
+    setPref('colorblind', (e.target as HTMLInputElement).checked)
+    document.body.classList.toggle('cvd', getPrefs().colorblind)
+    goScene(settingsScene) // re-render the toggle state (live boards read the pref per paint)
+  })
+  panel.appendChild(row)
+  wrap.appendChild(panel)
+  root.appendChild(wrap)
   const footer = $(`<div class="hubfoot"></div>`)
   const back = $<HTMLButtonElement>(`<button class="cta ghost">◂ Back to town</button>`)
   back.addEventListener('click', () => goScene(townScene))

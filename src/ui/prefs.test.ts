@@ -26,13 +26,14 @@ describe('showQuestCue — the one-time "next: Goblin Warren" town cue', () => {
 })
 
 describe('preference store — in-memory round-trip', () => {
-  beforeEach(() => { setPref('tutorialSeen', false); setPref('questCueSeen', false) })
+  beforeEach(() => { setPref('tutorialSeen', false); setPref('questCueSeen', false); setPref('colorblind', false) })
 
   it('defaults to false and persists sets', () => {
-    expect(getPrefs()).toEqual({ tutorialSeen: false, questCueSeen: false })
+    expect(getPrefs()).toEqual({ tutorialSeen: false, questCueSeen: false, colorblind: false })
     setPref('tutorialSeen', true)
     expect(getPrefs().tutorialSeen).toBe(true)
     expect(getPrefs().questCueSeen).toBe(false) // independent
+    expect(getPrefs().colorblind).toBe(false) // independent
   })
 
   it('returns a copy (callers cannot mutate the cache)', () => {

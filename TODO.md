@@ -145,10 +145,15 @@ Each unblocks the next; external players are currently zero precisely because th
   one-time `showQuestCue` banner → "▶ Next: the Goblin Warren" → Gates (dismiss on enter or ✕, persists
   `questCueSeen`). New `ui/prefs.ts` (localStorage-backed, in-memory cache like `dev.ts`) + `prefs.test.ts`
   (6 tests, pure decisions). ⚠ browser smoke-test pending (no e2e harness — repo convention). FABLE §11 P1.
-- `[ ]` **Colorblind redundant encoding + CVD triad + relaxed/round-length option** (HIGH; third review
-  running; the *mechanical* external-playtest unblock). Per-color fill style in `cardSVG`
-  (solid/outline/hatched or a corner pip) + a CVD-safer `CARD_HEX`; add the settings surface. FABLE §11 /
-  §14 item 18. *(Supersedes the "Deferred" colorblind park below + the balance-log settings item.)*
+- `[x]` **Colorblind redundant encoding + CVD triad** (DONE 2026-07-08; the *mechanical* external-playtest
+  unblock). `cardSVG` now adds a hue-INDEPENDENT shape pip per colour (● red · ▲ green · ■ blue) and switches
+  to the CVD-safe **Okabe-Ito** triad, both behind a `colorblind` pref; `body.cvd` mirrors the triad onto the
+  `--c0/1/2` card-colour vars so tints/glows/borders match. New pure `ui/card-style.ts` (+`card-style.test.ts`,
+  5 tests) + a **Settings** scene (⚙ town card) with the toggle. Default look unchanged. FABLE §11 / §14 item 18.
+  - `[ ]` **Relaxed / round-length option — DEFERRED (superseded).** FABLE bundled it here, but the roadmap's
+    own note and Phase 5 item 22 supersede it with the **cautious/untimed encounter stance** (a per-encounter
+    meta-stance, dual leaderboard categories) — building a separate relaxed-mode now would be throwaway work
+    the stance replaces. The Settings scene is in place as its future home. Revisit with item 22.
 
 ### Phase 4 — Content re-authoring (NEW 2026-07-01; USER-OWNED, by hand) — the final gate before external playtest
 **All current classes / abilities / enemies / dungeons / affixes are TEST PLACEHOLDER data.** This phase
