@@ -8,8 +8,9 @@
    • Enchant         — set one CHOSEN affix into an open slot (targeted; the player picks from the
                        slot/rarity-eligible pool minus what's already on the piece). Deterministic magnitude.
    • Reroll affixes  — gamble the WHOLE affix set (count + draws re-randomize via rollAffixes).
-   • Transfer affix  — move one rolled affix from a source piece onto a better base's open slot (premium;
-                       keeps the affix's rolled magnitude). Two-item op.
+   • Transfer affix  — move one affix from a source piece onto a better base's open slot (premium; the
+                       affix is RE-MINTED to the DESTINATION's rarity magnitude — C2, so a low-rarity donor
+                       can't smuggle an oversized inverse-budget magnitude onto a high base). Two-item op.
 
    Tier-1 bench: every op is available ungated at flat first-cut prices. The smithy AMENITY (achievement/
    gold tiers that unlock + cheapen ops) rides B4/B5 — the base town is open day one (CRAWL §3).
@@ -20,7 +21,7 @@
 import { RARITIES, RARITY, type GearInstance, type Affix, type Rarity } from './items'
 import { ECON } from './economy'
 import { GEAR } from '../data/gear'
-import { eligibleAffixes, mintAffix, rollAffixes, type AffixDef } from '../data/affixes'
+import { eligibleAffixes, mintAffix, rollAffixes, affixBySys, type AffixDef } from '../data/affixes'
 import type { Rng } from '../core/rng'
 
 export type SmithOp = 'upgrade' | 'enchant' | 'reroll' | 'transfer'
@@ -107,13 +108,19 @@ export function rerollAffixes(g: GearInstance, rng: Rng): GearInstance {
   return slot ? { ...g, affixes: rollAffixes(slot, g.rarity, g.lootTier, rng) } : g
 }
 
-/** Move one affix (by instance id) from `src` onto `dst`'s open slot. Returns the new pair, or null if
- *  the affix is absent or dst can't receive it. The affix keeps its rolled magnitude (no re-roll). */
+/** Move one affix (by instance id) from `src` onto `dst`'s open slot, RE-MINTED to `dst`'s rarity/loot-tier
+ *  magnitude unit. Returns the new pair, or null if the affix is absent or dst can't receive it.
+ *  C2 (FABLE §4): the inverse affix budget mints a bigger per-affix magnitude at LOW rarity (white 1.4 vs
+ *  orange 0.5); keeping the donor's rolled magnitude let an enchant-on-white → transfer smuggle ~3× the
+ *  native magnitude onto a high-rarity base. Re-minting at dst yields exactly what dst could natively hold
+ *  (deterministic — no gamble). `canReceiveAffix` already guarantees the def is live + eligible on dst. */
 export function transferAffix(src: GearInstance, dst: GearInstance, affixId: string): { src: GearInstance; dst: GearInstance } | null {
   const affix = src.affixes.find((a) => a.id === affixId)
   if (!affix || !canReceiveAffix(dst, affix)) return null
+  const def = affixBySys(affix.label)
+  const moved = def?.make ? mintAffix(def, dst.rarity, dst.lootTier) : affix // fallback: legacy/undefined affix keeps its magnitude
   return {
     src: { ...src, affixes: src.affixes.filter((a) => a.id !== affixId) },
-    dst: { ...dst, affixes: [...dst.affixes, affix] },
+    dst: { ...dst, affixes: [...dst.affixes, moved] },
   }
 }

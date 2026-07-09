@@ -588,6 +588,16 @@ the late game.
    testing bites). Balanced = 4/3 per stat/level; gear fills the gap to parity.
    *Ported: `app.ts` `LU_POINTS` 6→4 is the live gate (per-level points live in the
    level-up modal, not `progression.yaml`).*
+8. **Enchant-transfer affix magnitude (C2, FABLE §4)** — ✅ **FIXED (2026-07-08):
+   `transferAffix` now RE-MINTS the moved affix to the destination's rarity/loot-tier
+   magnitude unit.** The inverse affix budget (`perAffixPower` white 1.4 → orange 0.5)
+   made *low-rarity minting strictly optimal*: enchant a cheap white piece (oversized
+   per-affix magnitude), transfer onto an orange base, keep the ~3× magnitude the base
+   could never natively roll — inverting the rarity ladder's texture-vs-magnitude design.
+   Re-mint yields exactly what the destination could natively hold (deterministic, no
+   gamble). **Sim TODO:** the gated `balance-sim` pass should confirm no residual
+   low-rarity-minting edge remains (e.g. via green donors for off-white affixes) once it
+   models crafting. `smith.ts:transferAffix` + `smith.test.ts` C2 case.
 
 ---
 

@@ -110,8 +110,20 @@ describe('smith — transfer', () => {
     const out = transferAffix(src, dst, affix.id)
     expect(out).not.toBeNull()
     expect(out!.src.affixes.find((a) => a.id === affix.id)).toBeUndefined()
-    expect(out!.dst.affixes.find((a) => a.id === affix.id)).toBeDefined()
+    expect(out!.dst.affixes.find((a) => a.label === affix.label)).toBeDefined() // re-minted (fresh id) → match by sys
     expect(src.affixes).toHaveLength(1) // inputs not mutated
+  })
+
+  it('C2 — re-mints the moved affix to dst rarity magnitude (no inverse-budget smuggling)', () => {
+    // white (perAffixPower 1.4) mints a BIGGER per-affix magnitude than orange (0.5); a naive transfer that
+    // kept the donor's rolled magnitude would smuggle white's oversized affix onto an orange base (~3×).
+    const amt = (g: GearInstance) => (g.affixes[0].components[0] as { amount: number }).amount
+    const donor = enchant(bare('axe', 'white', 12), 'FlatPower') // white-magnitude
+    const native = enchant(bare('sword', 'orange', 12), 'FlatPower') // what orange natively mints
+    const out = transferAffix(donor, bare('sword', 'orange', 12), donor.affixes[0].id)
+    expect(out).not.toBeNull()
+    expect(amt(out!.dst)).toBe(amt(native)) // transferred == native orange, NOT the white donor's magnitude
+    expect(amt(out!.dst)).toBeLessThan(amt(donor)) // strictly smaller than the white donor's oversized roll
   })
 
   it('refuses transfer when dst slot is incompatible', () => {

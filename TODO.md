@@ -114,9 +114,9 @@ QA'd by 2 subagents incl. a mid-combat consumable-dupe caught+fixed; +7 tests �
   - `[x]` **E6 — match-fired traps vs the matched trio** — foe match-triggers now fire AFTER the
     clear+refill (settled board); passive→refill-bias + win-check ordering preserved. FABLE §3 E6.
 - **Lane B — content semantics + BALANCE.md**:
-  - `[ ]` **C2 — enchant-on-white → transfer games the affix budget (~3×)** (MEDIUM). Flag in
-    **BALANCE.md now** for the gated sim pass; fix = re-mint to the destination's rarity unit on transfer
-    (`smith.ts:99-119`). FABLE §4 C2.
+  - `[x]` **C2 — enchant-on-white → transfer games the affix budget (~3×)** — `transferAffix` RE-MINTS the
+    moved affix to the destination's rarity/loot-tier magnitude unit (deterministic; kills the inverse-budget
+    smuggle). Flagged in **BALANCE.md §8** for the gated sim pass. `smith.ts` (+`smith.test.ts` C2). FABLE §4 C2.
   - `[ ]` **C3 — `drain_mana` omitted color drains RED, docs say "spread"** (MEDIUM; the D6 identity).
     Implement spread OR require `color` + set the hexes to blue; reconcile desc/doc/code
     (`triggers.ts:224`). FABLE §4 C3.
