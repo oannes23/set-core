@@ -117,9 +117,11 @@ QA'd by 2 subagents incl. a mid-combat consumable-dupe caught+fixed; +7 tests �
   - `[x]` **C2 — enchant-on-white → transfer games the affix budget (~3×)** — `transferAffix` RE-MINTS the
     moved affix to the destination's rarity/loot-tier magnitude unit (deterministic; kills the inverse-budget
     smuggle). Flagged in **BALANCE.md §8** for the gated sim pass. `smith.ts` (+`smith.test.ts` C2). FABLE §4 C2.
-  - `[ ]` **C3 — `drain_mana` omitted color drains RED, docs say "spread"** (MEDIUM; the D6 identity).
-    Implement spread OR require `color` + set the hexes to blue; reconcile desc/doc/code
-    (`triggers.ts:224`). FABLE §4 C3.
+  - `[x]` **C3 — `drain_mana` omitted color drains RED, docs say "spread"** — the two Serpent-Cult hexes
+    (`hex_drain`/`hex_lesser`) now set `color: blue` (matching every sibling drain + their all-blue trigger →
+    the D6 "hexes bleed your mana dry" identity is real). Doc corrected: omitted `color` accurately documented
+    as defaulting to Fire/red (spread was never implemented). `traps.yaml`/`docs/yaml-content.md`
+    (+`drain-mana.test.ts`). FABLE §4 C3.
 - **Lane C — UI robustness (`src/ui/app.ts`)**:
   - `[x]` **U2 — live delve is unpersisted module state** — `DELVE` persisted under its own envelope key
     (`delve-persist.ts`); checkpointed at beginDelve/delveRoom/delveFork + on every mid-fight consumable

@@ -42,7 +42,7 @@ needs.
 | `delay_attack` | `seconds` | push the foe's next strike later (favorable) |
 | `enemy_heal` | `amount` | the foe heals |
 | `drain_tactics` | `amount` | drain the player's charges |
-| `drain_mana` | `amount`, `color?` | drain mana (of `color`, or spread) |
+| `drain_mana` | `amount`, `color?` | drain `amount` mana of `color` (⚠ omitted `color` defaults to Fire/red — set it to match the trigger's colour) |
 | `transmute` | `select`, `bias?`, `count?`, `gap?` | morph targeted card(s) toward `bias` |
 | `lock` | `select`, `count?`, `seconds?` | lock targeted card(s) out of reach |
 
