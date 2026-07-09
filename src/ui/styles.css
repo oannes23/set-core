@@ -406,6 +406,17 @@ button.cta.bob { animation: ctabob 1.6s ease-in-out infinite; }
 .hubfoot .cta { margin-top: 0; }
 @media (max-width: 640px) { .hub2 { grid-template-columns: 1fr; } }
 
+/* P1 — the one-time post-tutorial quest cue at the top of town (the hand-off into the first real dungeon) */
+.questcue { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; padding: 12px 14px;
+  border: 1px solid var(--phos); border-radius: 10px; background: color-mix(in srgb, var(--phos) 10%, transparent);
+  animation: ctabob 2.4s ease-in-out infinite; }
+.questcue .qc-body { flex: 1; color: var(--ink); font-size: 14px; }
+.questcue .qc-go { background: var(--phos); color: #062b27; border: none; border-radius: 8px; padding: 8px 14px;
+  cursor: pointer; font-weight: 600; letter-spacing: .03em; white-space: nowrap; }
+.questcue .qc-x { background: transparent; border: none; color: var(--ink-faint); cursor: pointer; font-size: 15px; padding: 4px 6px; }
+.questcue .qc-x:hover { color: var(--ink); }
+@media (max-width: 640px) { .questcue { flex-wrap: wrap; } .questcue .qc-body { flex-basis: 100%; } }
+
 /* character sheet (right panel of character select) */
 .sheet-hd { display: flex; align-items: center; gap: 12px; }
 .sheet-hd .ci { font-size: 30px; line-height: 1; }

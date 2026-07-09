@@ -139,9 +139,12 @@ even less relevant; revisit only if playtest shows the one-exchange boss kill de
 
 ### Phase 3 — Product funnel + accessibility (FABLE §14 items 17–18) — pre-content prep, STRICTLY ORDERED
 Each unblocks the next; external players are currently zero precisely because these are unmet.
-- `[ ]` **P1 — the fresh-save funnel** (MEDIUM; highest-leverage build in the repo). Boot → no roster →
-  name+class → auto-launch the (built) guided tutorial → land in town with a "▶ next: Goblin Warren"
-  cue; persist "tutorial seen". Routing + a flag, not new systems. FABLE §11 P1.
+- `[x]` **P1 — the fresh-save funnel** (DONE 2026-07-08). Boot decision `bootRoute` (pure) funnels a
+  brand-new player (no roster + tutorial never run) → creator (`funnel` mode) → on Create, auto-launches the
+  guided tutorial (`begin(…, 'tutorial', …)`) and persists `tutorialSeen`; returning to town shows the
+  one-time `showQuestCue` banner → "▶ Next: the Goblin Warren" → Gates (dismiss on enter or ✕, persists
+  `questCueSeen`). New `ui/prefs.ts` (localStorage-backed, in-memory cache like `dev.ts`) + `prefs.test.ts`
+  (6 tests, pure decisions). ⚠ browser smoke-test pending (no e2e harness — repo convention). FABLE §11 P1.
 - `[ ]` **Colorblind redundant encoding + CVD triad + relaxed/round-length option** (HIGH; third review
   running; the *mechanical* external-playtest unblock). Per-color fill style in `cardSVG`
   (solid/outline/hatched or a corner pip) + a CVD-safer `CARD_HEX`; add the settings surface. FABLE §11 /

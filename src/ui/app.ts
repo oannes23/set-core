@@ -44,6 +44,7 @@ import { skipAction, rollClicks } from './splash'
 import { bumpTurn, pick, strikeWord, healWord, drainWord, magicLead, tierOf, joinClauses, voiceOf, ABILITY_FLAVOR } from './flavor'
 import { type SavedChar, type StatAlloc, loadRoster, upsertChar, deleteChar, makeChar, freshId, CONSUMABLE_SLOTS, effectiveStats, xpForLevel, pendingLevels, applyLevelUp, addXP, LEVEL_CAP, activeSlotsAt, passiveSlotsAt, activeUnlockLevel } from './save'
 import { isDev, toggleDev, onDevChange, displayName } from './dev'
+import { getPrefs, setPref, bootRoute, showQuestCue } from './prefs'
 import { $, esc } from './dom'
 import { setRoot, setSceneTeardown, goScene, sceneTimeout, remountScene, initTooltips, sceneToken, isCurrentScene } from './router'
 import { recordRun } from '../net/run-capture'
@@ -174,7 +175,10 @@ export function mountApp(root: HTMLElement): void {
     if (!V) remountScene()
   })
   recoverStrandedDelve() // U2: a delve killed by a process/refresh left committed consumables stranded — recover them
-  goScene(townScene)
+  // P1 (FABLE §11): a brand-new player (no heroes + tutorial never run) enters the fresh-save funnel —
+  // create → guided tutorial → town-with-a-quest-cue — instead of landing cold on the 10-tile hub.
+  if (bootRoute(loadRoster().length, getPrefs().tutorialSeen) === 'funnel') goScene((r) => characterSelectScene(r, { funnel: true }))
+  else goScene(townScene)
 }
 
 /** U2 (FABLE §6): resolve a delve that was interrupted by a PWA process kill / accidental refresh. There
@@ -351,6 +355,16 @@ function townScene(root: HTMLElement): void {
 
   // a card whose target needs an active hero → bounce to the Barracks if none is chosen
   const withHero = (go: (c: SavedChar) => void): (() => void) => () => { if (active) go(active); else goScene(characterSelectScene) }
+
+  // P1 (FABLE §11): the one-time post-tutorial cue that routes a fresh player to their first real dungeon
+  // — the missing hand-off from "tutorial done" to "now play the game". Dismisses on enter or ✕.
+  const prefs = getPrefs()
+  if (showQuestCue(prefs.tutorialSeen, prefs.questCueSeen, !!active)) {
+    const cue = $(`<div class="questcue"><span class="qc-body">▶ <b>Next:</b> descend into the Goblin Warren — your first real dungeon.</span><button class="qc-go">Enter the Gates</button><button class="qc-x" title="Dismiss">✕</button></div>`)
+    cue.querySelector('.qc-go')!.addEventListener('click', () => { setPref('questCueSeen', true); if (active) goScene((r) => dungeonSelectScene(r, active, 'real')) })
+    cue.querySelector('.qc-x')!.addEventListener('click', () => { setPref('questCueSeen', true); goScene(townScene) })
+    wrap.appendChild(cue)
+  }
 
   hubGrid(wrap, [
     { icon: '🛡️', name: 'Barracks', desc: 'Your heroes — recruit, equip, rest, level up', onClick: () => goScene(characterSelectScene), badge: pending > 0 ? `⬆${pending}` : undefined },
@@ -702,7 +716,7 @@ function beginDaily(setup: DailySetup, fixed: DailyFixed, date: string): void {
   goScene((r) => startCombat(r, hero, setup.dungeonId, foe, null, hero.consumables, setup.boardSeed))
 }
 
-function characterSelectScene(root: HTMLElement): void {
+function characterSelectScene(root: HTMLElement, opts?: { funnel?: boolean }): void {
   DELVE = null; clearDelve() // any road back to town ends the run — drop any recovery checkpoint
   const wrap = $(`<div class="wrap"></div>`)
   wrap.appendChild($(`<h1>set.core</h1>`))
@@ -898,7 +912,11 @@ function characterSelectScene(root: HTMLElement): void {
       createBtn.addEventListener('click', () => {
         const nm = nameInput?.value.trim() || classById(newClassId).name
         const ch = makeChar(nm, newClassId, freshId())
-        upsertChar(ch); roster = loadRoster(); selectedCharId = ch.id; creating = false; render()
+        upsertChar(ch); selectedCharId = ch.id
+        // P1: in the fresh-save funnel the first hero launches straight into the guided tutorial (mark it
+        // seen so a bail-out never re-funnels), then lands in town with the quest cue. Otherwise stay put.
+        if (opts?.funnel) { setPref('tutorialSeen', true); goScene((r) => begin(r, ch, 'tutorial', 'foe:training_dummy')); return }
+        roster = loadRoster(); creating = false; render()
       })
       footer.appendChild(createBtn)
     } else {
