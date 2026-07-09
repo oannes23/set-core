@@ -595,9 +595,13 @@ the late game.
    per-affix magnitude), transfer onto an orange base, keep the ~3× magnitude the base
    could never natively roll — inverting the rarity ladder's texture-vs-magnitude design.
    Re-mint yields exactly what the destination could natively hold (deterministic, no
-   gamble). **Sim TODO:** the gated `balance-sim` pass should confirm no residual
-   low-rarity-minting edge remains (e.g. via green donors for off-white affixes) once it
-   models crafting. `smith.ts:transferAffix` + `smith.test.ts` C2 case.
+   gamble). **Known consequence (design follow-up):** re-mint makes Transfer's output
+   *identical* to a direct Enchant — both are gated by the same `eligibleAffixes(slot,
+   dst.rarity)` pool — while Transfer costs more gold AND consumes a donor piece, so
+   Transfer is now **strictly dominated by Enchant** for any enchant-eligible affix. The
+   gated sim/design pass should decide Transfer's new value proposition (a discount, a
+   rarity/uniqueness angle that Enchant can't reach, or retire it) rather than let it go
+   vestigial. `smith.ts:transferAffix` + `smith.test.ts` C2 case.
 
 ---
 
