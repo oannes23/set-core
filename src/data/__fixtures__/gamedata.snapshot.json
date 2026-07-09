@@ -727,10 +727,11 @@
         "mode": "all_same",
         "value": "blue"
       },
-      "desc": "all-blue match → the hex bleeds 4 mana from your pools",
+      "desc": "all-blue match → the hex bleeds 4 Serpent (blue) mana",
       "do": [
         {
           "effect": "drain_mana",
+          "color": "blue",
           "amount": 4
         }
       ]
@@ -744,10 +745,11 @@
         "mode": "all_same",
         "value": "blue"
       },
-      "desc": "all-blue match → the hex bleeds 2 mana (a foretaste of the Serpent Lord)",
+      "desc": "all-blue match → the hex bleeds 2 Serpent (blue) mana (a foretaste of the Serpent Lord)",
       "do": [
         {
           "effect": "drain_mana",
+          "color": "blue",
           "amount": 2
         }
       ]
