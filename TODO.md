@@ -96,15 +96,21 @@ typecheck clean, deploy gated. **Only P7's content-hash WIRING is deferred (see 
   proven + verified-by-reading); a dev-mode eviction counter (`floorCanary` style) on `capOutbox`; a
   per-record size guard for a pathologically long single fight (true fix = the deferred tick-coalescing).
 
-### Phase 2 — Engine / design debt (FABLE §14 items 13–16) — the next combat pass
-Group by module; mostly parallel. Playtest E2 first (the new №1 degenerate line — FABLE §13).
+### Phase 2 — Engine / design debt (FABLE §14 items 13–16) — the next combat pass — ✅ CODE DONE 2026-07-08
+Group by module; mostly parallel.
 **Safe-fixes batch DONE 2026-07-07** (E3/E5/E6 + U2/U4 + Data Wipe gate; commits `b15874b`+`5d11b78`;
 QA'd by 2 subagents incl. a mid-combat consumable-dupe caught+fixed; +7 tests → 406; typecheck+build clean).
-**Remaining: E2 (playtest-first), C2, C3.**
+**C2/C3 DONE 2026-07-08.** **E2 DEFERRED** as a documented design question (rationale below) — no logical
+payoff to stalling (rewards land only at encounter end) and the cautious/untimed stance will make combos
+even less relevant; revisit only if playtest shows the one-exchange boss kill degrades feel.
 - **Lane A — combat balance (`src/engine/combat.ts`, `state.ts`, `tactics.ts`, `triggers.ts`)**:
-  - `[ ]` **E2 — uncapped COMBO OVERTIME freezes the anti-stall** (MEDIUM). Set a real
-    `COMBO_OVERTIME_CAP_MS`, or derive dread from elapsed time, or escalate the grace as overtime
-    stretches (`combat.ts:399-406`, `state.ts:225`). FABLE §3 E2. **← next; has a design choice to settle.**
+  - `[~]` **E2 — uncapped COMBO OVERTIME freezes the anti-stall** (MEDIUM) — **DEFERRED as an open design
+    question (2026-07-08), not fixed.** Rationale: stalling has no real payoff — rewards land only at
+    ENCOUNTER end, so holding a round open just draws out your own rewards (nothing is farmed mid-fight); and
+    the planned CAUTIOUS/untimed stance (Phase 5, item 22) makes combos/overtime even less load-bearing. The
+    FABLE concern (frozen dread/bleed → one-exchange boss kill) is documented at `state.ts` `COMBO_OVERTIME_CAP_MS`
+    with the levers (real CAP_MS / dread-from-elapsed-time / escalating grace). Revisit only if playtest shows
+    it degrades feel. FABLE §3 E2. **← future design discussion, per user 2026-07-08.**
   - `[x]` **E3 — soak skips `instant_attack`/trap damage** — `enemyAttack` now subtracts soak flat
     pre-Block (like the exchange strike / parting blow); the flat-`damage` DoT lane stays soak-exempt by
     design (documented beside dodge's). `soak.test.ts`. FABLE §3 E3.

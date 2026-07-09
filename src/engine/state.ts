@@ -223,6 +223,14 @@ export const COMBO_TEMPO_STEP = 0.6 // a tempo-only (in-grace but off-identity) 
 // is the only backstop) — the reward for the streak. CAP_MS=0 ⇒ uncapped (safety valve for later tuning).
 export const COMBO_OVERTIME_MIN_LEVEL = 2 // a chain must reach this to hold the round open (styled 2-chain)
 export const COMBO_OVERTIME_CAP_MS = 0 // 0 = uncapped; >0 force-rolls the round this many ms past roundEndsAt
+// ⚠ E2 (FABLE §3) — DEFERRED, not fixed (decision 2026-07-08). FABLE flags the uncapped hold as freezing the
+// anti-stall: while a chain is held, the round never rolls over, so dread/bleed never ramp and roundAttack
+// banks without limit → a boss can die to one exchange. We are NOT capping it yet, on the design read that
+// stalling has no real payoff: rewards land only at ENCOUNTER end, so holding a round open just draws out
+// your own rewards (you're not farming anything mid-fight), and the coming CAUTIOUS/untimed stance (TODO
+// Phase 5, item 22) makes combos/overtime even less load-bearing. Revisit if playtest shows the one-exchange
+// boss kill actually degrades feel; the levers are a real CAP_MS here, deriving dread from elapsed time, or
+// escalating the grace as overtime stretches. Kept as a documented open design question, not a bug.
 // PRIMED (§7/§11 — the Speed/Maneuver OUTPUT payoff): a Maneuver-churned card matched within this window
 // counts ONE quality tier higher (① glancing → ② solid → ③ heavy, capped). Converts Speed's board-control
 // into measurable output, in-lane (the under-buy fix). Bounded: only churned-then-matched cards, +1 tier.
