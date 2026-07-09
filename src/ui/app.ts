@@ -3972,11 +3972,15 @@ function endScreen(result: 'win' | 'lose' | 'flee'): void {
   if (!V) return
   // METRICS (net/run-capture): queue this finished run for the Embassy outbox before any teardown, so
   // the tallies/state are still fresh. Best-effort + gated (a modded game records nothing); never throws.
-  recordRun({
+  // Coach/tutorial dungeons are EXCLUDED: the fresh-save funnel (P1) routes every new player through the
+  // guided training-dummy fight, so recording it would upload a trivial "beat the dummy" run per player and
+  // pollute the balance/leaderboard corpus once they register. (The daily uses real dungeons — unaffected.)
+  const recDungeonId = V.run.dungeonId ?? DELVE?.d.dungeonId ?? null
+  if (!(recDungeonId && GAMEDATA.dungeons[recDungeonId]?.coach)) recordRun({
     seed: V.seed,
     classId: V.classId,
     foeId: V.state.foe?.id ?? null,
-    dungeonId: V.run.dungeonId ?? DELVE?.d.dungeonId ?? null,
+    dungeonId: recDungeonId,
     mode: DAILY ? 'daily' : DELVE ? 'delve' : 'practice',
     dailyDate: DAILY?.date ?? null,
     result,

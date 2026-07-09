@@ -145,6 +145,9 @@ Each unblocks the next; external players are currently zero precisely because th
   one-time `showQuestCue` banner → "▶ Next: the Goblin Warren" → Gates (dismiss on enter or ✕, persists
   `questCueSeen`). New `ui/prefs.ts` (localStorage-backed, in-memory cache like `dev.ts`) + `prefs.test.ts`
   (6 tests, pure decisions). ⚠ browser smoke-test pending (no e2e harness — repo convention). FABLE §11 P1.
+  - `[x]` **Corpus guard (QA follow-up):** coach/tutorial dungeons are excluded from `recordRun` (`endScreen`)
+    — the funnel routes every new player through the guided training-dummy fight, which would otherwise upload a
+    trivial run per player and pollute the balance/leaderboard corpus once they register. Daily uses real dungeons.
 - `[x]` **Colorblind redundant encoding + CVD triad** (DONE 2026-07-08; the *mechanical* external-playtest
   unblock). `cardSVG` now adds a hue-INDEPENDENT shape pip per colour (● red · ▲ green · ■ blue) and switches
   to the CVD-safe **Okabe-Ito** triad, both behind a `colorblind` pref; `body.cvd` mirrors the triad onto the
